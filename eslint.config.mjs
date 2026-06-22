@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Skills vendorizados (impeccable, etc.): no son código del proyecto, no los
+    // linteamos para no inundar el CI de warnings.
+    ".claude/skills/**",
+    ".github/skills/**",
   ]),
 ]);
 
