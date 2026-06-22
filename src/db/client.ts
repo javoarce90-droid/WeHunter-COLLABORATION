@@ -44,7 +44,7 @@ export async function getDb() {
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
-        setAll: (toSet) =>
+        setAll: (toSet: { name: string; value: string; options?: Parameters<typeof cookieStore.set>[2] }[]) =>
           toSet.forEach(({ name, value, options }) =>
             cookieStore.set(name, value, options),
           ),
