@@ -4,8 +4,8 @@ Somos dos personas trabajando en paralelo y mergeando en `dev`. Es la primera ve
 colaboramos con código, así que estas reglas son para evitar el caos. Seguilas al pie.
 
 ## Ownership de carpetas
-- **Javi:** `src/features/candidate/` y el portal público.
-- **Compañero:** `src/features/recruiter/`.
+- **Javi (@javoarce90-droid):** `src/features/recruiter/`.
+- **Ale:** `src/features/candidate/` y el portal público.
 - **Regla de oro:** no edites una carpeta de feature que no es tuya. Si necesitás un cambio
   ahí, avisá y que lo haga el dueño. Esto elimina el 90% de los conflictos de merge.
 

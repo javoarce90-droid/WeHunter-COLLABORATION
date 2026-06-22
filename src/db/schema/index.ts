@@ -174,5 +174,11 @@ export type Application = typeof applications.$inferSelect;
  *
  * Drizzle soporta definir esto en el schema (pgPolicy). Ver docs/DATA_MODEL.md para
  * el caso especial de candidatos (solo sus propias applications) y empresas (token).
+ *
+ * IMPLEMENTADO en la migración custom `0001_recruiter_auth_foundation.sql`:
+ *  - helper `public.is_org_member(uuid)` (SECURITY DEFINER, no recursivo),
+ *  - políticas `tenant_isolation` en jobs/candidates/applications,
+ *  - trigger `handle_new_user` (sync profiles) y `create_organization_with_owner`.
+ * Estos objetos son SQL custom: no se reflejan en este schema TS pero persisten.
  */
-export const RLS_TENANT_ISOLATION = sql``; // marcador: implementar políticas en migración
+export const RLS_TENANT_ISOLATION = sql``; // marcador histórico; políticas reales en 0001

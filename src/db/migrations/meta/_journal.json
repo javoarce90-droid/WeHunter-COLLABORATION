@@ -8,6 +8,13 @@
       "when": 1782145647343,
       "tag": "0000_safe_jackal",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782160375686,
+      "tag": "0001_recruiter_auth_foundation",
+      "breakpoints": true
     }
   ]
 }
