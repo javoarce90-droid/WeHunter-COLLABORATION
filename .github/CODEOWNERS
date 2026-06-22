@@ -1,15 +1,15 @@
 # CODEOWNERS — GitHub pide automáticamente la review de estas personas
 # cuando un PR toca estos paths. Es el mecanismo que garantiza que NADIE mergea
-# cambios sensibles sin que vos (el líder) los apruebes. Reemplazá @javoarce90 por tu usuario.
+# cambios sensibles sin que vos (el líder) los apruebes. Reemplazá @javoarce90-droid por tu usuario.
 
 # Zonas de alto riesgo: cambios de schema, clientes de base y migraciones -> review del líder
-/src/db/                @javoarce90
-/drizzle.config.ts      @javoarce90
+/src/db/                @javoarce90-droid
+/drizzle.config.ts      @javoarce90-droid
 
 # Reglas del proyecto y contexto de la IA -> review del líder
-/CLAUDE.md              @javoarce90
-/.claude/               @javoarce90
+/CLAUDE.md              @javoarce90-droid
+/.claude/               @javoarce90-droid
 
 # Infra y control de calidad
-/.github/               @javoarce90
-/package.json           @javoarce90
+/.github/               @javoarce90-droid
+/package.json           @javoarce90-droid
