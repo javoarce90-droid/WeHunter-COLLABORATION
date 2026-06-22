@@ -1,0 +1,15 @@
+# CODEOWNERS — GitHub pide automáticamente la review de estas personas
+# cuando un PR toca estos paths. Es el mecanismo que garantiza que NADIE mergea
+# cambios sensibles sin que vos (el líder) los apruebes. Reemplazá @javi por tu usuario.
+
+# Zonas de alto riesgo: cambios de schema, clientes de base y migraciones -> review del líder
+/src/db/                @javi
+/drizzle.config.ts      @javi
+
+# Reglas del proyecto y contexto de la IA -> review del líder
+/CLAUDE.md              @javi
+/.claude/               @javi
+
+# Infra y control de calidad
+/.github/               @javi
+/package.json           @javi
