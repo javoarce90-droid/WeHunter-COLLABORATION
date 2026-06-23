@@ -10,12 +10,10 @@ type Props = {
   shortlistId: string;
   jobId: string;
   shares: ShareRow[];
+  // URL base resuelta en el server (host de la request). Va como prop para que el enlace
+  // se renderice idéntico en server y cliente; usar window.location acá rompía la hidratación.
+  appUrl: string;
 };
-
-function shareUrl(token: string): string {
-  if (typeof window === "undefined") return `/share/${token}`;
-  return `${window.location.origin}/share/${token}`;
-}
 
 function isActive(share: ShareRow): boolean {
   if (share.revokedAt) return false;
@@ -23,7 +21,9 @@ function isActive(share: ShareRow): boolean {
   return true;
 }
 
-export function ShareControls({ shortlistId, jobId, shares }: Props) {
+export function ShareControls({ shortlistId, jobId, shares, appUrl }: Props) {
+  const shareUrl = (token: string) => `${appUrl}/share/${token}`;
+
   const [genState, genDispatch, genPending] = useActionState<ShortlistActionState, FormData>(
     async (prev, formData) => generarShareAction(prev, formData),
     {},

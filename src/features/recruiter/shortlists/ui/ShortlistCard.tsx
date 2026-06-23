@@ -15,6 +15,7 @@ type Props = {
   name: string;
   candidates: ShortlistCandidateWithFeedback[];
   shares: ShareRow[];
+  appUrl: string;
 };
 
 const FEEDBACK_META: Record<
@@ -26,7 +27,7 @@ const FEEDBACK_META: Record<
   maybe: { label: "Quizás", variant: "warning" },
 };
 
-export function ShortlistCard({ shortlistId, jobId, name, candidates, shares }: Props) {
+export function ShortlistCard({ shortlistId, jobId, name, candidates, shares, appUrl }: Props) {
   return (
     <Card>
       <div className="flex flex-col gap-3 p-4">
@@ -62,7 +63,7 @@ export function ShortlistCard({ shortlistId, jobId, name, candidates, shares }: 
           })}
         </ul>
 
-        <ShareControls shortlistId={shortlistId} jobId={jobId} shares={shares} />
+        <ShareControls shortlistId={shortlistId} jobId={jobId} shares={shares} appUrl={appUrl} />
       </div>
     </Card>
   );
