@@ -1,4 +1,4 @@
-import { and, eq, desc } from "drizzle-orm";
+import { and, eq, desc, inArray, count } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   shortlists,
@@ -29,6 +29,7 @@ export async function getShortlistById(
         ),
       )
       .limit(1),
+    "db.shortlists.get",
   );
   return rows[0] ?? null;
 }
@@ -49,6 +50,7 @@ export async function getShareById(
         ),
       )
       .limit(1),
+    "db.shortlists.share.get",
   );
   return rows[0] ?? null;
 }
@@ -65,33 +67,49 @@ export async function listShortlistsByJob(
   organizationId: string,
 ): Promise<ShortlistSummary[]> {
   const db = await getDb();
-  const lists = await db.rls((tx) =>
-    tx
-      .select()
-      .from(shortlists)
-      .where(
-        and(eq(shortlists.jobId, jobId), eq(shortlists.organizationId, organizationId)),
-      )
-      .orderBy(desc(shortlists.createdAt)),
+  const lists = await db.rls(
+    (tx) =>
+      tx
+        .select()
+        .from(shortlists)
+        .where(
+          and(eq(shortlists.jobId, jobId), eq(shortlists.organizationId, organizationId)),
+        )
+        .orderBy(desc(shortlists.createdAt)),
+    "db.shortlists.list",
   );
 
-  // Conteo de candidatos por shortlist (consulta simple por lista; los volúmenes son chicos).
-  const result: ShortlistSummary[] = [];
-  for (const sl of lists) {
-    const cands = await db.rls((tx) =>
+  if (lists.length === 0) return [];
+
+  // Conteo de candidatos por shortlist en UNA query (antes era N+1: una por lista).
+  const counts = await db.rls(
+    (tx) =>
       tx
-        .select({ id: shortlistCandidates.id })
+        .select({
+          shortlistId: shortlistCandidates.shortlistId,
+          n: count(),
+        })
         .from(shortlistCandidates)
-        .where(eq(shortlistCandidates.shortlistId, sl.id)),
-    );
-    result.push({
-      id: sl.id,
-      name: sl.name,
-      createdAt: sl.createdAt,
-      candidateCount: cands.length,
-    });
-  }
-  return result;
+        .where(
+          inArray(
+            shortlistCandidates.shortlistId,
+            lists.map((sl) => sl.id),
+          ),
+        )
+        .groupBy(shortlistCandidates.shortlistId),
+    "db.shortlists.list.counts",
+  );
+
+  const countByShortlist = new Map(
+    counts.map((c) => [c.shortlistId, Number(c.n)]),
+  );
+
+  return lists.map((sl) => ({
+    id: sl.id,
+    name: sl.name,
+    createdAt: sl.createdAt,
+    candidateCount: countByShortlist.get(sl.id) ?? 0,
+  }));
 }
 
 export type ShareRow = {
@@ -126,6 +144,7 @@ export async function listSharesByShortlist(
         ),
       )
       .orderBy(desc(shortlistShares.createdAt)),
+    "db.shortlists.shares.list",
   );
 }
 
@@ -167,6 +186,7 @@ export async function listShortlistCandidates(
           eq(shortlistCandidates.organizationId, organizationId),
         ),
       ),
+    "db.shortlists.candidates",
   );
   return rows.map((r) => ({
     shortlistCandidateId: r.shortlistCandidateId,

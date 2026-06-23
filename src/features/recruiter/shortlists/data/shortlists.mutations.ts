@@ -45,7 +45,7 @@ export async function createShortlistWithCandidates(args: {
     );
 
     return { shortlistId };
-  });
+  }, "db.shortlists.create");
 }
 
 /** De los applicationIds pedidos, devuelve los que realmente son del job y la org. */
@@ -67,6 +67,7 @@ export async function filterValidApplications(
           inArray(applications.id, applicationIds),
         ),
       ),
+    "db.shortlists.validate-apps",
   );
   return rows.map((r) => r.id);
 }
@@ -90,6 +91,7 @@ export async function createShare(args: {
         createdBy: args.createdBy,
       })
       .returning({ id: shortlistShares.id }),
+    "db.shortlists.share.create",
   );
   return { shareId: rows[0]!.id, token: args.token };
 }
@@ -104,6 +106,7 @@ export async function revokeShare(
       .set({ revokedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(shortlistShares.id, shareId), isNull(shortlistShares.revokedAt)))
       .returning({ id: shortlistShares.id }),
+    "db.shortlists.share.revoke",
   );
   return { revoked: rows.length > 0 };
 }

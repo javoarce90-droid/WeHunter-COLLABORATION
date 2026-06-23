@@ -20,6 +20,7 @@ export async function getApplicationForNote(
         ),
       )
       .limit(1),
+    "db.notes.get-application",
   );
   return rows[0] ?? null;
 }

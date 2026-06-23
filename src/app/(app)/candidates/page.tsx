@@ -1,14 +1,12 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { getActiveMembership } from "@/lib/auth/session";
 import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
 import { CandidatesList } from "@/features/recruiter/candidates/ui/CandidatesList";
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 
-export default async function CandidatesPage() {
-  const membership = await getActiveMembership();
-  const candidates = membership
-    ? await listCandidates(membership.organizationId)
-    : [];
-
+/** El shell (título + acción) pinta al instante; el listado se streamea. */
+export default function CandidatesPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -24,7 +22,17 @@ export default async function CandidatesPage() {
         </Link>
       </div>
 
-      <CandidatesList candidates={candidates} />
+      <Suspense fallback={<ListSkeleton />}>
+        <CandidatesSection />
+      </Suspense>
     </div>
   );
+}
+
+async function CandidatesSection() {
+  const membership = await getActiveMembership();
+  const candidates = membership
+    ? await listCandidates(membership.organizationId)
+    : [];
+  return <CandidatesList candidates={candidates} />;
 }

@@ -25,6 +25,7 @@ export async function createOrganizationWithOwner({
     tx.execute<{ id: string }>(
       sql`select create_organization_with_owner(${name}, ${slug}, ${ownerId}) as id`,
     ),
+    "db.onboarding.create-org",
   );
 
   const organizationId = rows[0]?.id;

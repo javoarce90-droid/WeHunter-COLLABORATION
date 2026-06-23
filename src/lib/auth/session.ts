@@ -1,7 +1,7 @@
+import { cache } from "react";
 import { eq } from "drizzle-orm";
-import { getDb } from "@/db/client";
+import { getAuth, getDb } from "@/db/client";
 import { memberships, orgRole } from "@/db/schema";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type OrgRole = (typeof orgRole.enumValues)[number];
 
@@ -16,12 +16,13 @@ export interface ActiveMembership {
   role: OrgRole;
 }
 
-/** Usuario autenticado actual (Supabase Auth) o null si no hay sesión. */
+/**
+ * Usuario autenticado actual (Supabase Auth) o null si no hay sesión.
+ * Reusa getAuth() (cache() por request): el getUser() remoto se hace UNA sola vez
+ * por request aunque el layout y la page pidan el usuario por separado.
+ */
 export async function getCurrentUser() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user } = await getAuth();
   return user;
 }
 
@@ -32,22 +33,30 @@ export async function getCurrentUser() {
  * ninguna membership todavía → hay que onboardear (crear organization).
  *
  * Usa el cliente RLS: Postgres solo devuelve las memberships del propio usuario.
+ *
+ * cache() por request: el layout y la page la piden por separado, pero la query a la
+ * base corre UNA sola vez. Si ves "db.membership" dos veces en la terminal, algo rompió
+ * la dedup.
  */
-export async function getActiveMembership(): Promise<ActiveMembership | null> {
-  const db = await getDb();
-  if (!db.userId) return null;
+export const getActiveMembership = cache(
+  async (): Promise<ActiveMembership | null> => {
+    const db = await getDb();
+    if (!db.userId) return null;
 
-  const rows = await db.rls((tx) =>
-    tx
-      .select({
-        organizationId: memberships.organizationId,
-        role: memberships.role,
-      })
-      .from(memberships)
-      .where(eq(memberships.profileId, db.userId!))
-      .orderBy(memberships.createdAt)
-      .limit(1),
-  );
+    const rows = await db.rls(
+      (tx) =>
+        tx
+          .select({
+            organizationId: memberships.organizationId,
+            role: memberships.role,
+          })
+          .from(memberships)
+          .where(eq(memberships.profileId, db.userId!))
+          .orderBy(memberships.createdAt)
+          .limit(1),
+      "db.membership",
+    );
 
-  return rows[0] ?? null;
-}
+    return rows[0] ?? null;
+  },
+);

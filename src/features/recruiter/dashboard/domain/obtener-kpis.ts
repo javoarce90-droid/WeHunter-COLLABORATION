@@ -26,12 +26,15 @@ export interface ObtenerKpisCtx {
   organizationId: string | null;
 }
 
+/** Cuentas crudas del workspace, tal como las trae la capa data en una sola lectura. */
+export interface DashboardCounts {
+  jobs: { total: number; open: number };
+  candidates: number;
+  byStage: Partial<Record<Stage, number>>;
+}
+
 export interface ObtenerKpisDeps {
-  getJobCounts(organizationId: string): Promise<{ total: number; open: number }>;
-  getCandidateCount(organizationId: string): Promise<number>;
-  getApplicationCountsByStage(
-    organizationId: string,
-  ): Promise<Partial<Record<Stage, number>>>;
+  getCounts(organizationId: string): Promise<DashboardCounts>;
 }
 
 export async function obtenerKpis(
@@ -42,11 +45,11 @@ export async function obtenerKpis(
     return err("No hay un workspace activo.");
   }
 
-  const [jobs, candidatosEnPool, byStage] = await Promise.all([
-    deps.getJobCounts(ctx.organizationId),
-    deps.getCandidateCount(ctx.organizationId),
-    deps.getApplicationCountsByStage(ctx.organizationId),
-  ]);
+  const {
+    jobs,
+    candidates: candidatosEnPool,
+    byStage,
+  } = await deps.getCounts(ctx.organizationId);
 
   const totalPostulaciones = Object.values(byStage).reduce(
     (acc, n) => acc + (n ?? 0),

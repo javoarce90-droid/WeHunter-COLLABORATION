@@ -51,6 +51,7 @@ export async function listApplicationsByJob(
           eq(applications.organizationId, organizationId),
         ),
       ),
+    "db.applications.by-job",
   );
   return rows.map((r) => ({
     id: r.id,
@@ -86,6 +87,7 @@ export async function getApplicationById(
         ),
       )
       .limit(1),
+    "db.applications.get",
   );
   if (!rows[0]) return null;
   const r = rows[0];
@@ -116,6 +118,7 @@ export async function findExistingApplication(
         ),
       )
       .limit(1),
+    "db.applications.find-existing",
   );
   return rows[0] ?? null;
 }
@@ -132,6 +135,7 @@ export async function getJobForPipeline(
       .from(jobs)
       .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
       .limit(1),
+    "db.applications.job-for-pipeline",
   );
   return rows[0] ?? null;
 }
