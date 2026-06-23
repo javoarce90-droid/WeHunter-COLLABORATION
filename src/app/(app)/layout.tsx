@@ -35,6 +35,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <Link href="/jobs" className="hover:text-text">
               Búsquedas
             </Link>
+            <Link href="/candidates" className="hover:text-text">
+              Candidatos
+            </Link>
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm text-muted">
