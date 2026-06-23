@@ -1,4 +1,5 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { CV_EXT_BY_TYPE } from "../schema";
 
 /**
  * Acceso a los CVs en Supabase Storage. Bucket PRIVADO `cvs` (creado a mano en el panel).
@@ -21,8 +22,9 @@ export async function uploadCandidateCv(
 ): Promise<{ path: string }> {
   const supabase = await createSupabaseServerClient();
 
-  const dot = file.name.lastIndexOf(".");
-  const ext = dot >= 0 ? file.name.slice(dot).toLowerCase() : "";
+  // La extensión sale del MIME ya validado (no del nombre del cliente): clave de Storage
+  // predecible y sin caracteres raros / path traversal.
+  const ext = CV_EXT_BY_TYPE[file.type] ?? "";
   const path = `${organizationId}/${crypto.randomUUID()}${ext}`;
 
   const { error } = await supabase.storage.from(CV_BUCKET).upload(path, file, {
