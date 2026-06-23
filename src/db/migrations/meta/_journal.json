@@ -29,6 +29,13 @@
       "when": 1782229443738,
       "tag": "0003_applications_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782231524164,
+      "tag": "0004_shortlists_sharing",
+      "breakpoints": true
     }
   ]
 }

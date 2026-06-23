@@ -40,7 +40,15 @@ export default async function PipelinePage({ params }: Props) {
             {applications.length} candidato{applications.length !== 1 ? "s" : ""} en proceso
           </p>
         </div>
-        <PostularForm jobId={jobId} candidates={candidates} />
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/jobs/${jobId}/shortlists`}
+            className="inline-flex items-center justify-center rounded-[var(--radius)] border border-border px-4 py-2.5 text-sm font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
+          >
+            Shortlists
+          </Link>
+          <PostularForm jobId={jobId} candidates={candidates} />
+        </div>
       </div>
 
       {/* Kanban */}

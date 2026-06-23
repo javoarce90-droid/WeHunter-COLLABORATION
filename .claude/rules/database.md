@@ -33,6 +33,52 @@ en una filtración de datos entre clientes (tenants).
 - Relaciones: FK explícitas con `references()`. Definí índices en las FK que se filtran seguido.
 - Las políticas RLS se definen junto al schema en Drizzle (soporta RLS nativo).
 
+## PERFORMANCE (reglas, no opcionales)
+Estos son los errores que más se repiten y más caro salen. No son sugerencias.
+
+### 1. Deduplicá auth y datos por request con `cache()` de React
+El mayor problema de performance en server es pedir lo mismo varias veces en un mismo render
+(ej. la membership en el layout y otra vez en la page = 2 transacciones para lo mismo).
+- Envolvé en `cache()` de React todo lo que se pida más de una vez por request: la sesión/auth,
+  la membership activa, el usuario actual. `cache()` garantiza que corre **una sola vez por
+  request** aunque lo llames desde varios lados. Ya aplicado en `getAuth()` de `client.ts`.
+- Regla: si una función de lectura se puede llamar desde el layout y desde la page, va con `cache()`.
+
+### 2. `getUser()` vs `getSession()` (seguridad, no solo velocidad)
+- `getUser()` valida el token contra el servidor de Supabase. Es la fuente **segura** de
+  identidad → usalo para autorización. Es remoto (cuesta) → por eso va con `cache()`.
+- `getSession()` lee la cookie sin validar. Sirve solo para sacar el token y pasárselo a RLS.
+  **Nunca** uses su usuario/rol para autorizar: se puede falsificar.
+- El costo de `getUser` NO se arregla cambiándolo por `getSession` (eso abre un hueco de
+  seguridad). Se arregla con `cache()`.
+
+### 3. Una transacción, no N
+- No hagas una query (y por ende una transacción RLS) por cada dato. Ej: 3 KPIs = **una**
+  query con varios `count(...)`/subqueries, no 3 transacciones separadas.
+- Cada transacción RLS hace BEGIN → set claims → set role → SELECT → COMMIT. Contra el pooler
+  eso es caro. Menos transacciones = mucho menos round-trips.
+
+### 4. Siempre `limit` y paginación en listados
+- Ninguna query de listado sin `limit`. Nunca traigas "todos los candidatos". Paginá.
+- Traé solo las columnas que usás, no `select *` implícito de todo.
+
+### 5. Índices en lo que filtrás
+- Toda columna por la que filtrás u ordenás seguido necesita índice (empezando por
+  `organization_id` y las FK). Si agregás un acceso nuevo, verificá que el índice exista.
+
+### 6. Evitá N+1
+- No hagas una query por cada item de una lista. Traé todo junto con join o `in`.
+
+### 7. No bloquees el render con lo lento
+- En Server Components, envolvé lo que depende de datos lentos en `<Suspense>` para que el
+  resto de la página no espere. Traé datos independientes en paralelo (`Promise.all`).
+
+### Observabilidad (para no enterarte tarde)
+- Cada transacción RLS se mide con `measure()` (`src/lib/server-timing.ts`). En desarrollo
+  vas a ver en la terminal cada query con su tiempo. **Si ves la misma etiqueta dos veces en
+  un load, hay un round-trip duplicado → arreglalo con `cache()`.**
+- Nombrá las queries al llamarlas: `db.rls(fn, "db.membership")`, así las reconocés.
+
 ## Flujo de cambios de schema (¡COMPARTIDO!)
 El schema en `src/db/schema/` lo tocan los dos. Es la zona de mayor riesgo de conflicto.
 → Antes de modificar el schema, leé `.claude/rules/collaboration.md`.

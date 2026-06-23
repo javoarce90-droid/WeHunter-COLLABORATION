@@ -7,9 +7,11 @@ function makeDeps(over: Partial<{
   byStage: Record<string, number>;
 }> = {}): ObtenerKpisDeps {
   return {
-    getJobCounts: vi.fn(async () => over.jobs ?? { total: 0, open: 0 }),
-    getCandidateCount: vi.fn(async () => over.candidates ?? 0),
-    getApplicationCountsByStage: vi.fn(async () => over.byStage ?? {}),
+    getCounts: vi.fn(async () => ({
+      jobs: over.jobs ?? { total: 0, open: 0 },
+      candidates: over.candidates ?? 0,
+      byStage: over.byStage ?? {},
+    })),
   };
 }
 
@@ -19,7 +21,7 @@ describe("obtenerKpis", () => {
     const res = await obtenerKpis({ organizationId: null }, deps);
 
     expect(res.ok).toBe(false);
-    expect(deps.getJobCounts).not.toHaveBeenCalled();
+    expect(deps.getCounts).not.toHaveBeenCalled();
   });
 
   it("postulaciones activas excluye hired y rejected", async () => {

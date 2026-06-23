@@ -21,6 +21,7 @@ export async function insertCandidate(args: {
         cvUrl: args.cvUrl,
       })
       .returning({ id: candidates.id }),
+    "db.candidates.insert",
   );
   return { candidateId: rows[0]!.id };
 }
@@ -49,6 +50,7 @@ export async function updateCandidateFields(
         ),
       )
       .returning({ id: candidates.id }),
+    "db.candidates.update",
   );
   return { updated: rows.length > 0 };
 }
