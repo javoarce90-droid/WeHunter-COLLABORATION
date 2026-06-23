@@ -81,4 +81,30 @@ describe("cargarCandidato", () => {
     expect(res.ok).toBe(false);
     expect(uploadCv).not.toHaveBeenCalled();
   });
+
+  it("falla de subida del CV devuelve err y no inserta (sin crash)", async () => {
+    const uploadCv = vi.fn(async () => {
+      throw new Error("storage caído");
+    });
+    const d = { ...deps(), uploadCv };
+    const res = await cargarCandidato({ fullName: "Margaret Hamilton" }, ctx, d);
+    expect(res.ok).toBe(false);
+    expect(d.insertCandidate).not.toHaveBeenCalled();
+  });
+
+  it("si el insert falla tras subir, borra el CV huérfano y propaga el error", async () => {
+    const uploadCv = vi.fn(async () => ({ path: "org-1/huerfano.pdf" }));
+    const deleteCv = vi.fn(async () => {});
+    const insertCandidate = vi.fn(async () => {
+      throw new Error("db caída");
+    });
+    await expect(
+      cargarCandidato(
+        { fullName: "Margaret Hamilton" },
+        ctx,
+        { uploadCv, deleteCv, insertCandidate },
+      ),
+    ).rejects.toThrow("db caída");
+    expect(deleteCv).toHaveBeenCalledWith("org-1/huerfano.pdf");
+  });
 });

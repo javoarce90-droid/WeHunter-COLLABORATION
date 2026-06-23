@@ -26,6 +26,8 @@ export interface CargarCandidatoDeps {
    * para no subir el archivo de quien no tiene permiso. Devuelve el path en Storage.
    */
   uploadCv?: () => Promise<{ path: string }>;
+  /** Borra un CV ya subido. Se usa para limpiar el huérfano si el insert falla. */
+  deleteCv?: (path: string) => Promise<void>;
   insertCandidate(args: {
     organizationId: string;
     fullName: string;
@@ -52,15 +54,32 @@ export async function cargarCandidato(
   }
 
   const email = input.email?.trim().toLowerCase() || null;
-  // El CV se sube recién acá (post-autorización). Sin CV, cvUrl queda null.
-  const cvUrl = deps.uploadCv ? (await deps.uploadCv()).path : null;
 
-  const { candidateId } = await deps.insertCandidate({
-    organizationId: ctx.organizationId,
-    fullName,
-    email,
-    cvUrl,
-  });
+  // El CV se sube recién acá (post-autorización). Una falla de subida es recuperable
+  // (archivo, policy, red): devolvemos err para mostrarla en el form, no crasheamos.
+  let cvUrl: string | null = null;
+  if (deps.uploadCv) {
+    try {
+      cvUrl = (await deps.uploadCv()).path;
+    } catch {
+      return err("No se pudo subir el CV. Revisá el archivo e intentá de nuevo.");
+    }
+  }
 
-  return ok({ candidateId });
+  try {
+    const { candidateId } = await deps.insertCandidate({
+      organizationId: ctx.organizationId,
+      fullName,
+      email,
+      cvUrl,
+    });
+    return ok({ candidateId });
+  } catch (e) {
+    // El insert falló después de subir el CV: limpiamos el archivo huérfano y propagamos
+    // (un fallo de base es un error de verdad, no control de flujo normal).
+    if (cvUrl && deps.deleteCv) {
+      await deps.deleteCv(cvUrl).catch(() => {});
+    }
+    throw e;
+  }
 }

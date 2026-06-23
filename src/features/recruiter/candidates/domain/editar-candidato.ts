@@ -11,6 +11,8 @@ export interface EditarCandidatoInput {
   candidateId: string;
   fullName: string;
   email?: string | null;
+  /** Path del CV actual (si hay), para borrarlo cuando se reemplaza por uno nuevo. */
+  currentCvUrl?: string | null;
 }
 
 export interface EditarCandidatoCtx {
@@ -21,6 +23,8 @@ export interface EditarCandidatoCtx {
 export interface EditarCandidatoDeps {
   /** Presente solo si se adjuntó un CV nuevo (reemplaza al anterior). Post-autorización. */
   uploadCv?: () => Promise<{ path: string }>;
+  /** Borra un CV del Storage. Se usa para no dejar huérfano el CV anterior al reemplazar. */
+  deleteCv?: (path: string) => Promise<void>;
   updateCandidateFields(
     candidateId: string,
     organizationId: string,
@@ -47,15 +51,39 @@ export async function editarCandidato(
   }
 
   const email = input.email?.trim().toLowerCase() || null;
-  const cvUrl = deps.uploadCv ? (await deps.uploadCv()).path : undefined;
+
+  // Subida del CV nuevo (si se adjuntó). Falla recuperable → err, no crash.
+  let newCvUrl: string | undefined;
+  if (deps.uploadCv) {
+    try {
+      newCvUrl = (await deps.uploadCv()).path;
+    } catch {
+      return err("No se pudo subir el CV. Revisá el archivo e intentá de nuevo.");
+    }
+  }
 
   const { updated } = await deps.updateCandidateFields(
     input.candidateId,
     ctx.organizationId,
-    { fullName, email, ...(cvUrl !== undefined ? { cvUrl } : {}) },
+    { fullName, email, ...(newCvUrl !== undefined ? { cvUrl: newCvUrl } : {}) },
   );
   if (!updated) {
+    // El candidato no existe (o es de otra org): si subimos un CV, quedó huérfano → limpiar.
+    if (newCvUrl && deps.deleteCv) {
+      await deps.deleteCv(newCvUrl).catch(() => {});
+    }
     return err("El candidato no existe.");
+  }
+
+  // Reemplazo exitoso: borramos el CV anterior para no acumular PII huérfana (best-effort:
+  // si el borrado falla, la edición ya quedó hecha y no la revertimos por eso).
+  if (
+    newCvUrl &&
+    input.currentCvUrl &&
+    input.currentCvUrl !== newCvUrl &&
+    deps.deleteCv
+  ) {
+    await deps.deleteCv(input.currentCvUrl).catch(() => {});
   }
 
   return ok({ candidateId: input.candidateId });

@@ -44,3 +44,12 @@ export async function getCvSignedUrl(path: string): Promise<string | null> {
   if (error) return null;
   return data.signedUrl;
 }
+
+/** Borra un CV del bucket. Se usa para no dejar archivos huérfanos al reemplazar/limpiar. */
+export async function deleteCandidateCv(path: string): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.storage.from(CV_BUCKET).remove([path]);
+  if (error) {
+    throw new Error(`No se pudo borrar el CV: ${error.message}`);
+  }
+}

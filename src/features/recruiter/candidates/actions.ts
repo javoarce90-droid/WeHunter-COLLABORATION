@@ -13,7 +13,11 @@ import {
   insertCandidate,
   updateCandidateFields,
 } from "./data/candidates.mutations";
-import { uploadCandidateCv } from "./data/candidates.storage";
+import { getCandidateById } from "./data/candidates.queries";
+import {
+  uploadCandidateCv,
+  deleteCandidateCv,
+} from "./data/candidates.storage";
 
 export interface CandidateFormState {
   error?: string;
@@ -61,7 +65,10 @@ export async function cargarCandidatoAction(
     {
       insertCandidate,
       ...(cvFile && membership
-        ? { uploadCv: () => uploadCandidateCv(membership.organizationId, cvFile) }
+        ? {
+            uploadCv: () => uploadCandidateCv(membership.organizationId, cvFile),
+            deleteCv: deleteCandidateCv,
+          }
         : {}),
     },
   );
@@ -92,8 +99,16 @@ export async function editarCandidatoAction(
   const membership = await getActiveMembership();
   const cvFile = cv.file;
 
+  // Si se reemplaza el CV, necesitamos el path actual (autoritativo del server, no del
+  // cliente) para borrarlo tras el reemplazo. Una sola lectura, solo cuando hay CV nuevo.
+  let currentCvUrl: string | null = null;
+  if (cvFile && membership) {
+    const existing = await getCandidateById(candidateId, membership.organizationId);
+    currentCvUrl = existing?.cvUrl ?? null;
+  }
+
   const result = await editarCandidato(
-    { candidateId, ...parsed.data },
+    { candidateId, ...parsed.data, currentCvUrl },
     {
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
@@ -101,7 +116,10 @@ export async function editarCandidatoAction(
     {
       updateCandidateFields,
       ...(cvFile && membership
-        ? { uploadCv: () => uploadCandidateCv(membership.organizationId, cvFile) }
+        ? {
+            uploadCv: () => uploadCandidateCv(membership.organizationId, cvFile),
+            deleteCv: deleteCandidateCv,
+          }
         : {}),
     },
   );

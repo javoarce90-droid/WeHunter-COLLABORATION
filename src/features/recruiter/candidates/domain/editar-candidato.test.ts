@@ -57,4 +57,44 @@ describe("editarCandidato", () => {
       cvUrl: "org-1/nuevo.pdf",
     });
   });
+
+  it("al reemplazar el CV borra el archivo anterior", async () => {
+    const uploadCv = vi.fn(async () => ({ path: "org-1/nuevo.pdf" }));
+    const deleteCv = vi.fn(async () => {});
+    await editarCandidato(
+      {
+        candidateId: "cand-1",
+        fullName: "Ada Lovelace",
+        currentCvUrl: "org-1/viejo.pdf",
+      },
+      ctx,
+      { ...deps(), uploadCv, deleteCv },
+    );
+    expect(deleteCv).toHaveBeenCalledWith("org-1/viejo.pdf");
+  });
+
+  it("no borra nada si no había CV anterior", async () => {
+    const uploadCv = vi.fn(async () => ({ path: "org-1/nuevo.pdf" }));
+    const deleteCv = vi.fn(async () => {});
+    await editarCandidato(
+      { candidateId: "cand-1", fullName: "Ada Lovelace", currentCvUrl: null },
+      ctx,
+      { ...deps(), uploadCv, deleteCv },
+    );
+    expect(deleteCv).not.toHaveBeenCalled();
+  });
+
+  it("falla de subida en edición devuelve err y no actualiza", async () => {
+    const uploadCv = vi.fn(async () => {
+      throw new Error("storage caído");
+    });
+    const d = { ...deps(), uploadCv };
+    const res = await editarCandidato(
+      { candidateId: "cand-1", fullName: "Ada Lovelace" },
+      ctx,
+      d,
+    );
+    expect(res.ok).toBe(false);
+    expect(d.updateCandidateFields).not.toHaveBeenCalled();
+  });
 });
