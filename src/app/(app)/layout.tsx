@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { logout } from "@/app/(auth)/actions";
@@ -23,9 +24,22 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-bg">
       <header className="flex h-[var(--topbar-h)] items-center justify-between border-b border-border bg-surface px-6">
-        <span className="font-display font-bold text-text">
-          <span className="text-primary">We</span>Hunter
-        </span>
+        <div className="flex items-center gap-6">
+          <span className="font-display font-bold text-text">
+            <span className="text-primary">We</span>Hunter
+          </span>
+          <nav className="flex items-center gap-4 text-sm font-semibold text-muted">
+            <Link href="/dashboard" className="hover:text-text">
+              Dashboard
+            </Link>
+            <Link href="/jobs" className="hover:text-text">
+              Búsquedas
+            </Link>
+            <Link href="/candidates" className="hover:text-text">
+              Candidatos
+            </Link>
+          </nav>
+        </div>
         <div className="flex items-center gap-3 text-sm text-muted">
           <span>{user.email}</span>
           <form action={logout}>
