@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getJobForPipeline, listApplicationsByJob } from "@/features/recruiter/applications/data/applications.queries";
 import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
+import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
+import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import { PipelineBoard } from "@/features/recruiter/applications/ui/PipelineBoard";
 import { PostularForm } from "@/features/recruiter/applications/ui/PostularForm";
 
@@ -18,10 +20,20 @@ export default async function PipelinePage({ params }: Props) {
   const job = await getJobForPipeline(jobId, membership.organizationId);
   if (!job) notFound();
 
-  const [applications, candidates] = await Promise.all([
+  const [applications, candidates, interviews] = await Promise.all([
     listApplicationsByJob(jobId, membership.organizationId),
     listCandidates(membership.organizationId),
+    listInterviewsByJob(jobId, membership.organizationId),
   ]);
+
+  // Agrupamos las entrevistas por application en memoria (una sola query arriba).
+  const interviewsByApplication = interviews.reduce<Record<string, InterviewRow[]>>(
+    (acc, it) => {
+      (acc[it.applicationId] ??= []).push(it);
+      return acc;
+    },
+    {},
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -52,7 +64,10 @@ export default async function PipelinePage({ params }: Props) {
       </div>
 
       {/* Kanban */}
-      <PipelineBoard applications={applications} />
+      <PipelineBoard
+        applications={applications}
+        interviewsByApplication={interviewsByApplication}
+      />
     </div>
   );
 }

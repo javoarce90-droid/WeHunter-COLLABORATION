@@ -8,14 +8,17 @@ import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
 import { NoteEditor } from "@/features/recruiter/notes/ui/NoteEditor";
+import { InterviewsSection } from "@/features/recruiter/interviews/ui/InterviewsSection";
+import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 
 type Props = {
   application: ApplicationWithCandidate;
+  interviews: InterviewRow[];
 };
 
 const TERMINAL: ApplicationStage[] = ["hired", "rejected"];
 
-export function PipelineCard({ application }: Props) {
+export function PipelineCard({ application, interviews }: Props) {
   const [state, dispatch, isPending] = useActionState(moverEtapaAction, {});
 
   const isTerminal = TERMINAL.includes(application.stage);
@@ -63,6 +66,12 @@ export function PipelineCard({ application }: Props) {
           applicationId={application.id}
           jobId={application.jobId}
           initialNotes={application.notes}
+        />
+
+        <InterviewsSection
+          applicationId={application.id}
+          jobId={application.jobId}
+          interviews={interviews}
         />
       </div>
     </Card>

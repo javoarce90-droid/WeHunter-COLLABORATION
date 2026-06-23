@@ -1,10 +1,13 @@
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
+import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import { PipelineCard } from "./PipelineCard";
 
 type Props = {
   applications: ApplicationWithCandidate[];
+  /** Entrevistas agrupadas por applicationId (una query, sin N+1). */
+  interviewsByApplication: Record<string, InterviewRow[]>;
 };
 
 function groupByStage(
@@ -22,7 +25,7 @@ function groupByStage(
 
 const STAGE_COLUMN_WIDTH = "min-w-[220px] w-[220px]";
 
-export function PipelineBoard({ applications }: Props) {
+export function PipelineBoard({ applications, interviewsByApplication }: Props) {
   const grouped = groupByStage(applications);
 
   if (applications.length === 0) {
@@ -57,7 +60,11 @@ export function PipelineBoard({ applications }: Props) {
                 </div>
               )}
               {cards.map((app) => (
-                <PipelineCard key={app.id} application={app} />
+                <PipelineCard
+                  key={app.id}
+                  application={app}
+                  interviews={interviewsByApplication[app.id] ?? []}
+                />
               ))}
             </div>
           </div>

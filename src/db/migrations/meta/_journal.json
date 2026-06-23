@@ -36,6 +36,13 @@
       "when": 1782231524164,
       "tag": "0004_shortlists_sharing",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782246248983,
+      "tag": "0005_panoramic_bug",
+      "breakpoints": true
     }
   ]
 }
