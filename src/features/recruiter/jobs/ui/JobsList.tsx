@@ -79,6 +79,12 @@ export function JobsList({ jobs }: { jobs: Job[] }) {
                   <StatusButton key={a.to} jobId={job.id} label={a.label} to={a.to} />
                 ))}
                 <Link
+                  href={`/jobs/${job.id}/pipeline`}
+                  className="rounded-[var(--radius)] border border-border px-2.5 py-1 text-xs font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
+                >
+                  Pipeline
+                </Link>
+                <Link
                   href={`/jobs/${job.id}/edit`}
                   className="rounded-[var(--radius)] px-2.5 py-1 text-xs font-semibold text-muted transition-colors hover:text-primary"
                 >
