@@ -53,6 +53,13 @@ export const applicationStage = pgEnum("application_stage", [
   "rejected",
 ]);
 
+// Decisión de la empresa sobre un candidato compartido en un shortlist.
+export const feedbackDecision = pgEnum("feedback_decision", [
+  "approved",
+  "rejected",
+  "maybe",
+]);
+
 // ---- Tenancy ----
 
 // El tenant. Todo dato de dominio cuelga de acá.
@@ -151,11 +158,100 @@ export const applications = pgTable("applications", {
   jobIdx: index("applications_job_idx").on(t.jobId),
 }));
 
+// ---- Shortlists (compartir candidatos con la empresa) ----
+
+// Una selección de candidatos de un job que el reclutador comparte con una empresa.
+export const shortlists = pgTable("shortlists", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id")
+    .references(() => jobs.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("shortlists_org_idx").on(t.organizationId),
+  jobIdx: index("shortlists_job_idx").on(t.jobId),
+}));
+
+// Candidato puntual dentro de un shortlist. Apunta a una application (job + candidato +
+// etapa) para poder exponer la etapa a la empresa sin recalcular nada.
+export const shortlistCandidates = pgTable("shortlist_candidates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  shortlistId: uuid("shortlist_id")
+    .references(() => shortlists.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("shortlist_candidates_org_idx").on(t.organizationId),
+  shortlistIdx: index("shortlist_candidates_shortlist_idx").on(t.shortlistId),
+  uniquePair: uniqueIndex("shortlist_candidates_unique").on(
+    t.shortlistId,
+    t.applicationId,
+  ),
+}));
+
+// Token de acceso para que la empresa revise un shortlist sin tener cuenta.
+// El acceso real se sirve por funciones SECURITY DEFINER que validan el token (ver migración).
+export const shortlistShares = pgTable("shortlist_shares", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  shortlistId: uuid("shortlist_id")
+    .references(() => shortlists.id, { onDelete: "cascade" })
+    .notNull(),
+  token: text("token").notNull(),
+  expiresAt: timestamp("expires_at"), // null = sin vencimiento
+  revokedAt: timestamp("revoked_at"), // null = activo
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("shortlist_shares_org_idx").on(t.organizationId),
+  tokenIdx: uniqueIndex("shortlist_shares_token_idx").on(t.token),
+}));
+
+// Feedback de la empresa sobre un candidato del shortlist. Una decisión por candidato
+// (la función definer hace upsert). shareId registra por qué token entró la empresa.
+export const shortlistFeedback = pgTable("shortlist_feedback", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  shortlistCandidateId: uuid("shortlist_candidate_id")
+    .references(() => shortlistCandidates.id, { onDelete: "cascade" })
+    .notNull(),
+  shareId: uuid("share_id").references(() => shortlistShares.id, {
+    onDelete: "set null",
+  }),
+  decision: feedbackDecision("decision").notNull(),
+  comment: text("comment"),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("shortlist_feedback_org_idx").on(t.organizationId),
+  uniqueCandidate: uniqueIndex("shortlist_feedback_candidate_idx").on(
+    t.shortlistCandidateId,
+  ),
+}));
+
 // Tipos inferidos (fuente de verdad de los tipos de datos)
 export type Organization = typeof organizations.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type Application = typeof applications.$inferSelect;
+export type Shortlist = typeof shortlists.$inferSelect;
+export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;
+export type ShortlistShare = typeof shortlistShares.$inferSelect;
+export type ShortlistFeedback = typeof shortlistFeedback.$inferSelect;
 
 /**
  * RLS — política base de aislamiento por tenant.

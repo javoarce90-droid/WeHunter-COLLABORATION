@@ -21,6 +21,7 @@ export async function insertJob(args: {
         createdBy: args.createdBy,
       })
       .returning({ id: jobs.id }),
+    "db.jobs.insert",
   );
   return { jobId: rows[0]!.id };
 }
@@ -36,6 +37,7 @@ export async function updateJobStatus(
       .update(jobs)
       .set({ status: nuevoEstado, updatedAt: new Date() })
       .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId))),
+    "db.jobs.update-status",
   );
 }
 
@@ -51,6 +53,7 @@ export async function updateJobFields(
       .set({ ...fields, updatedAt: new Date() })
       .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
       .returning({ id: jobs.id }),
+    "db.jobs.update-fields",
   );
   return { updated: rows.length > 0 };
 }

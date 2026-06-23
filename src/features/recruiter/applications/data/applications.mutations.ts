@@ -23,6 +23,7 @@ export async function insertApplication(args: {
         stage: args.stage,
       })
       .returning(),
+    "db.applications.insert",
   );
   const r = rows[0]!;
   return {
@@ -47,6 +48,7 @@ export async function updateApplicationStage(
       .set({ stage, updatedAt: new Date() })
       .where(eq(applications.id, applicationId))
       .returning(),
+    "db.applications.update-stage",
   );
   const r = rows[0]!;
   return {
@@ -75,6 +77,7 @@ export async function deleteApplication(
         ),
       )
       .returning({ id: applications.id }),
+    "db.applications.delete",
   );
   return { deleted: rows.length > 0 };
 }

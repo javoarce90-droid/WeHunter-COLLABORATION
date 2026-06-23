@@ -1,12 +1,12 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { getActiveMembership } from "@/lib/auth/session";
 import { listJobs } from "@/features/recruiter/jobs/data/jobs.queries";
 import { JobsList } from "@/features/recruiter/jobs/ui/JobsList";
+import { ListSkeleton } from "@/components/ui/list-skeleton";
 
-export default async function JobsPage() {
-  const membership = await getActiveMembership();
-  const jobs = membership ? await listJobs(membership.organizationId) : [];
-
+/** El shell (título + acción) pinta al instante; el listado se streamea. */
+export default function JobsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -22,7 +22,15 @@ export default async function JobsPage() {
         </Link>
       </div>
 
-      <JobsList jobs={jobs} />
+      <Suspense fallback={<ListSkeleton />}>
+        <JobsSection />
+      </Suspense>
     </div>
   );
+}
+
+async function JobsSection() {
+  const membership = await getActiveMembership();
+  const jobs = membership ? await listJobs(membership.organizationId) : [];
+  return <JobsList jobs={jobs} />;
 }

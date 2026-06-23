@@ -15,6 +15,7 @@ export async function updateApplicationNotes(
       .set({ notes, updatedAt: new Date() })
       .where(eq(applications.id, applicationId))
       .returning({ id: applications.id, notes: applications.notes }),
+    "db.notes.update",
   );
   return rows[0]!;
 }
