@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getJobForPipeline, listApplicationsByJob } from "@/features/recruiter/applications/data/applications.queries";
@@ -19,6 +20,14 @@ export default async function ShortlistsPage({ params }: Props) {
   const { id: jobId } = await params;
   const membership = await getActiveMembership();
   if (!membership) notFound();
+
+  // URL base resuelta en el server (host de la request) y pasada como prop. Así el enlace
+  // de share se renderiza idéntico en server y cliente -> sin mismatch de hidratación.
+  // (Antes ShareControls usaba window.location.origin, que no existe en SSR.)
+  const reqHeaders = await headers();
+  const host = reqHeaders.get("host") ?? "";
+  const proto = reqHeaders.get("x-forwarded-proto") ?? "http";
+  const appUrl = host ? `${proto}://${host}` : "";
 
   const job = await getJobForPipeline(jobId, membership.organizationId);
   if (!job) notFound();
@@ -83,6 +92,7 @@ export default async function ShortlistsPage({ params }: Props) {
               name={sl.name}
               candidates={sl.candidates}
               shares={sl.shares}
+              appUrl={appUrl}
             />
           ))}
         </div>
