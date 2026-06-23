@@ -143,6 +143,8 @@ export const applications = pgTable("applications", {
     .references(() => candidates.id, { onDelete: "cascade" })
     .notNull(),
   stage: applicationStage("stage").notNull().default("new"),
+  // Nota interna del reclutador sobre el candidato en este proceso. No visible para la empresa.
+  notes: text("notes"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("applications_org_idx").on(t.organizationId),

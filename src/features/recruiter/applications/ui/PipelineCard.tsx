@@ -7,6 +7,7 @@ import { moverEtapaAction } from "../actions";
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
+import { NoteEditor } from "@/features/recruiter/notes/ui/NoteEditor";
 
 type Props = {
   application: ApplicationWithCandidate;
@@ -57,6 +58,12 @@ export function PipelineCard({ application }: Props) {
         {state.error && (
           <p className="mt-1.5 text-xs text-red-600">{state.error}</p>
         )}
+
+        <NoteEditor
+          applicationId={application.id}
+          jobId={application.jobId}
+          initialNotes={application.notes}
+        />
       </div>
     </Card>
   );

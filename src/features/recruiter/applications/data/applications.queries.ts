@@ -11,6 +11,7 @@ export type ApplicationWithCandidate = {
   jobId: string;
   candidateId: string;
   stage: ApplicationStage;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
   candidate: {
@@ -34,6 +35,7 @@ export async function listApplicationsByJob(
         jobId: applications.jobId,
         candidateId: applications.candidateId,
         stage: applications.stage,
+        notes: applications.notes,
         createdAt: applications.createdAt,
         updatedAt: applications.updatedAt,
         candidateId2: candidates.id,
@@ -56,6 +58,7 @@ export async function listApplicationsByJob(
     jobId: r.jobId,
     candidateId: r.candidateId,
     stage: r.stage as ApplicationStage,
+    notes: r.notes,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
     candidate: {
