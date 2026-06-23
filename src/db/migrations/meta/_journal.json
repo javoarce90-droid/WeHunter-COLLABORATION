@@ -15,6 +15,13 @@
       "when": 1782160375686,
       "tag": "0001_recruiter_auth_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782220291882,
+      "tag": "0002_candidates_cv_storage",
+      "breakpoints": true
     }
   ]
 }
