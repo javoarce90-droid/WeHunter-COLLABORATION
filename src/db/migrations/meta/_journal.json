@@ -92,6 +92,13 @@
       "when": 1782321537972,
       "tag": "0012_chief_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782327768914,
+      "tag": "0013_cynical_albert_cleary",
+      "breakpoints": true
     }
   ]
 }

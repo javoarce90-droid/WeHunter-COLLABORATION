@@ -2,8 +2,24 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { candidates } from "@/db/schema";
 import type { CandidateDetails } from "../domain/candidate-details";
+import type { TalentState } from "../domain/cambiar-estado-talento";
 
 /** Escrituras del pool de candidatos. Cliente RLS; el organizationId acota a la org activa. */
+
+export async function setTalentState(
+  candidateId: string,
+  talentState: TalentState,
+): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx
+        .update(candidates)
+        .set({ talentState, updatedAt: new Date() })
+        .where(eq(candidates.id, candidateId)),
+    "db.candidates.set-talent-state",
+  );
+}
 
 export async function insertCandidate(
   args: {
