@@ -24,6 +24,7 @@ const NAV: { href: string; label: string; Icon: (p: IconProps) => React.ReactEle
   { href: "/candidates", label: "Candidatos", Icon: UsersIcon },
   { href: "/clients", label: "Clientes", Icon: BuildingIcon },
   { href: "/agenda", label: "Agenda", Icon: CalendarIcon },
+  { href: "/reports", label: "Reportes", Icon: ChartIcon },
 ];
 
 export function Sidebar({
@@ -198,6 +199,15 @@ function CalendarIcon({ className }: IconProps) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <rect x="3" y="4" width="18" height="18" rx="2" />
       <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+
+function ChartIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 3v18h18" />
+      <path d="M7 14l3-4 3 3 4-6" />
     </svg>
   );
 }
