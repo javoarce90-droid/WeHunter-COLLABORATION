@@ -43,9 +43,11 @@ export function CommandPalette() {
       { id: "nav-dashboard", label: "Ir a Inicio", group: "Navegación", keywords: "dashboard home", perform: go("/dashboard") },
       { id: "nav-jobs", label: "Ir a Búsquedas", group: "Navegación", keywords: "jobs busquedas", perform: go("/jobs") },
       { id: "nav-candidates", label: "Ir a Candidatos", group: "Navegación", keywords: "candidates talento pool", perform: go("/candidates") },
+      { id: "nav-clients", label: "Ir a Clientes", group: "Navegación", keywords: "clients empresas crm", perform: go("/clients") },
       { id: "nav-agenda", label: "Ir a Agenda", group: "Navegación", keywords: "interviews entrevistas calendario", perform: go("/agenda") },
       { id: "new-job", label: "Crear búsqueda", group: "Crear", keywords: "nueva job vacante", perform: go("/jobs/new") },
       { id: "new-candidate", label: "Cargar candidato", group: "Crear", keywords: "nuevo talento alta", perform: go("/candidates/new") },
+      { id: "new-client", label: "Agregar cliente", group: "Crear", keywords: "nueva empresa crm", perform: go("/clients/new") },
     ];
   }, [router]);
 

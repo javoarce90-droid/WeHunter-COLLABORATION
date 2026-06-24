@@ -22,6 +22,7 @@ const NAV: { href: string; label: string; Icon: (p: IconProps) => React.ReactEle
   { href: "/dashboard", label: "Inicio", Icon: DashboardIcon },
   { href: "/jobs", label: "Búsquedas", Icon: BriefcaseIcon },
   { href: "/candidates", label: "Candidatos", Icon: UsersIcon },
+  { href: "/clients", label: "Clientes", Icon: BuildingIcon },
   { href: "/agenda", label: "Agenda", Icon: CalendarIcon },
 ];
 
@@ -179,6 +180,15 @@ function UsersIcon({ className }: IconProps) {
       <circle cx="9" cy="7" r="4" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+
+function BuildingIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="4" y="3" width="16" height="18" rx="1.5" />
+      <path d="M9 8h.01M15 8h.01M9 12h.01M15 12h.01M10 21v-3h4v3" />
     </svg>
   );
 }
