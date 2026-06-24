@@ -39,12 +39,14 @@ describe("crearBusqueda", () => {
       d,
     );
     expect(res).toEqual({ ok: true, data: { jobId: "job-9" } });
-    expect(d.insertJob).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      title: "Backend Engineer",
-      description: "Node + Postgres",
-      createdBy: "u1",
-    });
+    expect(d.insertJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        title: "Backend Engineer",
+        description: "Node + Postgres",
+        createdBy: "u1",
+      }),
+    );
   });
 
   it("descripción vacía se guarda como null", async () => {

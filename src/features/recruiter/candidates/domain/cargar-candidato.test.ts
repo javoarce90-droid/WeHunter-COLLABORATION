@@ -44,12 +44,14 @@ describe("cargarCandidato", () => {
       d,
     );
     expect(res).toEqual({ ok: true, data: { candidateId: "cand-9" } });
-    expect(d.insertCandidate).toHaveBeenCalledWith({
-      organizationId: "org-1",
-      fullName: "Ada Lovelace",
-      email: "ada@example.com",
-      cvUrl: null,
-    });
+    expect(d.insertCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        fullName: "Ada Lovelace",
+        email: "ada@example.com",
+        cvUrl: null,
+      }),
+    );
   });
 
   it("email vacío se guarda como null", async () => {

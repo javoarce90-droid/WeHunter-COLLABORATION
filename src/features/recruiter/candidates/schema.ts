@@ -2,6 +2,24 @@ import { z } from "zod";
 
 /** Schemas de input de la feature de candidatos. Validación cerca de la action. */
 
+const emptyToUndef = (v: unknown) =>
+  typeof v === "string" && v.trim() !== "" ? v : undefined;
+
+// "react, node" → ["react","node"]; vacío → undefined.
+const skillsField = z.preprocess((v) => {
+  if (typeof v !== "string") return undefined;
+  const parts = v.split(",").map((s) => s.trim()).filter(Boolean);
+  return parts.length ? parts : undefined;
+}, z.array(z.string().max(40)).max(30).optional());
+
+export const candidateSourceSchema = z.enum([
+  "manual",
+  "linkedin",
+  "referral",
+  "job_board",
+  "other",
+]);
+
 export const candidateInputSchema = z.object({
   fullName: z
     .string()
@@ -11,7 +29,7 @@ export const candidateInputSchema = z.object({
   // Email opcional: vacío ("") o ausente (null/undefined) → undefined. Cualquier otra cosa
   // pasa al validador. Esto evita el "Expected string, received null" si el campo falta.
   email: z.preprocess(
-    (v) => (typeof v === "string" && v.trim() !== "" ? v : undefined),
+    emptyToUndef,
     z
       .string()
       .trim()
@@ -20,6 +38,12 @@ export const candidateInputSchema = z.object({
       .max(160, "El email es demasiado largo.")
       .optional(),
   ),
+  headline: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
+  location: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
+  linkedinUrl: z.preprocess(emptyToUndef, z.string().trim().max(300).optional()),
+  summary: z.preprocess(emptyToUndef, z.string().trim().max(5000).optional()),
+  skills: skillsField,
+  source: z.preprocess(emptyToUndef, candidateSourceSchema.optional()),
 });
 
 export type CandidateInput = z.infer<typeof candidateInputSchema>;

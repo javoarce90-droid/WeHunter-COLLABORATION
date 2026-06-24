@@ -3,6 +3,8 @@ import {
   uuid,
   text,
   timestamp,
+  integer,
+  date,
   pgEnum,
   uniqueIndex,
   index,
@@ -60,6 +62,46 @@ export const feedbackDecision = pgEnum("feedback_decision", [
   "maybe",
 ]);
 
+// Modalidad de una entrevista agendada.
+export const interviewMode = pgEnum("interview_mode", [
+  "onsite", // presencial
+  "remote", // videollamada
+  "phone", // telefónica
+]);
+
+// Estado de una entrevista en su ciclo de vida.
+export const interviewStatus = pgEnum("interview_status", [
+  "scheduled", // agendada (futura)
+  "completed", // realizada
+  "cancelled", // cancelada
+]);
+
+// Campos ricos de una búsqueda (paridad demo). Todos opcionales en la columna.
+export const jobModality = pgEnum("job_modality", ["onsite", "remote", "hybrid"]);
+export const jobSeniority = pgEnum("job_seniority", [
+  "junior",
+  "semisenior",
+  "senior",
+  "lead",
+]);
+export const jobPriority = pgEnum("job_priority", ["low", "medium", "high"]);
+export const employmentType = pgEnum("employment_type", [
+  "full_time",
+  "part_time",
+  "contract",
+  "internship",
+  "temporary",
+]);
+
+// De dónde salió el candidato. Trazabilidad de fuente del pool.
+export const candidateSource = pgEnum("candidate_source", [
+  "manual",
+  "linkedin",
+  "referral",
+  "job_board",
+  "other",
+]);
+
 // ---- Tenancy ----
 
 // El tenant. Todo dato de dominio cuelga de acá.
@@ -102,19 +144,51 @@ export const memberships = pgTable("memberships", {
 
 // ---- Reclutamiento (núcleo) ----
 
+// Empresa cliente de la consultora. CRM mínimo: una búsqueda puede vincularse a un cliente.
+export const clients = pgTable("clients", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  notes: text("notes"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("clients_org_idx").on(t.organizationId),
+}));
+
 // Búsqueda / aviso.
 export const jobs = pgTable("jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
+  // Cliente para el que es la búsqueda (CRM mínimo). null = búsqueda interna / sin cliente.
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
   title: text("title").notNull(),
-  description: text("description"),
+  description: text("description"), // brief interno
+  // Texto del aviso público (separado del brief interno). Se redacta y previsualiza.
+  posting: text("posting"),
   status: jobStatus("status").notNull().default("draft"),
+  // Campos ricos (paridad demo). Todos opcionales para no romper filas existentes.
+  location: text("location"),
+  modality: jobModality("modality"),
+  seniority: jobSeniority("seniority"),
+  employmentType: employmentType("employment_type"),
+  salaryMin: integer("salary_min"),
+  salaryMax: integer("salary_max"),
+  salaryCurrency: text("salary_currency"),
+  skills: text("skills").array(),
+  priority: jobPriority("priority"),
+  deadline: date("deadline"),
   createdBy: uuid("created_by").references(() => profiles.id),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("jobs_org_idx").on(t.organizationId),
+  clientIdx: index("jobs_client_idx").on(t.clientId),
 }));
 
 // Candidato en el pool del reclutador.
@@ -132,6 +206,15 @@ export const candidates = pgTable("candidates", {
   fullName: text("full_name").notNull(),
   email: text("email"),
   cvUrl: text("cv_url"), // path en Supabase Storage
+  // Campos enriquecidos de la ficha (paridad demo). Todos opcionales.
+  headline: text("headline"), // puesto/título actual, ej "Frontend Senior @ Acme"
+  location: text("location"),
+  linkedinUrl: text("linkedin_url"),
+  summary: text("summary"), // experiencia / bio en texto libre
+  skills: text("skills").array(),
+  source: candidateSource("source"),
+  // Consentimiento de tratamiento de datos (GDPR-lite). null = no registrado.
+  consentAcceptedAt: timestamp("consent_accepted_at"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("candidates_org_idx").on(t.organizationId),
@@ -157,6 +240,74 @@ export const applications = pgTable("applications", {
 }, (t) => ({
   orgIdx: index("applications_org_idx").on(t.organizationId),
   jobIdx: index("applications_job_idx").on(t.jobId),
+  // Acceso "búsquedas de un candidato" (ficha de candidato): filtra por candidate_id.
+  candidateIdx: index("applications_candidate_idx").on(t.candidateId),
+}));
+
+// Entrevista agendada sobre una postulación. Es interna del equipo reclutador:
+// no se expone a la empresa por el share. Una application puede tener N entrevistas.
+export const interviews = pgTable("interviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  mode: interviewMode("mode").notNull().default("remote"),
+  // Lugar (dirección) o link de la videollamada según la modalidad. Opcional.
+  location: text("location"),
+  // Notas internas de la entrevista (agenda, feedback). No visible para la empresa.
+  notes: text("notes"),
+  status: interviewStatus("status").notNull().default("scheduled"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("interviews_org_idx").on(t.organizationId),
+  applicationIdx: index("interviews_application_idx").on(t.applicationId),
+  // Agenda: lista org-wide ordenada por fecha.
+  orgScheduledIdx: index("interviews_org_scheduled_idx").on(
+    t.organizationId,
+    t.scheduledAt,
+  ),
+}));
+
+// Nota interna sobre una postulación, como timeline (varias por application).
+// Reemplaza al campo único applications.notes (que se mantiene por compatibilidad).
+export const notes = pgTable("notes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  body: text("body").notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("notes_org_idx").on(t.organizationId),
+  applicationIdx: index("notes_application_idx").on(t.applicationId),
+}));
+
+// Historial de cambios de etapa de una postulación (append-only). Habilita métricas de
+// funnel y time-to-stage / time-to-hire (§5/§12 del backlog).
+export const applicationEvents = pgTable("application_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  fromStage: applicationStage("from_stage"), // null = evento de creación (postulación)
+  toStage: applicationStage("to_stage").notNull(),
+  changedBy: uuid("changed_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("application_events_org_idx").on(t.organizationId),
+  applicationIdx: index("application_events_application_idx").on(t.applicationId),
 }));
 
 // ---- Shortlists (compartir candidatos con la empresa) ----
@@ -247,9 +398,13 @@ export const shortlistFeedback = pgTable("shortlist_feedback", {
 // Tipos inferidos (fuente de verdad de los tipos de datos)
 export type Organization = typeof organizations.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
+export type Client = typeof clients.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type Application = typeof applications.$inferSelect;
+export type Interview = typeof interviews.$inferSelect;
+export type Note = typeof notes.$inferSelect;
+export type ApplicationEvent = typeof applicationEvents.$inferSelect;
 export type Shortlist = typeof shortlists.$inferSelect;
 export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;
 export type ShortlistShare = typeof shortlistShares.$inferSelect;

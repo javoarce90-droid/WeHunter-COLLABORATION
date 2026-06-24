@@ -1,6 +1,11 @@
 import { ok, err, type Result } from "@/lib/result";
 import { canManageRecruiting } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
+import {
+  normalizeJobDetails,
+  type JobDetails,
+  type JobDetailsInput,
+} from "./job-details";
 
 /**
  * Caso de uso: crear una búsqueda (job). Nace como `draft`; se publica después
@@ -10,7 +15,7 @@ import type { OrgRole } from "@/lib/auth/session";
  * pase las reglas. Por ahora la descripción la escribe el usuario.
  */
 
-export interface CrearBusquedaInput {
+export interface CrearBusquedaInput extends JobDetailsInput {
   title: string;
   description?: string | null;
 }
@@ -27,7 +32,7 @@ export interface CrearBusquedaDeps {
     title: string;
     description: string | null;
     createdBy: string;
-  }): Promise<{ jobId: string }>;
+  } & JobDetails): Promise<{ jobId: string }>;
 }
 
 export async function crearBusqueda(
@@ -52,6 +57,7 @@ export async function crearBusqueda(
     title,
     description: input.description?.trim() || null,
     createdBy: ctx.userId,
+    ...normalizeJobDetails(input),
   });
 
   return ok({ jobId });

@@ -1,13 +1,18 @@
 import { ok, err, type Result } from "@/lib/result";
 import { canManageRecruiting } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
+import {
+  normalizeCandidateDetails,
+  type CandidateDetails,
+  type CandidateDetailsInput,
+} from "./candidate-details";
 
 /**
- * Caso de uso: editar un candidato del pool (nombre, email y, opcionalmente, reemplazar CV).
- * Si no se adjunta un CV nuevo, el existente se conserva (cvUrl no se toca).
+ * Caso de uso: editar un candidato del pool (nombre, email, campos enriquecidos y,
+ * opcionalmente, reemplazar CV). Si no se adjunta un CV nuevo, el existente se conserva.
  */
 
-export interface EditarCandidatoInput {
+export interface EditarCandidatoInput extends CandidateDetailsInput {
   candidateId: string;
   fullName: string;
   email?: string | null;
@@ -29,7 +34,7 @@ export interface EditarCandidatoDeps {
     candidateId: string,
     organizationId: string,
     // cvUrl ausente (undefined) = no tocar el CV existente.
-    fields: { fullName: string; email: string | null; cvUrl?: string },
+    fields: { fullName: string; email: string | null; cvUrl?: string } & CandidateDetails,
   ): Promise<{ updated: boolean }>;
 }
 
@@ -65,7 +70,12 @@ export async function editarCandidato(
   const { updated } = await deps.updateCandidateFields(
     input.candidateId,
     ctx.organizationId,
-    { fullName, email, ...(newCvUrl !== undefined ? { cvUrl: newCvUrl } : {}) },
+    {
+      fullName,
+      email,
+      ...normalizeCandidateDetails(input),
+      ...(newCvUrl !== undefined ? { cvUrl: newCvUrl } : {}),
+    },
   );
   if (!updated) {
     // El candidato no existe (o es de otra org): si subimos un CV, quedó huérfano → limpiar.
