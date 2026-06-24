@@ -106,6 +106,14 @@ export const candidateSource = pgEnum("candidate_source", [
   "other",
 ]);
 
+// Estado operativo del candidato en el pool (independiente de cualquier búsqueda).
+export const talentState = pgEnum("talent_state", [
+  "active", // en pool, disponible
+  "passive", // pool pasivo (no busca activamente)
+  "contacted", // contactado, a la espera
+  "archived", // archivado
+]);
+
 // Estado de una oferta en su ciclo de vida.
 export const offerStatus = pgEnum("offer_status", [
   "draft", // borrador, editable, todavía no enviada
@@ -225,6 +233,8 @@ export const candidates = pgTable("candidates", {
   summary: text("summary"), // experiencia / bio en texto libre
   skills: text("skills").array(),
   source: candidateSource("source"),
+  // Estado operativo en el pool (lifecycle del candidato, no de una postulación).
+  talentState: talentState("talent_state").notNull().default("active"),
   // Consentimiento de tratamiento de datos (GDPR-lite). null = no registrado.
   consentAcceptedAt: timestamp("consent_accepted_at"),
   ...timestamps,
