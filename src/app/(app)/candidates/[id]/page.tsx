@@ -4,6 +4,7 @@ import { getActiveMembership } from "@/lib/auth/session";
 import { getCandidateById } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listApplicationsByCandidate } from "@/features/recruiter/applications/data/applications.queries";
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
+import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
@@ -65,9 +66,33 @@ export default async function CandidateDetailPage({
                   {isLinked ? "Cuenta vinculada" : "Cargado a mano"}
                 </Badge>
               </div>
-              {candidate.email && (
-                <p className="mt-0.5 truncate text-sm text-muted">{candidate.email}</p>
+              {candidate.headline && (
+                <p className="mt-0.5 truncate text-sm font-medium text-text">
+                  {candidate.headline}
+                </p>
               )}
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
+                {candidate.location && <span>{candidate.location}</span>}
+                {candidate.source && (
+                  <>
+                    {candidate.location && <span aria-hidden>·</span>}
+                    <span>{CANDIDATE_SOURCE_LABELS[candidate.source]}</span>
+                  </>
+                )}
+                {candidate.linkedinUrl && (
+                  <>
+                    {(candidate.location || candidate.source) && <span aria-hidden>·</span>}
+                    <a
+                      href={candidate.linkedinUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-primary hover:text-primary-hover"
+                    >
+                      LinkedIn
+                    </a>
+                  </>
+                )}
+              </p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -141,8 +166,31 @@ export default async function CandidateDetailPage({
           </div>
         </section>
 
-        {/* Participación en búsquedas */}
-        <aside className="order-1 lg:order-2">
+        {/* Perfil + participación en búsquedas */}
+        <aside className="order-1 flex flex-col gap-5 lg:order-2">
+          {(candidate.summary || (candidate.skills?.length ?? 0) > 0) && (
+            <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
+              <h2 className="mb-2 text-sm font-bold text-text">Perfil</h2>
+              {candidate.summary && (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-text/80">
+                  {candidate.summary}
+                </p>
+              )}
+              {(candidate.skills?.length ?? 0) > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {candidate.skills!.map((s) => (
+                    <span
+                      key={s}
+                      className="rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary-hover"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
           <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
             <div className="border-b border-border px-5 py-3.5">
               <h2 className="text-sm font-bold text-text">Búsquedas</h2>

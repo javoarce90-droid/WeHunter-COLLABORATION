@@ -36,10 +36,11 @@ describe("editarCandidato", () => {
       d,
     );
     expect(res.ok).toBe(true);
-    expect(d.updateCandidateFields).toHaveBeenCalledWith("cand-1", "org-1", {
-      fullName: "Ada L.",
-      email: "ada@x.com",
-    });
+    expect(d.updateCandidateFields).toHaveBeenCalledWith(
+      "cand-1",
+      "org-1",
+      expect.objectContaining({ fullName: "Ada L.", email: "ada@x.com" }),
+    );
   });
 
   it("reemplaza el CV cuando se adjunta uno nuevo", async () => {
@@ -51,11 +52,15 @@ describe("editarCandidato", () => {
       d,
     );
     expect(uploadCv).toHaveBeenCalledOnce();
-    expect(d.updateCandidateFields).toHaveBeenCalledWith("cand-1", "org-1", {
-      fullName: "Ada Lovelace",
-      email: null,
-      cvUrl: "org-1/nuevo.pdf",
-    });
+    expect(d.updateCandidateFields).toHaveBeenCalledWith(
+      "cand-1",
+      "org-1",
+      expect.objectContaining({
+        fullName: "Ada Lovelace",
+        email: null,
+        cvUrl: "org-1/nuevo.pdf",
+      }),
+    );
   });
 
   it("al reemplazar el CV borra el archivo anterior", async () => {

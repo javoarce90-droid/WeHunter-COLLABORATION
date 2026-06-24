@@ -23,6 +23,20 @@ export interface CandidateFormState {
   error?: string;
 }
 
+/** Lee del FormData los campos del candidato (núcleo + enriquecidos) para validar con Zod. */
+function parseCandidateForm(formData: FormData) {
+  return candidateInputSchema.safeParse({
+    fullName: formData.get("fullName"),
+    email: formData.get("email"),
+    headline: formData.get("headline"),
+    location: formData.get("location"),
+    linkedinUrl: formData.get("linkedinUrl"),
+    summary: formData.get("summary"),
+    skills: formData.get("skills"),
+    source: formData.get("source"),
+  });
+}
+
 /** Extrae y valida el CV del FormData. Devuelve el File o null, o un mensaje de error. */
 function readCvFile(
   formData: FormData,
@@ -42,10 +56,7 @@ export async function cargarCandidatoAction(
   _prev: CandidateFormState,
   formData: FormData,
 ): Promise<CandidateFormState> {
-  const parsed = candidateInputSchema.safeParse({
-    fullName: formData.get("fullName"),
-    email: formData.get("email"),
-  });
+  const parsed = parseCandidateForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
@@ -84,10 +95,7 @@ export async function editarCandidatoAction(
   formData: FormData,
 ): Promise<CandidateFormState> {
   const candidateId = String(formData.get("candidateId") ?? "");
-  const parsed = candidateInputSchema.safeParse({
-    fullName: formData.get("fullName"),
-    email: formData.get("email"),
-  });
+  const parsed = parseCandidateForm(formData);
   if (!candidateId) return { error: "Falta el candidato a editar." };
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
