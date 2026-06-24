@@ -2,11 +2,11 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getActiveMembership } from "@/lib/auth/session";
 import { listJobsWithStats } from "@/features/recruiter/jobs/data/jobs.queries";
+import { JobsList } from "@/features/recruiter/jobs/ui/JobsList";
 import {
-  JobsList,
   isJobFilter,
   type JobFilter,
-} from "@/features/recruiter/jobs/ui/JobsList";
+} from "@/features/recruiter/jobs/ui/job-filters";
 import { ListSkeleton } from "@/components/ui/list-skeleton";
 
 /** El shell (título + acción) pinta al instante; el listado se streamea. */

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { AgendaInterview } from "../data/interviews.queries";
 import { MODE_LABELS, STATUS_LABELS, type InterviewStatus } from "../schema";
 
@@ -49,6 +51,8 @@ function InterviewRow({
           ? dateTimeFmt.format(interview.scheduledAt)
           : timeFmt.format(interview.scheduledAt)}
       </span>
+
+      <Avatar name={interview.candidateName} size="sm" className={muted ? "opacity-60" : ""} />
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -124,21 +128,11 @@ function buildAgenda(interviews: AgendaInterview[]): {
 export function AgendaView({ interviews }: { interviews: AgendaInterview[] }) {
   if (interviews.length === 0) {
     return (
-      <div className="rounded-[var(--radius)] border border-dashed border-primary/25 bg-bg px-6 py-14 text-center">
-        <h3 className="font-display text-base font-bold text-text">
-          No tenés entrevistas agendadas
-        </h3>
-        <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
-          Agendá entrevistas desde el pipeline de una búsqueda y van a aparecer acá,
-          ordenadas por fecha.
-        </p>
-        <Link
-          href="/jobs"
-          className="mt-5 inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-        >
-          Ir a búsquedas
-        </Link>
-      </div>
+      <EmptyState
+        title="No tenés entrevistas agendadas"
+        description="Agendá entrevistas desde el pipeline de una búsqueda y van a aparecer acá, ordenadas por fecha."
+        action={{ label: "Ir a búsquedas", href: "/jobs" }}
+      />
     );
   }
 
@@ -158,9 +152,19 @@ export function AgendaView({ interviews }: { interviews: AgendaInterview[] }) {
             No tenés entrevistas próximas.
           </p>
         ) : (
-          groups.map((group) => (
+          groups.map((group) => {
+            const isToday = group.label === "Hoy";
+            return (
             <div key={group.key} className="flex flex-col gap-1.5">
-              <h3 className="text-xs font-semibold text-muted first-letter:uppercase">
+              <h3
+                className={[
+                  "flex items-center gap-1.5 text-xs font-semibold first-letter:uppercase",
+                  isToday ? "text-primary" : "text-muted",
+                ].join(" ")}
+              >
+                {isToday && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
+                )}
                 {group.label}
               </h3>
               <div className="divide-y divide-border overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
@@ -169,7 +173,8 @@ export function AgendaView({ interviews }: { interviews: AgendaInterview[] }) {
                 ))}
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </section>
 

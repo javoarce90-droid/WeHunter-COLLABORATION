@@ -53,6 +53,14 @@ describe("obtenerKpis", () => {
       candidatosEnPool: 12,
       postulacionesActivas: 2,
       contrataciones: 0,
+      funnel: [
+        { stage: "new", count: 2 },
+        { stage: "screening", count: 0 },
+        { stage: "interview", count: 0 },
+        { stage: "offer", count: 0 },
+        { stage: "hired", count: 0 },
+        { stage: "rejected", count: 0 },
+      ],
     });
   });
 
@@ -67,6 +75,14 @@ describe("obtenerKpis", () => {
       candidatosEnPool: 0,
       postulacionesActivas: 0,
       contrataciones: 0,
+      funnel: [
+        { stage: "new", count: 0 },
+        { stage: "screening", count: 0 },
+        { stage: "interview", count: 0 },
+        { stage: "offer", count: 0 },
+        { stage: "hired", count: 0 },
+        { stage: "rejected", count: 0 },
+      ],
     });
   });
 });

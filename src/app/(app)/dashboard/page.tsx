@@ -5,6 +5,7 @@ import { getActiveMembership } from "@/lib/auth/session";
 import { obtenerKpis } from "@/features/recruiter/dashboard/domain/obtener-kpis";
 import { getDashboardCounts } from "@/features/recruiter/dashboard/data/dashboard.queries";
 import { KpiGrid, KpiGridSkeleton } from "@/features/recruiter/dashboard/ui/KpiGrid";
+import { FunnelChart } from "@/features/recruiter/dashboard/ui/FunnelChart";
 
 /**
  * Dashboard del reclutador: KPIs de su workspace (Slice 1).
@@ -49,6 +50,7 @@ async function KpiSection() {
   return (
     <>
       <KpiGrid kpis={result.data} />
+      <FunnelChart funnel={result.data.funnel} />
       <p className="text-xs text-muted">
         Revisá tus entrevistas próximas en la{" "}
         <Link

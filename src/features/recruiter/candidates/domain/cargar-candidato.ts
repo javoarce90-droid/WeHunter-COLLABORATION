@@ -1,6 +1,11 @@
 import { ok, err, type Result } from "@/lib/result";
 import { canManageRecruiting } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
+import {
+  normalizeCandidateDetails,
+  type CandidateDetails,
+  type CandidateDetailsInput,
+} from "./candidate-details";
 
 /**
  * Caso de uso: cargar un candidato a mano en el pool de la organization.
@@ -10,7 +15,7 @@ import type { OrgRole } from "@/lib/auth/session";
  * Autorización primaria: rol + organization. El consultor no carga candidatos.
  */
 
-export interface CargarCandidatoInput {
+export interface CargarCandidatoInput extends CandidateDetailsInput {
   fullName: string;
   email?: string | null;
 }
@@ -33,7 +38,7 @@ export interface CargarCandidatoDeps {
     fullName: string;
     email: string | null;
     cvUrl: string | null;
-  }): Promise<{ candidateId: string }>;
+  } & CandidateDetails): Promise<{ candidateId: string }>;
 }
 
 export async function cargarCandidato(
@@ -72,6 +77,7 @@ export async function cargarCandidato(
       fullName,
       email,
       cvUrl,
+      ...normalizeCandidateDetails(input),
     });
     return ok({ candidateId });
   } catch (e) {

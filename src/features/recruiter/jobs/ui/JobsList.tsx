@@ -1,27 +1,16 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import type { Job } from "@/db/schema";
 import type { JobWithStats } from "../data/jobs.queries";
 import { Badge } from "@/components/ui/badge";
 import { JOB_STATUS_META, relativeTime } from "./status-meta";
 import { cambiarEstadoBusquedaAction } from "../actions";
+import { JOB_FILTERS, FILTER_LABEL, type JobFilter } from "./job-filters";
+import { SearchInput } from "@/components/ui/search-input";
 
 type Status = Job["status"];
-
-// Filtros de la pantalla: "all" + cada estado. Fuente de verdad del query param `?status=`.
-export const JOB_FILTERS = ["all", "open", "paused", "draft", "closed"] as const;
-export type JobFilter = (typeof JOB_FILTERS)[number];
-
-export function isJobFilter(value: string | undefined): value is JobFilter {
-  return value !== undefined && (JOB_FILTERS as readonly string[]).includes(value);
-}
-
-const FILTER_LABEL: Record<JobFilter, string> = {
-  all: "Todas",
-  open: "Abiertas",
-  paused: "Pausadas",
-  draft: "Borradores",
-  closed: "Cerradas",
-};
 
 // Acciones de transición disponibles desde cada estado (label + estado destino).
 const STATUS_ACTIONS: Record<Status, { label: string; to: Status }[]> = {
@@ -205,6 +194,8 @@ export function JobsList({
   jobs: JobWithStats[];
   filter: JobFilter;
 }) {
+  const [query, setQuery] = useState("");
+
   // Sin búsquedas en absoluto → estado de activación (enseña qué es una búsqueda).
   if (jobs.length === 0) {
     return <EmptyAllState />;
@@ -219,13 +210,41 @@ export function JobsList({
   };
   for (const job of jobs) counts[job.status] += 1;
 
-  const visible = filter === "all" ? jobs : jobs.filter((j) => j.status === filter);
+  const byStatus = filter === "all" ? jobs : jobs.filter((j) => j.status === filter);
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? byStatus.filter((j) => j.title.toLowerCase().includes(q))
+    : byStatus;
 
   return (
     <div className="flex flex-col gap-4">
-      <FilterTabs counts={counts} active={filter} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FilterTabs counts={counts} active={filter} />
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Buscar por título…"
+          aria-label="Buscar búsquedas por título"
+        />
+      </div>
       {visible.length === 0 ? (
-        <EmptyFilterState active={filter} />
+        q ? (
+          <div className="rounded-[var(--radius)] border border-border bg-surface px-6 py-12 text-center shadow-[var(--shadow)]">
+            <p className="text-sm text-muted">
+              Ninguna búsqueda coincide con{" "}
+              <span className="font-semibold text-text">“{query}”</span>.
+            </p>
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="mt-2 text-sm font-semibold text-primary hover:text-primary-hover"
+            >
+              Limpiar búsqueda
+            </button>
+          </div>
+        ) : (
+          <EmptyFilterState active={filter} />
+        )
       ) : (
         <div className="divide-y divide-border overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
           {visible.map((job) => (

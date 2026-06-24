@@ -17,7 +17,7 @@ export default async function EditCandidatePage({
   if (!candidate) notFound();
 
   return (
-    <div className="flex max-w-2xl flex-col gap-6">
+    <div className="flex max-w-3xl flex-col gap-6">
       <h1 className="font-display text-xl font-bold text-text">
         Editar candidato
       </h1>
@@ -29,6 +29,12 @@ export default async function EditCandidatePage({
           fullName: candidate.fullName,
           email: candidate.email,
           hasCv: Boolean(candidate.cvUrl),
+          headline: candidate.headline,
+          location: candidate.location,
+          linkedinUrl: candidate.linkedinUrl,
+          summary: candidate.summary,
+          skills: candidate.skills,
+          source: candidate.source,
         }}
       />
     </div>

@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getActiveMembership } from "@/lib/auth/session";
 import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
+import { listJobs } from "@/features/recruiter/jobs/data/jobs.queries";
 import { CandidatesList } from "@/features/recruiter/candidates/ui/CandidatesList";
 import { ListSkeleton } from "@/components/ui/list-skeleton";
 
@@ -31,8 +32,17 @@ export default function CandidatesPage() {
 
 async function CandidatesSection() {
   const membership = await getActiveMembership();
-  const candidates = membership
-    ? await listCandidates(membership.organizationId)
-    : [];
-  return <CandidatesList candidates={candidates} />;
+  if (!membership) return <CandidatesList candidates={[]} jobs={[]} />;
+
+  // Candidatos + búsquedas (para la acción masiva "postular a búsqueda") en paralelo.
+  const [candidates, jobs] = await Promise.all([
+    listCandidates(membership.organizationId),
+    listJobs(membership.organizationId),
+  ]);
+  return (
+    <CandidatesList
+      candidates={candidates}
+      jobs={jobs.map((j) => ({ id: j.id, title: j.title }))}
+    />
+  );
 }

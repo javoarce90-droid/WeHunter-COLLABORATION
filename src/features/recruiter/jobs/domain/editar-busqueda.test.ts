@@ -38,9 +38,10 @@ describe("editarBusqueda", () => {
       d,
     );
     expect(res).toEqual({ ok: true, data: { jobId: "j1" } });
-    expect(d.updateJobFields).toHaveBeenCalledWith("j1", "org-1", {
-      title: "Backend Eng",
-      description: "remoto",
-    });
+    expect(d.updateJobFields).toHaveBeenCalledWith(
+      "j1",
+      "org-1",
+      expect.objectContaining({ title: "Backend Eng", description: "remoto" }),
+    );
   });
 });
