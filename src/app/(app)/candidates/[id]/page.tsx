@@ -4,6 +4,7 @@ import { getActiveMembership } from "@/lib/auth/session";
 import { getCandidateById } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listApplicationsByCandidate } from "@/features/recruiter/applications/data/applications.queries";
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
@@ -12,7 +13,7 @@ const dateFmt = new Intl.DateTimeFormat("es-AR", {
   year: "numeric",
 });
 
-/** Ficha del candidato: perfil + su participación en búsquedas. */
+/** Ficha del candidato: perfil + CV + su participación en búsquedas. */
 export default async function CandidateDetailPage({
   params,
 }: {
@@ -40,7 +41,7 @@ export default async function CandidateDetailPage({
   return (
     <div className="flex flex-col gap-5">
       {/* Cabecera */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         <nav
           aria-label="Migas de pan"
           className="flex items-center gap-1.5 text-sm text-muted"
@@ -53,15 +54,23 @@ export default async function CandidateDetailPage({
         </nav>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="font-display text-xl font-bold text-text">
-              {candidate.fullName}
-            </h1>
-            <Badge variant={isLinked ? "primary" : "muted"}>
-              {isLinked ? "Cuenta vinculada" : "Cargado a mano"}
-            </Badge>
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar name={candidate.fullName} size="lg" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <h1 className="font-display text-xl font-bold text-text">
+                  {candidate.fullName}
+                </h1>
+                <Badge variant={isLinked ? "primary" : "muted"}>
+                  {isLinked ? "Cuenta vinculada" : "Cargado a mano"}
+                </Badge>
+              </div>
+              {candidate.email && (
+                <p className="mt-0.5 truncate text-sm text-muted">{candidate.email}</p>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {candidate.cvUrl && (
               <a
                 href={`/candidates/${candidate.id}/cv`}
@@ -69,7 +78,7 @@ export default async function CandidateDetailPage({
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-[var(--radius)] border border-border px-3 py-2 text-sm font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
               >
-                Ver CV
+                Abrir CV
               </a>
             )}
             <Link
@@ -92,37 +101,82 @@ export default async function CandidateDetailPage({
         ))}
       </dl>
 
-      {/* Participación en búsquedas */}
-      <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
-        <div className="border-b border-border px-5 py-3.5">
-          <h2 className="text-sm font-bold text-text">Búsquedas</h2>
-        </div>
-        {apps.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-muted">
-            Este candidato todavía no participa en ninguna búsqueda. Postulalo desde
-            el pipeline de una búsqueda.
-          </div>
-        ) : (
-          <ul className="divide-y divide-border">
-            {apps.map((app) => (
-              <li key={app.id}>
-                <Link
-                  href={`/jobs/${app.jobId}/pipeline`}
-                  className="group flex flex-wrap items-center gap-x-3 gap-y-1 px-5 py-3.5 transition-colors hover:bg-bg"
+      {/* Cuerpo: participación (aside) + CV (principal) */}
+      <div className="grid gap-5 lg:grid-cols-3">
+        {/* CV — preview embebido. Principal en desktop, debajo en mobile. */}
+        <section className="order-2 lg:order-1 lg:col-span-2">
+          <div className="flex h-full flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
+            <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+              <h2 className="text-sm font-bold text-text">CV</h2>
+              {candidate.cvUrl && (
+                <a
+                  href={`/candidates/${candidate.id}/cv`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-primary hover:text-primary-hover"
                 >
-                  <span className="min-w-0 flex-1 truncate font-semibold text-text transition-colors group-hover:text-primary">
-                    {app.jobTitle}
-                  </span>
-                  <Badge variant={app.stage}>{STAGE_LABELS[app.stage]}</Badge>
-                  <span className="text-xs text-muted">
-                    Agregado {dateFmt.format(app.createdAt)}
-                  </span>
+                  Abrir en pestaña nueva →
+                </a>
+              )}
+            </div>
+            {candidate.cvUrl ? (
+              <iframe
+                src={`/candidates/${candidate.id}/cv`}
+                title={`CV de ${candidate.fullName}`}
+                className="h-[640px] w-full bg-bg"
+              />
+            ) : (
+              <div className="px-5 py-16 text-center">
+                <p className="text-sm text-muted">
+                  Este candidato no tiene CV cargado.
+                </p>
+                <Link
+                  href={`/candidates/${candidate.id}/edit`}
+                  className="mt-3 inline-block text-sm font-semibold text-primary hover:text-primary-hover"
+                >
+                  Subir CV
                 </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Participación en búsquedas */}
+        <aside className="order-1 lg:order-2">
+          <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
+            <div className="border-b border-border px-5 py-3.5">
+              <h2 className="text-sm font-bold text-text">Búsquedas</h2>
+            </div>
+            {apps.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-muted">
+                Todavía no participa en ninguna búsqueda. Postulalo desde el pipeline de
+                una búsqueda.
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {apps.map((app) => (
+                  <li key={app.id}>
+                    <Link
+                      href={`/jobs/${app.jobId}/pipeline`}
+                      className="group flex flex-col gap-1 px-5 py-3.5 transition-colors hover:bg-bg"
+                    >
+                      <span className="truncate font-semibold text-text transition-colors group-hover:text-primary">
+                        {app.jobTitle}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <Badge variant={app.stage}>{STAGE_LABELS[app.stage]}</Badge>
+                        <span className="text-xs text-muted">
+                          {dateFmt.format(app.createdAt)}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }
