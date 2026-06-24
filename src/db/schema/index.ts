@@ -129,6 +129,19 @@ export const messageChannel = pgEnum("message_channel", ["email", "whatsapp"]);
 // Dirección de un mensaje en un hilo.
 export const messageDirection = pgEnum("message_direction", ["outbound", "inbound"]);
 
+// Estado de un miembro del equipo (para activar/desactivar acceso).
+export const membershipStatus = pgEnum("membership_status", ["active", "inactive"]);
+
+// Estado de una invitación al equipo.
+export const invitationStatus = pgEnum("invitation_status", [
+  "pending",
+  "accepted",
+  "revoked",
+]);
+
+// Tipo de notificación (para iconografía/agrupación).
+export const notificationType = pgEnum("notification_type", ["hire", "team", "system"]);
+
 // ---- Tenancy ----
 
 // El tenant. Todo dato de dominio cuelga de acá.
@@ -159,6 +172,8 @@ export const memberships = pgTable("memberships", {
     .references(() => profiles.id, { onDelete: "cascade" })
     .notNull(),
   role: orgRole("role").notNull().default("recruiter"),
+  // Activo/inactivo: permite desactivar el acceso de un miembro sin borrarlo.
+  status: membershipStatus("status").notNull().default("active"),
   ...timestamps,
 }, (t) => ({
   uniqueMember: uniqueIndex("memberships_org_profile_idx").on(
@@ -166,6 +181,44 @@ export const memberships = pgTable("memberships", {
     t.profileId,
   ),
   orgIdx: index("memberships_org_idx").on(t.organizationId),
+}));
+
+// Invitación a sumarse al equipo de una org con un rol. El envío del email es mock por ahora;
+// el flujo de aceptación real (registro + alta de membership) queda para después.
+export const invitations = pgTable("invitations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  email: text("email").notNull(),
+  role: orgRole("role").notNull().default("recruiter"),
+  status: invitationStatus("status").notNull().default("pending"),
+  token: text("token").notNull(),
+  invitedBy: uuid("invited_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("invitations_org_idx").on(t.organizationId),
+  tokenIdx: uniqueIndex("invitations_token_idx").on(t.token),
+}));
+
+// Notificación dirigida a un miembro de la org (campana + inbox).
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  profileId: uuid("profile_id")
+    .references(() => profiles.id, { onDelete: "cascade" })
+    .notNull(),
+  type: notificationType("type").notNull().default("system"),
+  title: text("title").notNull(),
+  link: text("link"), // ruta interna opcional a la que lleva la notificación
+  readAt: timestamp("read_at"), // null = no leída
+  ...timestamps,
+}, (t) => ({
+  // Inbox del usuario: sus notificaciones por org, ordenadas por fecha.
+  profileIdx: index("notifications_profile_idx").on(t.profileId, t.createdAt),
+  orgIdx: index("notifications_org_idx").on(t.organizationId),
 }));
 
 // ---- Reclutamiento (núcleo) ----
@@ -556,6 +609,8 @@ export type Offer = typeof offers.$inferSelect;
 export type MessageTemplate = typeof messageTemplates.$inferSelect;
 export type MessageThread = typeof messageThreads.$inferSelect;
 export type Message = typeof messages.$inferSelect;
+export type Invitation = typeof invitations.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;
 export type Shortlist = typeof shortlists.$inferSelect;
 export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;
 export type ShortlistShare = typeof shortlistShares.$inferSelect;
