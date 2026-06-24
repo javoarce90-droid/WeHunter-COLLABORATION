@@ -170,6 +170,8 @@ export const applications = pgTable("applications", {
 }, (t) => ({
   orgIdx: index("applications_org_idx").on(t.organizationId),
   jobIdx: index("applications_job_idx").on(t.jobId),
+  // Acceso "búsquedas de un candidato" (ficha de candidato): filtra por candidate_id.
+  candidateIdx: index("applications_candidate_idx").on(t.candidateId),
 }));
 
 // Entrevista agendada sobre una postulación. Es interna del equipo reclutador:

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { moverEtapaAction } from "../actions";
@@ -27,12 +28,15 @@ export function PipelineCard({ application, interviews }: Props) {
   );
 
   return (
-    <Card>
+    <Card className="transition-shadow hover:shadow-md">
       <div className="p-3">
         <div className="mb-1.5 flex items-center justify-between gap-2">
-          <p className="truncate text-sm font-semibold text-text">
+          <Link
+            href={`/candidates/${application.candidate.id}`}
+            className="truncate text-sm font-semibold text-text transition-colors hover:text-primary"
+          >
             {application.candidate.fullName}
-          </p>
+          </Link>
           <Badge variant={application.stage}>{STAGE_LABELS[application.stage]}</Badge>
         </div>
         {application.candidate.email && (
@@ -59,7 +63,7 @@ export function PipelineCard({ application, interviews }: Props) {
         )}
 
         {state.error && (
-          <p className="mt-1.5 text-xs text-red-600">{state.error}</p>
+          <p className="mt-1.5 text-xs text-danger">{state.error}</p>
         )}
 
         <NoteEditor

@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { applications, candidates, jobs } from "@/db/schema";
-import type { ApplicationStage } from "../schema";
+import { applications, candidates, jobs, type Job } from "@/db/schema";
+import { APPLICATION_STAGES, type ApplicationStage } from "../schema";
 
 /** Lecturas del pipeline. Cliente RLS; filtramos siempre por organization activa. */
 
@@ -121,6 +121,81 @@ export async function findExistingApplication(
     "db.applications.find-existing",
   );
   return rows[0] ?? null;
+}
+
+/** Una participación del candidato: en qué búsqueda está y en qué etapa. */
+export type CandidateApplication = {
+  id: string;
+  jobId: string;
+  jobTitle: string;
+  jobStatus: Job["status"];
+  stage: ApplicationStage;
+  createdAt: Date;
+};
+
+/**
+ * Búsquedas en las que participa un candidato (su huella en pipelines). Una query con join.
+ * Filtra por `applications.candidate_id`, cubierto por el índice `applications_candidate_idx`.
+ */
+export async function listApplicationsByCandidate(
+  candidateId: string,
+  organizationId: string,
+): Promise<CandidateApplication[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: applications.id,
+        jobId: applications.jobId,
+        jobTitle: jobs.title,
+        jobStatus: jobs.status,
+        stage: applications.stage,
+        createdAt: applications.createdAt,
+      })
+      .from(applications)
+      .innerJoin(jobs, eq(applications.jobId, jobs.id))
+      .where(
+        and(
+          eq(applications.candidateId, candidateId),
+          eq(applications.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(applications.createdAt))
+      .limit(100),
+    "db.applications.by-candidate",
+  );
+  return rows.map((r) => ({ ...r, stage: r.stage as ApplicationStage }));
+}
+
+export type StageCounts = Record<ApplicationStage, number>;
+
+/** Cantidad de candidatos por etapa para una búsqueda. Una query agrupada (database.md #3). */
+export async function getJobStageCounts(
+  jobId: string,
+  organizationId: string,
+): Promise<StageCounts> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        stage: applications.stage,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(applications)
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applications.organizationId, organizationId),
+        ),
+      )
+      .groupBy(applications.stage),
+    "db.applications.stage-counts",
+  );
+  const counts = Object.fromEntries(
+    APPLICATION_STAGES.map((s) => [s, 0]),
+  ) as StageCounts;
+  for (const r of rows) counts[r.stage as ApplicationStage] = r.count;
+  return counts;
 }
 
 /** Verifica que el job exista y pertenezca a la org. */

@@ -43,6 +43,13 @@
       "when": 1782246248983,
       "tag": "0005_panoramic_bug",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782262332376,
+      "tag": "0006_parched_thor",
+      "breakpoints": true
     }
   ]
 }
