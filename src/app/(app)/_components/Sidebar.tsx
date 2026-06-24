@@ -22,6 +22,7 @@ const NAV: { href: string; label: string; Icon: (p: IconProps) => React.ReactEle
   { href: "/dashboard", label: "Inicio", Icon: DashboardIcon },
   { href: "/jobs", label: "Búsquedas", Icon: BriefcaseIcon },
   { href: "/candidates", label: "Candidatos", Icon: UsersIcon },
+  { href: "/sourcing", label: "Sourcing", Icon: SearchIcon },
   { href: "/clients", label: "Clientes", Icon: BuildingIcon },
   { href: "/agenda", label: "Agenda", Icon: CalendarIcon },
   { href: "/messages", label: "Mensajes", Icon: ChatIcon },
@@ -200,6 +201,15 @@ function CalendarIcon({ className }: IconProps) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <rect x="3" y="4" width="18" height="18" rx="2" />
       <path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
+
+function SearchIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
     </svg>
   );
 }
