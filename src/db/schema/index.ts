@@ -249,6 +249,9 @@ export const applications = pgTable("applications", {
   // Marcador liviano de favorito/destacado para el triage de postulados. No es el shortlist
   // (que es la selección formal que se comparte con la empresa): es una estrella del recruiter.
   isFavorite: boolean("is_favorite").notNull().default(false),
+  // Resultado de IA (mock por ahora) persistido para que la UI sea real. null = sin analizar.
+  aiScore: integer("ai_score"), // 0–100, compatibilidad estimada con la búsqueda
+  aiSummary: text("ai_summary"), // resumen corto del match
   // Nota interna del reclutador sobre el candidato en este proceso. No visible para la empresa.
   notes: text("notes"),
   ...timestamps,

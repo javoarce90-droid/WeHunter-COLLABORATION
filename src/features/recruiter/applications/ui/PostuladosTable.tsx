@@ -10,6 +10,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
+import { AiScore, AiButton } from "@/components/ui/ai";
 import { useToast } from "@/lib/toast";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import type { CandidateSource } from "@/features/recruiter/candidates/domain/candidate-details";
@@ -17,14 +18,19 @@ import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { PostuladoRow } from "../data/applications.queries";
 import { isTerminal } from "./stage-visual";
-import { moverEtapaAction, marcarFavoritoAction, rechazarVariosAction } from "../actions";
+import {
+  moverEtapaAction,
+  marcarFavoritoAction,
+  rechazarVariosAction,
+  analizarPostuladosAction,
+} from "../actions";
 
 type Props = {
   jobId: string;
   postulados: PostuladoRow[];
 };
 
-type SortKey = "candidate" | "stage" | "date";
+type SortKey = "candidate" | "stage" | "date" | "match";
 type SortDir = "asc" | "desc";
 
 const STAGE_ORDER = new Map(APPLICATION_STAGES.map((s, i) => [s, i]));
@@ -55,7 +61,13 @@ export function PostuladosTable({ jobId, postulados }: Props) {
       if (sort.key === "candidate") cmp = a.candidate.fullName.localeCompare(b.candidate.fullName);
       else if (sort.key === "stage")
         cmp = (STAGE_ORDER.get(a.stage) ?? 0) - (STAGE_ORDER.get(b.stage) ?? 0);
-      else cmp = a.createdAt.getTime() - b.createdAt.getTime();
+      else if (sort.key === "match") {
+        // Sin score va siempre al final, sin importar la dirección.
+        if (a.aiScore == null && b.aiScore == null) cmp = 0;
+        else if (a.aiScore == null) return 1;
+        else if (b.aiScore == null) return -1;
+        else cmp = a.aiScore - b.aiScore;
+      } else cmp = a.createdAt.getTime() - b.createdAt.getTime();
       return cmp * factor;
     });
   }, [rows, sort]);
@@ -127,6 +139,18 @@ export function PostuladosTable({ jobId, postulados }: Props) {
     });
   }
 
+  function onAnalizar() {
+    startTransition(async () => {
+      const res = await analizarPostuladosAction(jobId);
+      if (!res.ok) toast({ message: res.error ?? "No se pudo analizar.", variant: "danger" });
+      else
+        toast({
+          message: `${res.scored} postulado${res.scored !== 1 ? "s" : ""} analizado${res.scored !== 1 ? "s" : ""} con IA`,
+          variant: "success",
+        });
+    });
+  }
+
   function doBulkReject() {
     const ids = [...selected];
     setConfirmReject(false);
@@ -147,10 +171,13 @@ export function PostuladosTable({ jobId, postulados }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted">
           {postulados.length} postulado{postulados.length !== 1 ? "s" : ""}
         </p>
+        <AiButton onClick={onAnalizar} title="Calcular compatibilidad de cada candidato con la búsqueda">
+          Analizar con IA
+        </AiButton>
       </div>
 
       {/* Barra de selección */}
@@ -190,6 +217,7 @@ export function PostuladosTable({ jobId, postulados }: Props) {
               <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted md:table-cell">
                 Fuente
               </th>
+              <SortableTh label="Match" active={sort} sortKey="match" onSort={setSortKey} />
               <SortableTh label="Etapa" active={sort} sortKey="stage" onSort={setSortKey} />
               <SortableTh label="Postulado" active={sort} sortKey="date" onSort={setSortKey} className="hidden sm:table-cell" />
               <th className="py-2.5 pr-4" />
@@ -254,6 +282,13 @@ export function PostuladosTable({ jobId, postulados }: Props) {
                   </td>
                   <td className="hidden py-2.5 pr-3 text-muted md:table-cell">
                     {sourceLabel(row.candidate.source)}
+                  </td>
+                  <td className="py-2.5 pr-3">
+                    {row.aiScore != null ? (
+                      <AiScore score={row.aiScore} size={28} />
+                    ) : (
+                      <span className="text-xs text-muted">—</span>
+                    )}
                   </td>
                   <td className="py-2.5 pr-3">
                     <Badge variant={row.stage}>{STAGE_LABELS[row.stage]}</Badge>

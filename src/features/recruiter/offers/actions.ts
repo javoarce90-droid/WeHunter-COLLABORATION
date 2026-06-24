@@ -18,6 +18,7 @@ import {
 } from "./data/offers.mutations";
 import { getOfferStatusRow, getOfferDetail, type OfferDetail } from "./data/offers.queries";
 import { getApplicationById } from "../applications/data/applications.queries";
+import { getAiProvider } from "@/lib/ai";
 
 export interface OfferActionState {
   error?: string;
@@ -93,6 +94,26 @@ export async function editarOfertaAction(
 
   revalidatePath(`/jobs/${jobId}/ofertas`);
   return {};
+}
+
+/** Redacta (IA mock) el cuerpo de una oferta a partir de los datos del form. */
+export async function draftOfferAction(
+  jobTitle: string,
+  candidateName: string,
+  salary: string | null,
+): Promise<{ ok: boolean; body?: string; error?: string }> {
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+  if (!candidateName.trim() || !jobTitle.trim()) {
+    return { ok: false, error: "Elegí el candidato y el puesto primero." };
+  }
+
+  const body = await getAiProvider().draftOffer({
+    candidateName,
+    jobTitle,
+    salary: salary && salary.trim() ? salary.trim() : null,
+  });
+  return { ok: true, body };
 }
 
 /** Lectura del detalle de una oferta para precargar el drawer de edición. */

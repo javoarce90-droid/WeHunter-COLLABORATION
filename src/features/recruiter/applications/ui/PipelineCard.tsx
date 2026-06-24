@@ -4,6 +4,7 @@ import type { KeyboardEvent } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
+import { AiScore } from "@/components/ui/ai";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
@@ -131,6 +132,13 @@ export function PipelineCard({
             <p className="truncate text-xs text-muted">{application.candidate.email}</p>
           )}
         </div>
+
+        {/* Score circle de IA — solo cuando ya se analizó (E8) */}
+        {application.aiScore != null && (
+          <div className="mt-0.5 shrink-0">
+            <AiScore score={application.aiScore} size={24} />
+          </div>
+        )}
 
         {!terminal && !isDragOverlay && (
           <Menu
