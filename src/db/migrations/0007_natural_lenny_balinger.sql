@@ -1,0 +1,1 @@
+CREATE INDEX "interviews_org_scheduled_idx" ON "interviews" USING btree ("organization_id","scheduled_at");

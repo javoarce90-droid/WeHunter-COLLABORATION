@@ -100,7 +100,7 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 | ✅ | Agendar entrevista (fecha, modalidad, lugar/link, notas) | `agendarEntrevista` |
 | ✅ | Editar entrevista | `actualizarEntrevista` |
 | ✅ | Eliminar/cancelar entrevista | `eliminarEntrevista` |
-| 🔲 | Listar / agenda de entrevistas | UI |
+| ✅ | Listar / agenda de entrevistas | `/agenda` — vista org-wide, próximas por día + pasadas |
 | 🔭 | Tipo de entrevista (screening/técnica/comportamental/cliente) | 🧱 columna |
 | 🔭 | Guía de entrevista con preguntas IA; informe post-entrevista | Etapa 2 / IA |
 | 🔭 | Integración Google Calendar; grabación | Etapa 2 |

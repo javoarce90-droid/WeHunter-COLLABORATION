@@ -196,6 +196,11 @@ export const interviews = pgTable("interviews", {
 }, (t) => ({
   orgIdx: index("interviews_org_idx").on(t.organizationId),
   applicationIdx: index("interviews_application_idx").on(t.applicationId),
+  // Agenda: lista org-wide ordenada por fecha.
+  orgScheduledIdx: index("interviews_org_scheduled_idx").on(
+    t.organizationId,
+    t.scheduledAt,
+  ),
 }));
 
 // ---- Shortlists (compartir candidatos con la empresa) ----

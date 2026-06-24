@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { getActiveMembership } from "@/lib/auth/session";
 import { obtenerKpis } from "@/features/recruiter/dashboard/domain/obtener-kpis";
@@ -49,8 +50,14 @@ async function KpiSection() {
     <>
       <KpiGrid kpis={result.data} />
       <p className="text-xs text-muted">
-        Las entrevistas próximas se incorporan cuando esté el módulo de
-        entrevistas.
+        Revisá tus entrevistas próximas en la{" "}
+        <Link
+          href="/agenda"
+          className="font-semibold text-primary hover:text-primary-hover"
+        >
+          Agenda
+        </Link>
+        .
       </p>
     </>
   );
