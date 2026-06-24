@@ -1,6 +1,6 @@
 import { and, eq, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { applications, candidates, jobs, type Job } from "@/db/schema";
+import { applications, applicationEvents, candidates, jobs, type Job } from "@/db/schema";
 import { APPLICATION_STAGES, type ApplicationStage } from "../schema";
 
 /** Lecturas del pipeline. Cliente RLS; filtramos siempre por organization activa. */
@@ -167,6 +167,67 @@ export async function listApplicationsByCandidate(
   return rows.map((r) => ({ ...r, stage: r.stage as ApplicationStage }));
 }
 
+/** Fila del inbox de Postulados: postulación + datos del candidato para triage. */
+export type PostuladoRow = {
+  id: string;
+  stage: ApplicationStage;
+  isFavorite: boolean;
+  createdAt: Date;
+  candidate: {
+    id: string;
+    fullName: string;
+    email: string | null;
+    source: string | null;
+  };
+};
+
+/**
+ * Postulados de una búsqueda para la tabla de triage. Trae fuente y favorito (que el
+ * pipeline no necesita). Una query con join; ordena por favorito y fecha. Con límite.
+ */
+export async function listPostulados(
+  jobId: string,
+  organizationId: string,
+): Promise<PostuladoRow[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: applications.id,
+        stage: applications.stage,
+        isFavorite: applications.isFavorite,
+        createdAt: applications.createdAt,
+        candidateId: candidates.id,
+        candidateFullName: candidates.fullName,
+        candidateEmail: candidates.email,
+        candidateSource: candidates.source,
+      })
+      .from(applications)
+      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applications.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(applications.isFavorite), desc(applications.createdAt))
+      .limit(200),
+    "db.applications.postulados",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    stage: r.stage as ApplicationStage,
+    isFavorite: r.isFavorite,
+    createdAt: r.createdAt,
+    candidate: {
+      id: r.candidateId,
+      fullName: r.candidateFullName,
+      email: r.candidateEmail,
+      source: r.candidateSource,
+    },
+  }));
+}
+
 export type StageCounts = Record<ApplicationStage, number>;
 
 /** Cantidad de candidatos por etapa para una búsqueda. Una query agrupada (database.md #3). */
@@ -196,6 +257,50 @@ export async function getJobStageCounts(
   ) as StageCounts;
   for (const r of rows) counts[r.stage as ApplicationStage] = r.count;
   return counts;
+}
+
+/**
+ * Para cada postulación del job, retorna cuándo entró a su etapa actual.
+ * Se usa para calcular el SLA risk en las cards del pipeline.
+ * Fallback: si no hay evento (candidato nunca movido), usar application.createdAt en el llamador.
+ */
+export async function getStageEntryTimes(
+  jobId: string,
+  organizationId: string,
+): Promise<Record<string, Date>> {
+  const db = await getDb();
+  // Une application_events con applications para filtrar por job y por etapa actual.
+  // eq() entre dos columnas genera `col_a = col_b` en SQL.
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          applicationId: applicationEvents.applicationId,
+          createdAt: applicationEvents.createdAt,
+        })
+        .from(applicationEvents)
+        .innerJoin(
+          applications,
+          eq(applicationEvents.applicationId, applications.id),
+        )
+        .where(
+          and(
+            eq(applications.jobId, jobId),
+            eq(applications.organizationId, organizationId),
+            // Solo eventos donde to_stage = stage actual de la postulación.
+            eq(applicationEvents.toStage, applications.stage),
+          ),
+        )
+        .orderBy(desc(applicationEvents.createdAt)),
+    "db.applications.stage-entry-times",
+  );
+
+  const result: Record<string, Date> = {};
+  for (const r of rows) {
+    // orderBy DESC + first-seen = el evento más reciente por applicationId.
+    if (!result[r.applicationId]) result[r.applicationId] = r.createdAt;
+  }
+  return result;
 }
 
 /** Verifica que el job exista y pertenezca a la org. */

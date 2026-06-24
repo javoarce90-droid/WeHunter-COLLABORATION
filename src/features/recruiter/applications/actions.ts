@@ -1,10 +1,12 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
 import { postularCandidatoSchema, moverEtapaSchema } from "./schema";
 import { postularCandidato } from "./domain/postular-candidato";
 import { moverEtapa } from "./domain/mover-etapa";
+import { marcarFavorito } from "./domain/marcar-favorito";
 import {
   getJobForPipeline,
   getApplicationById,
@@ -13,6 +15,7 @@ import {
 import {
   insertApplication,
   updateApplicationStage,
+  setApplicationFavorite,
 } from "./data/applications.mutations";
 import { getCandidateById } from "../candidates/data/candidates.queries";
 
@@ -162,5 +165,84 @@ export async function moverEtapaAction(
   }
 
   revalidatePath(`/jobs/${result.data.jobId}/pipeline`);
+  revalidatePath(`/jobs/${result.data.jobId}/postulados`);
   return {};
+}
+
+const marcarFavoritoSchema = z.object({
+  applicationId: z.string().uuid(),
+  isFavorite: z.boolean(),
+  jobId: z.string().uuid(),
+});
+
+export async function marcarFavoritoAction(
+  applicationId: string,
+  isFavorite: boolean,
+  jobId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const parsed = marcarFavoritoSchema.safeParse({ applicationId, isFavorite, jobId });
+  if (!parsed.success) {
+    return { ok: false, error: "Datos inválidos." };
+  }
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const result = await marcarFavorito(
+    { applicationId, isFavorite },
+    { organizationId: membership.organizationId },
+    {
+      getApplicationById: (id, organizationId) => getApplicationById(id, organizationId),
+      setFavorite: setApplicationFavorite,
+    },
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/jobs/${jobId}/postulados`);
+  return { ok: true };
+}
+
+/**
+ * Rechaza varias postulaciones de una (bulk reject del inbox). Orquesta el mismo caso de uso
+ * `moverEtapa` por cada id (la regla vive en el dominio). Tolerante: las que ya están en una
+ * etapa terminal se cuentan como saltadas, no como error.
+ */
+export async function rechazarVariosAction(
+  jobId: string,
+  applicationIds: string[],
+): Promise<{ ok: boolean; rejected?: number; skipped?: number; error?: string }> {
+  if (!jobId || applicationIds.length === 0) {
+    return { ok: false, error: "Elegí al menos una postulación." };
+  }
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const ctx = {
+    userId: "",
+    organizationId: membership.organizationId,
+    role: membership.role,
+  };
+  const deps = {
+    getApplicationById: (id: string, organizationId: string) =>
+      getApplicationById(id, organizationId),
+    updateApplicationStage,
+  };
+
+  let rejected = 0;
+  let skipped = 0;
+  for (const applicationId of applicationIds) {
+    const res = await moverEtapa({ applicationId, newStage: "rejected" }, ctx, deps);
+    if (res.ok) rejected += 1;
+    else skipped += 1;
+  }
+
+  if (rejected === 0) {
+    return { ok: false, error: "No se pudo rechazar (¿ya estaban en una etapa terminal?)." };
+  }
+
+  revalidatePath(`/jobs/${jobId}/postulados`);
+  revalidatePath(`/jobs/${jobId}/pipeline`);
+  return { ok: true, rejected, skipped };
 }
