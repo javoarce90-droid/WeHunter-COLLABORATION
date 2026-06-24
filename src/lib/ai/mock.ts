@@ -3,6 +3,9 @@ import type {
   ScoreApplicationInput,
   ScoreApplicationResult,
   DraftOfferInput,
+  DraftJobPostingInput,
+  InterviewGuideInput,
+  ReportInsightsInput,
 } from "./provider";
 
 /**
@@ -74,5 +77,62 @@ export class MockAiProvider implements AiProvider {
       `${salaryLine}\n\n` +
       `Quedamos atentos a tus comentarios para coordinar los próximos pasos. ¡Esperamos sumarte!`
     );
+  }
+
+  async draftJobPosting(input: DraftJobPostingInput): Promise<string> {
+    const { title, skills, seniority, location, modality } = input;
+    const ctx = [seniority, modality, location].filter(Boolean).join(" · ");
+    const skillsLine =
+      skills.length > 0
+        ? `Buscamos a alguien con experiencia en ${skills.join(", ")}.`
+        : "Buscamos a alguien con sólida experiencia técnica en el área.";
+
+    return (
+      `${title}${ctx ? ` — ${ctx}` : ""}\n\n` +
+      `Estamos sumando a nuestro equipo un/a ${title}. ${skillsLine}\n\n` +
+      `Qué ofrecemos:\n` +
+      `• Un equipo que valora la autonomía y el aprendizaje continuo.\n` +
+      `• Proyectos desafiantes con impacto real.\n` +
+      `${modality ? `• Modalidad ${modality.toLowerCase()}.\n` : ""}` +
+      `\n¿Te interesa? Postulate y conversemos.`
+    );
+  }
+
+  async interviewGuide(input: InterviewGuideInput): Promise<string[]> {
+    const { candidateName, jobTitle, skills } = input;
+    const first = candidateName.split(" ")[0] || candidateName;
+    const base = [
+      `Contanos sobre tu experiencia más relevante para el rol de ${jobTitle}.`,
+      `¿Qué te motivó a postularte a esta búsqueda, ${first}?`,
+      `Describí un problema técnico difícil que hayas resuelto y cómo lo encaraste.`,
+      `¿Cómo trabajás en equipo cuando hay opiniones encontradas?`,
+      `¿Qué esperás de tu próximo desafío profesional?`,
+    ];
+    const skillQs = skills
+      .slice(0, 3)
+      .map((s) => `Profundicemos en ${s}: contame un caso concreto donde lo aplicaste.`);
+    return [...base.slice(0, 3), ...skillQs, ...base.slice(3)];
+  }
+
+  async reportInsights(input: ReportInsightsInput): Promise<string> {
+    const { jobTitle, total, hired, timeToHireDays, topSource } = input;
+    if (total === 0) {
+      return `Todavía no hay datos suficientes de ${jobTitle} para generar insights.`;
+    }
+    const conversion = Math.round((hired / total) * 100);
+    const parts = [
+      `La búsqueda de ${jobTitle} acumula ${total} postulación${total !== 1 ? "es" : ""}` +
+        (hired > 0 ? `, con ${hired} contratación${hired !== 1 ? "es" : ""} (${conversion}% de conversión).` : ", sin contrataciones aún."),
+    ];
+    if (timeToHireDays != null) {
+      parts.push(`El time-to-hire promedio es de ${timeToHireDays} días.`);
+    }
+    if (topSource) {
+      parts.push(`La fuente que más candidatos aporta es ${topSource}; conviene reforzarla.`);
+    }
+    if (hired === 0 && total >= 5) {
+      parts.push("Sugerencia: revisá las etapas con más caída en el funnel para destrabar el proceso.");
+    }
+    return parts.join(" ");
   }
 }

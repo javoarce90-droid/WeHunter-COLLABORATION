@@ -9,9 +9,26 @@ import { editarBusqueda } from "./domain/editar-busqueda";
 import { cambiarEstadoBusqueda } from "./domain/cambiar-estado-busqueda";
 import { insertJob, updateJobFields, updateJobStatus } from "./data/jobs.mutations";
 import { getJobStatus } from "./data/jobs.queries";
+import { getAiProvider } from "@/lib/ai";
 
 export interface JobFormState {
   error?: string;
+}
+
+/** Redacta (IA mock) el aviso público a partir de los datos cargados del form. */
+export async function generarAvisoAction(input: {
+  title: string;
+  skills: string[];
+  seniority: string | null;
+  location: string | null;
+  modality: string | null;
+}): Promise<{ ok: boolean; posting?: string; error?: string }> {
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+  if (!input.title.trim()) return { ok: false, error: "Cargá el título primero." };
+
+  const posting = await getAiProvider().draftJobPosting(input);
+  return { ok: true, posting };
 }
 
 /** Lee del FormData todos los campos de la búsqueda (núcleo + ricos) para validar con Zod. */

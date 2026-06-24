@@ -208,6 +208,25 @@ export async function marcarFavoritoAction(
   return { ok: true };
 }
 
+/** Genera (IA mock) una guía de preguntas de entrevista para un candidato en una búsqueda. */
+export async function generarGuiaEntrevistaAction(
+  jobId: string,
+  candidateName: string,
+): Promise<{ ok: boolean; questions?: string[]; error?: string }> {
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const job = await getJobById(jobId, membership.organizationId);
+  if (!job) return { ok: false, error: "Búsqueda no encontrada." };
+
+  const questions = await getAiProvider().interviewGuide({
+    candidateName,
+    jobTitle: job.title,
+    skills: job.skills ?? [],
+  });
+  return { ok: true, questions };
+}
+
 /**
  * Analiza con IA (mock) todas las postulaciones de una búsqueda: calcula y persiste un score
  * de compatibilidad. La lógica de scoring vive detrás de la interfaz AiProvider; el caso de

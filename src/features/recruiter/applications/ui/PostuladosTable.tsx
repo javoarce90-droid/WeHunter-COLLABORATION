@@ -285,7 +285,7 @@ export function PostuladosTable({ jobId, postulados }: Props) {
                   </td>
                   <td className="py-2.5 pr-3">
                     {row.aiScore != null ? (
-                      <AiScore score={row.aiScore} size={28} />
+                      <AiScore score={row.aiScore} size={28} detail={row.aiSummary} />
                     ) : (
                       <span className="text-xs text-muted">—</span>
                     )}

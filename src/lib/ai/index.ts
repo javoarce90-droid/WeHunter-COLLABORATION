@@ -1,7 +1,15 @@
 import type { AiProvider } from "./provider";
 import { MockAiProvider } from "./mock";
 
-export type { AiProvider, ScoreApplicationInput, ScoreApplicationResult, DraftOfferInput } from "./provider";
+export type {
+  AiProvider,
+  ScoreApplicationInput,
+  ScoreApplicationResult,
+  DraftOfferInput,
+  DraftJobPostingInput,
+  InterviewGuideInput,
+  ReportInsightsInput,
+} from "./provider";
 
 /**
  * Punto único para obtener el proveedor de IA. Hoy devuelve el mock determinístico.

@@ -36,7 +36,32 @@ export type DraftOfferInput = {
   salary: string | null;
 };
 
+export type DraftJobPostingInput = {
+  title: string;
+  skills: string[];
+  seniority: string | null;
+  location: string | null;
+  modality: string | null;
+};
+
+export type InterviewGuideInput = {
+  candidateName: string;
+  jobTitle: string;
+  skills: string[];
+};
+
+export type ReportInsightsInput = {
+  jobTitle: string;
+  total: number;
+  hired: number;
+  timeToHireDays: number | null;
+  topSource: string | null;
+};
+
 export interface AiProvider {
   scoreApplication(input: ScoreApplicationInput): Promise<ScoreApplicationResult>;
   draftOffer(input: DraftOfferInput): Promise<string>;
+  draftJobPosting(input: DraftJobPostingInput): Promise<string>;
+  interviewGuide(input: InterviewGuideInput): Promise<string[]>;
+  reportInsights(input: ReportInsightsInput): Promise<string>;
 }

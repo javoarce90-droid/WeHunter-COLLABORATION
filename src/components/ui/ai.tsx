@@ -45,7 +45,16 @@ function scoreColor(score: number): string {
  * Score circle de IA (conic-gradient). Muestra la compatibilidad estimada 0–100 como anillo
  * proporcional + número. El color va por banda (verde/ámbar/rojo).
  */
-export function AiScore({ score, size = 30 }: { score: number; size?: number }) {
+export function AiScore({
+  score,
+  size = 30,
+  detail,
+}: {
+  score: number;
+  size?: number;
+  /** Resumen del match para el tooltip (ej. ai_summary). */
+  detail?: string | null;
+}) {
   const color = scoreColor(score);
   const ring = size;
   const inner = size - 6;
@@ -58,8 +67,8 @@ export function AiScore({ score, size = 30 }: { score: number; size?: number }) 
         background: `conic-gradient(${color} ${score * 3.6}deg, var(--border) 0deg)`,
       }}
       role="img"
-      aria-label={`Score IA ${score} de 100`}
-      title={`Compatibilidad IA: ${score}/100`}
+      aria-label={`Score IA ${score} de 100${detail ? `. ${detail}` : ""}`}
+      title={`Compatibilidad IA: ${score}/100${detail ? `\n${detail}` : ""}`}
     >
       <span
         className="flex items-center justify-center rounded-full bg-surface font-bold tabular-nums text-text"

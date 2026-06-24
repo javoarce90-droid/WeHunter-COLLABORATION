@@ -176,6 +176,7 @@ export type PostuladoRow = {
   stage: ApplicationStage;
   isFavorite: boolean;
   aiScore: number | null;
+  aiSummary: string | null;
   createdAt: Date;
   candidate: {
     id: string;
@@ -201,6 +202,7 @@ export async function listPostulados(
         stage: applications.stage,
         isFavorite: applications.isFavorite,
         aiScore: applications.aiScore,
+        aiSummary: applications.aiSummary,
         createdAt: applications.createdAt,
         candidateId: candidates.id,
         candidateFullName: candidates.fullName,
@@ -224,6 +226,7 @@ export async function listPostulados(
     stage: r.stage as ApplicationStage,
     isFavorite: r.isFavorite,
     aiScore: r.aiScore,
+    aiSummary: r.aiSummary,
     createdAt: r.createdAt,
     candidate: {
       id: r.candidateId,
