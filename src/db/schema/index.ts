@@ -123,6 +123,12 @@ export const offerStatus = pgEnum("offer_status", [
   "rejected", // rechazada (terminal)
 ]);
 
+// Canal de mensajería con el candidato.
+export const messageChannel = pgEnum("message_channel", ["email", "whatsapp"]);
+
+// Dirección de un mensaje en un hilo.
+export const messageDirection = pgEnum("message_direction", ["outbound", "inbound"]);
+
 // ---- Tenancy ----
 
 // El tenant. Todo dato de dominio cuelga de acá.
@@ -388,6 +394,69 @@ export const offers = pgTable("offers", {
   applicationIdx: index("offers_application_idx").on(t.applicationId),
 }));
 
+// Template reutilizable de mensaje (canned response) por canal.
+export const messageTemplates = pgTable("message_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  channel: messageChannel("channel").notNull().default("email"),
+  body: text("body").notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("message_templates_org_idx").on(t.organizationId),
+}));
+
+// Hilo de conversación con un candidato por un canal. Un candidato puede tener un hilo de
+// email y otro de whatsapp. lastMessageAt ordena el inbox sin recalcular.
+export const messageThreads = pgTable("message_threads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  candidateId: uuid("candidate_id")
+    .references(() => candidates.id, { onDelete: "cascade" })
+    .notNull(),
+  channel: messageChannel("channel").notNull().default("email"),
+  subject: text("subject"),
+  lastMessageAt: timestamp("last_message_at").defaultNow().notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("message_threads_org_idx").on(t.organizationId),
+  // Inbox: hilos de la org ordenados por actividad.
+  orgActivityIdx: index("message_threads_org_activity_idx").on(
+    t.organizationId,
+    t.lastMessageAt,
+  ),
+  // Un hilo por (candidato, canal).
+  uniqueThread: uniqueIndex("message_threads_candidate_channel_idx").on(
+    t.candidateId,
+    t.channel,
+  ),
+}));
+
+// Mensaje dentro de un hilo. El envío es mock (no hay Gmail/WhatsApp real todavía):
+// outbound = lo que mandó el reclutador; inbound queda para la integración real (diferida).
+export const messages = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  threadId: uuid("thread_id")
+    .references(() => messageThreads.id, { onDelete: "cascade" })
+    .notNull(),
+  direction: messageDirection("direction").notNull().default("outbound"),
+  body: text("body").notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("messages_org_idx").on(t.organizationId),
+  threadIdx: index("messages_thread_idx").on(t.threadId),
+}));
+
 // ---- Shortlists (compartir candidatos con la empresa) ----
 
 // Una selección de candidatos de un job que el reclutador comparte con una empresa.
@@ -484,6 +553,9 @@ export type Interview = typeof interviews.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type ApplicationEvent = typeof applicationEvents.$inferSelect;
 export type Offer = typeof offers.$inferSelect;
+export type MessageTemplate = typeof messageTemplates.$inferSelect;
+export type MessageThread = typeof messageThreads.$inferSelect;
+export type Message = typeof messages.$inferSelect;
 export type Shortlist = typeof shortlists.$inferSelect;
 export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;
 export type ShortlistShare = typeof shortlistShares.$inferSelect;
