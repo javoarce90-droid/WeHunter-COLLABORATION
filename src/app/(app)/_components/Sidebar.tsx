@@ -25,6 +25,7 @@ const NAV: { href: string; label: string; Icon: (p: IconProps) => React.ReactEle
   { href: "/sourcing", label: "Sourcing", Icon: SearchIcon },
   { href: "/clients", label: "Clientes", Icon: BuildingIcon },
   { href: "/agenda", label: "Agenda", Icon: CalendarIcon },
+  { href: "/messages", label: "Mensajes", Icon: ChatIcon },
   { href: "/reports", label: "Reportes", Icon: ChartIcon },
 ];
 

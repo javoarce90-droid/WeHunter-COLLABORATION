@@ -99,6 +99,13 @@
       "when": 1782327768914,
       "tag": "0013_cynical_albert_cleary",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782328861223,
+      "tag": "0014_open_logan",
+      "breakpoints": true
     }
   ]
 }
