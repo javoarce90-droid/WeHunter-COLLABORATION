@@ -1,4 +1,5 @@
 import { Card } from "./card";
+import { Skeleton } from "./skeleton";
 
 /**
  * Placeholder genérico para listados que se streamean dentro de <Suspense>.
@@ -11,10 +12,10 @@ export function ListSkeleton({ rows = 4 }: { rows?: number }) {
         <Card key={i}>
           <div className="flex items-center justify-between p-4">
             <div className="flex flex-col gap-2">
-              <div className="h-4 w-48 animate-pulse rounded bg-border" />
-              <div className="h-3 w-32 animate-pulse rounded bg-border" />
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-3 w-32" />
             </div>
-            <div className="h-6 w-20 animate-pulse rounded bg-border" />
+            <Skeleton className="h-6 w-20" />
           </div>
         </Card>
       ))}
