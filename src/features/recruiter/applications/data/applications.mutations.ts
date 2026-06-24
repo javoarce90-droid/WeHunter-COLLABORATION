@@ -86,6 +86,21 @@ export async function updateApplicationStage(
   return toRow(row);
 }
 
+export async function setApplicationFavorite(
+  applicationId: string,
+  isFavorite: boolean,
+): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx
+        .update(applications)
+        .set({ isFavorite, updatedAt: new Date() })
+        .where(eq(applications.id, applicationId)),
+    "db.applications.set-favorite",
+  );
+}
+
 export async function deleteApplication(
   applicationId: string,
   organizationId: string,

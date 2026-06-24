@@ -167,6 +167,67 @@ export async function listApplicationsByCandidate(
   return rows.map((r) => ({ ...r, stage: r.stage as ApplicationStage }));
 }
 
+/** Fila del inbox de Postulados: postulación + datos del candidato para triage. */
+export type PostuladoRow = {
+  id: string;
+  stage: ApplicationStage;
+  isFavorite: boolean;
+  createdAt: Date;
+  candidate: {
+    id: string;
+    fullName: string;
+    email: string | null;
+    source: string | null;
+  };
+};
+
+/**
+ * Postulados de una búsqueda para la tabla de triage. Trae fuente y favorito (que el
+ * pipeline no necesita). Una query con join; ordena por favorito y fecha. Con límite.
+ */
+export async function listPostulados(
+  jobId: string,
+  organizationId: string,
+): Promise<PostuladoRow[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: applications.id,
+        stage: applications.stage,
+        isFavorite: applications.isFavorite,
+        createdAt: applications.createdAt,
+        candidateId: candidates.id,
+        candidateFullName: candidates.fullName,
+        candidateEmail: candidates.email,
+        candidateSource: candidates.source,
+      })
+      .from(applications)
+      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applications.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(applications.isFavorite), desc(applications.createdAt))
+      .limit(200),
+    "db.applications.postulados",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    stage: r.stage as ApplicationStage,
+    isFavorite: r.isFavorite,
+    createdAt: r.createdAt,
+    candidate: {
+      id: r.candidateId,
+      fullName: r.candidateFullName,
+      email: r.candidateEmail,
+      source: r.candidateSource,
+    },
+  }));
+}
+
 export type StageCounts = Record<ApplicationStage, number>;
 
 /** Cantidad de candidatos por etapa para una búsqueda. Una query agrupada (database.md #3). */

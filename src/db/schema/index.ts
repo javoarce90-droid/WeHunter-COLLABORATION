@@ -237,6 +237,9 @@ export const applications = pgTable("applications", {
     .references(() => candidates.id, { onDelete: "cascade" })
     .notNull(),
   stage: applicationStage("stage").notNull().default("new"),
+  // Marcador liviano de favorito/destacado para el triage de postulados. No es el shortlist
+  // (que es la selección formal que se comparte con la empresa): es una estrella del recruiter.
+  isFavorite: boolean("is_favorite").notNull().default(false),
   // Nota interna del reclutador sobre el candidato en este proceso. No visible para la empresa.
   notes: text("notes"),
   ...timestamps,
