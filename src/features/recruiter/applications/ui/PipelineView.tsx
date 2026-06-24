@@ -8,6 +8,7 @@ import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import { PipelineCard } from "./PipelineCard";
 import { PipelineDetailSheet } from "./PipelineDetailSheet";
 import { STAGE_DOT, isTerminal } from "./stage-visual";
@@ -16,6 +17,8 @@ type Props = {
   applications: ApplicationWithCandidate[];
   /** Entrevistas agrupadas por applicationId (una query arriba, sin N+1). */
   interviewsByApplication: Record<string, InterviewRow[]>;
+  /** Notas del timeline agrupadas por applicationId. */
+  notesByApplication: Record<string, TimelineNote[]>;
 };
 
 type Move = { applicationId: string; toStage: ApplicationStage };
@@ -26,7 +29,11 @@ type Move = { applicationId: string; toStage: ApplicationStage };
  * La card y el sheet solo llaman `onMoveStage`; no saben si el disparador fue menú o teclado
  * (deja la puerta abierta a drag&drop sin tocar esta lógica — se decide en /impeccable live).
  */
-export function PipelineView({ applications, interviewsByApplication }: Props) {
+export function PipelineView({
+  applications,
+  interviewsByApplication,
+  notesByApplication,
+}: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -124,6 +131,7 @@ export function PipelineView({ applications, interviewsByApplication }: Props) {
                       key={app.id}
                       application={app}
                       interviews={interviewsByApplication[app.id] ?? []}
+                      noteCount={notesByApplication[app.id]?.length ?? 0}
                       onMoveStage={onMoveStage}
                       onOpen={setSelectedId}
                     />
@@ -138,6 +146,7 @@ export function PipelineView({ applications, interviewsByApplication }: Props) {
       <PipelineDetailSheet
         application={selected}
         interviews={selected ? interviewsByApplication[selected.id] ?? [] : []}
+        notes={selected ? notesByApplication[selected.id] ?? [] : []}
         onMoveStage={onMoveStage}
         onClose={() => setSelectedId(null)}
       />

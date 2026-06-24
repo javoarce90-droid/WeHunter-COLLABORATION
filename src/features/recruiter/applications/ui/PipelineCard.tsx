@@ -13,6 +13,7 @@ import { isTerminal, relativeTime } from "./stage-visual";
 type Props = {
   application: ApplicationWithCandidate;
   interviews: InterviewRow[];
+  noteCount: number;
   onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
   onOpen: (applicationId: string) => void;
 };
@@ -32,10 +33,15 @@ function pickNextInterview(interviews: InterviewRow[]): InterviewRow | undefined
  * Lo profundo —notas, entrevistas— vive en el panel lateral, no acá. Mover de etapa:
  * menú compacto + atajos 1–6 con la card enfocada. Click abre el detalle.
  */
-export function PipelineCard({ application, interviews, onMoveStage, onOpen }: Props) {
+export function PipelineCard({
+  application,
+  interviews,
+  noteCount,
+  onMoveStage,
+  onOpen,
+}: Props) {
   const stage = application.stage;
   const terminal = isTerminal(stage);
-  const noteCount = application.notes ? 1 : 0;
   const nextInterview = pickNextInterview(interviews);
 
   // Atajos 1–6 mueven la card enfocada a la etapa N; Enter/Espacio abre el detalle.
@@ -112,10 +118,11 @@ export function PipelineCard({ application, interviews, onMoveStage, onOpen }: P
       <div className="mt-2.5 flex items-center gap-3 text-xs text-muted">
         <span className="tabular-nums">{relativeTime(application.createdAt)}</span>
         {noteCount > 0 && (
-          <span className="inline-flex items-center gap-1" title="Tiene nota interna">
+          <span className="inline-flex items-center gap-1" title={`${noteCount} nota${noteCount !== 1 ? "s" : ""} interna${noteCount !== 1 ? "s" : ""}`}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M4 4h16v12H7l-3 3z" />
             </svg>
+            <span className="tabular-nums">{noteCount}</span>
           </span>
         )}
         {nextInterview && (

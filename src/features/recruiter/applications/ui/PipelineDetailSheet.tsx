@@ -4,17 +4,19 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
-import { NoteEditor } from "@/features/recruiter/notes/ui/NoteEditor";
+import { NoteTimeline } from "@/features/recruiter/notes/ui/NoteTimeline";
 import { InterviewsSection } from "@/features/recruiter/interviews/ui/InterviewsSection";
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import { isTerminal } from "./stage-visual";
 
 type Props = {
   application: ApplicationWithCandidate | null;
   interviews: InterviewRow[];
+  notes: TimelineNote[];
   onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
   onClose: () => void;
 };
@@ -24,7 +26,13 @@ type Props = {
  * inflaba la card: mover de etapa, notas y entrevistas. Sheet (no modal): conserva el
  * contexto del tablero detrás (PRODUCT.md: el modal es último recurso).
  */
-export function PipelineDetailSheet({ application, interviews, onMoveStage, onClose }: Props) {
+export function PipelineDetailSheet({
+  application,
+  interviews,
+  notes,
+  onMoveStage,
+  onClose,
+}: Props) {
   const open = application !== null;
   const terminal = application ? isTerminal(application.stage) : false;
 
@@ -87,15 +95,15 @@ export function PipelineDetailSheet({ application, interviews, onMoveStage, onCl
             )}
           </section>
 
-          {/* Notas internas */}
+          {/* Notas internas (timeline) */}
           <section className="flex flex-col gap-1.5">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Nota interna
+              Notas internas
             </h3>
-            <NoteEditor
+            <NoteTimeline
               applicationId={application.id}
               jobId={application.jobId}
-              initialNotes={application.notes}
+              notes={notes}
             />
           </section>
 
