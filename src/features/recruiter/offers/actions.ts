@@ -19,6 +19,7 @@ import {
 import { getOfferStatusRow, getOfferDetail, type OfferDetail } from "./data/offers.queries";
 import { getApplicationById } from "../applications/data/applications.queries";
 import { getAiProvider } from "@/lib/ai";
+import { notifyOrg } from "../notifications/data/notifications.mutations";
 
 export interface OfferActionState {
   error?: string;
@@ -148,11 +149,24 @@ export async function cambiarEstadoOfertaAction(
 
   if (!result.ok) return { ok: false, error: result.error };
 
+  // Aceptar es un hito: notificamos al equipo (no crítico → fuera de la tx de aceptación).
+  if (parsed.data.toStatus === "accepted") {
+    const detail = await getOfferDetail(offerId, membership.organizationId);
+    await notifyOrg(membership.organizationId, {
+      type: "hire",
+      title: detail
+        ? `${detail.candidateName} fue contratado/a para ${detail.title}`
+        : "Se concretó una contratación",
+      link: `/jobs/${jobId}/ofertas`,
+    });
+  }
+
   // Aceptar cierra la búsqueda y contrata → revalidamos las vistas afectadas.
   revalidatePath(`/jobs/${jobId}/ofertas`);
   revalidatePath(`/jobs/${jobId}`);
   revalidatePath(`/jobs/${jobId}/pipeline`);
   revalidatePath(`/jobs/${jobId}/postulados`);
   revalidatePath(`/jobs`);
+  revalidatePath("/", "layout");
   return { ok: true };
 }
