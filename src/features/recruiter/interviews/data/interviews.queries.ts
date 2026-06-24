@@ -1,6 +1,6 @@
 import { and, eq, asc } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { interviews, applications } from "@/db/schema";
+import { interviews, applications, candidates, jobs } from "@/db/schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
 import type { InterviewMode, InterviewStatus } from "../schema";
 
@@ -106,4 +106,54 @@ export async function listInterviewsByJob(
     "db.interviews.by-job",
   );
   return rows.map(toRow);
+}
+
+/** Entrevista con el contexto que necesita la agenda: candidato y búsqueda. */
+export type AgendaInterview = {
+  id: string;
+  scheduledAt: Date;
+  mode: InterviewMode;
+  status: InterviewStatus;
+  location: string | null;
+  jobId: string;
+  jobTitle: string;
+  candidateId: string;
+  candidateName: string;
+};
+
+/**
+ * Todas las entrevistas de la org con su candidato y búsqueda, para la Agenda. Una query con
+ * joins (sin N+1); ordenada por fecha. Usa el índice `interviews_org_scheduled_idx`.
+ */
+export async function listAgendaInterviews(
+  organizationId: string,
+): Promise<AgendaInterview[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: interviews.id,
+        scheduledAt: interviews.scheduledAt,
+        mode: interviews.mode,
+        status: interviews.status,
+        location: interviews.location,
+        jobId: jobs.id,
+        jobTitle: jobs.title,
+        candidateId: candidates.id,
+        candidateName: candidates.fullName,
+      })
+      .from(interviews)
+      .innerJoin(applications, eq(interviews.applicationId, applications.id))
+      .innerJoin(jobs, eq(applications.jobId, jobs.id))
+      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .where(eq(interviews.organizationId, organizationId))
+      .orderBy(asc(interviews.scheduledAt))
+      .limit(200),
+    "db.interviews.agenda",
+  );
+  return rows.map((r) => ({
+    ...r,
+    mode: r.mode as InterviewMode,
+    status: r.status as InterviewStatus,
+  }));
 }
