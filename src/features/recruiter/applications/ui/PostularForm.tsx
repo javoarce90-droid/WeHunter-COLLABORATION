@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { postularCandidatoAction } from "../actions";
 import type { Candidate } from "@/db/schema";
@@ -60,9 +61,9 @@ export function PostularForm({ jobId, candidates }: Props) {
             {candidates.length === 0 ? (
               <p className="text-sm text-muted">
                 No hay candidatos en el pool. Cargá uno primero desde{" "}
-                <a href="/candidates/new" className="text-primary hover:underline">
+                <Link href="/candidates/new" className="text-primary hover:underline">
                   Candidatos
-                </a>
+                </Link>
                 .
               </p>
             ) : (

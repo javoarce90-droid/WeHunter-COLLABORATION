@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { moverEtapaAction } from "../actions";
@@ -8,14 +9,17 @@ import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
 import { NoteEditor } from "@/features/recruiter/notes/ui/NoteEditor";
+import { InterviewsSection } from "@/features/recruiter/interviews/ui/InterviewsSection";
+import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 
 type Props = {
   application: ApplicationWithCandidate;
+  interviews: InterviewRow[];
 };
 
 const TERMINAL: ApplicationStage[] = ["hired", "rejected"];
 
-export function PipelineCard({ application }: Props) {
+export function PipelineCard({ application, interviews }: Props) {
   const [state, dispatch, isPending] = useActionState(moverEtapaAction, {});
 
   const isTerminal = TERMINAL.includes(application.stage);
@@ -24,12 +28,15 @@ export function PipelineCard({ application }: Props) {
   );
 
   return (
-    <Card>
+    <Card className="transition-shadow hover:shadow-md">
       <div className="p-3">
         <div className="mb-1.5 flex items-center justify-between gap-2">
-          <p className="truncate text-sm font-semibold text-text">
+          <Link
+            href={`/candidates/${application.candidate.id}`}
+            className="truncate text-sm font-semibold text-text transition-colors hover:text-primary"
+          >
             {application.candidate.fullName}
-          </p>
+          </Link>
           <Badge variant={application.stage}>{STAGE_LABELS[application.stage]}</Badge>
         </div>
         {application.candidate.email && (
@@ -56,13 +63,19 @@ export function PipelineCard({ application }: Props) {
         )}
 
         {state.error && (
-          <p className="mt-1.5 text-xs text-red-600">{state.error}</p>
+          <p className="mt-1.5 text-xs text-danger">{state.error}</p>
         )}
 
         <NoteEditor
           applicationId={application.id}
           jobId={application.jobId}
           initialNotes={application.notes}
+        />
+
+        <InterviewsSection
+          applicationId={application.id}
+          jobId={application.jobId}
+          interviews={interviews}
         />
       </div>
     </Card>

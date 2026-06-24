@@ -22,9 +22,12 @@ export function CandidatesList({ candidates }: { candidates: Candidate[] }) {
           <div className="flex flex-wrap items-center justify-between gap-3 p-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="truncate font-semibold text-text">
+                <Link
+                  href={`/candidates/${candidate.id}`}
+                  className="truncate font-semibold text-text transition-colors hover:text-primary"
+                >
                   {candidate.fullName}
-                </h3>
+                </Link>
                 {candidate.cvUrl && <Badge variant="blue">CV</Badge>}
               </div>
               {candidate.email && (

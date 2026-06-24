@@ -1,0 +1,1 @@
+CREATE INDEX "applications_candidate_idx" ON "applications" USING btree ("candidate_id");

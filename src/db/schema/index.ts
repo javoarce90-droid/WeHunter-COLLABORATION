@@ -60,6 +60,20 @@ export const feedbackDecision = pgEnum("feedback_decision", [
   "maybe",
 ]);
 
+// Modalidad de una entrevista agendada.
+export const interviewMode = pgEnum("interview_mode", [
+  "onsite", // presencial
+  "remote", // videollamada
+  "phone", // telefónica
+]);
+
+// Estado de una entrevista en su ciclo de vida.
+export const interviewStatus = pgEnum("interview_status", [
+  "scheduled", // agendada (futura)
+  "completed", // realizada
+  "cancelled", // cancelada
+]);
+
 // ---- Tenancy ----
 
 // El tenant. Todo dato de dominio cuelga de acá.
@@ -156,6 +170,32 @@ export const applications = pgTable("applications", {
 }, (t) => ({
   orgIdx: index("applications_org_idx").on(t.organizationId),
   jobIdx: index("applications_job_idx").on(t.jobId),
+  // Acceso "búsquedas de un candidato" (ficha de candidato): filtra por candidate_id.
+  candidateIdx: index("applications_candidate_idx").on(t.candidateId),
+}));
+
+// Entrevista agendada sobre una postulación. Es interna del equipo reclutador:
+// no se expone a la empresa por el share. Una application puede tener N entrevistas.
+export const interviews = pgTable("interviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  mode: interviewMode("mode").notNull().default("remote"),
+  // Lugar (dirección) o link de la videollamada según la modalidad. Opcional.
+  location: text("location"),
+  // Notas internas de la entrevista (agenda, feedback). No visible para la empresa.
+  notes: text("notes"),
+  status: interviewStatus("status").notNull().default("scheduled"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("interviews_org_idx").on(t.organizationId),
+  applicationIdx: index("interviews_application_idx").on(t.applicationId),
 }));
 
 // ---- Shortlists (compartir candidatos con la empresa) ----
@@ -248,6 +288,7 @@ export type Organization = typeof organizations.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type Application = typeof applications.$inferSelect;
+export type Interview = typeof interviews.$inferSelect;
 export type Shortlist = typeof shortlists.$inferSelect;
 export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;
 export type ShortlistShare = typeof shortlistShares.$inferSelect;
