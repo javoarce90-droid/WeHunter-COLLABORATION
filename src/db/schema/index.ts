@@ -77,6 +77,7 @@ export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(), // = auth.users.id
   email: text("email").notNull(),
   fullName: text("full_name"),
+  cvUrl: text("cv_url"), // path en Supabase Storage para candidatos
   ...timestamps,
 });
 
@@ -245,6 +246,7 @@ export const shortlistFeedback = pgTable("shortlist_feedback", {
 
 // Tipos inferidos (fuente de verdad de los tipos de datos)
 export type Organization = typeof organizations.$inferSelect;
+export type Profile = typeof profiles.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type Application = typeof applications.$inferSelect;

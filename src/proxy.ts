@@ -18,6 +18,7 @@ const PROTECTED_PREFIXES = [
   "/interviews",
   "/reports",
   "/onboarding",
+  "/c/profile",
 ];
 
 export async function proxy(request: NextRequest) {
@@ -56,7 +57,8 @@ export async function proxy(request: NextRequest) {
 
   if (isProtected && !user) {
     const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
+    const isCandidatePath = pathname.startsWith("/c/") || pathname.startsWith("/portal");
+    loginUrl.pathname = isCandidatePath ? "/c/login" : "/login";
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }

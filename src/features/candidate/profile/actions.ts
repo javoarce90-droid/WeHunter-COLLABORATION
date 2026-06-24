@@ -1,0 +1,162 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth/session";
+import {
+  candidateCredentialsSchema,
+  candidateRegisterSchema,
+  candidateProfileSchema,
+  CV_ALLOWED_TYPES,
+  CV_MAX_BYTES,
+} from "./schema";
+import { actualizarPerfil } from "./domain/actualizar-perfil";
+import { updateProfileFields } from "./data/profile.mutations";
+import { getProfileById } from "./data/profile.queries";
+import { uploadProfileCv, deleteProfileCv } from "./data/profile.storage";
+
+export interface AuthFormState {
+  error?: string;
+  message?: string;
+}
+
+export interface ProfileFormState {
+  error?: string;
+  success?: boolean;
+}
+
+function safeRedirect(raw: FormDataEntryValue | null): string {
+  const value = typeof raw === "string" ? raw : "";
+  return value.startsWith("/") && !value.startsWith("//") ? value : "/portal";
+}
+
+/** Server Action: Iniciar sesión del candidato */
+export async function candidateLoginAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = candidateCredentialsSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  if (error) {
+    return { error: "Email o contraseña incorrectos" };
+  }
+
+  redirect(safeRedirect(formData.get("redirect")));
+}
+
+/** Server Action: Registrar cuenta de candidato */
+export async function candidateRegisterAction(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = candidateRegisterSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+    fullName: formData.get("fullName"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: parsed.data.email,
+    password: parsed.data.password,
+    options: { data: { full_name: parsed.data.fullName } },
+  });
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (!data.session) {
+    return {
+      message:
+        "Te enviamos un email para confirmar tu cuenta. Verificalo y después iniciá sesión.",
+    };
+  }
+
+  // Candidato registrado -> Redirigir directamente al portal
+  redirect("/portal");
+}
+
+/** Extrae y valida el CV del FormData */
+function readCvFile(
+  formData: FormData,
+): { file: File | null } | { error: string } {
+  const raw = formData.get("cv");
+  if (!(raw instanceof File) || raw.size === 0) return { file: null };
+  if (!CV_ALLOWED_TYPES.includes(raw.type)) {
+    return { error: "El CV debe ser PDF o Word (.doc/.docx)." };
+  }
+  if (raw.size > CV_MAX_BYTES) {
+    return { error: "El CV supera el límite de 5 MB." };
+  }
+  return { file: raw };
+}
+
+/** Server Action: Actualizar perfil de candidato */
+export async function actualizarPerfilAction(
+  _prev: ProfileFormState,
+  formData: FormData,
+): Promise<ProfileFormState> {
+  const parsed = candidateProfileSchema.safeParse({
+    fullName: formData.get("fullName"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const cv = readCvFile(formData);
+  if ("error" in cv) return { error: cv.error };
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "No tenés sesión activa." };
+  }
+
+  const cvFile = cv.file;
+
+  // Si se sube un nuevo CV, necesitamos saber cuál era el actual para poder borrarlo
+  let currentCvUrl: string | null = null;
+  if (cvFile) {
+    const existing = await getProfileById(user.id);
+    currentCvUrl = existing?.cvUrl ?? null;
+  }
+
+  const result = await actualizarPerfil(
+    { fullName: parsed.data.fullName, currentCvUrl },
+    { userId: user.id },
+    {
+      updateProfileFields,
+      ...(cvFile
+        ? {
+            uploadCv: () => uploadProfileCv(user.id, cvFile),
+            deleteCv: deleteProfileCv,
+          }
+        : {}),
+    },
+  );
+
+  if (!result.ok) {
+    return { error: result.error };
+  }
+
+  revalidatePath("/c/profile");
+  return { success: true };
+}
+
+/** Server Action: Cerrar sesión del candidato */
+export async function candidateLogoutAction(): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
+  redirect("/c/login");
+}
