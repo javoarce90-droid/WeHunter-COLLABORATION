@@ -5,6 +5,7 @@ import {
   timestamp,
   integer,
   date,
+  boolean,
   pgEnum,
   uniqueIndex,
   index,
@@ -44,12 +45,15 @@ export const jobStatus = pgEnum("job_status", [
   "closed",
 ]);
 
-// Etapas del pipeline: FIJAS por ahora (no configurables por organization).
-// Si más adelante se necesitan configurables, se migra a una tabla.
+// Etapas del pipeline. El enum es la identidad canónica (no cambia por org).
+// La tabla pipeline_stages permite override de label, is_active y sla_days por org.
 export const applicationStage = pgEnum("application_stage", [
   "new",
   "screening",
   "interview",
+  "interview_hr",
+  "interview_tech",
+  "interview_client",
   "offer",
   "hired",
   "rejected",
@@ -309,6 +313,27 @@ export const applicationEvents = pgTable("application_events", {
   applicationIdx: index("application_events_application_idx").on(t.applicationId),
 }));
 
+// Configuración de etapas del pipeline por organización.
+// Metadata sobre el enum: no cambia la identidad canónica de las etapas, solo permite
+// override de label, activar/desactivar columnas en el kanban y configurar SLA.
+export const pipelineStages = pgTable("pipeline_stages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  stageKey: applicationStage("stage_key").notNull(),
+  labelOverride: text("label_override"),
+  isActive: boolean("is_active").notNull().default(true),
+  slaDays: integer("sla_days"),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("pipeline_stages_org_idx").on(t.organizationId),
+  uniqueOrgStage: uniqueIndex("pipeline_stages_org_stage_idx").on(
+    t.organizationId,
+    t.stageKey,
+  ),
+}));
+
 // ---- Shortlists (compartir candidatos con la empresa) ----
 
 // Una selección de candidatos de un job que el reclutador comparte con una empresa.
@@ -397,6 +422,7 @@ export const shortlistFeedback = pgTable("shortlist_feedback", {
 // Tipos inferidos (fuente de verdad de los tipos de datos)
 export type Organization = typeof organizations.$inferSelect;
 export type Client = typeof clients.$inferSelect;
+export type PipelineStageRow = typeof pipelineStages.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type Application = typeof applications.$inferSelect;

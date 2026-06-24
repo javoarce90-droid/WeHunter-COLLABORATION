@@ -28,13 +28,17 @@ const stageClasses: Record<StageVariant, string> = {
   new: "bg-[#F3F4F6] text-[#374151]",
   screening: "bg-[#DBEAFE] text-[#1E40AF]",
   interview: "bg-[#FEF3C7] text-[#92400E]",
+  interview_hr: "bg-[#FEF3C7] text-[#92400E]",
+  interview_tech: "bg-[#FDE68A] text-[#78350F]",
+  interview_client: "bg-[#EDE9FE] text-[#5B21B6]",
   offer: "bg-primary-light text-primary-hover",
   hired: "bg-[#D1FAE5] text-[#065F46]",
   rejected: "bg-[#FEE2E2] text-[#991B1B]",
 };
 
 const stageKeys = new Set<string>([
-  "new", "screening", "interview", "offer", "hired", "rejected",
+  "new", "screening", "interview", "interview_hr", "interview_tech",
+  "interview_client", "offer", "hired", "rejected",
 ]);
 
 export function Badge({

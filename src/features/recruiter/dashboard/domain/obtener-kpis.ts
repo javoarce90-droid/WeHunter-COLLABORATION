@@ -14,11 +14,14 @@ type Stage = Application["stage"];
 /** Etapas terminales: una postulación en estas ya no está "activa" en el pipeline. */
 const CLOSED_STAGES: Stage[] = ["hired", "rejected"];
 
-/** Orden del funnel (progresión del pipeline). */
+/** Orden del funnel (progresión del pipeline, espeja APPLICATION_STAGES). */
 const FUNNEL_ORDER: Stage[] = [
   "new",
   "screening",
   "interview",
+  "interview_hr",
+  "interview_tech",
+  "interview_client",
   "offer",
   "hired",
   "rejected",

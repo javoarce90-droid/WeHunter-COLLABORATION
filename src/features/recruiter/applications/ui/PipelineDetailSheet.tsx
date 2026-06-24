@@ -19,6 +19,8 @@ type Props = {
   notes: TimelineNote[];
   onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
   onClose: () => void;
+  /** Si se pasa, solo muestra botones para estas etapas (activas). */
+  activeStageKeys?: ApplicationStage[];
 };
 
 /**
@@ -32,6 +34,7 @@ export function PipelineDetailSheet({
   notes,
   onMoveStage,
   onClose,
+  activeStageKeys,
 }: Props) {
   const open = application !== null;
   const terminal = application ? isTerminal(application.stage) : false;
@@ -73,7 +76,9 @@ export function PipelineDetailSheet({
               </p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
-                {APPLICATION_STAGES.filter((s) => s !== application.stage).map((s) => (
+                {(activeStageKeys ?? APPLICATION_STAGES)
+                  .filter((s) => s !== application.stage)
+                  .map((s) => (
                   <button
                     key={s}
                     type="button"
