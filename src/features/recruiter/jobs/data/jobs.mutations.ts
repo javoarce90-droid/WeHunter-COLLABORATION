@@ -1,24 +1,29 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { jobs, type Job } from "@/db/schema";
+import type { JobDetails } from "../domain/job-details";
 
 /** Escrituras de búsquedas. Cliente RLS; el organizationId acota a la org activa. */
 
-export async function insertJob(args: {
-  organizationId: string;
-  title: string;
-  description: string | null;
-  createdBy: string;
-}): Promise<{ jobId: string }> {
+export async function insertJob(
+  args: {
+    organizationId: string;
+    title: string;
+    description: string | null;
+    createdBy: string;
+  } & JobDetails,
+): Promise<{ jobId: string }> {
   const db = await getDb();
+  const { organizationId, title, description, createdBy, ...details } = args;
   const rows = await db.rls((tx) =>
     tx
       .insert(jobs)
       .values({
-        organizationId: args.organizationId,
-        title: args.title,
-        description: args.description,
-        createdBy: args.createdBy,
+        organizationId,
+        title,
+        description,
+        createdBy,
+        ...details,
       })
       .returning({ id: jobs.id }),
     "db.jobs.insert",
@@ -44,7 +49,7 @@ export async function updateJobStatus(
 export async function updateJobFields(
   jobId: string,
   organizationId: string,
-  fields: { title: string; description: string | null },
+  fields: { title: string; description: string | null } & JobDetails,
 ): Promise<{ updated: boolean }> {
   const db = await getDb();
   const rows = await db.rls((tx) =>

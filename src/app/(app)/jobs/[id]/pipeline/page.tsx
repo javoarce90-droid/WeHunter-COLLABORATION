@@ -1,58 +1,74 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
-import { getJobForPipeline, listApplicationsByJob } from "@/features/recruiter/applications/data/applications.queries";
+import { listApplicationsByJob, getStageEntryTimes } from "@/features/recruiter/applications/data/applications.queries";
 import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
-import { PipelineBoard } from "@/features/recruiter/applications/ui/PipelineBoard";
+import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
+import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
+import { getPipelineStageConfigs } from "@/features/recruiter/pipeline-stages/data/pipeline-stages.queries";
+import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import { PipelineView } from "@/features/recruiter/applications/ui/PipelineView";
 import { PostularForm } from "@/features/recruiter/applications/ui/PostularForm";
+import { StageSettingsButton } from "@/features/recruiter/pipeline-stages/ui/StageSettingsButton";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
+/** Pestaña Pipeline. La cabecera (título + estado + breadcrumb) la pone el layout del workspace. */
 export default async function PipelinePage({ params }: Props) {
   const { id: jobId } = await params;
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const job = await getJobForPipeline(jobId, membership.organizationId);
-  if (!job) notFound();
-
-  const [applications, candidates] = await Promise.all([
+  const [applications, candidates, interviews, notes, stageConfig] = await Promise.all([
     listApplicationsByJob(jobId, membership.organizationId),
     listCandidates(membership.organizationId),
+    listInterviewsByJob(jobId, membership.organizationId),
+    listNotesByJob(jobId, membership.organizationId),
+    getPipelineStageConfigs(membership.organizationId),
   ]);
 
+  // getStageEntryTimes se hace después de tener las applications para poder hacer el fallback.
+  const entryTimesFromEvents = await getStageEntryTimes(jobId, membership.organizationId);
+
+  // Fallback: si un candidato nunca fue movido (sin evento), usamos su createdAt.
+  const stageEntryTimes: Record<string, Date> = {};
+  for (const app of applications) {
+    stageEntryTimes[app.id] = entryTimesFromEvents[app.id] ?? app.createdAt;
+  }
+
+  const interviewsByApplication = interviews.reduce<Record<string, InterviewRow[]>>(
+    (acc, it) => {
+      (acc[it.applicationId] ??= []).push(it);
+      return acc;
+    },
+    {},
+  );
+  const notesByApplication = notes.reduce<Record<string, TimelineNote[]>>((acc, n) => {
+    (acc[n.applicationId] ??= []).push(n);
+    return acc;
+  }, {});
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* Cabecera */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-sm text-muted">
-            <Link href="/jobs" className="hover:text-text">
-              Búsquedas
-            </Link>
-            <span>/</span>
-            <span>{job.title}</span>
-          </div>
-          <h1 className="font-display text-xl font-bold text-text">Pipeline</h1>
-          <p className="text-sm text-muted">
-            {applications.length} candidato{applications.length !== 1 ? "s" : ""} en proceso
-          </p>
-        </div>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted">
+          {applications.length} candidato{applications.length !== 1 ? "s" : ""} en
+          proceso
+        </p>
         <div className="flex items-center gap-2">
-          <Link
-            href={`/jobs/${jobId}/shortlists`}
-            className="inline-flex items-center justify-center rounded-[var(--radius)] border border-border px-4 py-2.5 text-sm font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
-          >
-            Shortlists
-          </Link>
+          <StageSettingsButton stageConfig={stageConfig} />
           <PostularForm jobId={jobId} candidates={candidates} />
         </div>
       </div>
 
-      {/* Kanban */}
-      <PipelineBoard applications={applications} />
+      <PipelineView
+        applications={applications}
+        interviewsByApplication={interviewsByApplication}
+        notesByApplication={notesByApplication}
+        stageConfig={stageConfig}
+        stageEntryTimes={stageEntryTimes}
+      />
     </div>
   );
 }

@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
-import { getJobForPipeline, listApplicationsByJob } from "@/features/recruiter/applications/data/applications.queries";
+import { listApplicationsByJob } from "@/features/recruiter/applications/data/applications.queries";
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
 import {
   listShortlistsByJob,
@@ -16,6 +15,7 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
+/** Pestaña Shortlists. La cabecera del workspace la pone el layout. */
 export default async function ShortlistsPage({ params }: Props) {
   const { id: jobId } = await params;
   const membership = await getActiveMembership();
@@ -23,14 +23,10 @@ export default async function ShortlistsPage({ params }: Props) {
 
   // URL base resuelta en el server (host de la request) y pasada como prop. Así el enlace
   // de share se renderiza idéntico en server y cliente -> sin mismatch de hidratación.
-  // (Antes ShareControls usaba window.location.origin, que no existe en SSR.)
   const reqHeaders = await headers();
   const host = reqHeaders.get("host") ?? "";
   const proto = reqHeaders.get("x-forwarded-proto") ?? "http";
   const appUrl = host ? `${proto}://${host}` : "";
-
-  const job = await getJobForPipeline(jobId, membership.organizationId);
-  if (!job) notFound();
 
   const [applications, summaries] = await Promise.all([
     listApplicationsByJob(jobId, membership.organizationId),
@@ -55,32 +51,18 @@ export default async function ShortlistsPage({ params }: Props) {
   );
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-sm text-muted">
-            <Link href="/jobs" className="hover:text-text">
-              Búsquedas
-            </Link>
-            <span>/</span>
-            <span>{job.title}</span>
-            <span>/</span>
-            <Link href={`/jobs/${jobId}/pipeline`} className="hover:text-text">
-              Pipeline
-            </Link>
-          </div>
-          <h1 className="font-display text-xl font-bold text-text">Shortlists</h1>
-          <p className="text-sm text-muted">
-            Compartí una selección de candidatos con la empresa por un enlace seguro.
-          </p>
-        </div>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="max-w-[60ch] text-sm text-muted">
+          Compartí una selección de candidatos con la empresa por un enlace seguro.
+        </p>
         <CrearShortlistForm jobId={jobId} candidates={candidateOptions} />
       </div>
 
       {shortlists.length === 0 ? (
-        <div className="rounded-[var(--radius)] border border-border bg-surface p-10 text-center text-sm text-muted">
-          Todavía no creaste shortlists para esta búsqueda. Armá uno seleccionando candidatos
-          del pipeline.
+        <div className="rounded-[var(--radius)] border border-dashed border-primary/25 bg-bg p-10 text-center text-sm text-muted">
+          Todavía no creaste shortlists para esta búsqueda. Armá uno seleccionando
+          candidatos del pipeline.
         </div>
       ) : (
         <div className="flex flex-col gap-4">

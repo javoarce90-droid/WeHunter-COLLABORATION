@@ -14,12 +14,27 @@ type Stage = Application["stage"];
 /** Etapas terminales: una postulación en estas ya no está "activa" en el pipeline. */
 const CLOSED_STAGES: Stage[] = ["hired", "rejected"];
 
+/** Orden del funnel (progresión del pipeline, espeja APPLICATION_STAGES). */
+const FUNNEL_ORDER: Stage[] = [
+  "new",
+  "screening",
+  "interview",
+  "interview_hr",
+  "interview_tech",
+  "interview_client",
+  "offer",
+  "hired",
+  "rejected",
+];
+
 export interface DashboardKpis {
   busquedasAbiertas: number;
   busquedasTotales: number;
   candidatosEnPool: number;
   postulacionesActivas: number;
   contrataciones: number;
+  /** Conteo de postulaciones por etapa, en orden, para el funnel de conversión. */
+  funnel: { stage: Stage; count: number }[];
 }
 
 export interface ObtenerKpisCtx {
@@ -66,5 +81,6 @@ export async function obtenerKpis(
     candidatosEnPool,
     postulacionesActivas: totalPostulaciones - cerradas,
     contrataciones: byStage.hired ?? 0,
+    funnel: FUNNEL_ORDER.map((stage) => ({ stage, count: byStage[stage] ?? 0 })),
   });
 }

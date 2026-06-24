@@ -3,9 +3,11 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import type { CandidateFormState } from "../actions";
+import type { CandidateSource } from "../domain/candidate-details";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { CANDIDATE_SOURCE_LABELS } from "./source-meta";
 
 type CandidateAction = (
   prev: CandidateFormState,
@@ -16,8 +18,21 @@ interface CandidateFormProps {
   action: CandidateAction;
   submitLabel: string;
   candidateId?: string;
-  defaults?: { fullName?: string; email?: string | null; hasCv?: boolean };
+  defaults?: {
+    fullName?: string;
+    email?: string | null;
+    hasCv?: boolean;
+    headline?: string | null;
+    location?: string | null;
+    linkedinUrl?: string | null;
+    summary?: string | null;
+    skills?: string[] | null;
+    source?: CandidateSource | null;
+  };
 }
+
+const selectClass =
+  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
 
 const initialState: CandidateFormState = {};
 
@@ -47,13 +62,68 @@ export function CandidateForm({
             autoFocus
           />
 
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="Email (opcional)"
+              name="email"
+              type="email"
+              placeholder="ada@ejemplo.com"
+              defaultValue={defaults?.email ?? ""}
+            />
+            <Input
+              label="Ubicación (opcional)"
+              name="location"
+              type="text"
+              placeholder="Ej: Córdoba, Argentina"
+              defaultValue={defaults?.location ?? ""}
+            />
+          </div>
+
           <Input
-            label="Email (opcional)"
-            name="email"
-            type="email"
-            placeholder="ada@ejemplo.com"
-            defaultValue={defaults?.email ?? ""}
+            label="Titular / puesto actual (opcional)"
+            name="headline"
+            type="text"
+            placeholder="Ej: Frontend Senior @ Acme"
+            defaultValue={defaults?.headline ?? ""}
           />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              label="LinkedIn (opcional)"
+              name="linkedinUrl"
+              type="text"
+              placeholder="https://linkedin.com/in/…"
+              defaultValue={defaults?.linkedinUrl ?? ""}
+            />
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-muted">Fuente (opcional)</span>
+              <select name="source" defaultValue={defaults?.source ?? ""} className={selectClass}>
+                <option value="">—</option>
+                {Object.entries(CANDIDATE_SOURCE_LABELS).map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <Input
+            label="Skills (separadas por coma, opcional)"
+            name="skills"
+            type="text"
+            placeholder="React, Node, PostgreSQL"
+            defaultValue={(defaults?.skills ?? []).join(", ")}
+          />
+
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-semibold text-muted">Resumen / experiencia (opcional)</span>
+            <textarea
+              name="summary"
+              rows={4}
+              placeholder="Una síntesis del perfil, experiencia y fortalezas…"
+              defaultValue={defaults?.summary ?? ""}
+              className={selectClass + " resize-y"}
+            />
+          </label>
 
           <div className="flex flex-col gap-1">
             <label htmlFor="cv" className="text-xs font-semibold text-muted">

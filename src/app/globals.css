@@ -19,8 +19,32 @@
   --danger: #DC2626;
   --radius: 10px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+  /* Sombra elevada para overlays (popovers, sheet, dialog). */
+  --shadow-overlay: 0 10px 30px rgba(15, 10, 26, 0.12), 0 4px 10px rgba(15, 10, 26, 0.08);
   --sidebar-w: 260px;
   --topbar-h: 60px;
+
+  /* — Foco / selección reutilizables (antes ad-hoc en input.tsx) — */
+  --focus-ring: rgba(123, 47, 219, 0.2);
+  --focus-ring-danger: rgba(220, 38, 38, 0.2);
+  --selected-bg: rgba(123, 47, 219, 0.06);
+
+  /* — Motion (PRODUCT.md #2 "velocidad percibida": corto y funcional) — */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 240ms;
+  /* ease-out exponenciales: entran rápido y desaceleran, sin rebote. */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* — Escala z-index semántica (nunca valores mágicos como 9999) — */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-overlay: 1200;
+  --z-modal: 1300;
+  --z-toast: 1400;
+  --z-tooltip: 1500;
 }
 
 @theme inline {
@@ -42,6 +66,48 @@
   --font-sans: var(--font-inter);
   --font-display: var(--font-plus-jakarta);
   --radius-default: var(--radius);
+
+  /* Animaciones de overlay como utilidades: animate-fade-in, animate-sheet-in, etc.
+     Las easings/duraciones viven en :root y se referencian acá (resuelven en runtime). */
+  --animate-fade-in: fade-in var(--motion-base) var(--ease-out-quart);
+  --animate-fade-out: fade-out var(--motion-fast) var(--ease-out-quart);
+  --animate-pop-in: pop-in var(--motion-base) var(--ease-out-expo);
+  --animate-sheet-in: sheet-in var(--motion-slow) var(--ease-out-expo);
+  --animate-toast-in: toast-in var(--motion-base) var(--ease-out-expo);
+}
+
+/* — Keyframes de overlays/feedback (materiales: opacity + transform, GPU-friendly) — */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes sheet-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduced motion no es opcional: cortamos animación/transición a lo mínimo. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 body {
@@ -50,4 +116,26 @@ body {
   font-family: var(--font-inter), system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.5;
+}
+
+/* Impresión / PDF: oculta todo el chrome de la app y deja solo la carta de oferta.
+   La vista de impresión envuelve la carta en .print-document. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-document,
+  .print-document * {
+    visibility: visible;
+  }
+  .print-document {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 2.5rem;
+    background: #fff;
+  }
+  .print-hide {
+    display: none !important;
+  }
 }

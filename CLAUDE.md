@@ -58,12 +58,14 @@ src/
   sagrado. → `.claude/rules/database.md`
 - **No edites carpetas de features que no son tuyas.** → `.claude/rules/collaboration.md`
 
+
 ## Antes de tocar cada área, leé su regla
 - Base de datos / Drizzle / RLS / Supabase → `.claude/rules/database.md`
 - Estructura, capas, dónde va cada cosa → `.claude/rules/architecture.md`
 - Nombres, imports, formato → `.claude/rules/conventions.md`
 - Ramas, ownership, cómo mergeamos → `.claude/rules/collaboration.md`
 - Modelo de datos y entidades → `docs/DATA_MODEL.md`
+- Pantallas con subtabs o secciones → `.claude/rules/routing-and-tabs.md`
 
 ## Para crear una feature nueva
 Usá el skill `add-feature-slice` (en `.claude/skills/`). Genera la estructura completa

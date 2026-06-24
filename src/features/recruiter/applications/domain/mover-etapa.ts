@@ -24,7 +24,8 @@ export type MoverEtapaDeps = {
   ) => Promise<ApplicationRow | null>;
   updateApplicationStage: (
     applicationId: string,
-    stage: ApplicationStage,
+    fromStage: ApplicationStage,
+    toStage: ApplicationStage,
   ) => Promise<ApplicationRow>;
 };
 
@@ -56,6 +57,10 @@ export async function moverEtapa(
     };
   }
 
-  const updated = await deps.updateApplicationStage(input.applicationId, input.newStage);
+  const updated = await deps.updateApplicationStage(
+    input.applicationId,
+    application.stage, // fromStage = etapa actual antes del cambio
+    input.newStage,
+  );
   return { ok: true, data: updated };
 }

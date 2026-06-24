@@ -3,6 +3,9 @@ import {
   uuid,
   text,
   timestamp,
+  integer,
+  date,
+  boolean,
   pgEnum,
   uniqueIndex,
   index,
@@ -42,12 +45,15 @@ export const jobStatus = pgEnum("job_status", [
   "closed",
 ]);
 
-// Etapas del pipeline: FIJAS por ahora (no configurables por organization).
-// Si más adelante se necesitan configurables, se migra a una tabla.
+// Etapas del pipeline. El enum es la identidad canónica (no cambia por org).
+// La tabla pipeline_stages permite override de label, is_active y sla_days por org.
 export const applicationStage = pgEnum("application_stage", [
   "new",
   "screening",
   "interview",
+  "interview_hr",
+  "interview_tech",
+  "interview_client",
   "offer",
   "hired",
   "rejected",
@@ -59,6 +65,69 @@ export const feedbackDecision = pgEnum("feedback_decision", [
   "rejected",
   "maybe",
 ]);
+
+// Modalidad de una entrevista agendada.
+export const interviewMode = pgEnum("interview_mode", [
+  "onsite", // presencial
+  "remote", // videollamada
+  "phone", // telefónica
+]);
+
+// Estado de una entrevista en su ciclo de vida.
+export const interviewStatus = pgEnum("interview_status", [
+  "scheduled", // agendada (futura)
+  "completed", // realizada
+  "cancelled", // cancelada
+]);
+
+// Campos ricos de una búsqueda (paridad demo). Todos opcionales en la columna.
+export const jobModality = pgEnum("job_modality", ["onsite", "remote", "hybrid"]);
+export const jobSeniority = pgEnum("job_seniority", [
+  "junior",
+  "semisenior",
+  "senior",
+  "lead",
+]);
+export const jobPriority = pgEnum("job_priority", ["low", "medium", "high"]);
+export const employmentType = pgEnum("employment_type", [
+  "full_time",
+  "part_time",
+  "contract",
+  "internship",
+  "temporary",
+]);
+
+// De dónde salió el candidato. Trazabilidad de fuente del pool.
+export const candidateSource = pgEnum("candidate_source", [
+  "manual",
+  "linkedin",
+  "referral",
+  "job_board",
+  "other",
+]);
+
+// Estado operativo del candidato en el pool (independiente de cualquier búsqueda).
+export const talentState = pgEnum("talent_state", [
+  "active", // en pool, disponible
+  "passive", // pool pasivo (no busca activamente)
+  "contacted", // contactado, a la espera
+  "archived", // archivado
+]);
+
+// Estado de una oferta en su ciclo de vida.
+export const offerStatus = pgEnum("offer_status", [
+  "draft", // borrador, editable, todavía no enviada
+  "sent", // enviada al candidato
+  "negotiation", // en negociación
+  "accepted", // aceptada (terminal) — dispara cierre de búsqueda + contratación
+  "rejected", // rechazada (terminal)
+]);
+
+// Canal de mensajería con el candidato.
+export const messageChannel = pgEnum("message_channel", ["email", "whatsapp"]);
+
+// Dirección de un mensaje en un hilo.
+export const messageDirection = pgEnum("message_direction", ["outbound", "inbound"]);
 
 // ---- Tenancy ----
 
@@ -101,19 +170,51 @@ export const memberships = pgTable("memberships", {
 
 // ---- Reclutamiento (núcleo) ----
 
+// Empresa cliente de la consultora. CRM mínimo: una búsqueda puede vincularse a un cliente.
+export const clients = pgTable("clients", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  contactName: text("contact_name"),
+  contactEmail: text("contact_email"),
+  notes: text("notes"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("clients_org_idx").on(t.organizationId),
+}));
+
 // Búsqueda / aviso.
 export const jobs = pgTable("jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
+  // Cliente para el que es la búsqueda (CRM mínimo). null = búsqueda interna / sin cliente.
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
   title: text("title").notNull(),
-  description: text("description"),
+  description: text("description"), // brief interno
+  // Texto del aviso público (separado del brief interno). Se redacta y previsualiza.
+  posting: text("posting"),
   status: jobStatus("status").notNull().default("draft"),
+  // Campos ricos (paridad demo). Todos opcionales para no romper filas existentes.
+  location: text("location"),
+  modality: jobModality("modality"),
+  seniority: jobSeniority("seniority"),
+  employmentType: employmentType("employment_type"),
+  salaryMin: integer("salary_min"),
+  salaryMax: integer("salary_max"),
+  salaryCurrency: text("salary_currency"),
+  skills: text("skills").array(),
+  priority: jobPriority("priority"),
+  deadline: date("deadline"),
   createdBy: uuid("created_by").references(() => profiles.id),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("jobs_org_idx").on(t.organizationId),
+  clientIdx: index("jobs_client_idx").on(t.clientId),
 }));
 
 // Candidato en el pool del reclutador.
@@ -131,6 +232,17 @@ export const candidates = pgTable("candidates", {
   fullName: text("full_name").notNull(),
   email: text("email"),
   cvUrl: text("cv_url"), // path en Supabase Storage
+  // Campos enriquecidos de la ficha (paridad demo). Todos opcionales.
+  headline: text("headline"), // puesto/título actual, ej "Frontend Senior @ Acme"
+  location: text("location"),
+  linkedinUrl: text("linkedin_url"),
+  summary: text("summary"), // experiencia / bio en texto libre
+  skills: text("skills").array(),
+  source: candidateSource("source"),
+  // Estado operativo en el pool (lifecycle del candidato, no de una postulación).
+  talentState: talentState("talent_state").notNull().default("active"),
+  // Consentimiento de tratamiento de datos (GDPR-lite). null = no registrado.
+  consentAcceptedAt: timestamp("consent_accepted_at"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("candidates_org_idx").on(t.organizationId),
@@ -150,12 +262,199 @@ export const applications = pgTable("applications", {
     .references(() => candidates.id, { onDelete: "cascade" })
     .notNull(),
   stage: applicationStage("stage").notNull().default("new"),
+  // Marcador liviano de favorito/destacado para el triage de postulados. No es el shortlist
+  // (que es la selección formal que se comparte con la empresa): es una estrella del recruiter.
+  isFavorite: boolean("is_favorite").notNull().default(false),
+  // Resultado de IA (mock por ahora) persistido para que la UI sea real. null = sin analizar.
+  aiScore: integer("ai_score"), // 0–100, compatibilidad estimada con la búsqueda
+  aiSummary: text("ai_summary"), // resumen corto del match
   // Nota interna del reclutador sobre el candidato en este proceso. No visible para la empresa.
   notes: text("notes"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("applications_org_idx").on(t.organizationId),
   jobIdx: index("applications_job_idx").on(t.jobId),
+  // Acceso "búsquedas de un candidato" (ficha de candidato): filtra por candidate_id.
+  candidateIdx: index("applications_candidate_idx").on(t.candidateId),
+}));
+
+// Entrevista agendada sobre una postulación. Es interna del equipo reclutador:
+// no se expone a la empresa por el share. Una application puede tener N entrevistas.
+export const interviews = pgTable("interviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  scheduledAt: timestamp("scheduled_at").notNull(),
+  mode: interviewMode("mode").notNull().default("remote"),
+  // Lugar (dirección) o link de la videollamada según la modalidad. Opcional.
+  location: text("location"),
+  // Notas internas de la entrevista (agenda, feedback). No visible para la empresa.
+  notes: text("notes"),
+  status: interviewStatus("status").notNull().default("scheduled"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("interviews_org_idx").on(t.organizationId),
+  applicationIdx: index("interviews_application_idx").on(t.applicationId),
+  // Agenda: lista org-wide ordenada por fecha.
+  orgScheduledIdx: index("interviews_org_scheduled_idx").on(
+    t.organizationId,
+    t.scheduledAt,
+  ),
+}));
+
+// Nota interna sobre una postulación, como timeline (varias por application).
+// Reemplaza al campo único applications.notes (que se mantiene por compatibilidad).
+export const notes = pgTable("notes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  body: text("body").notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("notes_org_idx").on(t.organizationId),
+  applicationIdx: index("notes_application_idx").on(t.applicationId),
+}));
+
+// Historial de cambios de etapa de una postulación (append-only). Habilita métricas de
+// funnel y time-to-stage / time-to-hire (§5/§12 del backlog).
+export const applicationEvents = pgTable("application_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  fromStage: applicationStage("from_stage"), // null = evento de creación (postulación)
+  toStage: applicationStage("to_stage").notNull(),
+  changedBy: uuid("changed_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("application_events_org_idx").on(t.organizationId),
+  applicationIdx: index("application_events_application_idx").on(t.applicationId),
+}));
+
+// Configuración de etapas del pipeline por organización.
+// Metadata sobre el enum: no cambia la identidad canónica de las etapas, solo permite
+// override de label, activar/desactivar columnas en el kanban y configurar SLA.
+export const pipelineStages = pgTable("pipeline_stages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  stageKey: applicationStage("stage_key").notNull(),
+  labelOverride: text("label_override"),
+  isActive: boolean("is_active").notNull().default(true),
+  slaDays: integer("sla_days"),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("pipeline_stages_org_idx").on(t.organizationId),
+  uniqueOrgStage: uniqueIndex("pipeline_stages_org_stage_idx").on(
+    t.organizationId,
+    t.stageKey,
+  ),
+}));
+
+// Oferta formal a un candidato finalista de una búsqueda. Apunta a la application (job +
+// candidato) para que aceptar la oferta pueda contratar a ese candidato y cerrar la búsqueda.
+export const offers = pgTable("offers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id")
+    .references(() => jobs.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  title: text("title").notNull(), // puesto ofrecido
+  salaryAmount: integer("salary_amount"),
+  salaryCurrency: text("salary_currency"),
+  benefits: text("benefits"),
+  startDate: date("start_date"),
+  validUntil: date("valid_until"), // vencimiento de la oferta
+  body: text("body"), // texto de la carta de oferta
+  status: offerStatus("status").notNull().default("draft"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("offers_org_idx").on(t.organizationId),
+  jobIdx: index("offers_job_idx").on(t.jobId),
+  applicationIdx: index("offers_application_idx").on(t.applicationId),
+}));
+
+// Template reutilizable de mensaje (canned response) por canal.
+export const messageTemplates = pgTable("message_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  channel: messageChannel("channel").notNull().default("email"),
+  body: text("body").notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("message_templates_org_idx").on(t.organizationId),
+}));
+
+// Hilo de conversación con un candidato por un canal. Un candidato puede tener un hilo de
+// email y otro de whatsapp. lastMessageAt ordena el inbox sin recalcular.
+export const messageThreads = pgTable("message_threads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  candidateId: uuid("candidate_id")
+    .references(() => candidates.id, { onDelete: "cascade" })
+    .notNull(),
+  channel: messageChannel("channel").notNull().default("email"),
+  subject: text("subject"),
+  lastMessageAt: timestamp("last_message_at").defaultNow().notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("message_threads_org_idx").on(t.organizationId),
+  // Inbox: hilos de la org ordenados por actividad.
+  orgActivityIdx: index("message_threads_org_activity_idx").on(
+    t.organizationId,
+    t.lastMessageAt,
+  ),
+  // Un hilo por (candidato, canal).
+  uniqueThread: uniqueIndex("message_threads_candidate_channel_idx").on(
+    t.candidateId,
+    t.channel,
+  ),
+}));
+
+// Mensaje dentro de un hilo. El envío es mock (no hay Gmail/WhatsApp real todavía):
+// outbound = lo que mandó el reclutador; inbound queda para la integración real (diferida).
+export const messages = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  threadId: uuid("thread_id")
+    .references(() => messageThreads.id, { onDelete: "cascade" })
+    .notNull(),
+  direction: messageDirection("direction").notNull().default("outbound"),
+  body: text("body").notNull(),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("messages_org_idx").on(t.organizationId),
+  threadIdx: index("messages_thread_idx").on(t.threadId),
 }));
 
 // ---- Shortlists (compartir candidatos con la empresa) ----
@@ -245,9 +544,18 @@ export const shortlistFeedback = pgTable("shortlist_feedback", {
 
 // Tipos inferidos (fuente de verdad de los tipos de datos)
 export type Organization = typeof organizations.$inferSelect;
+export type Client = typeof clients.$inferSelect;
+export type PipelineStageRow = typeof pipelineStages.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type Application = typeof applications.$inferSelect;
+export type Interview = typeof interviews.$inferSelect;
+export type Note = typeof notes.$inferSelect;
+export type ApplicationEvent = typeof applicationEvents.$inferSelect;
+export type Offer = typeof offers.$inferSelect;
+export type MessageTemplate = typeof messageTemplates.$inferSelect;
+export type MessageThread = typeof messageThreads.$inferSelect;
+export type Message = typeof messages.$inferSelect;
 export type Shortlist = typeof shortlists.$inferSelect;
 export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;
 export type ShortlistShare = typeof shortlistShares.$inferSelect;

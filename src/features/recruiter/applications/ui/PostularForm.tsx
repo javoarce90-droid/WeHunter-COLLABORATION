@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { postularCandidatoAction } from "../actions";
 import type { Candidate } from "@/db/schema";
 
@@ -23,34 +25,20 @@ export function PostularForm({ jobId, candidates }: Props) {
     initialState,
   );
 
-  if (!open) {
-    return (
+  return (
+    <>
       <Button type="button" onClick={() => setOpen(true)}>
         + Postular candidato
       </Button>
-    );
-  }
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-    >
-      <div className="w-full max-w-sm rounded-[var(--radius)] border border-border bg-surface shadow-lg">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <h2 className="text-sm font-semibold text-text">Postular candidato</h2>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            className="text-muted transition-colors hover:text-text"
-            aria-label="Cerrar"
-          >
-            ✕
-          </button>
-        </div>
-
-        <form action={dispatch} className="flex flex-col gap-4 p-5">
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        side="center"
+        title="Postular candidato"
+        className="max-w-sm"
+      >
+        <form action={dispatch} className="flex flex-col gap-4">
           <input type="hidden" name="jobId" value={jobId} />
 
           <div className="flex flex-col gap-1.5">
@@ -60,9 +48,9 @@ export function PostularForm({ jobId, candidates }: Props) {
             {candidates.length === 0 ? (
               <p className="text-sm text-muted">
                 No hay candidatos en el pool. Cargá uno primero desde{" "}
-                <a href="/candidates/new" className="text-primary hover:underline">
+                <Link href="/candidates/new" className="text-primary hover:underline">
                   Candidatos
-                </a>
+                </Link>
                 .
               </p>
             ) : (
@@ -70,7 +58,7 @@ export function PostularForm({ jobId, candidates }: Props) {
                 id="candidateId"
                 name="candidateId"
                 required
-                className="w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary"
+                className="w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]"
               >
                 <option value="">Seleccioná un candidato…</option>
                 {candidates.map((c) => (
@@ -83,7 +71,7 @@ export function PostularForm({ jobId, candidates }: Props) {
             )}
           </div>
 
-          {state.error && <p className="text-xs text-red-600">{state.error}</p>}
+          {state.error && <p className="text-xs text-danger">{state.error}</p>}
 
           <div className="flex items-center justify-end gap-3">
             <button
@@ -98,7 +86,7 @@ export function PostularForm({ jobId, candidates }: Props) {
             </Button>
           </div>
         </form>
-      </div>
-    </div>
+      </Dialog>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
 import {
   candidateInputSchema,
@@ -10,8 +11,14 @@ import {
 import { cargarCandidato } from "./domain/cargar-candidato";
 import { editarCandidato } from "./domain/editar-candidato";
 import {
+  cambiarEstadoTalento,
+  TALENT_STATES,
+  type TalentState,
+} from "./domain/cambiar-estado-talento";
+import {
   insertCandidate,
   updateCandidateFields,
+  setTalentState,
 } from "./data/candidates.mutations";
 import { getCandidateById } from "./data/candidates.queries";
 import {
@@ -21,6 +28,43 @@ import {
 
 export interface CandidateFormState {
   error?: string;
+}
+
+export async function cambiarEstadoTalentoAction(
+  candidateId: string,
+  talentState: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!TALENT_STATES.includes(talentState as TalentState)) {
+    return { ok: false, error: "Estado inválido." };
+  }
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const result = await cambiarEstadoTalento(
+    { candidateId, talentState: talentState as TalentState },
+    { organizationId: membership.organizationId, role: membership.role },
+    { getCandidate: getCandidateById, setState: setTalentState },
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/candidates");
+  return { ok: true };
+}
+
+/** Lee del FormData los campos del candidato (núcleo + enriquecidos) para validar con Zod. */
+function parseCandidateForm(formData: FormData) {
+  return candidateInputSchema.safeParse({
+    fullName: formData.get("fullName"),
+    email: formData.get("email"),
+    headline: formData.get("headline"),
+    location: formData.get("location"),
+    linkedinUrl: formData.get("linkedinUrl"),
+    summary: formData.get("summary"),
+    skills: formData.get("skills"),
+    source: formData.get("source"),
+  });
 }
 
 /** Extrae y valida el CV del FormData. Devuelve el File o null, o un mensaje de error. */
@@ -42,10 +86,7 @@ export async function cargarCandidatoAction(
   _prev: CandidateFormState,
   formData: FormData,
 ): Promise<CandidateFormState> {
-  const parsed = candidateInputSchema.safeParse({
-    fullName: formData.get("fullName"),
-    email: formData.get("email"),
-  });
+  const parsed = parseCandidateForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
@@ -84,10 +125,7 @@ export async function editarCandidatoAction(
   formData: FormData,
 ): Promise<CandidateFormState> {
   const candidateId = String(formData.get("candidateId") ?? "");
-  const parsed = candidateInputSchema.safeParse({
-    fullName: formData.get("fullName"),
-    email: formData.get("email"),
-  });
+  const parsed = parseCandidateForm(formData);
   if (!candidateId) return { error: "Falta el candidato a editar." };
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
