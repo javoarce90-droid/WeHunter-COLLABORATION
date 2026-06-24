@@ -16,8 +16,8 @@ const makeApp = (overrides?: Partial<ApplicationRow>): ApplicationRow => ({
 
 const makeDeps = (app: ApplicationRow, overrides?: Partial<MoverEtapaDeps>): MoverEtapaDeps => ({
   getApplicationById: vi.fn().mockResolvedValue(app),
-  updateApplicationStage: vi.fn().mockImplementation((_id, stage) =>
-    Promise.resolve({ ...app, stage }),
+  updateApplicationStage: vi.fn().mockImplementation((_id, _fromStage, toStage) =>
+    Promise.resolve({ ...app, stage: toStage }),
   ),
   ...overrides,
 });
@@ -37,6 +37,8 @@ describe("moverEtapa", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.stage).toBe("screening");
+    // El historial necesita la etapa de origen: se la pasamos al data layer.
+    expect(deps.updateApplicationStage).toHaveBeenCalledWith("app-1", "new", "screening");
   });
 
   it("rechaza si la application no existe en la org", async () => {
