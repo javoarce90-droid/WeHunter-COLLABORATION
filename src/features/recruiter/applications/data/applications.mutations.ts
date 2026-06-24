@@ -101,6 +101,22 @@ export async function setApplicationFavorite(
   );
 }
 
+export async function saveApplicationScore(
+  applicationId: string,
+  score: number,
+  summary: string,
+): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx
+        .update(applications)
+        .set({ aiScore: score, aiSummary: summary, updatedAt: new Date() })
+        .where(eq(applications.id, applicationId)),
+    "db.applications.save-score",
+  );
+}
+
 export async function deleteApplication(
   applicationId: string,
   organizationId: string,

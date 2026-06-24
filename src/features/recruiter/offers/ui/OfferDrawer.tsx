@@ -1,9 +1,16 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { crearOfertaAction, editarOfertaAction, loadOfferDetailAction } from "../actions";
+import { AiButton } from "@/components/ui/ai";
+import { useToast } from "@/lib/toast";
+import {
+  crearOfertaAction,
+  editarOfertaAction,
+  loadOfferDetailAction,
+  draftOfferAction,
+} from "../actions";
 import { OFFER_TEMPLATES } from "../schema";
 import type { OfferDetail } from "../data/offers.queries";
 
@@ -118,7 +125,10 @@ function OfferForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const toast = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const [drafting, startDraft] = useTransition();
 
   const action = isNew ? crearOfertaAction : editarOfertaAction.bind(null, jobId);
   const [state, dispatch, isPending] = useActionState<{ error?: string }, FormData>(
@@ -136,8 +146,31 @@ function OfferForm({
     bodyRef.current.value = tpl.body.replaceAll("{puesto}", detail?.title || jobTitle);
   }
 
+  function generateWithAi() {
+    const form = formRef.current;
+    if (!form) return;
+    const fd = new FormData(form);
+    const title = String(fd.get("title") ?? "").trim();
+    const applicationId = String(fd.get("applicationId") ?? "");
+    const candidateName = isNew
+      ? (applications.find((a) => a.applicationId === applicationId)?.candidateName ?? "")
+      : (detail?.candidateName ?? "");
+    const amount = String(fd.get("salaryAmount") ?? "").trim();
+    const currency = String(fd.get("salaryCurrency") ?? "").trim();
+    const salary = amount ? `${currency ? currency + " " : ""}${amount}` : null;
+
+    startDraft(async () => {
+      const res = await draftOfferAction(title, candidateName, salary);
+      if (!res.ok || !res.body) {
+        toast({ message: res.error ?? "No se pudo generar.", variant: "danger" });
+        return;
+      }
+      if (bodyRef.current) bodyRef.current.value = res.body;
+    });
+  }
+
   return (
-    <form action={dispatch} className="flex flex-col gap-4">
+    <form ref={formRef} action={dispatch} className="flex flex-col gap-4">
       {isNew ? (
         <>
           <input type="hidden" name="jobId" value={jobId} />
@@ -239,22 +272,27 @@ function OfferForm({
           <label htmlFor="body" className={labelClass}>
             Carta de oferta
           </label>
-          <select
-            aria-label="Aplicar template"
-            defaultValue=""
-            onChange={(e) => {
-              applyTemplate(e.target.value);
-              e.target.selectedIndex = 0;
-            }}
-            className="rounded-md border border-border bg-bg px-2 py-1 text-xs text-muted"
-          >
-            <option value="">Template…</option>
-            {OFFER_TEMPLATES.filter((t) => t.id !== "blank").map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              aria-label="Aplicar template"
+              defaultValue=""
+              onChange={(e) => {
+                applyTemplate(e.target.value);
+                e.target.selectedIndex = 0;
+              }}
+              className="rounded-md border border-border bg-bg px-2 py-1 text-xs text-muted"
+            >
+              <option value="">Template…</option>
+              {OFFER_TEMPLATES.filter((t) => t.id !== "blank").map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <AiButton type="button" onClick={generateWithAi} disabled={drafting}>
+              {drafting ? "Generando…" : "Generar"}
+            </AiButton>
+          </div>
         </div>
         <textarea
           id="body"

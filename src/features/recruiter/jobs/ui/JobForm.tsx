@@ -1,8 +1,10 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import type { JobFormState } from "../actions";
+import { generarAvisoAction, type JobFormState } from "../actions";
+import { AiButton } from "@/components/ui/ai";
+import { useToast } from "@/lib/toast";
 import type {
   JobModality,
   JobSeniority,
@@ -61,14 +63,42 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const initialState: JobFormState = {};
 
 export function JobForm({ action, submitLabel, jobId, clients, defaults }: JobFormProps) {
+  const toast = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(action, initialState);
   const [posting, setPosting] = useState(defaults?.posting ?? "");
   const [showPreview, setShowPreview] = useState(false);
+  const [generating, startGenerate] = useTransition();
+
+  function generarAviso() {
+    const form = formRef.current;
+    if (!form) return;
+    const fd = new FormData(form);
+    const skills = String(fd.get("skills") ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    startGenerate(async () => {
+      const res = await generarAvisoAction({
+        title: String(fd.get("title") ?? "").trim(),
+        skills,
+        seniority: (fd.get("seniority") as string) || null,
+        location: (fd.get("location") as string) || null,
+        modality: (fd.get("modality") as string) || null,
+      });
+      if (!res.ok || !res.posting) {
+        toast({ message: res.error ?? "No se pudo generar.", variant: "danger" });
+        return;
+      }
+      setPosting(res.posting);
+      setShowPreview(false);
+    });
+  }
 
   return (
     <Card>
       <CardContent>
-        <form action={formAction} className="flex flex-col gap-6">
+        <form ref={formRef} action={formAction} className="flex flex-col gap-6">
           {jobId && <input type="hidden" name="jobId" value={jobId} />}
 
           {/* — Datos de la búsqueda — */}
@@ -169,13 +199,18 @@ export function JobForm({ action, submitLabel, jobId, clients, defaults }: JobFo
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-muted">Aviso público</span>
-              <button
-                type="button"
-                onClick={() => setShowPreview((v) => !v)}
-                className="text-xs font-semibold text-primary hover:text-primary-hover"
-              >
-                {showPreview ? "Editar" : "Previsualizar"}
-              </button>
+              <div className="flex items-center gap-3">
+                <AiButton type="button" onClick={generarAviso} disabled={generating}>
+                  {generating ? "Generando…" : "Generar aviso"}
+                </AiButton>
+                <button
+                  type="button"
+                  onClick={() => setShowPreview((v) => !v)}
+                  className="text-xs font-semibold text-primary hover:text-primary-hover"
+                >
+                  {showPreview ? "Editar" : "Previsualizar"}
+                </button>
+              </div>
             </div>
             {showPreview ? (
               <div className="min-h-[120px] whitespace-pre-wrap rounded-[var(--radius)] border border-border bg-bg px-3 py-2.5 text-sm text-text">

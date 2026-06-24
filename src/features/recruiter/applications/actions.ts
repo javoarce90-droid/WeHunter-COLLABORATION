@@ -7,17 +7,22 @@ import { postularCandidatoSchema, moverEtapaSchema } from "./schema";
 import { postularCandidato } from "./domain/postular-candidato";
 import { moverEtapa } from "./domain/mover-etapa";
 import { marcarFavorito } from "./domain/marcar-favorito";
+import { puntuarPostulaciones } from "./domain/puntuar-postulaciones";
 import {
   getJobForPipeline,
   getApplicationById,
   findExistingApplication,
+  listApplicationsForScoring,
 } from "./data/applications.queries";
 import {
   insertApplication,
   updateApplicationStage,
   setApplicationFavorite,
+  saveApplicationScore,
 } from "./data/applications.mutations";
 import { getCandidateById } from "../candidates/data/candidates.queries";
+import { getJobById } from "../jobs/data/jobs.queries";
+import { getAiProvider } from "@/lib/ai";
 
 export interface ApplicationActionState {
   error?: string;
@@ -201,6 +206,58 @@ export async function marcarFavoritoAction(
 
   revalidatePath(`/jobs/${jobId}/postulados`);
   return { ok: true };
+}
+
+/** Genera (IA mock) una guía de preguntas de entrevista para un candidato en una búsqueda. */
+export async function generarGuiaEntrevistaAction(
+  jobId: string,
+  candidateName: string,
+): Promise<{ ok: boolean; questions?: string[]; error?: string }> {
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const job = await getJobById(jobId, membership.organizationId);
+  if (!job) return { ok: false, error: "Búsqueda no encontrada." };
+
+  const questions = await getAiProvider().interviewGuide({
+    candidateName,
+    jobTitle: job.title,
+    skills: job.skills ?? [],
+  });
+  return { ok: true, questions };
+}
+
+/**
+ * Analiza con IA (mock) todas las postulaciones de una búsqueda: calcula y persiste un score
+ * de compatibilidad. La lógica de scoring vive detrás de la interfaz AiProvider; el caso de
+ * uso solo orquesta y cuida el rol.
+ */
+export async function analizarPostuladosAction(
+  jobId: string,
+): Promise<{ ok: boolean; scored?: number; error?: string }> {
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const [job, applications] = await Promise.all([
+    getJobById(jobId, membership.organizationId),
+    listApplicationsForScoring(jobId, membership.organizationId),
+  ]);
+  if (!job) return { ok: false, error: "Búsqueda no encontrada." };
+  if (applications.length === 0) {
+    return { ok: false, error: "No hay postulaciones para analizar." };
+  }
+
+  const result = await puntuarPostulaciones(
+    { job: { title: job.title, skills: job.skills }, applications },
+    { organizationId: membership.organizationId, role: membership.role },
+    { provider: getAiProvider(), saveScore: saveApplicationScore },
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/jobs/${jobId}/postulados`);
+  revalidatePath(`/jobs/${jobId}/pipeline`);
+  return { ok: true, scored: result.scored };
 }
 
 /**

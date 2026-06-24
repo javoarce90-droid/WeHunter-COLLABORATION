@@ -6,6 +6,7 @@ import { computeJobPerformance } from "@/features/recruiter/reports/domain/job-p
 import { FunnelChart } from "@/features/recruiter/dashboard/ui/FunnelChart";
 import { SourceBreakdown } from "@/features/recruiter/reports/ui/SourceBreakdown";
 import { StageTiming } from "@/features/recruiter/reports/ui/StageTiming";
+import { ReportInsights } from "@/features/recruiter/reports/ui/ReportInsights";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -47,6 +48,7 @@ export default async function RendimientoPage({ params }: Props) {
         <SourceBreakdown breakdown={perf.sourceBreakdown} />
       </div>
       <StageTiming perf={perf} />
+      <ReportInsights jobId={jobId} />
     </div>
   );
 }

@@ -11,6 +11,7 @@ export type ApplicationWithCandidate = {
   jobId: string;
   candidateId: string;
   stage: ApplicationStage;
+  aiScore: number | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -35,6 +36,7 @@ export async function listApplicationsByJob(
         jobId: applications.jobId,
         candidateId: applications.candidateId,
         stage: applications.stage,
+        aiScore: applications.aiScore,
         notes: applications.notes,
         createdAt: applications.createdAt,
         updatedAt: applications.updatedAt,
@@ -59,6 +61,7 @@ export async function listApplicationsByJob(
     jobId: r.jobId,
     candidateId: r.candidateId,
     stage: r.stage as ApplicationStage,
+    aiScore: r.aiScore,
     notes: r.notes,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -172,6 +175,8 @@ export type PostuladoRow = {
   id: string;
   stage: ApplicationStage;
   isFavorite: boolean;
+  aiScore: number | null;
+  aiSummary: string | null;
   createdAt: Date;
   candidate: {
     id: string;
@@ -196,6 +201,8 @@ export async function listPostulados(
         id: applications.id,
         stage: applications.stage,
         isFavorite: applications.isFavorite,
+        aiScore: applications.aiScore,
+        aiSummary: applications.aiSummary,
         createdAt: applications.createdAt,
         candidateId: candidates.id,
         candidateFullName: candidates.fullName,
@@ -218,12 +225,64 @@ export async function listPostulados(
     id: r.id,
     stage: r.stage as ApplicationStage,
     isFavorite: r.isFavorite,
+    aiScore: r.aiScore,
+    aiSummary: r.aiSummary,
     createdAt: r.createdAt,
     candidate: {
       id: r.candidateId,
       fullName: r.candidateFullName,
       email: r.candidateEmail,
       source: r.candidateSource,
+    },
+  }));
+}
+
+/** Datos de los candidatos de un job para puntuar con IA (skills, perfil, CV). */
+export type ScoringRow = {
+  id: string;
+  candidate: {
+    id: string;
+    skills: string[] | null;
+    summary: string | null;
+    source: string | null;
+    hasCv: boolean;
+  };
+};
+
+export async function listApplicationsForScoring(
+  jobId: string,
+  organizationId: string,
+): Promise<ScoringRow[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: applications.id,
+        candidateId: candidates.id,
+        skills: candidates.skills,
+        summary: candidates.summary,
+        source: candidates.source,
+        cvUrl: candidates.cvUrl,
+      })
+      .from(applications)
+      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applications.organizationId, organizationId),
+        ),
+      )
+      .limit(200),
+    "db.applications.for-scoring",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    candidate: {
+      id: r.candidateId,
+      skills: r.skills,
+      summary: r.summary,
+      source: r.source,
+      hasCv: r.cvUrl != null,
     },
   }));
 }
