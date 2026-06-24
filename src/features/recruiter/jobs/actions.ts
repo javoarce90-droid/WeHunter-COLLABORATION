@@ -14,14 +14,31 @@ export interface JobFormState {
   error?: string;
 }
 
+/** Lee del FormData todos los campos de la búsqueda (núcleo + ricos) para validar con Zod. */
+function parseJobForm(formData: FormData) {
+  return jobInputSchema.safeParse({
+    title: formData.get("title"),
+    description: formData.get("description"),
+    posting: formData.get("posting"),
+    clientId: formData.get("clientId"),
+    location: formData.get("location"),
+    modality: formData.get("modality"),
+    seniority: formData.get("seniority"),
+    employmentType: formData.get("employmentType"),
+    salaryMin: formData.get("salaryMin"),
+    salaryMax: formData.get("salaryMax"),
+    salaryCurrency: formData.get("salaryCurrency"),
+    skills: formData.get("skills"),
+    priority: formData.get("priority"),
+    deadline: formData.get("deadline"),
+  });
+}
+
 export async function crearBusquedaAction(
   _prev: JobFormState,
   formData: FormData,
 ): Promise<JobFormState> {
-  const parsed = jobInputSchema.safeParse({
-    title: formData.get("title"),
-    description: formData.get("description"),
-  });
+  const parsed = parseJobForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
@@ -52,10 +69,7 @@ export async function editarBusquedaAction(
   formData: FormData,
 ): Promise<JobFormState> {
   const jobId = String(formData.get("jobId") ?? "");
-  const parsed = jobInputSchema.safeParse({
-    title: formData.get("title"),
-    description: formData.get("description"),
-  });
+  const parsed = parseJobForm(formData);
   if (!jobId) return { error: "Falta la búsqueda a editar." };
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };

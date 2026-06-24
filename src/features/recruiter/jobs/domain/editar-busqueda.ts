@@ -1,10 +1,15 @@
 import { ok, err, type Result } from "@/lib/result";
 import { canManageRecruiting } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
+import {
+  normalizeJobDetails,
+  type JobDetails,
+  type JobDetailsInput,
+} from "./job-details";
 
-/** Caso de uso: editar título/descripción de una búsqueda existente. */
+/** Caso de uso: editar título/descripción y campos ricos de una búsqueda existente. */
 
-export interface EditarBusquedaInput {
+export interface EditarBusquedaInput extends JobDetailsInput {
   jobId: string;
   title: string;
   description?: string | null;
@@ -19,7 +24,7 @@ export interface EditarBusquedaDeps {
   updateJobFields(
     jobId: string,
     organizationId: string,
-    fields: { title: string; description: string | null },
+    fields: { title: string; description: string | null } & JobDetails,
   ): Promise<{ updated: boolean }>;
 }
 
@@ -43,6 +48,7 @@ export async function editarBusqueda(
   const { updated } = await deps.updateJobFields(input.jobId, ctx.organizationId, {
     title,
     description: input.description?.trim() || null,
+    ...normalizeJobDetails(input),
   });
   if (!updated) {
     return err("La búsqueda no existe.");

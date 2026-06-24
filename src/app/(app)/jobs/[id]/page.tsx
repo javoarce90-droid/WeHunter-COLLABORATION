@@ -8,6 +8,14 @@ import {
   STAGE_LABELS,
 } from "@/features/recruiter/applications/schema";
 import { relativeTime } from "@/features/recruiter/jobs/ui/status-meta";
+import { getClientById } from "@/features/recruiter/clients/data/clients.queries";
+import {
+  MODALITY_LABELS,
+  SENIORITY_LABELS,
+  EMPLOYMENT_LABELS,
+  PRIORITY_LABELS,
+  PRIORITY_BADGE,
+} from "@/features/recruiter/jobs/ui/field-meta";
 import { Badge } from "@/components/ui/badge";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
@@ -15,6 +23,18 @@ const dateFmt = new Intl.DateTimeFormat("es-AR", {
   month: "short",
   year: "numeric",
 });
+
+function formatSalary(
+  min: number | null,
+  max: number | null,
+  currency: string | null,
+): string | null {
+  if (min == null && max == null) return null;
+  const cur = currency ? `${currency} ` : "";
+  const fmt = (n: number) => n.toLocaleString("es-AR");
+  if (min != null && max != null) return `${cur}${fmt(min)} – ${fmt(max)}`;
+  return `${cur}${fmt((min ?? max) as number)}`;
+}
 
 /** Pestaña Detalle: resumen de la búsqueda + foto del pipeline. El job ya está validado por el layout. */
 export default async function JobDetailPage({
@@ -33,6 +53,10 @@ export default async function JobDetailPage({
   ]);
   if (!job) notFound();
 
+  const client = job.clientId
+    ? await getClientById(job.clientId, membership.organizationId)
+    : null;
+
   const total = APPLICATION_STAGES.reduce((sum, s) => sum + counts[s], 0);
 
   const facts: { label: string; value: string }[] = [
@@ -40,6 +64,24 @@ export default async function JobDetailPage({
     { label: "Creada", value: dateFmt.format(job.createdAt) },
     { label: "Última actividad", value: relativeTime(job.updatedAt) },
   ];
+
+  const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
+  // Filas de "Detalles" que efectivamente tienen valor (progressive disclosure).
+  const detailRows: { label: string; value: string }[] = [
+    job.location ? { label: "Ubicación", value: job.location } : null,
+    job.modality ? { label: "Modalidad", value: MODALITY_LABELS[job.modality] } : null,
+    job.seniority ? { label: "Seniority", value: SENIORITY_LABELS[job.seniority] } : null,
+    job.employmentType
+      ? { label: "Contratación", value: EMPLOYMENT_LABELS[job.employmentType] }
+      : null,
+    salary ? { label: "Salario", value: salary } : null,
+    job.deadline
+      ? { label: "Deadline", value: dateFmt.format(new Date(job.deadline)) }
+      : null,
+  ].filter((r): r is { label: string; value: string } => r !== null);
+
+  const hasDetails =
+    client || detailRows.length > 0 || job.priority || (job.skills?.length ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -55,10 +97,82 @@ export default async function JobDetailPage({
         ))}
       </dl>
 
-      {/* Descripción */}
+      {/* Detalles de la búsqueda (solo lo que tiene valor) */}
+      {hasDetails && (
+        <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
+          <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+            <h2 className="text-sm font-bold text-text">Detalles</h2>
+            {job.priority && (
+              <Badge variant={PRIORITY_BADGE[job.priority]}>
+                Prioridad {PRIORITY_LABELS[job.priority].toLowerCase()}
+              </Badge>
+            )}
+          </div>
+          <div className="flex flex-col gap-4 px-5 py-4">
+            {client && (
+              <div>
+                <p className="text-xs font-medium text-muted">Cliente</p>
+                <Link
+                  href={`/clients/${client.id}`}
+                  className="mt-0.5 inline-block font-semibold text-text hover:text-primary"
+                >
+                  {client.name}
+                </Link>
+              </div>
+            )}
+            {detailRows.length > 0 && (
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+                {detailRows.map((r) => (
+                  <div key={r.label}>
+                    <dt className="text-xs font-medium text-muted">{r.label}</dt>
+                    <dd className="mt-0.5 font-semibold text-text">{r.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {(job.skills?.length ?? 0) > 0 && (
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted">Skills</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {job.skills!.map((s) => (
+                    <span
+                      key={s}
+                      className="rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary-hover"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Aviso público */}
+      {job.posting && (
+        <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
+          <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
+            <h2 className="text-sm font-bold text-text">Aviso público</h2>
+            <Link
+              href={`/jobs/${job.id}/edit`}
+              className="text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              Editar
+            </Link>
+          </div>
+          <div className="px-5 py-4">
+            <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
+              {job.posting}
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* Brief interno */}
       <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
         <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <h2 className="text-sm font-bold text-text">Descripción</h2>
+          <h2 className="text-sm font-bold text-text">Brief interno</h2>
           <Link
             href={`/jobs/${job.id}/edit`}
             className="text-xs font-semibold text-primary hover:text-primary-hover"
