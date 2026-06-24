@@ -4,7 +4,7 @@ import { listApplicationsByJob } from "@/features/recruiter/applications/data/ap
 import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
-import { PipelineBoard } from "@/features/recruiter/applications/ui/PipelineBoard";
+import { PipelineView } from "@/features/recruiter/applications/ui/PipelineView";
 import { PostularForm } from "@/features/recruiter/applications/ui/PostularForm";
 
 interface Props {
@@ -42,7 +42,7 @@ export default async function PipelinePage({ params }: Props) {
         <PostularForm jobId={jobId} candidates={candidates} />
       </div>
 
-      <PipelineBoard
+      <PipelineView
         applications={applications}
         interviewsByApplication={interviewsByApplication}
       />
