@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
@@ -6,6 +6,10 @@ import { logout } from "@/app/(auth)/actions";
 import { Sidebar } from "./_components/Sidebar";
 import { AppChrome } from "./_components/AppChrome";
 import { CommandTrigger } from "./_components/CommandTrigger";
+import {
+  NotificationBellLoader,
+  NotificationBellFallback,
+} from "@/features/recruiter/notifications/ui/NotificationBellLoader";
 
 /**
  * Shell de las pantallas del reclutador (rutas protegidas). Resuelve el contexto base:
@@ -35,6 +39,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <header className="flex h-[var(--topbar-h)] shrink-0 items-center gap-3 border-b border-border bg-surface px-6 text-sm text-muted">
             <CommandTrigger />
             <div className="ml-auto flex items-center gap-3">
+              <Suspense fallback={<NotificationBellFallback />}>
+                <NotificationBellLoader organizationId={membership.organizationId} />
+              </Suspense>
               <span className="truncate">{user.email}</span>
               <form action={logout}>
                 <button
