@@ -106,6 +106,15 @@ export const candidateSource = pgEnum("candidate_source", [
   "other",
 ]);
 
+// Estado de una oferta en su ciclo de vida.
+export const offerStatus = pgEnum("offer_status", [
+  "draft", // borrador, editable, todavía no enviada
+  "sent", // enviada al candidato
+  "negotiation", // en negociación
+  "accepted", // aceptada (terminal) — dispara cierre de búsqueda + contratación
+  "rejected", // rechazada (terminal)
+]);
+
 // ---- Tenancy ----
 
 // El tenant. Todo dato de dominio cuelga de acá.
@@ -337,6 +346,35 @@ export const pipelineStages = pgTable("pipeline_stages", {
   ),
 }));
 
+// Oferta formal a un candidato finalista de una búsqueda. Apunta a la application (job +
+// candidato) para que aceptar la oferta pueda contratar a ese candidato y cerrar la búsqueda.
+export const offers = pgTable("offers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id")
+    .references(() => jobs.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  title: text("title").notNull(), // puesto ofrecido
+  salaryAmount: integer("salary_amount"),
+  salaryCurrency: text("salary_currency"),
+  benefits: text("benefits"),
+  startDate: date("start_date"),
+  validUntil: date("valid_until"), // vencimiento de la oferta
+  body: text("body"), // texto de la carta de oferta
+  status: offerStatus("status").notNull().default("draft"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("offers_org_idx").on(t.organizationId),
+  jobIdx: index("offers_job_idx").on(t.jobId),
+  applicationIdx: index("offers_application_idx").on(t.applicationId),
+}));
+
 // ---- Shortlists (compartir candidatos con la empresa) ----
 
 // Una selección de candidatos de un job que el reclutador comparte con una empresa.
@@ -432,6 +470,7 @@ export type Application = typeof applications.$inferSelect;
 export type Interview = typeof interviews.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type ApplicationEvent = typeof applicationEvents.$inferSelect;
+export type Offer = typeof offers.$inferSelect;
 export type Shortlist = typeof shortlists.$inferSelect;
 export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;
 export type ShortlistShare = typeof shortlistShares.$inferSelect;

@@ -117,3 +117,25 @@ body {
   font-size: 14px;
   line-height: 1.5;
 }
+
+/* Impresión / PDF: oculta todo el chrome de la app y deja solo la carta de oferta.
+   La vista de impresión envuelve la carta en .print-document. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-document,
+  .print-document * {
+    visibility: visible;
+  }
+  .print-document {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 2.5rem;
+    background: #fff;
+  }
+  .print-hide {
+    display: none !important;
+  }
+}
