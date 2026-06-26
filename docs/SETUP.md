@@ -32,7 +32,15 @@ Verificá que Next, React y Drizzle quedaron en versiones compatibles. Si algo c
 2. Settings > API y Settings > Database: copiá las connection strings.
 3. `cp .env.example .env` y completá los valores (ver comentarios del .env.example:
    pooler :6543 para la app, conexión directa :5432 para migraciones).
-4. Creá el bucket privado `cvs` en Storage.
+4. Creá los buckets **privados** en Storage: `cvs` (CVs de candidatos), `avatars`
+   (foto del recruiter) y `org-logos` (logo del workspace).
+
+   Para los tres, cargá políticas RLS de Storage que repliquen el aislamiento por org,
+   reutilizando el helper `public.is_org_member(...)` de la migración `0001`. El path de
+   cada archivo empieza con `{organizationId}/...`, así que la política valida la org con
+   `public.is_org_member((storage.foldername(name))[1]::uuid)` para `select`/`insert`/
+   `update`/`delete` al rol `authenticated`. (Estas políticas se cargan a mano en el panel;
+   no se versionan en el repo, igual que las del bucket `cvs`.)
 
 ## 5. Primera migración
 ```bash

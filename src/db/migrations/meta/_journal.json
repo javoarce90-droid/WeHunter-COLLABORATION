@@ -120,6 +120,13 @@
       "when": 1782339200000,
       "tag": "0016_team_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782478288322,
+      "tag": "0017_striped_prism",
+      "breakpoints": true
     }
   ]
 }
