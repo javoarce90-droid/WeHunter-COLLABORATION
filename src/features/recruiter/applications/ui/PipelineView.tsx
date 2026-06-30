@@ -186,8 +186,8 @@ export function PipelineView({
         title="No hay candidatos en el pipeline"
         description={
           <>
-            Postulá candidatos desde el pool con el botón{" "}
-            <span className="font-semibold text-text">Postular candidato</span>.
+            Sumá candidatos del pool o creá uno nuevo con el botón{" "}
+            <span className="font-semibold text-text">Agregar candidatos</span>.
           </>
         }
       />

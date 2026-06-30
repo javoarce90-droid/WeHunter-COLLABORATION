@@ -78,7 +78,9 @@ export async function crearBusquedaAction(
     return { error: result.error };
   }
 
-  redirect("/jobs");
+  // Caés directo en el pipeline de la búsqueda recién creada: ahí mismo sumás candidatos
+  // (del pool o nuevos) sin pasos intermedios. Conecta crear-búsqueda → cargar-candidatos.
+  redirect(`/jobs/${result.data.jobId}/pipeline`);
 }
 
 export async function editarBusquedaAction(

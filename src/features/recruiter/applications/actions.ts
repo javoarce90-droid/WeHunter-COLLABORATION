@@ -22,6 +22,9 @@ import {
 } from "./data/applications.mutations";
 import { getCandidateById } from "../candidates/data/candidates.queries";
 import { getJobById } from "../jobs/data/jobs.queries";
+import { candidateInputSchema } from "../candidates/schema";
+import { cargarCandidato } from "../candidates/domain/cargar-candidato";
+import { insertCandidate } from "../candidates/data/candidates.mutations";
 import { getAiProvider } from "@/lib/ai";
 
 export interface ApplicationActionState {
@@ -132,6 +135,59 @@ export async function postularVariosAction(
 
   revalidatePath(`/jobs/${jobId}/pipeline`);
   return { ok: true, added, skipped };
+}
+
+/**
+ * Flujo contextual: crear un candidato nuevo (carga rápida, sin CV) Y postularlo a la búsqueda
+ * en un solo paso, sin salir del pipeline. Orquesta dos casos de uso existentes —cada uno con su
+ * propia autorización—: `cargarCandidato` (lo deja en el pool) y `postularCandidato`. Si el alta
+ * sale bien pero el postular falla, el candidato YA quedó en el pool: no se pierde el trabajo.
+ */
+export async function crearYPostularCandidatoAction(
+  _prev: ApplicationActionState,
+  formData: FormData,
+): Promise<ApplicationActionState> {
+  const jobId = String(formData.get("jobId") ?? "");
+  if (!jobId) return { error: "Falta la búsqueda." };
+
+  const parsed = candidateInputSchema.safeParse({
+    fullName: formData.get("fullName"),
+    email: formData.get("email"),
+    skills: formData.get("skills"),
+    source: formData.get("source"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const membership = await getActiveMembership();
+  if (!membership) return { error: "No autorizado." };
+
+  // 1. Alta en el pool (sin CV: el enriquecimiento se hace después desde la ficha).
+  const created = await cargarCandidato(
+    parsed.data,
+    { organizationId: membership.organizationId, role: membership.role },
+    { insertCandidate },
+  );
+  if (!created.ok) return { error: created.error };
+
+  // 2. Postular a la búsqueda. Mismo caso de uso (y deps) que el postular del pool.
+  const postulado = await postularCandidato(
+    { jobId, candidateId: created.data.candidateId },
+    { userId: "", organizationId: membership.organizationId, role: membership.role },
+    {
+      getJobById: (id, organizationId) => getJobForPipeline(id, organizationId),
+      getCandidateById: (id, organizationId) => getCandidateById(id, organizationId),
+      findExistingApplication: (jId, cId) => findExistingApplication(jId, cId),
+      createApplication: insertApplication,
+    },
+  );
+  if (!postulado.ok) {
+    return { error: `Candidato creado en el pool, pero no se pudo postular: ${postulado.error}` };
+  }
+
+  revalidatePath(`/jobs/${jobId}/pipeline`);
+  return {};
 }
 
 export async function moverEtapaAction(
