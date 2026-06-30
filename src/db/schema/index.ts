@@ -96,6 +96,23 @@ export const employmentType = pgEnum("employment_type", [
   "contract",
   "internship",
   "temporary",
+  "freelance",
+]);
+// Área/sector de la búsqueda. Catálogo cerrado para consistencia y filtrado.
+export const jobArea = pgEnum("job_area", [
+  "tecnologia",
+  "salud",
+  "finanzas",
+  "ventas",
+  "marketing",
+  "rrhh",
+  "operaciones",
+  "legal",
+  "educacion",
+  "ingenieria",
+  "diseno",
+  "atencion_cliente",
+  "otro",
 ]);
 
 // De dónde salió el candidato. Trazabilidad de fuente del pool.
@@ -259,12 +276,17 @@ export const jobs = pgTable("jobs", {
     .notNull(),
   // Cliente para el que es la búsqueda (CRM mínimo). null = búsqueda interna / sin cliente.
   clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+  // `title` = nombre atractivo de la publicación (headline). El puesto real va en `position`.
   title: text("title").notNull(),
+  // Puesto real a cubrir (ej. "Senior Data Analyst"). Es el rol canónico que usa la IA/matching.
+  position: text("position"),
   description: text("description"), // brief interno
-  // Texto del aviso público (separado del brief interno). Se redacta y previsualiza.
+  // Texto del aviso público LEGACY: el aviso ahora se renderiza desde los campos estructurados
+  // (objectives/requirements/responsibilities/benefits + meta). Se conserva por compat.
   posting: text("posting"),
   status: jobStatus("status").notNull().default("draft"),
-  // Campos ricos (paridad demo). Todos opcionales para no romper filas existentes.
+  // Campos ricos. Todos opcionales para no romper filas existentes.
+  jobArea: jobArea("job_area"),
   location: text("location"),
   modality: jobModality("modality"),
   seniority: jobSeniority("seniority"),
@@ -275,6 +297,14 @@ export const jobs = pgTable("jobs", {
   skills: text("skills").array(),
   priority: jobPriority("priority"),
   deadline: date("deadline"),
+  vacancies: integer("vacancies"),
+  // Secciones del aviso, en Markdown.
+  objectives: text("objectives"),
+  requirements: text("requirements"),
+  responsibilities: text("responsibilities"),
+  // Beneficios: lista de {name, description}. Solo-de-mostrar → jsonb (sin tabla hija ni
+  // transacciones extra; ver decisión de performance). Se selecciona solo en el detalle.
+  benefits: jsonb("benefits").$type<{ name: string; description: string }[]>(),
   createdBy: uuid("created_by").references(() => profiles.id),
   ...timestamps,
 }, (t) => ({

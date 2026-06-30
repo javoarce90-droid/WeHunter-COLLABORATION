@@ -4,6 +4,8 @@ import type {
   ScoreApplicationResult,
   DraftOfferInput,
   DraftJobPostingInput,
+  DraftJobOfferInput,
+  DraftJobOffer,
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";
@@ -55,10 +57,11 @@ export class MockAiProvider implements AiProvider {
     score += stableHash(candidate.id) % 5;
     score = Math.max(5, Math.min(99, score));
 
+    const role = job.position?.trim() || job.title;
     const summary =
       jobSkills.length > 0 && candSkills.length > 0
-        ? `Coincide en ${matched} de ${jobSkills.length} skills clave de ${job.title}.`
-        : `Match estimado para ${job.title} con datos limitados del perfil.`;
+        ? `Coincide en ${matched} de ${jobSkills.length} skills clave de ${role}.`
+        : `Match estimado para ${role} con datos limitados del perfil.`;
 
     return { score, summary, redFlags };
   }
@@ -96,6 +99,50 @@ export class MockAiProvider implements AiProvider {
       `${modality ? `• Modalidad ${modality.toLowerCase()}.\n` : ""}` +
       `\n¿Te interesa? Postulate y conversemos.`
     );
+  }
+
+  async draftJobOffer(input: DraftJobOfferInput): Promise<DraftJobOffer> {
+    const { name, brief, modality, seniority, workDay } = input;
+    const position = name.trim() || "Nuevo puesto";
+    const ctx = [seniority, modality, workDay].filter(Boolean).join(" · ");
+    const briefLine = brief.trim()
+      ? brief.trim()
+      : "Buscamos sumar talento a nuestro equipo.";
+
+    // Derivación determinística de skills desde el brief/nombre (palabras significativas).
+    const skills = Array.from(
+      new Set(
+        `${name} ${brief}`
+          .toLowerCase()
+          .split(/[^a-záéíóúñ0-9+#.]+/i)
+          .map((w) => w.trim())
+          .filter((w) => w.length >= 3),
+      ),
+    ).slice(0, 6);
+
+    return {
+      position,
+      jobArea: null,
+      objectives:
+        `## Objetivos del puesto\n` +
+        `- Aportar al equipo desde el rol de ${position}.\n` +
+        `- ${briefLine}\n`,
+      requirements:
+        `## Requisitos\n` +
+        `- Experiencia previa relevante para el puesto${ctx ? ` (${ctx})` : ""}.\n` +
+        (skills.length ? `- Conocimientos en ${skills.join(", ")}.\n` : "") +
+        `- Buena comunicación y trabajo en equipo.\n`,
+      responsibilities:
+        `## Responsabilidades\n` +
+        `- Ejecutar las tareas principales del rol de ${position}.\n` +
+        `- Colaborar con las distintas áreas para cumplir los objetivos.\n`,
+      benefits: [
+        { name: "Trabajo flexible", description: "Modalidad acordada y horarios flexibles." },
+        { name: "Crecimiento", description: "Plan de desarrollo y aprendizaje continuo." },
+      ],
+      vacancies: 1,
+      skills,
+    };
   }
 
   async interviewGuide(input: InterviewGuideInput): Promise<string[]> {
