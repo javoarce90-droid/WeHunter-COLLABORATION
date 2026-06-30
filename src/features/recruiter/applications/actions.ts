@@ -277,7 +277,7 @@ export async function generarGuiaEntrevistaAction(
 
   const questions = await getAiProvider().interviewGuide({
     candidateName,
-    jobTitle: job.title,
+    jobTitle: job.position?.trim() || job.title,
     skills: job.skills ?? [],
   });
   return { ok: true, questions };
@@ -304,7 +304,7 @@ export async function analizarPostuladosAction(
   }
 
   const result = await puntuarPostulaciones(
-    { job: { title: job.title, skills: job.skills }, applications },
+    { job: { title: job.title, position: job.position, skills: job.skills }, applications },
     { organizationId: membership.organizationId, role: membership.role },
     { provider: getAiProvider(), saveScore: saveApplicationScore },
   );

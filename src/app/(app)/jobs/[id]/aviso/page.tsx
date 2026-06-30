@@ -6,7 +6,9 @@ import {
   MODALITY_LABELS,
   SENIORITY_LABELS,
   EMPLOYMENT_LABELS,
+  AREA_LABELS,
 } from "@/features/recruiter/jobs/ui/field-meta";
+import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
 
 function formatSalary(
   min: number | null,
@@ -39,12 +41,22 @@ export default async function JobPostingPreviewPage({
 
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
   const chips = [
+    job.jobArea ? AREA_LABELS[job.jobArea] : null,
     job.location,
     job.modality ? MODALITY_LABELS[job.modality] : null,
     job.seniority ? SENIORITY_LABELS[job.seniority] : null,
     job.employmentType ? EMPLOYMENT_LABELS[job.employmentType] : null,
+    job.vacancies && job.vacancies > 1 ? `${job.vacancies} vacantes` : null,
     salary,
   ].filter((c): c is string => !!c);
+
+  // El aviso se arma desde los campos estructurados. `posting` es el legacy de respaldo.
+  const sections = [
+    { title: "Objetivos del puesto", body: job.objectives },
+    { title: "Responsabilidades", body: job.responsibilities },
+    { title: "Requisitos", body: job.requirements },
+  ].filter((s): s is { title: string; body: string } => !!s.body?.trim());
+  const hasStructured = sections.length > 0 || (job.benefits?.length ?? 0) > 0;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -61,6 +73,9 @@ export default async function JobPostingPreviewPage({
       <article className="rounded-[var(--radius)] border border-border bg-surface p-8 shadow-[var(--shadow)]">
         <header className="mb-6 border-b border-border pb-5">
           <h1 className="font-display text-2xl font-bold text-text">{job.title}</h1>
+          {job.position && (
+            <p className="mt-1 text-sm font-medium text-muted">{job.position}</p>
+          )}
           {chips.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {chips.map((c) => (
@@ -75,7 +90,31 @@ export default async function JobPostingPreviewPage({
           )}
         </header>
 
-        {job.posting ? (
+        {hasStructured ? (
+          <div className="flex flex-col gap-6">
+            {sections.map((s) => (
+              <section key={s.title}>
+                <h2 className="mb-1.5 text-sm font-bold text-text">{s.title}</h2>
+                <div className="max-w-[70ch] text-sm leading-relaxed text-text/80">
+                  <JobMarkdown text={s.body} />
+                </div>
+              </section>
+            ))}
+            {(job.benefits?.length ?? 0) > 0 && (
+              <section>
+                <h2 className="mb-2 text-sm font-bold text-text">Beneficios</h2>
+                <ul className="flex flex-col gap-1.5">
+                  {job.benefits!.map((b, i) => (
+                    <li key={i} className="text-sm text-text/80">
+                      <span className="font-semibold text-text">{b.name}</span>
+                      {b.description ? ` — ${b.description}` : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+        ) : job.posting ? (
           <div className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text">
             {job.posting}
           </div>

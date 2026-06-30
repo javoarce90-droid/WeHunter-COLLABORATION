@@ -2,6 +2,7 @@ import type {
   ScoreApplicationInput,
   DraftOfferInput,
   DraftJobPostingInput,
+  DraftJobOfferInput,
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";
@@ -22,12 +23,14 @@ const list = (xs: string[] | null | undefined, fallback: string) =>
 
 export const prompts = {
   scoreApplication({ candidate, job }: ScoreApplicationInput): Prompt {
+    // El rol canónico es `position`; `title` es el headline. Priorizamos el puesto real.
+    const role = job.position?.trim() || job.title;
     return {
       system:
         "Sos un reclutador técnico senior. Evaluás compatibilidad candidato↔búsqueda de forma " +
         "objetiva y concisa, en español rioplatense. Penalizá la falta de skills clave o de CV.",
       user:
-        `Búsqueda: ${job.title}\n` +
+        `Búsqueda: ${role}\n` +
         `Skills requeridas: ${list(job.skills, "no especificadas")}\n\n` +
         `Candidato:\n` +
         `- Skills: ${list(candidate.skills, "no especificadas")}\n` +
@@ -60,6 +63,28 @@ export const prompts = {
       user:
         `Redactá el aviso público para la búsqueda "${title}"${ctx ? ` (${ctx})` : ""}.` +
         (skills.length > 0 ? ` Skills buscadas: ${skills.join(", ")}.` : ""),
+    };
+  },
+
+  draftJobOffer({ name, brief, modality, seniority, workDay }: DraftJobOfferInput): Prompt {
+    const ctx = [seniority, modality, workDay].filter(Boolean).join(" · ");
+    return {
+      system:
+        "Sos un especialista en employer branding y redacción de avisos de empleo en español " +
+        "rioplatense. A partir de unos pocos datos, completás una oferta de trabajo estructurada, " +
+        "atractiva y realista. Devolvés SOLO un objeto JSON con los campos pedidos. Los textos " +
+        "(objectives, requirements, responsibilities) van en Markdown con viñetas. No inventes " +
+        "datos sensibles ni discriminatorios (nada de edad, género ni nivel educativo obligatorio).",
+      user:
+        `Generá una oferta de trabajo a partir de:\n` +
+        `- Nombre de la publicación: "${name}"\n` +
+        (ctx ? `- Contexto: ${ctx}\n` : "") +
+        `- Notas del reclutador: ${brief || "sin notas adicionales"}\n\n` +
+        `Devolvé: position (el puesto real a cubrir), jobArea (uno de: tecnologia, salud, ` +
+        `finanzas, ventas, marketing, rrhh, operaciones, legal, educacion, ingenieria, diseno, ` +
+        `atencion_cliente, otro), objectives, requirements y responsibilities (Markdown con ` +
+        `viñetas), benefits (lista de {name, description}), vacancies (entero ≥1) y skills ` +
+        `(lista de tecnologías/competencias clave para el matching).`,
     };
   },
 

@@ -8,6 +8,8 @@ import type {
   ScoreApplicationResult,
   DraftOfferInput,
   DraftJobPostingInput,
+  DraftJobOfferInput,
+  DraftJobOffer,
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";
@@ -119,6 +121,89 @@ export class GeminiAiProvider implements AiProvider {
     } catch (err) {
       logFallback("draftJobPosting", err);
       return this.fallback.draftJobPosting(input);
+    }
+  }
+
+  async draftJobOffer(input: DraftJobOfferInput): Promise<DraftJobOffer> {
+    const prompt = prompts.draftJobOffer(input);
+    try {
+      const res = await this.client.models.generateContent({
+        model: this.model,
+        contents: prompt.user,
+        config: {
+          systemInstruction: prompt.system,
+          temperature: 0.6,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              position: { type: Type.STRING, description: "Puesto real a cubrir." },
+              jobArea: { type: Type.STRING, description: "Slug del área/sector del catálogo." },
+              objectives: { type: Type.STRING, description: "Objetivos del puesto, Markdown." },
+              requirements: { type: Type.STRING, description: "Requisitos, Markdown." },
+              responsibilities: { type: Type.STRING, description: "Responsabilidades, Markdown." },
+              benefits: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                  },
+                  required: ["name", "description"],
+                },
+              },
+              vacancies: { type: Type.INTEGER, description: "Cantidad de vacantes (≥1)." },
+              skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: [
+              "position",
+              "objectives",
+              "requirements",
+              "responsibilities",
+              "benefits",
+              "vacancies",
+              "skills",
+            ],
+          },
+        },
+      });
+
+      const raw = res.text?.trim();
+      if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
+      const parsed = JSON.parse(raw) as Partial<DraftJobOffer>;
+      if (typeof parsed.position !== "string" || !parsed.position.trim()) {
+        throw new Error("Gemini devolvió un borrador con forma inesperada");
+      }
+
+      const benefits = Array.isArray(parsed.benefits)
+        ? parsed.benefits
+            .filter((b): b is { name: string; description: string } =>
+              !!b && typeof b.name === "string" && typeof b.description === "string",
+            )
+            .map((b) => ({ name: b.name, description: b.description }))
+        : [];
+      const vacancies =
+        Number.isFinite(Number(parsed.vacancies)) && Number(parsed.vacancies) >= 1
+          ? Math.round(Number(parsed.vacancies))
+          : 1;
+
+      return {
+        position: parsed.position.trim(),
+        jobArea: typeof parsed.jobArea === "string" ? parsed.jobArea : null,
+        objectives: typeof parsed.objectives === "string" ? parsed.objectives : "",
+        requirements: typeof parsed.requirements === "string" ? parsed.requirements : "",
+        responsibilities:
+          typeof parsed.responsibilities === "string" ? parsed.responsibilities : "",
+        benefits,
+        vacancies,
+        skills: Array.isArray(parsed.skills)
+          ? parsed.skills.filter((s): s is string => typeof s === "string")
+          : [],
+      };
+    } catch (err) {
+      logFallback("draftJobOffer", err);
+      return this.fallback.draftJobOffer(input);
     }
   }
 

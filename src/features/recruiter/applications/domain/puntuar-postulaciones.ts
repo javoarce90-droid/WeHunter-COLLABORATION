@@ -9,7 +9,7 @@ export type ScoringCandidate = {
 };
 
 export type PuntuarInput = {
-  job: { title: string; skills: string[] | null };
+  job: { title: string; position?: string | null; skills: string[] | null };
   applications: { id: string; candidate: ScoringCandidate }[];
 };
 
