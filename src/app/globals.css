@@ -118,6 +118,13 @@ body {
   line-height: 1.5;
 }
 
+/* Placeholder con contraste WCAG AA (≥4.5:1). El default del navegador (~gris claro) no
+   alcanza; usamos --muted (#6B6578 sobre blanco ≈ 5:1). opacity:1 anula el aclarado de Firefox. */
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
 /* Impresión / PDF: oculta todo el chrome de la app y deja solo la carta de oferta.
    La vista de impresión envuelve la carta en .print-document. */
 @media print {

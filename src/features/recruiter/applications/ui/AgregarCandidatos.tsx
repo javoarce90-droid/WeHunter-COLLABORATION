@@ -100,7 +100,6 @@ export function AgregarCandidatos({ jobId, poolCandidates }: Props) {
         onClose={() => setOpen(false)}
         side="right"
         title="Agregar candidatos"
-        className="w-[440px]"
       >
         <div className="mb-4 flex gap-1 rounded-[var(--radius)] bg-text/[0.04] p-1">
           <TabButton active={tab === "pool"} onClick={() => setTab("pool")}>
@@ -134,7 +133,11 @@ export function AgregarCandidatos({ jobId, poolCandidates }: Props) {
                 className="max-w-none"
               />
 
-              <div className="flex max-h-[50vh] flex-col gap-0.5 overflow-y-auto">
+              <div
+                role="group"
+                aria-label="Candidatos del pool"
+                className="flex max-h-[50vh] flex-col gap-0.5 overflow-y-auto"
+              >
                 {filtered.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted">Sin resultados.</p>
                 ) : (
@@ -184,7 +187,7 @@ export function AgregarCandidatos({ jobId, poolCandidates }: Props) {
           <form key={formKey} action={dispatch} className="flex flex-col gap-4">
             <input type="hidden" name="jobId" value={jobId} />
 
-            <Input name="fullName" label="Nombre y apellido" required autoFocus placeholder="Juana Pérez" />
+            <Input name="fullName" label="Nombre y apellido *" required autoFocus placeholder="Juana Pérez" />
             <Input name="email" type="email" label="Email (opcional)" placeholder="juana@ejemplo.com" />
             <Input
               name="skills"
@@ -245,6 +248,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={[
         "flex-1 rounded-[calc(var(--radius)-2px)] px-3 py-1.5 text-sm font-semibold transition-colors",
         active ? "bg-surface text-text shadow-sm" : "text-muted hover:text-text",
