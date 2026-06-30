@@ -7,7 +7,7 @@ import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/da
 import { getPipelineStageConfigs } from "@/features/recruiter/pipeline-stages/data/pipeline-stages.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import { PipelineView } from "@/features/recruiter/applications/ui/PipelineView";
-import { PostularForm } from "@/features/recruiter/applications/ui/PostularForm";
+import { AgregarCandidatos } from "@/features/recruiter/applications/ui/AgregarCandidatos";
 import { StageSettingsButton } from "@/features/recruiter/pipeline-stages/ui/StageSettingsButton";
 
 interface Props {
@@ -37,6 +37,12 @@ export default async function PipelinePage({ params }: Props) {
     stageEntryTimes[app.id] = entryTimesFromEvents[app.id] ?? app.createdAt;
   }
 
+  // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
+  const postuladosIds = new Set(applications.map((a) => a.candidateId));
+  const poolCandidates = candidates
+    .filter((c) => !postuladosIds.has(c.id))
+    .map((c) => ({ id: c.id, fullName: c.fullName, email: c.email }));
+
   const interviewsByApplication = interviews.reduce<Record<string, InterviewRow[]>>(
     (acc, it) => {
       (acc[it.applicationId] ??= []).push(it);
@@ -58,7 +64,7 @@ export default async function PipelinePage({ params }: Props) {
         </p>
         <div className="flex items-center gap-2">
           <StageSettingsButton stageConfig={stageConfig} />
-          <PostularForm jobId={jobId} candidates={candidates} />
+          <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
         </div>
       </div>
 
