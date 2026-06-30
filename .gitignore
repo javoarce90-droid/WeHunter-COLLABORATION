@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# resultados del harness de evaluación de IA (CSVs locales)
+src/lib/ai/eval/results/
