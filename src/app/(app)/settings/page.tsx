@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
-import { getOwnProfile } from "@/features/recruiter/settings/data/settings.queries";
+import { getOwnProfile, getOrganization } from "@/features/recruiter/settings/data/settings.queries";
 import { listMembers, listPendingInvitations } from "@/features/recruiter/team/data/team.queries";
 import { ProfileSection } from "@/features/recruiter/settings/ui/ProfileSection";
+import { PasswordSection } from "@/features/recruiter/settings/ui/PasswordSection";
+import { WorkspaceSection } from "@/features/recruiter/settings/ui/WorkspaceSection";
 import { TeamSection } from "@/features/recruiter/team/ui/TeamSection";
 import { Badge } from "@/components/ui/badge";
 import type { OrgRole } from "@/features/recruiter/team/domain/gestionar-equipo";
@@ -34,11 +36,15 @@ export default async function SettingsPage() {
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!user || !membership) notFound();
 
-  const [profile, members, invitations] = await Promise.all([
+  const [profile, org, members, invitations] = await Promise.all([
     getOwnProfile(),
+    getOrganization(membership.organizationId),
     listMembers(membership.organizationId),
     listPendingInvitations(membership.organizationId),
   ]);
+
+  const role = membership.role as OrgRole;
+  const canEditWorkspace = role === "owner" || role === "admin";
 
   return (
     <div className="flex flex-col gap-5">
@@ -48,8 +54,22 @@ export default async function SettingsPage() {
       </div>
 
       <Section title="Mi perfil">
-        <ProfileSection fullName={profile?.fullName ?? null} email={profile?.email ?? user.email ?? ""} />
+        <ProfileSection
+          profile={profile}
+          email={profile?.email ?? user.email ?? ""}
+          hasAvatar={!!profile?.avatarUrl}
+        />
       </Section>
+
+      <Section title="Seguridad" description="Cambiá tu contraseña de acceso.">
+        <PasswordSection />
+      </Section>
+
+      {org && (
+        <Section title="Workspace" description="Nombre, logo y zona horaria de tu organización.">
+          <WorkspaceSection org={org} hasLogo={!!org.logoUrl} canEdit={canEditWorkspace} />
+        </Section>
+      )}
 
       <Section
         title="Mi equipo"

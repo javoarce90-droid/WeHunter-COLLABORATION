@@ -6,6 +6,7 @@ import {
   integer,
   date,
   boolean,
+  jsonb,
   pgEnum,
   uniqueIndex,
   index,
@@ -149,6 +150,10 @@ export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   slug: text("slug").notNull(),
+  // Logo del workspace: path en el bucket privado `org-logos` (se sirve vía signed URL).
+  logoUrl: text("logo_url"),
+  // Preferencias del workspace (zona horaria, etc.). jsonb flexible para no migrar por cada opción.
+  preferences: jsonb("preferences"),
   ...timestamps,
 }, (t) => ({
   slugIdx: uniqueIndex("organizations_slug_idx").on(t.slug),
@@ -159,6 +164,13 @@ export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(), // = auth.users.id
   email: text("email").notNull(),
   fullName: text("full_name"),
+  // Perfil extendido del recruiter. Todo opcional. "Miembro desde" se deriva de created_at.
+  avatarUrl: text("avatar_url"), // path en bucket privado `avatars` (signed URL)
+  jobTitle: text("job_title"), // cargo
+  phone: text("phone"),
+  location: text("location"),
+  linkedinUrl: text("linkedin_url"),
+  bio: text("bio"), // resumen breve (≤500 chars, validado en la action)
   ...timestamps,
 });
 
