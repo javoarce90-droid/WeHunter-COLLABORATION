@@ -9,12 +9,24 @@ import { jobs, applications, type Job } from "@/db/schema";
 // (cursor + UI) queda como follow-up; por ahora cubrimos cargas razonables.
 const LIST_LIMIT = 100;
 
-export async function listJobs(organizationId: string): Promise<Job[]> {
+/** Columnas livianas para listados. NO traemos benefits ni los Markdown (database.md regla #4). */
+export type JobListItem = Pick<
+  Job,
+  "id" | "title" | "status" | "createdAt" | "updatedAt"
+>;
+
+export async function listJobs(organizationId: string): Promise<JobListItem[]> {
   const db = await getDb();
   return db.rls(
     (tx) =>
       tx
-        .select()
+        .select({
+          id: jobs.id,
+          title: jobs.title,
+          status: jobs.status,
+          createdAt: jobs.createdAt,
+          updatedAt: jobs.updatedAt,
+        })
         .from(jobs)
         .where(eq(jobs.organizationId, organizationId))
         .orderBy(desc(jobs.createdAt))
@@ -23,23 +35,28 @@ export async function listJobs(organizationId: string): Promise<Job[]> {
   );
 }
 
-/** Búsqueda + cantidad de candidatos (postulaciones) en su pipeline. */
-export type JobWithStats = Job & { candidateCount: number };
+/** Búsqueda (columnas de listado) + cantidad de candidatos en su pipeline. */
+export type JobWithStats = JobListItem & { candidateCount: number };
 
 /**
  * Listado para la pantalla de búsquedas: cada job con el conteo de su pipeline.
  * Una sola query (LEFT JOIN + GROUP BY), no N+1 (database.md reglas #3 y #6). El conteo
  * usa los índices `jobs_org_idx` y `applications_job_idx`. RLS aísla por org en ambas tablas.
+ * Selecciona solo columnas livianas: los campos pesados (benefits, Markdown) van en el detalle.
  */
 export async function listJobsWithStats(
   organizationId: string,
 ): Promise<JobWithStats[]> {
   const db = await getDb();
-  const rows = await db.rls(
+  return db.rls(
     (tx) =>
       tx
         .select({
-          job: jobs,
+          id: jobs.id,
+          title: jobs.title,
+          status: jobs.status,
+          createdAt: jobs.createdAt,
+          updatedAt: jobs.updatedAt,
           candidateCount: sql<number>`count(${applications.id})::int`,
         })
         .from(jobs)
@@ -50,7 +67,6 @@ export async function listJobsWithStats(
         .limit(LIST_LIMIT),
     "db.jobs.list-with-stats",
   );
-  return rows.map(({ job, candidateCount }) => ({ ...job, candidateCount }));
 }
 
 /**

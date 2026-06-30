@@ -6,6 +6,7 @@ import {
   integer,
   date,
   boolean,
+  jsonb,
   pgEnum,
   uniqueIndex,
   index,
@@ -95,6 +96,23 @@ export const employmentType = pgEnum("employment_type", [
   "contract",
   "internship",
   "temporary",
+  "freelance",
+]);
+// Área/sector de la búsqueda. Catálogo cerrado para consistencia y filtrado.
+export const jobArea = pgEnum("job_area", [
+  "tecnologia",
+  "salud",
+  "finanzas",
+  "ventas",
+  "marketing",
+  "rrhh",
+  "operaciones",
+  "legal",
+  "educacion",
+  "ingenieria",
+  "diseno",
+  "atencion_cliente",
+  "otro",
 ]);
 
 // De dónde salió el candidato. Trazabilidad de fuente del pool.
@@ -149,6 +167,10 @@ export const organizations = pgTable("organizations", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
   slug: text("slug").notNull(),
+  // Logo del workspace: path en el bucket privado `org-logos` (se sirve vía signed URL).
+  logoUrl: text("logo_url"),
+  // Preferencias del workspace (zona horaria, etc.). jsonb flexible para no migrar por cada opción.
+  preferences: jsonb("preferences"),
   ...timestamps,
 }, (t) => ({
   slugIdx: uniqueIndex("organizations_slug_idx").on(t.slug),
@@ -159,6 +181,13 @@ export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(), // = auth.users.id
   email: text("email").notNull(),
   fullName: text("full_name"),
+  // Perfil extendido del recruiter. Todo opcional. "Miembro desde" se deriva de created_at.
+  avatarUrl: text("avatar_url"), // path en bucket privado `avatars` (signed URL)
+  jobTitle: text("job_title"), // cargo
+  phone: text("phone"),
+  location: text("location"),
+  linkedinUrl: text("linkedin_url"),
+  bio: text("bio"), // resumen breve (≤500 chars, validado en la action)
   ...timestamps,
 });
 
@@ -247,12 +276,17 @@ export const jobs = pgTable("jobs", {
     .notNull(),
   // Cliente para el que es la búsqueda (CRM mínimo). null = búsqueda interna / sin cliente.
   clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+  // `title` = nombre atractivo de la publicación (headline). El puesto real va en `position`.
   title: text("title").notNull(),
+  // Puesto real a cubrir (ej. "Senior Data Analyst"). Es el rol canónico que usa la IA/matching.
+  position: text("position"),
   description: text("description"), // brief interno
-  // Texto del aviso público (separado del brief interno). Se redacta y previsualiza.
+  // Texto del aviso público LEGACY: el aviso ahora se renderiza desde los campos estructurados
+  // (objectives/requirements/responsibilities/benefits + meta). Se conserva por compat.
   posting: text("posting"),
   status: jobStatus("status").notNull().default("draft"),
-  // Campos ricos (paridad demo). Todos opcionales para no romper filas existentes.
+  // Campos ricos. Todos opcionales para no romper filas existentes.
+  jobArea: jobArea("job_area"),
   location: text("location"),
   modality: jobModality("modality"),
   seniority: jobSeniority("seniority"),
@@ -263,6 +297,14 @@ export const jobs = pgTable("jobs", {
   skills: text("skills").array(),
   priority: jobPriority("priority"),
   deadline: date("deadline"),
+  vacancies: integer("vacancies"),
+  // Secciones del aviso, en Markdown.
+  objectives: text("objectives"),
+  requirements: text("requirements"),
+  responsibilities: text("responsibilities"),
+  // Beneficios: lista de {name, description}. Solo-de-mostrar → jsonb (sin tabla hija ni
+  // transacciones extra; ver decisión de performance). Se selecciona solo en el detalle.
+  benefits: jsonb("benefits").$type<{ name: string; description: string }[]>(),
   createdBy: uuid("created_by").references(() => profiles.id),
   ...timestamps,
 }, (t) => ({

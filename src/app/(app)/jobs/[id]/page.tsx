@@ -15,6 +15,7 @@ import {
   EMPLOYMENT_LABELS,
   PRIORITY_LABELS,
   PRIORITY_BADGE,
+  AREA_LABELS,
 } from "@/features/recruiter/jobs/ui/field-meta";
 import { Badge } from "@/components/ui/badge";
 
@@ -68,6 +69,9 @@ export default async function JobDetailPage({
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
   // Filas de "Detalles" que efectivamente tienen valor (progressive disclosure).
   const detailRows: { label: string; value: string }[] = [
+    job.position ? { label: "Puesto", value: job.position } : null,
+    job.jobArea ? { label: "Área", value: AREA_LABELS[job.jobArea] } : null,
+    job.vacancies ? { label: "Vacantes", value: String(job.vacancies) } : null,
     job.location ? { label: "Ubicación", value: job.location } : null,
     job.modality ? { label: "Modalidad", value: MODALITY_LABELS[job.modality] } : null,
     job.seniority ? { label: "Seniority", value: SENIORITY_LABELS[job.seniority] } : null,
@@ -82,6 +86,15 @@ export default async function JobDetailPage({
 
   const hasDetails =
     client || detailRows.length > 0 || job.priority || (job.skills?.length ?? 0) > 0;
+
+  // El aviso se arma desde los campos estructurados; `posting` queda como legacy de respaldo.
+  const avisoSections = [
+    { title: "Objetivos del puesto", body: job.objectives },
+    { title: "Responsabilidades", body: job.responsibilities },
+    { title: "Requisitos", body: job.requirements },
+  ].filter((s): s is { title: string; body: string } => !!s.body?.trim());
+  const hasAviso =
+    avisoSections.length > 0 || (job.benefits?.length ?? 0) > 0 || !!job.posting;
 
   return (
     <div className="flex flex-col gap-5">
@@ -149,22 +162,50 @@ export default async function JobDetailPage({
         </section>
       )}
 
-      {/* Aviso público */}
-      {job.posting && (
+      {/* Aviso público (armado desde los campos estructurados) */}
+      {hasAviso && (
         <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
           <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
             <h2 className="text-sm font-bold text-text">Aviso público</h2>
             <Link
-              href={`/jobs/${job.id}/edit`}
+              href={`/jobs/${job.id}/aviso`}
               className="text-xs font-semibold text-primary hover:text-primary-hover"
             >
-              Editar
+              Ver aviso →
             </Link>
           </div>
-          <div className="px-5 py-4">
-            <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
-              {job.posting}
-            </p>
+          <div className="flex flex-col gap-5 px-5 py-4">
+            {avisoSections.length > 0
+              ? avisoSections.map((s) => (
+                  <div key={s.title}>
+                    <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-muted">
+                      {s.title}
+                    </h3>
+                    <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
+                      {s.body}
+                    </p>
+                  </div>
+                ))
+              : job.posting && (
+                  <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
+                    {job.posting}
+                  </p>
+                )}
+            {(job.benefits?.length ?? 0) > 0 && (
+              <div>
+                <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">
+                  Beneficios
+                </h3>
+                <ul className="flex flex-col gap-1">
+                  {job.benefits!.map((b, i) => (
+                    <li key={i} className="text-sm text-text/80">
+                      <span className="font-semibold text-text">{b.name}</span>
+                      {b.description ? ` — ${b.description}` : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
       )}

@@ -29,6 +29,8 @@ export default async function EditJobPage({
         clients={clients}
         defaults={{
           title: job.title,
+          position: job.position,
+          jobArea: job.jobArea,
           description: job.description,
           posting: job.posting,
           clientId: job.clientId,
@@ -42,6 +44,11 @@ export default async function EditJobPage({
           salaryCurrency: job.salaryCurrency,
           skills: job.skills,
           deadline: job.deadline,
+          vacancies: job.vacancies,
+          objectives: job.objectives,
+          requirements: job.requirements,
+          responsibilities: job.responsibilities,
+          benefits: job.benefits,
         }}
       />
     </div>

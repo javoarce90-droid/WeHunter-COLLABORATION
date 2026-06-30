@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
+    "ai:eval": "vitest run --config vitest.eval.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
@@ -19,6 +20,7 @@
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/utilities": "^3.2.2",
+    "@google/genai": "^2.10.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.47.0",
     "drizzle-orm": "^0.38.0",
