@@ -12,6 +12,7 @@ export type ApplicationWithCandidate = {
   candidateId: string;
   stage: ApplicationStage;
   aiScore: number | null;
+  aiSummary: string | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +38,7 @@ export async function listApplicationsByJob(
         candidateId: applications.candidateId,
         stage: applications.stage,
         aiScore: applications.aiScore,
+        aiSummary: applications.aiSummary,
         notes: applications.notes,
         createdAt: applications.createdAt,
         updatedAt: applications.updatedAt,
@@ -62,6 +64,7 @@ export async function listApplicationsByJob(
     candidateId: r.candidateId,
     stage: r.stage as ApplicationStage,
     aiScore: r.aiScore,
+    aiSummary: r.aiSummary,
     notes: r.notes,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -134,6 +137,8 @@ export type CandidateApplication = {
   jobStatus: Job["status"];
   stage: ApplicationStage;
   createdAt: Date;
+  aiScore: number | null;
+  aiSummary: string | null;
 };
 
 /**
@@ -154,6 +159,8 @@ export async function listApplicationsByCandidate(
         jobStatus: jobs.status,
         stage: applications.stage,
         createdAt: applications.createdAt,
+        aiScore: applications.aiScore,
+        aiSummary: applications.aiSummary,
       })
       .from(applications)
       .innerJoin(jobs, eq(applications.jobId, jobs.id))
