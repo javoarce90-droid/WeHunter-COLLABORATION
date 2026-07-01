@@ -2,19 +2,16 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getCurrentUser } from "@/lib/auth/session";
+import { cookies } from "next/headers";
 import {
   candidateCredentialsSchema,
   candidateRegisterSchema,
   candidateProfileSchema,
   CV_ALLOWED_TYPES,
   CV_MAX_BYTES,
+  MOCK_SESSION_COOKIE,
 } from "./schema";
 import { actualizarPerfil } from "./domain/actualizar-perfil";
-import { updateProfileFields } from "./data/profile.mutations";
-import { getProfileById } from "./data/profile.queries";
-import { uploadProfileCv, deleteProfileCv } from "./data/profile.storage";
 
 export interface AuthFormState {
   error?: string;
@@ -31,7 +28,31 @@ function safeRedirect(raw: FormDataEntryValue | null): string {
   return value.startsWith("/") && !value.startsWith("//") ? value : "/portal";
 }
 
-/** Server Action: Iniciar sesión del candidato */
+// Cookie utilizada para simular una sesión válida en el frontend
+
+async function setMockSession() {
+  const cookieStore = await cookies();
+  cookieStore.set(MOCK_SESSION_COOKIE, "mock-user-id", {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7, // 1 semana
+  });
+}
+
+export async function clearMockSession() {
+  const cookieStore = await cookies();
+  cookieStore.delete(MOCK_SESSION_COOKIE);
+}
+
+export async function getMockSessionUserId(): Promise<string | null> {
+  const cookieStore = await cookies();
+  return cookieStore.get(MOCK_SESSION_COOKIE)?.value ?? null;
+}
+
+const simulateNetworkDelay = () => new Promise((resolve) => setTimeout(resolve, 800));
+
+/** Server Action: Iniciar sesión del candidato (Mock) */
 export async function candidateLoginAction(
   _prev: AuthFormState,
   formData: FormData,
@@ -44,16 +65,15 @@ export async function candidateLoginAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error) {
-    return { error: "Email o contraseña incorrectos" };
-  }
+  await simulateNetworkDelay();
+
+  // Simulación: cualquier credencial válida entra
+  await setMockSession();
 
   redirect(safeRedirect(formData.get("redirect")));
 }
 
-/** Server Action: Registrar cuenta de candidato */
+/** Server Action: Registrar cuenta de candidato (Mock) */
 export async function candidateRegisterAction(
   _prev: AuthFormState,
   formData: FormData,
@@ -67,24 +87,11 @@ export async function candidateRegisterAction(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.signUp({
-    email: parsed.data.email,
-    password: parsed.data.password,
-    options: { data: { full_name: parsed.data.fullName } },
-  });
-  if (error) {
-    return { error: error.message };
-  }
+  await simulateNetworkDelay();
 
-  if (!data.session) {
-    return {
-      message:
-        "Te enviamos un email para confirmar tu cuenta. Verificalo y después iniciá sesión.",
-    };
-  }
+  // Simulación: registramos y automáticamente le damos sesión
+  await setMockSession();
 
-  // Candidato registrado -> Redirigir directamente al portal
   redirect("/portal");
 }
 
@@ -103,7 +110,7 @@ function readCvFile(
   return { file: raw };
 }
 
-/** Server Action: Actualizar perfil de candidato */
+/** Server Action: Actualizar perfil de candidato (Mock) */
 export async function actualizarPerfilAction(
   _prev: ProfileFormState,
   formData: FormData,
@@ -118,32 +125,16 @@ export async function actualizarPerfilAction(
   const cv = readCvFile(formData);
   if ("error" in cv) return { error: cv.error };
 
-  const user = await getCurrentUser();
-  if (!user) {
+  const userId = await getMockSessionUserId();
+  if (!userId) {
     return { error: "No tenés sesión activa." };
   }
 
-  const cvFile = cv.file;
-
-  // Si se sube un nuevo CV, necesitamos saber cuál era el actual para poder borrarlo
-  let currentCvUrl: string | null = null;
-  if (cvFile) {
-    const existing = await getProfileById(user.id);
-    currentCvUrl = existing?.cvUrl ?? null;
-  }
+  await simulateNetworkDelay();
 
   const result = await actualizarPerfil(
-    { fullName: parsed.data.fullName, currentCvUrl },
-    { userId: user.id },
-    {
-      updateProfileFields,
-      ...(cvFile
-        ? {
-            uploadCv: () => uploadProfileCv(user.id, cvFile),
-            deleteCv: deleteProfileCv,
-          }
-        : {}),
-    },
+    { fullName: parsed.data.fullName },
+    { userId },
   );
 
   if (!result.ok) {
@@ -154,9 +145,8 @@ export async function actualizarPerfilAction(
   return { success: true };
 }
 
-/** Server Action: Cerrar sesión del candidato */
+/** Server Action: Cerrar sesión del candidato (Mock) */
 export async function candidateLogoutAction(): Promise<void> {
-  const supabase = await createSupabaseServerClient();
-  await supabase.auth.signOut();
+  await clearMockSession();
   redirect("/c/login");
 }

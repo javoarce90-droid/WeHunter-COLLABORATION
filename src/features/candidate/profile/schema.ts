@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+export const MOCK_SESSION_COOKIE = "wehunter_candidate_mock_session";
+
+
 export const CV_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 export const CV_ALLOWED_TYPES = [
   "application/pdf",

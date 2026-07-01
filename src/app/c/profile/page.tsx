@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/session";
-import { getProfileById } from "@/features/candidate/profile/data/profile.queries";
-import { getProfileCvSignedUrl } from "@/features/candidate/profile/data/profile.storage";
+import { getMockSessionUserId } from "@/features/candidate/profile/actions";
 import { CandidateProfileForm } from "@/features/candidate/profile/ui/CandidateProfileForm";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
 import Link from "next/link";
@@ -12,21 +10,19 @@ export const metadata = {
 };
 
 export default async function CandidateProfilePage() {
-  const user = await getCurrentUser();
-  if (!user) {
+  const userId = await getMockSessionUserId();
+  if (!userId) {
     redirect("/c/login");
   }
 
-  const profile = await getProfileById(user.id);
-  if (!profile) {
-    // Si por alguna razón el perfil no se sincronizó
-    redirect("/c/login");
-  }
+  // Datos mockeados para la vista de perfil (UI-Only)
+  const profile = {
+    fullName: "Usuario de Prueba",
+    email: "prueba@candidato.com",
+    cvUrl: null as string | null,
+  };
 
-  // Si tiene un CV guardado, generamos la URL firmada de descarga
-  const cvDownloadUrl = profile.cvUrl
-    ? await getProfileCvSignedUrl(profile.cvUrl)
-    : null;
+  const cvDownloadUrl = null;
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
@@ -79,7 +75,7 @@ export default async function CandidateProfilePage() {
         </div>
 
         <CandidateProfileForm
-          initialFullName={profile.fullName ?? ""}
+          initialFullName={profile.fullName}
           initialEmail={profile.email}
           initialCvUrl={profile.cvUrl}
           initialCvDownloadUrl={cvDownloadUrl}

@@ -13,7 +13,7 @@ export function CandidateLoginForm({ redirectTo }: { redirectTo: string }) {
   const [state, formAction, pending] = useActionState(candidateLoginAction, initialState);
 
   return (
-    <Card className="border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)]">
+    <Card className="border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)] animate-pop-in">
       <CardContent className="flex flex-col gap-5 p-6">
         <div className="flex flex-col gap-1 text-center mb-2">
           <h2 className="text-xl font-bold text-text font-display">Ingresá a tu cuenta</h2>
@@ -39,7 +39,9 @@ export function CandidateLoginForm({ redirectTo }: { redirectTo: string }) {
             required
           />
           {state.error && (
-            <p className="text-xs font-medium text-danger">{state.error}</p>
+            <p className="text-xs font-medium text-danger bg-danger/5 p-3 rounded-[var(--radius)] border border-danger/10 animate-pop-in">
+              {state.error}
+            </p>
           )}
           <Button type="submit" disabled={pending} className="mt-2 w-full font-bold">
             {pending ? "Ingresando…" : "Iniciar Sesión"}
