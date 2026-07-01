@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
+import { listApplicationsByJob } from "@/features/recruiter/applications/data/applications.queries";
+import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
+import { AgregarCandidatos } from "@/features/recruiter/applications/ui/AgregarCandidatos";
 import {
   MODALITY_LABELS,
   SENIORITY_LABELS,
@@ -36,8 +39,18 @@ export default async function JobPostingPreviewPage({
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const job = await getJobById(id, membership.organizationId);
+  const [job, applications, candidates] = await Promise.all([
+    getJobById(id, membership.organizationId),
+    listApplicationsByJob(id, membership.organizationId),
+    listCandidates(membership.organizationId),
+  ]);
   if (!job) notFound();
+
+  // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
+  const postuladosIds = new Set(applications.map((a) => a.candidateId));
+  const poolCandidates = candidates
+    .filter((c) => !postuladosIds.has(c.id))
+    .map((c) => ({ id: c.id, fullName: c.fullName, email: c.email }));
 
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
   const chips = [
@@ -60,14 +73,21 @@ export default async function JobPostingPreviewPage({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <span className="text-sm text-muted">Vista previa del aviso público</span>
-        <Link
-          href={`/jobs/${job.id}/edit`}
-          className="text-xs font-semibold text-primary hover:text-primary-hover"
-        >
-          Editar aviso
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href={`/jobs/${job.id}/edit`}
+            className="text-xs font-semibold text-primary hover:text-primary-hover"
+          >
+            Editar aviso
+          </Link>
+          <AgregarCandidatos
+            jobId={job.id}
+            poolCandidates={poolCandidates}
+            redirectAfterAddTo={`/jobs/${job.id}/pipeline`}
+          />
+        </div>
       </div>
 
       <article className="rounded-[var(--radius)] border border-border bg-surface p-8 shadow-[var(--shadow)]">
