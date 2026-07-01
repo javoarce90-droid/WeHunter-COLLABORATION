@@ -44,6 +44,8 @@ export function WorkspaceSection({
 
   return (
     <form action={dispatch} className="flex flex-col gap-5">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Workspace</p>
+
       <div className="flex items-center gap-4">
         {logoPreview ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -75,6 +77,15 @@ export function WorkspaceSection({
         </div>
       </div>
 
+      <div className="flex flex-col gap-1.5 max-w-md">
+        <label className="text-xs font-semibold text-muted">Nombre del workspace</label>
+        <input name="name" defaultValue={org.name} required className={fieldClass} />
+      </div>
+
+      <p className="mt-2 border-t border-border pt-4 text-xs font-semibold uppercase tracking-wide text-muted">
+        Career Site
+      </p>
+
       <div className="flex items-center gap-4">
         {coverPreview ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -102,15 +113,11 @@ export function WorkspaceSection({
           <Button type="button" variant="secondary" onClick={() => coverRef.current?.click()}>
             Cambiar portada
           </Button>
-          <span className="text-xs text-muted">Portada del Career Site · PNG, JPG o WEBP · máx. 2 MB</span>
+          <span className="text-xs text-muted">PNG, JPG o WEBP · máx. 2 MB</span>
         </div>
       </div>
 
       <div className="grid max-w-md gap-4">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-muted">Nombre del workspace</label>
-          <input name="name" defaultValue={org.name} required className={fieldClass} />
-        </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-muted">Descripción institucional</label>
           <textarea
