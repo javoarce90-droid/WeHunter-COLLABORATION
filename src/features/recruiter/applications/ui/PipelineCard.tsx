@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
 import { AiScore, SparkleIcon } from "@/components/ui/ai";
-import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
+import { Menu, MenuItem } from "@/components/ui/menu";
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
@@ -93,12 +93,16 @@ export function PipelineCard({
     <article
       ref={setNodeRef}
       style={style}
-      tabIndex={0}
       onClick={() => !isDragOverlay && onOpen(application.id)}
       onKeyDown={onKeyDown}
       aria-label={`${application.candidate.fullName}, etapa ${STAGE_LABELS[stage]}. Enter para ver detalle.`}
+      {...attributes}
+      {...listeners}
       className={[
-        "group cursor-pointer rounded-[var(--radius)] border border-border bg-surface p-3 shadow-[var(--shadow)] outline-none transition-all hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+        "rounded-[var(--radius)] border border-border bg-surface p-3 shadow-[var(--shadow)] outline-none transition-all hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+        !terminal && !isDragOverlay
+          ? "touch-none cursor-grab active:cursor-grabbing"
+          : "cursor-pointer",
         isDragging && "opacity-40 ring-2 ring-primary/20",
         isDragOverlay && "rotate-1 scale-[1.02] shadow-lg",
       ]
@@ -106,27 +110,6 @@ export function PipelineCard({
         .join(" ")}
     >
       <div className="flex items-start gap-2">
-        {/* Drag handle — visible solo en hover, no interfiere con clicks */}
-        {!terminal && !isDragOverlay && (
-          <button
-            {...attributes}
-            {...listeners}
-            className="mt-0.5 shrink-0 cursor-grab touch-none text-muted opacity-30 transition-opacity group-hover:opacity-60 hover:!opacity-100 active:cursor-grabbing"
-            aria-label="Arrastrar candidato"
-            tabIndex={-1}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor" aria-hidden>
-              <circle cx="2.5" cy="2.5" r="1.2" />
-              <circle cx="2.5" cy="8" r="1.2" />
-              <circle cx="2.5" cy="13.5" r="1.2" />
-              <circle cx="7.5" cy="2.5" r="1.2" />
-              <circle cx="7.5" cy="8" r="1.2" />
-              <circle cx="7.5" cy="13.5" r="1.2" />
-            </svg>
-          </button>
-        )}
-
         <Avatar name={application.candidate.fullName} size="sm" />
 
         <div className="min-w-0 flex-1">
@@ -152,6 +135,7 @@ export function PipelineCard({
               size="sm"
               variant="ghost"
               disabled={analyzing}
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 onAnalizar(application.id);
@@ -171,9 +155,10 @@ export function PipelineCard({
             align="end"
             trigger={
               <IconButton
-                aria-label="Mover de etapa"
+                aria-label="Más opciones"
                 size="sm"
                 variant="ghost"
+                onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
@@ -184,18 +169,10 @@ export function PipelineCard({
               </IconButton>
             }
           >
-            <MenuLabel>Mover a</MenuLabel>
-            {APPLICATION_STAGES.filter((s) => s !== stage).map((s) => (
-              <MenuItem
-                key={s}
-                destructive={s === "rejected"}
-                onClick={() => onMoveStage(application.id, s)}
-              >
-                {STAGE_LABELS[s]}
-              </MenuItem>
-            ))}
-            <MenuSeparator />
-            <MenuItem onClick={() => onOpen(application.id)}>Ver detalle…</MenuItem>
+            <MenuItem onClick={() => onOpen(application.id)}>Ver ficha</MenuItem>
+            {application.aiScore != null && onAnalizar && (
+              <MenuItem onClick={() => onAnalizar(application.id)}>Re-analizar con IA</MenuItem>
+            )}
           </Menu>
         )}
       </div>
