@@ -423,6 +423,50 @@ export async function listStageEventsByJob(
   }));
 }
 
+/**
+ * Historial de cambios de etapa de TODAS las postulaciones (pasadas y presentes) de un
+ * candidato, para el tab Historial de su ficha. Mismo join que listStageEventsByJob pero
+ * filtrando por candidate_id (cubierto por applications_candidate_idx) en vez de job_id.
+ */
+export async function listStageEventsByCandidate(
+  candidateId: string,
+  organizationId: string,
+): Promise<StageHistoryEvent[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: applicationEvents.id,
+        applicationId: applicationEvents.applicationId,
+        fromStage: applicationEvents.fromStage,
+        toStage: applicationEvents.toStage,
+        createdAt: applicationEvents.createdAt,
+        changedByName: profiles.fullName,
+        changedByEmail: profiles.email,
+      })
+      .from(applicationEvents)
+      .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
+      .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
+      .where(
+        and(
+          eq(applications.candidateId, candidateId),
+          eq(applicationEvents.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(applicationEvents.createdAt))
+      .limit(500),
+    "db.applications.stage-events-by-candidate",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    applicationId: r.applicationId,
+    fromStage: r.fromStage as ApplicationStage | null,
+    toStage: r.toStage as ApplicationStage,
+    createdAt: r.createdAt,
+    changedByName: r.changedByName ?? r.changedByEmail ?? null,
+  }));
+}
+
 /** Verifica que el job exista y pertenezca a la org. */
 export async function getJobForPipeline(
   jobId: string,

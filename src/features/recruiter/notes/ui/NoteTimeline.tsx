@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useRef } from "react";
 import { agregarNotaAction, type NoteActionState } from "../actions";
 import { NOTE_MAX_LENGTH } from "../schema";
 import type { TimelineNote } from "../data/notes.queries";
+import { NoteList } from "./NoteList";
 
 type Props = {
   applicationId: string;
@@ -11,22 +12,12 @@ type Props = {
   notes: TimelineNote[];
 };
 
-const VISIBLE_COUNT = 3;
-
-const dateFmt = new Intl.DateTimeFormat("es-AR", {
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 /**
  * Timeline de notas internas de una postulación (tabla `notes`). Lista cronológica +
  * formulario de alta. Reemplaza al editor de nota única; las notas son append-only.
  */
 export function NoteTimeline({ applicationId, jobId, notes }: Props) {
   const formRef = useRef<HTMLFormElement>(null);
-  const [expanded, setExpanded] = useState(false);
   const [state, dispatch, pending] = useActionState<NoteActionState, FormData>(
     async (prev, formData) => {
       const result = await agregarNotaAction(prev, formData);
@@ -36,40 +27,9 @@ export function NoteTimeline({ applicationId, jobId, notes }: Props) {
     {},
   );
 
-  const hiddenCount = notes.length - VISIBLE_COUNT;
-  const visibleNotes = expanded ? notes : notes.slice(-VISIBLE_COUNT);
-
   return (
     <div className="flex flex-col gap-3">
-      {notes.length > 0 && (
-        <div className="flex flex-col gap-2.5">
-          {hiddenCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="self-start text-xs font-medium text-primary hover:text-primary-hover"
-            >
-              {expanded ? "Ver menos" : `Ver ${hiddenCount} anteriores`}
-            </button>
-          )}
-          <ul className="flex flex-col gap-2.5">
-            {visibleNotes.map((note) => (
-              <li
-                key={note.id}
-                className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2"
-              >
-                <div className="mb-0.5 flex items-center justify-between gap-2 text-[11px] text-muted">
-                  <span className="font-semibold text-text/70">
-                    {note.authorName ?? "Equipo"}
-                  </span>
-                  <span className="tabular-nums">{dateFmt.format(note.createdAt)}</span>
-                </div>
-                <p className="whitespace-pre-wrap text-sm text-text">{note.body}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {notes.length > 0 && <NoteList notes={notes} />}
 
       <form ref={formRef} action={dispatch} className="flex flex-col gap-1.5">
         <input type="hidden" name="applicationId" value={applicationId} />

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { and, eq, desc } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { candidates, type Candidate } from "@/db/schema";
@@ -22,7 +23,11 @@ export async function listCandidates(organizationId: string): Promise<Candidate[
   );
 }
 
-export async function getCandidateById(
+/**
+ * Un candidato por id. Cacheada por request (`cache()` de React): el layout de la ficha y
+ * la pestaña Perfil la piden ambos en un mismo render y comparten una única transacción RLS.
+ */
+export const getCandidateById = cache(async function getCandidateById(
   candidateId: string,
   organizationId: string,
 ): Promise<Candidate | null> {
@@ -41,4 +46,4 @@ export async function getCandidateById(
     "db.candidates.get",
   );
   return rows[0] ?? null;
-}
+});
