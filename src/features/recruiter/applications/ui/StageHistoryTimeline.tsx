@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { STAGE_LABELS } from "../schema";
+import { STAGE_LABELS, REJECTION_REASON_LABELS } from "../schema";
 import type { StageHistoryEvent } from "../data/applications.queries";
 
 type Props = {
@@ -48,6 +48,12 @@ export function StageHistoryTimeline({ events }: Props) {
             <p className="text-[11px] text-muted">
               {event.changedByName ?? "Equipo"} · <span className="tabular-nums">{dateFmt.format(event.createdAt)}</span>
             </p>
+            {event.toStage === "rejected" && event.rejectionReason && (
+              <p className="text-[11px] text-muted">
+                Motivo: {REJECTION_REASON_LABELS[event.rejectionReason]}
+                {event.rejectionNote ? ` — ${event.rejectionNote}` : ""}
+              </p>
+            )}
           </li>
         ))}
       </ol>

@@ -60,6 +60,15 @@ export const applicationStage = pgEnum("application_stage", [
   "rejected",
 ]);
 
+// Motivo de descarte de una postulación. Lista fija (no configurable por org).
+export const rejectionReason = pgEnum("rejection_reason", [
+  "perfil_no_ajusta",
+  "pretension_salarial",
+  "proceso_avanzado_otro_candidato",
+  "no_disponibilidad",
+  "otro",
+]);
+
 // Decisión de la empresa sobre un candidato compartido en un shortlist.
 export const feedbackDecision = pgEnum("feedback_decision", [
   "approved",
@@ -433,6 +442,9 @@ export const applicationEvents = pgTable("application_events", {
   fromStage: applicationStage("from_stage"), // null = evento de creación (postulación)
   toStage: applicationStage("to_stage").notNull(),
   changedBy: uuid("changed_by").references(() => profiles.id),
+  // Solo se completan cuando toStage = "rejected". rejectionNote es privada del recruiter.
+  rejectionReason: rejectionReason("rejection_reason"),
+  rejectionNote: text("rejection_note"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("application_events_org_idx").on(t.organizationId),

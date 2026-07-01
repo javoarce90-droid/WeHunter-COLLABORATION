@@ -3,9 +3,11 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
-import { postularCandidatoSchema, moverEtapaSchema } from "./schema";
+import { postularCandidatoSchema, moverEtapaSchema, rechazarPostulacionesSchema } from "./schema";
+import type { RejectionReason } from "./schema";
 import { postularCandidato } from "./domain/postular-candidato";
 import { moverEtapa } from "./domain/mover-etapa";
+import { rechazarPostulacion } from "./domain/rechazar-postulacion";
 import { marcarFavorito } from "./domain/marcar-favorito";
 import { puntuarPostulaciones } from "./domain/puntuar-postulaciones";
 import {
@@ -25,6 +27,8 @@ import { getJobById } from "../jobs/data/jobs.queries";
 import { candidateInputSchema } from "../candidates/schema";
 import { cargarCandidato } from "../candidates/domain/cargar-candidato";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
+import { enviarMensaje } from "../messaging/domain/enviar-mensaje";
+import { ensureThread, recordOutbound } from "../messaging/data/messaging.mutations";
 import { getAiProvider } from "@/lib/ai";
 
 export interface ApplicationActionState {
@@ -363,18 +367,37 @@ export async function analizarPostulacionAction(
   return { ok: true };
 }
 
+export type RechazarPostulacionesInput = {
+  jobId: string;
+  applicationIds: string[];
+  reason: RejectionReason;
+  note?: string;
+  notifyCandidate: boolean;
+  message?: string;
+};
+
+/** Reemplaza {{candidato}} y {{puesto}} en el mensaje editable. Cada candidato del lote
+ *  recibe su propio nombre; el puesto es el mismo para todo el job. */
+function personalizeMessage(template: string, candidateName: string, jobTitle: string): string {
+  return template.replaceAll("{{candidato}}", candidateName).replaceAll("{{puesto}}", jobTitle);
+}
+
 /**
- * Rechaza varias postulaciones de una (bulk reject del inbox). Orquesta el mismo caso de uso
- * `moverEtapa` por cada id (la regla vive en el dominio). Tolerante: las que ya están en una
- * etapa terminal se cuentan como saltadas, no como error.
+ * Rechaza una o varias postulaciones de una (sirve tanto para el rechazo individual como
+ * para el de lote — el individual manda un array de un solo id). Orquesta el caso de uso
+ * `rechazarPostulacion` por cada id (motivo + nota viven en el dominio). Tolerante: las que
+ * ya están descartadas o en una etapa terminal se cuentan como saltadas, no como error.
+ * Si `notifyCandidate`, orquesta además `enviarMensaje` (mock) por cada rechazo exitoso —
+ * es una preocupación aparte del rechazo en sí, por eso se compone acá y no en el dominio.
  */
 export async function rechazarVariosAction(
-  jobId: string,
-  applicationIds: string[],
-): Promise<{ ok: boolean; rejected?: number; skipped?: number; error?: string }> {
-  if (!jobId || applicationIds.length === 0) {
-    return { ok: false, error: "Elegí al menos una postulación." };
+  input: RechazarPostulacionesInput,
+): Promise<{ ok: boolean; rejected?: number; skipped?: number; notified?: number; error?: string }> {
+  const parsed = rechazarPostulacionesSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
   }
+  const { jobId, applicationIds, reason, note, notifyCandidate, message } = parsed.data;
 
   const membership = await getActiveMembership();
   if (!membership) return { ok: false, error: "No autorizado." };
@@ -390,19 +413,41 @@ export async function rechazarVariosAction(
     updateApplicationStage,
   };
 
+  const job = notifyCandidate ? await getJobById(jobId, membership.organizationId) : null;
+
   let rejected = 0;
   let skipped = 0;
+  let notified = 0;
   for (const applicationId of applicationIds) {
-    const res = await moverEtapa({ applicationId, newStage: "rejected" }, ctx, deps);
-    if (res.ok) rejected += 1;
-    else skipped += 1;
+    const res = await rechazarPostulacion({ applicationId, reason, note }, ctx, deps);
+    if (!res.ok) {
+      skipped += 1;
+      continue;
+    }
+    rejected += 1;
+
+    if (notifyCandidate && job && message) {
+      const candidate = await getCandidateById(res.data.candidateId, membership.organizationId);
+      if (!candidate) continue;
+      const body = personalizeMessage(message, candidate.fullName, job.title);
+      const sent = await enviarMensaje(
+        { candidateId: candidate.id, channel: "email", body },
+        { organizationId: membership.organizationId, role: membership.role },
+        {
+          getCandidate: getCandidateById,
+          ensureThread: (cId, ch) => ensureThread(membership.organizationId, cId, ch),
+          recordOutbound: (threadId, b) => recordOutbound(membership.organizationId, threadId, b),
+        },
+      );
+      if (sent.ok) notified += 1;
+    }
   }
 
   if (rejected === 0) {
-    return { ok: false, error: "No se pudo rechazar (¿ya estaban en una etapa terminal?)." };
+    return { ok: false, error: "No se pudo rechazar (¿ya estaban descartados o en etapa terminal?)." };
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);
   revalidatePath(`/jobs/${jobId}/pipeline`);
-  return { ok: true, rejected, skipped };
+  return { ok: true, rejected, skipped, notified: notifyCandidate ? notified : undefined };
 }
