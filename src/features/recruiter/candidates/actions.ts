@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
 import {
   candidateInputSchema,
@@ -10,8 +11,14 @@ import {
 import { cargarCandidato } from "./domain/cargar-candidato";
 import { editarCandidato } from "./domain/editar-candidato";
 import {
+  cambiarEstadoTalento,
+  TALENT_STATES,
+  type TalentState,
+} from "./domain/cambiar-estado-talento";
+import {
   insertCandidate,
   updateCandidateFields,
+  setTalentState,
 } from "./data/candidates.mutations";
 import { getCandidateById } from "./data/candidates.queries";
 import {
@@ -21,6 +28,29 @@ import {
 
 export interface CandidateFormState {
   error?: string;
+}
+
+export async function cambiarEstadoTalentoAction(
+  candidateId: string,
+  talentState: string,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!TALENT_STATES.includes(talentState as TalentState)) {
+    return { ok: false, error: "Estado inválido." };
+  }
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const result = await cambiarEstadoTalento(
+    { candidateId, talentState: talentState as TalentState },
+    { organizationId: membership.organizationId, role: membership.role },
+    { getCandidate: getCandidateById, setState: setTalentState },
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/candidates");
+  return { ok: true };
 }
 
 /** Lee del FormData los campos del candidato (núcleo + enriquecidos) para validar con Zod. */

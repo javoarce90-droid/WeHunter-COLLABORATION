@@ -15,6 +15,18 @@ function makeDeps(over: Partial<{
   };
 }
 
+const ZERO_FUNNEL = [
+  { stage: "new", count: 0 },
+  { stage: "screening", count: 0 },
+  { stage: "interview", count: 0 },
+  { stage: "interview_hr", count: 0 },
+  { stage: "interview_tech", count: 0 },
+  { stage: "interview_client", count: 0 },
+  { stage: "offer", count: 0 },
+  { stage: "hired", count: 0 },
+  { stage: "rejected", count: 0 },
+];
+
 describe("obtenerKpis", () => {
   it("falla si no hay organization activa", async () => {
     const deps = makeDeps();
@@ -57,6 +69,9 @@ describe("obtenerKpis", () => {
         { stage: "new", count: 2 },
         { stage: "screening", count: 0 },
         { stage: "interview", count: 0 },
+        { stage: "interview_hr", count: 0 },
+        { stage: "interview_tech", count: 0 },
+        { stage: "interview_client", count: 0 },
         { stage: "offer", count: 0 },
         { stage: "hired", count: 0 },
         { stage: "rejected", count: 0 },
@@ -75,14 +90,7 @@ describe("obtenerKpis", () => {
       candidatosEnPool: 0,
       postulacionesActivas: 0,
       contrataciones: 0,
-      funnel: [
-        { stage: "new", count: 0 },
-        { stage: "screening", count: 0 },
-        { stage: "interview", count: 0 },
-        { stage: "offer", count: 0 },
-        { stage: "hired", count: 0 },
-        { stage: "rejected", count: 0 },
-      ],
+      funnel: ZERO_FUNNEL,
     });
   });
 });

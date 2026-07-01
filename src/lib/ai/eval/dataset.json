@@ -1,0 +1,65 @@
+{
+  "description": "Casos de evaluación para el scoring de IA. Cada caso es una (búsqueda, candidato). 'band' es la franja de score que ESPERÁS (orientativa, para detectar regresiones de prompt); dejala null si no tenés expectativa.",
+  "cases": [
+    {
+      "name": "match-fuerte",
+      "band": [75, 100],
+      "job": { "title": "Backend Engineer", "skills": ["Node.js", "PostgreSQL", "AWS"] },
+      "candidate": {
+        "id": "c1",
+        "skills": ["Node.js", "PostgreSQL", "AWS", "Docker"],
+        "summary": "6 años construyendo APIs en fintech, fuerte en infra AWS.",
+        "source": "referral",
+        "hasCv": true
+      }
+    },
+    {
+      "name": "match-parcial-falta-skill-clave",
+      "band": [45, 70],
+      "job": { "title": "Backend Engineer", "skills": ["Node.js", "PostgreSQL", "AWS"] },
+      "candidate": {
+        "id": "c2",
+        "skills": ["Node.js", "PostgreSQL", "Docker"],
+        "summary": "5 años en fintech.",
+        "source": "linkedin",
+        "hasCv": true
+      }
+    },
+    {
+      "name": "match-bajo",
+      "band": [0, 45],
+      "job": { "title": "Backend Engineer", "skills": ["Node.js", "PostgreSQL", "AWS"] },
+      "candidate": {
+        "id": "c3",
+        "skills": ["Java", "Spring", "Oracle"],
+        "summary": "Backend en banca tradicional.",
+        "source": "job_board",
+        "hasCv": true
+      }
+    },
+    {
+      "name": "sin-cv",
+      "band": null,
+      "job": { "title": "Frontend Engineer", "skills": ["React", "TypeScript", "CSS"] },
+      "candidate": {
+        "id": "c4",
+        "skills": ["React", "TypeScript"],
+        "summary": null,
+        "source": "manual",
+        "hasCv": false
+      }
+    },
+    {
+      "name": "sin-skills-para-comparar",
+      "band": null,
+      "job": { "title": "Product Designer", "skills": [] },
+      "candidate": {
+        "id": "c5",
+        "skills": [],
+        "summary": "Diseñadora con foco en research.",
+        "source": "linkedin",
+        "hasCv": true
+      }
+    }
+  ]
+}

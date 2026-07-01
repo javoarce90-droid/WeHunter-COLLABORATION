@@ -10,7 +10,11 @@ import { usePathname } from "next/navigation";
 
 const TABS = [
   { label: "Detalle", segment: "" },
+  { label: "Aviso", segment: "aviso" },
+  { label: "Postulados", segment: "postulados" },
   { label: "Pipeline", segment: "pipeline" },
+  { label: "Rendimiento", segment: "rendimiento" },
+  { label: "Ofertas", segment: "ofertas" },
   { label: "Shortlists", segment: "shortlists" },
   { label: "Editar", segment: "edit" },
 ] as const;

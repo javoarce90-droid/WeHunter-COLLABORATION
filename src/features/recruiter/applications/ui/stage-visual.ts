@@ -5,7 +5,10 @@ export const STAGE_DOT: Record<ApplicationStage, string> = {
   new: "#9CA3AF",
   screening: "#2563EB",
   interview: "#D97706",
-  offer: "#7B2FDB",
+  interview_hr: "#F59E0B",
+  interview_tech: "#B45309",
+  interview_client: "#7B2FDB",
+  offer: "#8B5CF6",
   hired: "#059669",
   rejected: "#DC2626",
 };

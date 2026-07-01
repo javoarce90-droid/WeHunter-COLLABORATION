@@ -1,0 +1,2 @@
+CREATE TYPE "public"."talent_state" AS ENUM('active', 'passive', 'contacted', 'archived');--> statement-breakpoint
+ALTER TABLE "candidates" ADD COLUMN "talent_state" "talent_state" DEFAULT 'active' NOT NULL;
