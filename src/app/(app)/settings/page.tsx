@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { getOwnProfile, getOrganization } from "@/features/recruiter/settings/data/settings.queries";
+import { getCareerSiteCoverPublicUrl } from "@/features/recruiter/settings/data/settings.storage";
 import { listMembers, listPendingInvitations } from "@/features/recruiter/team/data/team.queries";
 import { ProfileSection } from "@/features/recruiter/settings/ui/ProfileSection";
 import { PasswordSection } from "@/features/recruiter/settings/ui/PasswordSection";
@@ -42,6 +43,7 @@ export default async function SettingsPage() {
     listMembers(membership.organizationId),
     listPendingInvitations(membership.organizationId),
   ]);
+  const coverUrl = org?.careerSiteCoverUrl ? getCareerSiteCoverPublicUrl(org.careerSiteCoverUrl) : null;
 
   const role = membership.role as OrgRole;
   const canEditWorkspace = role === "owner" || role === "admin";
@@ -66,8 +68,11 @@ export default async function SettingsPage() {
       </Section>
 
       {org && (
-        <Section title="Workspace" description="Nombre, logo y zona horaria de tu organización.">
-          <WorkspaceSection org={org} hasLogo={!!org.logoUrl} canEdit={canEditWorkspace} />
+        <Section
+          title="Workspace"
+          description="Nombre, logo, portada y marca de tu organización — es lo que ven tus candidatos en el Career Site."
+        >
+          <WorkspaceSection org={org} hasLogo={!!org.logoUrl} coverUrl={coverUrl} canEdit={canEditWorkspace} />
         </Section>
       )}
 
