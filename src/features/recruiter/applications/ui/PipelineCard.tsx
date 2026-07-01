@@ -4,7 +4,7 @@ import type { KeyboardEvent } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
-import { AiScore } from "@/components/ui/ai";
+import { AiScore, SparkleIcon } from "@/components/ui/ai";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
@@ -18,6 +18,9 @@ type Props = {
   noteCount: number;
   onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
   onOpen: (applicationId: string) => void;
+  /** Analiza esta postulación puntual con IA. Se omite (no se muestra el botón) si no se pasa. */
+  onAnalizar?: (applicationId: string) => void;
+  analyzing?: boolean;
   enteredStageAt?: Date;
   slaDays?: number | null;
   /** true cuando se usa dentro de DragOverlay — deshabilita el drag y los handlers. */
@@ -50,6 +53,8 @@ export function PipelineCard({
   noteCount,
   onMoveStage,
   onOpen,
+  onAnalizar,
+  analyzing = false,
   enteredStageAt,
   slaDays,
   isDragOverlay = false,
@@ -133,11 +138,32 @@ export function PipelineCard({
           )}
         </div>
 
-        {/* Score circle de IA — solo cuando ya se analizó (E8) */}
-        {application.aiScore != null && (
+        {/* Score circle de IA si ya se analizó; si no, botón para analizar esta postulación */}
+        {application.aiScore != null ? (
           <div className="mt-0.5 shrink-0">
             <AiScore score={application.aiScore} size={24} />
           </div>
+        ) : (
+          onAnalizar &&
+          !isDragOverlay && (
+            <IconButton
+              aria-label="Analizar con IA"
+              title="Calcular compatibilidad con la búsqueda"
+              size="sm"
+              variant="ghost"
+              disabled={analyzing}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAnalizar(application.id);
+              }}
+              className="relative mt-0.5 shrink-0 text-primary hover:text-primary-hover"
+            >
+              {!analyzing && (
+                <span className="absolute inset-1 animate-ping rounded-full bg-primary/40" aria-hidden />
+              )}
+              <SparkleIcon size={13} />
+            </IconButton>
+          )
         )}
 
         {!terminal && !isDragOverlay && (
