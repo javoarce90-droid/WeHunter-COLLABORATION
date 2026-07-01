@@ -7,6 +7,7 @@ import {
 } from "@/features/recruiter/jobs/ui/field-meta";
 import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
 import { ShareButtons } from "./ShareButtons";
+import { accentStyle } from "./brand";
 import type { CareerSiteJobDetail } from "../data/career-site.data";
 
 function formatSalary(min: number | null, max: number | null, currency: string | null): string | null {
@@ -21,10 +22,12 @@ export function PublicJobDetail({
   slug,
   job,
   shareUrl,
+  accentColor,
 }: {
   slug: string;
   job: CareerSiteJobDetail;
   shareUrl: string;
+  accentColor?: string;
 }) {
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
   const chips = [
@@ -112,7 +115,8 @@ export function PublicJobDetail({
         <ShareButtons url={shareUrl} title={job.title} />
         <Link
           href={`/careers/${slug}/${job.id}/postular`}
-          className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+          style={accentStyle(accentColor)}
+          className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-90"
         >
           Postular
         </Link>
