@@ -1,10 +1,8 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
-import { generarBorradorAction, type JobFormState } from "../actions";
-import { AiButton } from "@/components/ui/ai";
-import { useToast } from "@/lib/toast";
+import { type JobFormState } from "../actions";
 import type {
   JobModality,
   JobSeniority,
@@ -58,12 +56,14 @@ interface JobFormProps {
   jobId?: string;
   clients: { id: string; name: string }[];
   defaults?: JobDefaults;
+  cancelHref?: string;
+  cancelLabel?: string;
 }
 
-const selectClass =
+export const selectClass =
   "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-semibold text-muted">{label}</span>
@@ -100,14 +100,17 @@ const REMOVE_ICON = (
   </svg>
 );
 
-const DRAFT_FIELD_LABELS =
-  "puesto, área, objetivos, requisitos, responsabilidades, vacantes, skills y beneficios";
-
 const initialState: JobFormState = {};
 
-export function JobForm({ action, submitLabel, jobId, clients, defaults }: JobFormProps) {
-  const toast = useToast();
-  const formRef = useRef<HTMLFormElement>(null);
+export function JobForm({
+  action,
+  submitLabel,
+  jobId,
+  clients,
+  defaults,
+  cancelHref = "/jobs",
+  cancelLabel = "Cancelar",
+}: JobFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
 
   // Campos que la IA puede prellenar → controlados, para poder setearlos tras "Crear con IA".
@@ -123,43 +126,6 @@ export function JobForm({ action, submitLabel, jobId, clients, defaults }: JobFo
   );
   const [skills, setSkills] = useState((defaults?.skills ?? []).join(", "));
   const [benefits, setBenefits] = useState<Benefit[]>(defaults?.benefits ?? []);
-
-  const [brief, setBrief] = useState("");
-  const [generating, startGenerate] = useTransition();
-
-  function generarConIa() {
-    const form = formRef.current;
-    if (!form) return;
-    const fd = new FormData(form);
-    const name = String(fd.get("title") ?? "").trim();
-    if (!name) {
-      toast({ message: "Cargá el nombre de la búsqueda primero.", variant: "danger" });
-      return;
-    }
-    startGenerate(async () => {
-      const res = await generarBorradorAction({
-        name,
-        brief: brief.trim(),
-        modality: (fd.get("modality") as string) || null,
-        seniority: (fd.get("seniority") as string) || null,
-        workDay: (fd.get("employmentType") as string) || null,
-      });
-      if (!res.ok || !res.draft) {
-        toast({ message: res.error ?? "No se pudo generar.", variant: "danger" });
-        return;
-      }
-      const d = res.draft;
-      setPosition(d.position);
-      setJobArea(d.jobArea ?? "");
-      setVacancies(String(d.vacancies));
-      setObjectives(d.objectives);
-      setRequirements(d.requirements);
-      setResponsibilities(d.responsibilities);
-      setSkills(d.skills.join(", "));
-      setBenefits(d.benefits);
-      toast({ message: `Reemplazamos ${DRAFT_FIELD_LABELS} con el borrador de la IA. Revisalo y ajustá lo que quieras.` });
-    });
-  }
 
   function updateBenefit(i: number, patch: Partial<Benefit>) {
     setBenefits((bs) => bs.map((b, idx) => (idx === i ? { ...b, ...patch } : b)));
@@ -179,7 +145,7 @@ export function JobForm({ action, submitLabel, jobId, clients, defaults }: JobFo
   return (
     <Card>
       <CardContent>
-        <form ref={formRef} action={formAction} className="flex flex-col gap-6">
+        <form action={formAction} className="flex flex-col gap-6">
           {jobId && <input type="hidden" name="jobId" value={jobId} />}
           {/* Aviso público legacy: lo preservamos si ya existía (el aviso se arma desde los campos). */}
           {defaults?.posting != null && (
@@ -197,30 +163,6 @@ export function JobForm({ action, submitLabel, jobId, clients, defaults }: JobFo
               required
               autoFocus
             />
-
-            {!jobId && (
-              <div className="rounded-[var(--radius)] border border-dashed border-primary/30 bg-primary-light/40 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-text">Crear con IA</p>
-                    <p className="text-xs text-muted">
-                      Completá nombre, modalidad, seniority y jornada (más abajo), sumá un texto
-                      mínimo y la IA arma la búsqueda. Después la revisás y editás.
-                    </p>
-                  </div>
-                  <AiButton type="button" onClick={generarConIa} disabled={generating}>
-                    {generating ? "Generando…" : "Generar con IA"}
-                  </AiButton>
-                </div>
-                <textarea
-                  value={brief}
-                  onChange={(e) => setBrief(e.target.value)}
-                  rows={3}
-                  placeholder="Texto mínimo: qué buscás, contexto del equipo, lo que tengas…"
-                  className={selectClass + " mt-3 resize-y bg-surface"}
-                />
-              </div>
-            )}
           </Section>
 
           <Section title="Clasificación">
@@ -424,8 +366,8 @@ export function JobForm({ action, submitLabel, jobId, clients, defaults }: JobFo
             <Button type="submit" disabled={pending}>
               {pending ? "Guardando…" : submitLabel}
             </Button>
-            <Link href="/jobs" className="text-sm font-semibold text-muted">
-              Cancelar
+            <Link href={cancelHref} className="text-sm font-semibold text-muted">
+              {cancelLabel}
             </Link>
           </div>
         </form>
