@@ -58,7 +58,8 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 |---|---|---|
 | ✅ | Redactar y editar el texto del aviso público | `jobs.posting` + `JobForm` |
 | ✅ | Preview del aviso antes de publicar | tab `Aviso` (`jobs/[id]/aviso`) — render público read-only |
-| 🔭 | Publicar en portal público / careers / link público | marketplace parkeado |
+| 🔲 | Career Site: micrositio público por workspace (`/careers/{slug}`), branding + listado + postulación | Fase 1 (schema/RLS/storage) hecha; falta settings UI (Javi) y portal público (Ale) |
+| 🔭 | Portal único cross-org (`/portal`, listado de todas las orgs) | sigue parkeado, es el marketplace de recruiters — no confundir con el Career Site de arriba |
 | 🔭 | Multiposting (LinkedIn, bolsas) | Etapa 2 |
 | 🔭 | Métricas de publicación (vistas, postulaciones, origen) | Etapa 2, ver §12 |
 
