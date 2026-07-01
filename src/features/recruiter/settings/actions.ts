@@ -11,7 +11,7 @@ import {
   IMAGE_MAX_BYTES,
 } from "./schema";
 import { updateOwnProfile, updateOrganization } from "./data/settings.mutations";
-import { uploadAvatar, uploadOrgLogo } from "./data/settings.storage";
+import { uploadAvatar, uploadOrgLogo, uploadCareerSiteCover } from "./data/settings.storage";
 import { editarWorkspace } from "./domain/editar-workspace";
 import type { OrgRole } from "./domain/editar-workspace";
 
@@ -108,7 +108,15 @@ export async function editarWorkspaceAction(
 ): Promise<ActionState> {
   const parsed = workspaceInputSchema.safeParse({
     name: formData.get("name"),
-    timezone: formData.get("timezone"),
+    careerSiteEnabled: formData.get("careerSiteEnabled"),
+    description: formData.get("description"),
+    primaryColor: formData.get("primaryColor"),
+    accentColor: formData.get("accentColor"),
+    website: formData.get("website"),
+    linkedinUrl: formData.get("linkedinUrl"),
+    instagramUrl: formData.get("instagramUrl"),
+    xUrl: formData.get("xUrl"),
+    facebookUrl: formData.get("facebookUrl"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -117,17 +125,41 @@ export async function editarWorkspaceAction(
   const membership = await getActiveMembership();
   if (!membership) return { error: "No autorizado." };
 
-  const image = readImage(formData.get("logo"));
-  if ("error" in image) return { error: image.error };
+  const logoImage = readImage(formData.get("logo"));
+  if ("error" in logoImage) return { error: logoImage.error };
+  const coverImage = readImage(formData.get("cover"));
+  if ("error" in coverImage) return { error: coverImage.error };
 
   let logoPath: string | null = null;
-  if (image.file) {
-    const { path } = await uploadOrgLogo(membership.organizationId, image.file);
+  if (logoImage.file) {
+    const { path } = await uploadOrgLogo(membership.organizationId, logoImage.file);
     logoPath = path;
   }
+  let coverPath: string | null = null;
+  if (coverImage.file) {
+    const { path } = await uploadCareerSiteCover(membership.organizationId, coverImage.file);
+    coverPath = path;
+  }
+
+  const { linkedinUrl, instagramUrl, xUrl, facebookUrl, ...rest } = parsed.data;
+  const hasSocial = linkedinUrl || instagramUrl || xUrl || facebookUrl;
 
   const result = await editarWorkspace(
-    { name: parsed.data.name, timezone: parsed.data.timezone ?? null, logoPath },
+    {
+      name: rest.name,
+      careerSiteEnabled: rest.careerSiteEnabled,
+      branding: {
+        description: rest.description,
+        primaryColor: rest.primaryColor,
+        accentColor: rest.accentColor,
+        website: rest.website,
+        ...(hasSocial
+          ? { social: { linkedin: linkedinUrl, instagram: instagramUrl, x: xUrl, facebook: facebookUrl } }
+          : {}),
+      },
+      logoPath,
+      coverPath,
+    },
     { organizationId: membership.organizationId, role: membership.role as OrgRole },
     { updateOrganization },
   );
