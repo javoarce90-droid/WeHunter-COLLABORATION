@@ -7,6 +7,7 @@ import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { AiScore } from "@/components/ui/ai";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
@@ -217,6 +218,14 @@ export default async function CandidateDetailPage({
                           {dateFmt.format(app.createdAt)}
                         </span>
                       </span>
+                      {app.aiScore != null && (
+                        <span className="mt-1 flex items-start gap-1.5">
+                          <AiScore score={app.aiScore} size={20} />
+                          {app.aiSummary && (
+                            <span className="text-xs text-muted">{app.aiSummary}</span>
+                          )}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 ))}

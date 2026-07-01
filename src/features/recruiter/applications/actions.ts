@@ -317,6 +317,53 @@ export async function analizarPostuladosAction(
 }
 
 /**
+ * Analiza con IA una sola postulación puntual (botón por candidato en el Kanban). Evita
+ * re-analizar a todo el mundo cada vez y no se ve afectada por postulaciones que entren
+ * mientras corre: cada análisis queda acotado a esta postulación.
+ */
+export async function analizarPostulacionAction(
+  applicationId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const application = await getApplicationById(applicationId, membership.organizationId);
+  if (!application) return { ok: false, error: "Postulación no encontrada." };
+
+  const [job, candidate] = await Promise.all([
+    getJobById(application.jobId, membership.organizationId),
+    getCandidateById(application.candidateId, membership.organizationId),
+  ]);
+  if (!job || !candidate) return { ok: false, error: "Datos no encontrados." };
+
+  const result = await puntuarPostulaciones(
+    {
+      job: { title: job.title, position: job.position, skills: job.skills },
+      applications: [
+        {
+          id: application.id,
+          candidate: {
+            id: candidate.id,
+            skills: candidate.skills,
+            summary: candidate.summary,
+            source: candidate.source,
+            hasCv: candidate.cvUrl != null,
+          },
+        },
+      ],
+    },
+    { organizationId: membership.organizationId, role: membership.role },
+    { provider: getAiProvider(), saveScore: saveApplicationScore },
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath(`/jobs/${application.jobId}/postulados`);
+  revalidatePath(`/jobs/${application.jobId}/pipeline`);
+  return { ok: true };
+}
+
+/**
  * Rechaza varias postulaciones de una (bulk reject del inbox). Orquesta el mismo caso de uso
  * `moverEtapa` por cada id (la regla vive en el dominio). Tolerante: las que ya están en una
  * etapa terminal se cuentan como saltadas, no como error.
