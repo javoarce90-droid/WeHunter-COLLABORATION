@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { postularAction, type PostularActionState } from "../actions";
+import { accentStyle } from "@/features/candidate/career-site/ui/brand";
 import type { CareerSiteJobDetail } from "@/features/candidate/career-site/data/career-site.data";
 
 const fieldClass =
@@ -16,11 +17,13 @@ export function ApplyForm({
   job,
   defaultName,
   defaultEmail,
+  accentColor,
 }: {
   slug: string;
   job: CareerSiteJobDetail;
   defaultName: string;
   defaultEmail: string;
+  accentColor?: string;
 }) {
   const [state, formAction, pending] = useActionState(postularAction, initialState);
 
@@ -53,18 +56,25 @@ export function ApplyForm({
 
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-semibold text-muted">CV</label>
-        <input
-          type="file"
-          name="cv"
-          accept=".pdf,.doc,.docx"
-          required
-          className="text-sm text-text file:mr-3 file:rounded-[var(--radius)] file:border-0 file:bg-primary-light file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-hover"
-        />
+        <div className={fieldClass}>
+          <input
+            type="file"
+            name="cv"
+            accept=".pdf,.doc,.docx"
+            required
+            className="w-full text-sm text-text file:mr-3 file:rounded-[var(--radius)] file:border-0 file:bg-primary-light file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-hover"
+          />
+        </div>
         <span className="text-xs text-muted">PDF, DOC o DOCX · máx. 5 MB</span>
       </div>
 
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
-      <Button type="submit" disabled={pending}>
+      <Button
+        type="submit"
+        disabled={pending}
+        style={accentStyle(accentColor)}
+        className="hover:brightness-90"
+      >
         {pending ? "Enviando…" : "Enviar postulación"}
       </Button>
     </form>

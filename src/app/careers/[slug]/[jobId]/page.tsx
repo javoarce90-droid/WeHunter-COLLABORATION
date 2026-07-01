@@ -41,5 +41,12 @@ export default async function CareerSiteJobPage({
   const proto = reqHeaders.get("x-forwarded-proto") ?? "http";
   const shareUrl = host ? `${proto}://${host}/careers/${slug}/${jobId}` : "";
 
-  return <PublicJobDetail slug={slug} job={result.job} shareUrl={shareUrl} />;
+  return (
+    <PublicJobDetail
+      slug={slug}
+      job={result.job}
+      shareUrl={shareUrl}
+      accentColor={result.organization.settings?.accentColor}
+    />
+  );
 }

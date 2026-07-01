@@ -35,7 +35,7 @@ export function PublicJobList({ slug, jobs }: { slug: string; jobs: CareerSiteJo
           <li key={job.id}>
             <Link
               href={`/careers/${slug}/${job.id}`}
-              className="block rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)] transition-colors hover:border-primary"
+              className="block rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)] transition-[transform,box-shadow,border-color] duration-[var(--motion-base)] ease-[var(--ease-out-quart)] hover:-translate-y-[3px] hover:border-primary hover:shadow-[var(--shadow-overlay)]"
             >
               <h2 className="font-display text-base font-bold text-text">{job.title}</h2>
               {job.position && <p className="mt-0.5 text-sm text-muted">{job.position}</p>}

@@ -13,27 +13,39 @@ export function CareerSiteHeader({ org }: { org: CareerSiteOrg }) {
     .map((key) => ({ key, label: SOCIAL_LABELS[key], url: social[key as keyof typeof social] }))
     .filter((l): l is { key: string; label: string; url: string } => !!l.url);
 
+  const logo = org.logoUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={org.logoUrl} alt="" className="h-full w-full rounded-[var(--radius)] object-cover" />
+  ) : (
+    <span className="grid h-full w-full place-items-center rounded-[var(--radius)] bg-primary-light text-lg font-bold text-primary-hover">
+      {org.name.slice(0, 2).toUpperCase()}
+    </span>
+  );
+
   return (
     <header className="border-b border-border bg-surface">
       {org.coverUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={org.coverUrl} alt="" className="h-40 w-full object-cover sm:h-56" />
       )}
-      <div className="mx-auto flex max-w-3xl flex-col gap-3 px-4 py-6">
-        <div className="flex items-center gap-4">
-          {org.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={org.logoUrl}
-              alt=""
-              className="h-14 w-14 shrink-0 rounded-[var(--radius)] object-cover"
-            />
-          ) : (
-            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[var(--radius)] bg-primary-light text-lg font-bold text-primary-hover">
-              {org.name.slice(0, 2).toUpperCase()}
-            </span>
-          )}
-          <div className="flex flex-col gap-0.5">
+      <div className="mx-auto max-w-3xl px-4">
+        <div
+          className={
+            org.coverUrl
+              ? "-mt-10 flex items-end gap-4 sm:-mt-12"
+              : "flex items-center gap-4 pt-6"
+          }
+        >
+          <div
+            className={
+              org.coverUrl
+                ? "h-20 w-20 shrink-0 rounded-[calc(var(--radius)+4px)] bg-surface p-1 shadow-[var(--shadow)] sm:h-24 sm:w-24"
+                : "h-14 w-14 shrink-0"
+            }
+          >
+            {logo}
+          </div>
+          <div className={`flex flex-col gap-0.5 ${org.coverUrl ? "pb-1" : ""}`}>
             <h1 className="font-display text-xl font-bold text-text">{org.name}</h1>
             {org.settings?.website && (
               <a
@@ -48,27 +60,29 @@ export function CareerSiteHeader({ org }: { org: CareerSiteOrg }) {
           </div>
         </div>
 
-        {org.settings?.description && (
-          <p className="max-w-[70ch] text-sm leading-relaxed text-text/80">
-            {org.settings.description}
-          </p>
-        )}
+        <div className="flex flex-col gap-3 py-6">
+          {org.settings?.description && (
+            <p className="max-w-[70ch] text-sm leading-relaxed text-text/80">
+              {org.settings.description}
+            </p>
+          )}
 
-        {links.length > 0 && (
-          <div className="flex flex-wrap gap-3">
-            {links.map((l) => (
-              <a
-                key={l.key}
-                href={l.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs font-semibold text-muted hover:text-primary"
-              >
-                {l.label}
-              </a>
-            ))}
-          </div>
-        )}
+          {links.length > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {links.map((l) => (
+                <a
+                  key={l.key}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-muted hover:text-primary"
+                >
+                  {l.label}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

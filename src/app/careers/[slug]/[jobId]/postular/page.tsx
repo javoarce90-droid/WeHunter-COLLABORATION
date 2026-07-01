@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getCareerSiteJob } from "@/features/candidate/career-site/data/career-site.data";
+import { accentStyle } from "@/features/candidate/career-site/ui/brand";
 import { ApplyForm } from "@/features/candidate/applications/ui/ApplyForm";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,8 @@ export default async function CareerSiteApplyPage({
           </Link>
           <Link
             href={`/c/register?redirect=${encodeURIComponent(redirectTarget)}`}
-            className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+            style={accentStyle(result.organization.settings?.accentColor)}
+            className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-90"
           >
             Crear cuenta
           </Link>
@@ -51,6 +53,7 @@ export default async function CareerSiteApplyPage({
       job={result.job}
       defaultName={defaultName}
       defaultEmail={user.email ?? ""}
+      accentColor={result.organization.settings?.accentColor}
     />
   );
 }
