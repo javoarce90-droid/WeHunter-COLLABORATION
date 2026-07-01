@@ -1,6 +1,6 @@
 import { and, eq, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { applications, applicationEvents, candidates, jobs, type Job } from "@/db/schema";
+import { applications, applicationEvents, candidates, jobs, profiles, type Job } from "@/db/schema";
 import { APPLICATION_STAGES, type ApplicationStage } from "../schema";
 
 /** Lecturas del pipeline. Cliente RLS; filtramos siempre por organization activa. */
@@ -367,6 +367,60 @@ export async function getStageEntryTimes(
     if (!result[r.applicationId]) result[r.applicationId] = r.createdAt;
   }
   return result;
+}
+
+/** Evento de historial de una postulación, para la timeline en el sheet de detalle. */
+export type StageHistoryEvent = {
+  id: string;
+  applicationId: string;
+  fromStage: ApplicationStage | null;
+  toStage: ApplicationStage;
+  createdAt: Date;
+  changedByName: string | null;
+};
+
+/**
+ * Historial de cambios de etapa de todas las postulaciones de un job (para el pipeline).
+ * Una query con join: application_events → applications (del job) + left join al profile
+ * que hizo el cambio. Sin N+1 (mismo patrón que listNotesByJob).
+ */
+export async function listStageEventsByJob(
+  jobId: string,
+  organizationId: string,
+): Promise<StageHistoryEvent[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: applicationEvents.id,
+        applicationId: applicationEvents.applicationId,
+        fromStage: applicationEvents.fromStage,
+        toStage: applicationEvents.toStage,
+        createdAt: applicationEvents.createdAt,
+        changedByName: profiles.fullName,
+        changedByEmail: profiles.email,
+      })
+      .from(applicationEvents)
+      .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
+      .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applicationEvents.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(applicationEvents.createdAt))
+      .limit(500),
+    "db.applications.stage-events-by-job",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    applicationId: r.applicationId,
+    fromStage: r.fromStage as ApplicationStage | null,
+    toStage: r.toStage as ApplicationStage,
+    createdAt: r.createdAt,
+    changedByName: r.changedByName ?? r.changedByEmail ?? null,
+  }));
 }
 
 /** Verifica que el job exista y pertenezca a la org. */

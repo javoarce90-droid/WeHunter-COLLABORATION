@@ -3,8 +3,8 @@
 import { useOptimistic, useTransition, useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { useToast } from "@/lib/toast";
-import { STAGE_LABELS } from "../../applications/schema";
-import { STAGE_DOT, TERMINAL_STAGES } from "../../applications/ui/stage-visual";
+import { STAGE_LABELS, isClosingStage } from "../../applications/schema";
+import { STAGE_DOT } from "../../applications/ui/stage-visual";
 import { configurarEtapaAction } from "../actions";
 import type { PipelineStageConfig } from "../schema";
 import type { ApplicationStage } from "../../applications/schema";
@@ -66,7 +66,7 @@ export function StageSettingsPanel({ config, open, onClose }: Props) {
         </p>
 
         {optimisticConfig.map((stage) => {
-          const isTerminal = TERMINAL_STAGES.includes(stage.stageKey);
+          const isTerminal = isClosingStage(stage.stageKey);
           return (
             <div
               key={stage.stageKey}

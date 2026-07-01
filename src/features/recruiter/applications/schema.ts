@@ -28,6 +28,15 @@ export const STAGE_LABELS: Record<ApplicationStage, string> = {
   rejected: "Descartado",
 };
 
+/** Etapas de cierre: no se puede salir de ellas por movimiento normal (drag/menú).
+ *  Hoy solo "hired" — a diferencia de "rejected", que es una etapa operativa más
+ *  (puede haber reevaluaciones/reactivaciones) y se mueve libremente en ambas direcciones. */
+export const CLOSING_STAGES: ApplicationStage[] = ["hired"];
+
+export function isClosingStage(stage: ApplicationStage): boolean {
+  return CLOSING_STAGES.includes(stage);
+}
+
 /** Schemas de input de la feature de aplicaciones. Validación cerca de la action. */
 
 export const postularCandidatoSchema = z.object({

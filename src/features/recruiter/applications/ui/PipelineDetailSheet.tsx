@@ -13,15 +13,17 @@ import { InterviewsSection } from "@/features/recruiter/interviews/ui/Interviews
 import { generarGuiaEntrevistaAction } from "../actions";
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
-import type { ApplicationWithCandidate } from "../data/applications.queries";
+import type { ApplicationWithCandidate, StageHistoryEvent } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import { isTerminal } from "./stage-visual";
+import { StageHistoryTimeline } from "./StageHistoryTimeline";
 
 type Props = {
   application: ApplicationWithCandidate | null;
   interviews: InterviewRow[];
   notes: TimelineNote[];
+  stageEvents: StageHistoryEvent[];
   onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
   onClose: () => void;
   /** Si se pasa, solo muestra botones para estas etapas (activas). */
@@ -37,6 +39,7 @@ export function PipelineDetailSheet({
   application,
   interviews,
   notes,
+  stageEvents,
   onMoveStage,
   onClose,
   activeStageKeys,
@@ -137,6 +140,14 @@ export function PipelineDetailSheet({
             {application.candidate.email && (
               <p className="text-xs text-muted">{application.candidate.email}</p>
             )}
+          </section>
+
+          {/* Historial de etapa (timeline de application_events) */}
+          <section className="flex flex-col gap-1.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Historial de etapa
+            </h3>
+            <StageHistoryTimeline events={stageEvents} />
           </section>
 
           {/* Notas internas (timeline) */}

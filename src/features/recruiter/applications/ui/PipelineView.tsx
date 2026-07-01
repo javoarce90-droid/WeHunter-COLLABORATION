@@ -16,7 +16,7 @@ import { useToast } from "@/lib/toast";
 import { analizarPostulacionAction, moverEtapaAction } from "../actions";
 import { STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
-import type { ApplicationWithCandidate } from "../data/applications.queries";
+import type { ApplicationWithCandidate, StageHistoryEvent } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import type { PipelineStageConfig } from "@/features/recruiter/pipeline-stages/schema";
@@ -28,6 +28,7 @@ type Props = {
   applications: ApplicationWithCandidate[];
   interviewsByApplication: Record<string, InterviewRow[]>;
   notesByApplication: Record<string, TimelineNote[]>;
+  stageEventsByApplication: Record<string, StageHistoryEvent[]>;
   stageConfig: PipelineStageConfig[];
   stageEntryTimes: Record<string, Date>;
 };
@@ -123,6 +124,7 @@ export function PipelineView({
   applications,
   interviewsByApplication,
   notesByApplication,
+  stageEventsByApplication,
   stageConfig,
   stageEntryTimes,
 }: Props) {
@@ -233,6 +235,7 @@ export function PipelineView({
   return (
     <>
       <DndContext
+        id="pipeline-dnd"
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
@@ -273,6 +276,7 @@ export function PipelineView({
         application={selected}
         interviews={selected ? interviewsByApplication[selected.id] ?? [] : []}
         notes={selected ? notesByApplication[selected.id] ?? [] : []}
+        stageEvents={selected ? stageEventsByApplication[selected.id] ?? [] : []}
         onMoveStage={onMoveStage}
         onClose={() => setSelectedId(null)}
         activeStageKeys={activeStageKeys}
