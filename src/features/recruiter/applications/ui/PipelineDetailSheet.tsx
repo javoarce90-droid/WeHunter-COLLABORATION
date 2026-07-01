@@ -144,9 +144,17 @@ export function PipelineDetailSheet({
 
           {/* Historial de etapa (timeline de application_events) */}
           <section className="flex flex-col gap-1.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
-              Historial de etapa
-            </h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Historial de etapa
+              </h3>
+              <Link
+                href={`/candidates/${application.candidate.id}/historial`}
+                className="text-xs font-medium text-primary hover:text-primary-hover"
+              >
+                Ver historial completo →
+              </Link>
+            </div>
             <StageHistoryTimeline events={stageEvents} />
           </section>
 

@@ -4,31 +4,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 /**
- * Barra de pestañas del workspace de una búsqueda. Client Component porque la pestaña activa
+ * Barra de pestañas de la ficha del candidato. Client Component porque la pestaña activa
  * depende del pathname. La navegación es por <Link> (prefetch + transición de RSC).
  */
 
-const TABS: { label: string; segment: string; hidden?: boolean }[] = [
-  { label: "Detalle", segment: "" },
-  { label: "Aviso", segment: "aviso" },
-  { label: "Postulados", segment: "postulados" },
-  { label: "Pipeline", segment: "pipeline" },
-  { label: "Rendimiento", segment: "rendimiento" },
-  { label: "Ofertas", segment: "ofertas" },
-  { label: "Shortlists", segment: "shortlists" },
-  { label: "Editar", segment: "edit" },
+const TABS: { label: string; segment: string }[] = [
+  { label: "Perfil", segment: "" },
+  { label: "Historial", segment: "historial" },
 ];
 
-export function JobTabs({ jobId }: { jobId: string }) {
+export function CandidateTabs({ candidateId }: { candidateId: string }) {
   const pathname = usePathname();
-  const base = `/jobs/${jobId}`;
+  const base = `/candidates/${candidateId}`;
 
   return (
     <nav
-      aria-label="Secciones de la búsqueda"
+      aria-label="Secciones del candidato"
       className="-mb-px flex gap-1 overflow-x-auto border-b border-border"
     >
-      {TABS.filter((tab) => !tab.hidden).map((tab) => {
+      {TABS.map((tab) => {
         const href = tab.segment ? `${base}/${tab.segment}` : base;
         const active = tab.segment
           ? pathname.startsWith(href)

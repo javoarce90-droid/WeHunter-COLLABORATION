@@ -1,7 +1,7 @@
 import { and, eq, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { applications, applicationEvents, candidates, jobs, profiles, type Job } from "@/db/schema";
-import { APPLICATION_STAGES, type ApplicationStage } from "../schema";
+import { APPLICATION_STAGES, type ApplicationStage, type RejectionReason } from "../schema";
 
 /** Lecturas del pipeline. Cliente RLS; filtramos siempre por organization activa. */
 
@@ -369,7 +369,9 @@ export async function getStageEntryTimes(
   return result;
 }
 
-/** Evento de historial de una postulación, para la timeline en el sheet de detalle. */
+/** Evento de historial de una postulación, para la timeline en el sheet de detalle.
+ *  rejectionReason/rejectionNote solo vienen presentes en eventos de rechazo, y son
+ *  privados del recruiter (no hay portal de candidato que los exponga). */
 export type StageHistoryEvent = {
   id: string;
   applicationId: string;
@@ -377,6 +379,8 @@ export type StageHistoryEvent = {
   toStage: ApplicationStage;
   createdAt: Date;
   changedByName: string | null;
+  rejectionReason: RejectionReason | null;
+  rejectionNote: string | null;
 };
 
 /**
@@ -399,6 +403,8 @@ export async function listStageEventsByJob(
         createdAt: applicationEvents.createdAt,
         changedByName: profiles.fullName,
         changedByEmail: profiles.email,
+        rejectionReason: applicationEvents.rejectionReason,
+        rejectionNote: applicationEvents.rejectionNote,
       })
       .from(applicationEvents)
       .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
@@ -420,6 +426,56 @@ export async function listStageEventsByJob(
     toStage: r.toStage as ApplicationStage,
     createdAt: r.createdAt,
     changedByName: r.changedByName ?? r.changedByEmail ?? null,
+    rejectionReason: r.rejectionReason as RejectionReason | null,
+    rejectionNote: r.rejectionNote,
+  }));
+}
+
+/**
+ * Historial de cambios de etapa de TODAS las postulaciones (pasadas y presentes) de un
+ * candidato, para el tab Historial de su ficha. Mismo join que listStageEventsByJob pero
+ * filtrando por candidate_id (cubierto por applications_candidate_idx) en vez de job_id.
+ */
+export async function listStageEventsByCandidate(
+  candidateId: string,
+  organizationId: string,
+): Promise<StageHistoryEvent[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: applicationEvents.id,
+        applicationId: applicationEvents.applicationId,
+        fromStage: applicationEvents.fromStage,
+        toStage: applicationEvents.toStage,
+        createdAt: applicationEvents.createdAt,
+        changedByName: profiles.fullName,
+        changedByEmail: profiles.email,
+        rejectionReason: applicationEvents.rejectionReason,
+        rejectionNote: applicationEvents.rejectionNote,
+      })
+      .from(applicationEvents)
+      .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
+      .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
+      .where(
+        and(
+          eq(applications.candidateId, candidateId),
+          eq(applicationEvents.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(applicationEvents.createdAt))
+      .limit(500),
+    "db.applications.stage-events-by-candidate",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    applicationId: r.applicationId,
+    fromStage: r.fromStage as ApplicationStage | null,
+    toStage: r.toStage as ApplicationStage,
+    createdAt: r.createdAt,
+    changedByName: r.changedByName ?? r.changedByEmail ?? null,
+    rejectionReason: r.rejectionReason as RejectionReason | null,
+    rejectionNote: r.rejectionNote,
   }));
 }
 

@@ -4,8 +4,6 @@ import { getActiveMembership } from "@/lib/auth/session";
 import { getCandidateById } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listApplicationsByCandidate } from "@/features/recruiter/applications/data/applications.queries";
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
-import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
-import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { AiScore } from "@/components/ui/ai";
 
@@ -15,7 +13,10 @@ const dateFmt = new Intl.DateTimeFormat("es-AR", {
   year: "numeric",
 });
 
-/** Ficha del candidato: perfil + CV + su participación en búsquedas. */
+/**
+ * Pestaña Perfil: facts + CV + resumen + participación en búsquedas. La cabecera
+ * (breadcrumb, avatar, acciones) la pone el layout de la ficha.
+ */
 export default async function CandidateDetailPage({
   params,
 }: {
@@ -31,9 +32,6 @@ export default async function CandidateDetailPage({
   ]);
   if (!candidate) notFound();
 
-  // profileId seteado = persona con cuenta vinculada; null = cargado a mano (DATA_MODEL.md).
-  const isLinked = candidate.profileId !== null;
-
   const facts: { label: string; value: string }[] = [
     { label: "Email", value: candidate.email || "—" },
     { label: "Búsquedas", value: String(apps.length) },
@@ -42,81 +40,6 @@ export default async function CandidateDetailPage({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Cabecera */}
-      <div className="flex flex-col gap-4">
-        <nav
-          aria-label="Migas de pan"
-          className="flex items-center gap-1.5 text-sm text-muted"
-        >
-          <Link href="/candidates" className="hover:text-text">
-            Candidatos
-          </Link>
-          <span aria-hidden>/</span>
-          <span className="truncate text-text">{candidate.fullName}</span>
-        </nav>
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar name={candidate.fullName} size="lg" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <h1 className="font-display text-xl font-bold text-text">
-                  {candidate.fullName}
-                </h1>
-                <Badge variant={isLinked ? "primary" : "muted"}>
-                  {isLinked ? "Cuenta vinculada" : "Cargado a mano"}
-                </Badge>
-              </div>
-              {candidate.headline && (
-                <p className="mt-0.5 truncate text-sm font-medium text-text">
-                  {candidate.headline}
-                </p>
-              )}
-              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-                {candidate.location && <span>{candidate.location}</span>}
-                {candidate.source && (
-                  <>
-                    {candidate.location && <span aria-hidden>·</span>}
-                    <span>{CANDIDATE_SOURCE_LABELS[candidate.source]}</span>
-                  </>
-                )}
-                {candidate.linkedinUrl && (
-                  <>
-                    {(candidate.location || candidate.source) && <span aria-hidden>·</span>}
-                    <a
-                      href={candidate.linkedinUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-semibold text-primary hover:text-primary-hover"
-                    >
-                      LinkedIn
-                    </a>
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {candidate.cvUrl && (
-              <a
-                href={`/candidates/${candidate.id}/cv`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-[var(--radius)] border border-border px-3 py-2 text-sm font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
-              >
-                Abrir CV
-              </a>
-            )}
-            <Link
-              href={`/candidates/${candidate.id}/edit`}
-              className="inline-flex items-center justify-center rounded-[var(--radius)] border border-border px-3 py-2 text-sm font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
-            >
-              Editar
-            </Link>
-          </div>
-        </div>
-      </div>
-
       {/* Datos clave */}
       <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-[var(--radius)] border border-border bg-border sm:grid-cols-3">
         {facts.map((f) => (

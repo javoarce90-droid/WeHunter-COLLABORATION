@@ -103,6 +103,24 @@ Así no se duplica el candidato: se enlaza el que ya existía. Una sola fila evo
 > solo miembros de la organization dueña pueden leer/escribir sus CVs. El path sugerido:
 > `cvs/{organization_id}/{candidate_id}/{archivo}`.
 
+## Career Site (micrositio público por workspace)
+
+Cada `organization` tiene un Career Site público en `/careers/{slug}` (branding + búsquedas
+abiertas + postulación). Es una expansión de alcance frente al documento de flujo oficial (que
+describe un `/portal` único compartido, hoy sin construir y parkeado como parte del marketplace
+de recruiters) — confirmada con el cliente el 2026-07-01, ver `docs/RECRUITER-BACKLOG.md` §3.
+
+- `organizations.careerSiteEnabled` / `careerSiteCoverUrl` / `careerSiteSettings` (branding).
+- Visibilidad pública de una búsqueda = `jobs.status = 'open'`, sin columna aparte.
+- `applications.coverNote`: mensaje del propio candidato al postularse (distinto de `notes`,
+  que es privado del reclutador).
+- El Career Site **nunca muestra candidatos ni postulaciones** — solo branding + vacantes.
+- Acceso público (sin sesión de recruiter) vía funciones `SECURITY DEFINER`
+  (`get_career_site`, `get_career_site_job`, `apply_to_career_site_job`), mismo patrón que el
+  acceso de la empresa por token a los shortlists — nunca RLS abierta a `anon` sobre las tablas.
+- La postulación reusa la regla de "enlazar, no duplicar" candidato por email (ver arriba) desde
+  dentro de `apply_to_career_site_job`, no desde `postularCandidato` (ese requiere membership).
+
 ## Relaciones clave
 - `organizations` 1—N `memberships` N—1 `profiles`
 - `organizations` 1—N `jobs`
