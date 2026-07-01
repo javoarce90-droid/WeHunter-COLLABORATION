@@ -1,7 +1,7 @@
 import { and, eq, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { applications, applicationEvents, candidates, jobs, profiles, type Job } from "@/db/schema";
-import { APPLICATION_STAGES, type ApplicationStage } from "../schema";
+import { APPLICATION_STAGES, type ApplicationStage, type RejectionReason } from "../schema";
 
 /** Lecturas del pipeline. Cliente RLS; filtramos siempre por organization activa. */
 
@@ -369,7 +369,9 @@ export async function getStageEntryTimes(
   return result;
 }
 
-/** Evento de historial de una postulación, para la timeline en el sheet de detalle. */
+/** Evento de historial de una postulación, para la timeline en el sheet de detalle.
+ *  rejectionReason/rejectionNote solo vienen presentes en eventos de rechazo, y son
+ *  privados del recruiter (no hay portal de candidato que los exponga). */
 export type StageHistoryEvent = {
   id: string;
   applicationId: string;
@@ -377,6 +379,8 @@ export type StageHistoryEvent = {
   toStage: ApplicationStage;
   createdAt: Date;
   changedByName: string | null;
+  rejectionReason: RejectionReason | null;
+  rejectionNote: string | null;
 };
 
 /**
@@ -399,6 +403,8 @@ export async function listStageEventsByJob(
         createdAt: applicationEvents.createdAt,
         changedByName: profiles.fullName,
         changedByEmail: profiles.email,
+        rejectionReason: applicationEvents.rejectionReason,
+        rejectionNote: applicationEvents.rejectionNote,
       })
       .from(applicationEvents)
       .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
@@ -420,6 +426,8 @@ export async function listStageEventsByJob(
     toStage: r.toStage as ApplicationStage,
     createdAt: r.createdAt,
     changedByName: r.changedByName ?? r.changedByEmail ?? null,
+    rejectionReason: r.rejectionReason as RejectionReason | null,
+    rejectionNote: r.rejectionNote,
   }));
 }
 
@@ -443,6 +451,8 @@ export async function listStageEventsByCandidate(
         createdAt: applicationEvents.createdAt,
         changedByName: profiles.fullName,
         changedByEmail: profiles.email,
+        rejectionReason: applicationEvents.rejectionReason,
+        rejectionNote: applicationEvents.rejectionNote,
       })
       .from(applicationEvents)
       .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
@@ -464,6 +474,8 @@ export async function listStageEventsByCandidate(
     toStage: r.toStage as ApplicationStage,
     createdAt: r.createdAt,
     changedByName: r.changedByName ?? r.changedByEmail ?? null,
+    rejectionReason: r.rejectionReason as RejectionReason | null,
+    rejectionNote: r.rejectionNote,
   }));
 }
 

@@ -60,6 +60,15 @@ export const applicationStage = pgEnum("application_stage", [
   "rejected",
 ]);
 
+// Motivo de descarte de una postulación. Lista fija (no configurable por org).
+export const rejectionReason = pgEnum("rejection_reason", [
+  "perfil_no_ajusta",
+  "pretension_salarial",
+  "proceso_avanzado_otro_candidato",
+  "no_disponibilidad",
+  "otro",
+]);
+
 // Decisión de la empresa sobre un candidato compartido en un shortlist.
 export const feedbackDecision = pgEnum("feedback_decision", [
   "approved",
@@ -171,6 +180,20 @@ export const organizations = pgTable("organizations", {
   logoUrl: text("logo_url"),
   // Preferencias del workspace (zona horaria, etc.). jsonb flexible para no migrar por cada opción.
   preferences: jsonb("preferences"),
+  // Career Site (micrositio público de marca-empleadora): gate de autorización primario,
+  // por eso es columna propia y no un campo dentro de careerSiteSettings.
+  careerSiteEnabled: boolean("career_site_enabled").notNull().default(true),
+  // Portada del Career Site: path en el bucket PÚBLICO career-site-media (sin firmar, a
+  // diferencia de logoUrl, porque necesita ser resoluble por crawlers de OG/WhatsApp/LinkedIn).
+  careerSiteCoverUrl: text("career_site_cover_url"),
+  // Branding del Career Site: campos de solo lectura al render, sin filtro/orden/join.
+  careerSiteSettings: jsonb("career_site_settings").$type<{
+    description?: string;
+    primaryColor?: string;
+    accentColor?: string;
+    website?: string;
+    social?: { linkedin?: string; instagram?: string; x?: string; facebook?: string };
+  }>(),
   ...timestamps,
 }, (t) => ({
   slugIdx: uniqueIndex("organizations_slug_idx").on(t.slug),
@@ -326,6 +349,7 @@ export const candidates = pgTable("candidates", {
   }), // null hasta que el candidato se registra y se vincula
   fullName: text("full_name").notNull(),
   email: text("email"),
+  phone: text("phone"),
   cvUrl: text("cv_url"), // path en Supabase Storage
   // Campos enriquecidos de la ficha (paridad demo). Todos opcionales.
   headline: text("headline"), // puesto/título actual, ej "Frontend Senior @ Acme"
@@ -365,6 +389,9 @@ export const applications = pgTable("applications", {
   aiSummary: text("ai_summary"), // resumen corto del match
   // Nota interna del reclutador sobre el candidato en este proceso. No visible para la empresa.
   notes: text("notes"),
+  // Mensaje que el propio candidato adjuntó al postularse (Career Site). Distinto de `notes`:
+  // ese es privado del reclutador, esto lo escribe el candidato y es visible para el reclutador.
+  coverNote: text("cover_note"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("applications_org_idx").on(t.organizationId),
@@ -433,6 +460,9 @@ export const applicationEvents = pgTable("application_events", {
   fromStage: applicationStage("from_stage"), // null = evento de creación (postulación)
   toStage: applicationStage("to_stage").notNull(),
   changedBy: uuid("changed_by").references(() => profiles.id),
+  // Solo se completan cuando toStage = "rejected". rejectionNote es privada del recruiter.
+  rejectionReason: rejectionReason("rejection_reason"),
+  rejectionNote: text("rejection_note"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("application_events_org_idx").on(t.organizationId),

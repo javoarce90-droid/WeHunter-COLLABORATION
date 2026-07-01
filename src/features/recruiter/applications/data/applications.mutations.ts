@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { applications, applicationEvents } from "@/db/schema";
-import type { ApplicationStage } from "../schema";
+import type { ApplicationStage, RejectionReason } from "../schema";
 import type { ApplicationRow } from "../domain/postular-candidato";
 
 /** Escrituras del pipeline. Cliente RLS; el organizationId acota a la org activa. */
@@ -57,12 +57,14 @@ export async function insertApplication(args: {
 
 /**
  * Mueve la postulación de etapa Y registra el evento (fromStage→toStage) en UNA transacción.
- * `fromStage` lo provee el dominio (la etapa actual antes del cambio).
+ * `fromStage` lo provee el dominio (la etapa actual antes del cambio). `eventMeta` es opcional
+ * y hoy solo lo usa el rechazo (motivo + nota, privados del recruiter, quedan en el evento).
  */
 export async function updateApplicationStage(
   applicationId: string,
   fromStage: ApplicationStage,
   toStage: ApplicationStage,
+  eventMeta?: { rejectionReason?: RejectionReason; rejectionNote?: string },
 ): Promise<ApplicationRow> {
   const db = await getDb();
   const row = await db.rls(async (tx) => {
@@ -78,6 +80,8 @@ export async function updateApplicationStage(
       fromStage,
       toStage,
       changedBy: db.userId,
+      rejectionReason: eventMeta?.rejectionReason,
+      rejectionNote: eventMeta?.rejectionNote,
     });
 
     return app!;

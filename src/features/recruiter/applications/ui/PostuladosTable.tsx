@@ -14,8 +14,14 @@ import { AiScore, AiButton } from "@/components/ui/ai";
 import { useToast } from "@/lib/toast";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import type { CandidateSource } from "@/features/recruiter/candidates/domain/candidate-details";
-import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
-import type { ApplicationStage } from "../schema";
+import {
+  APPLICATION_STAGES,
+  STAGE_LABELS,
+  REJECTION_REASONS,
+  REJECTION_REASON_LABELS,
+  DEFAULT_REJECTION_MESSAGE,
+} from "../schema";
+import type { ApplicationStage, RejectionReason } from "../schema";
 import type { PostuladoRow } from "../data/applications.queries";
 import { isTerminal } from "./stage-visual";
 import {
@@ -27,8 +33,13 @@ import {
 
 type Props = {
   jobId: string;
+  jobTitle: string;
   postulados: PostuladoRow[];
 };
+
+const fieldClass =
+  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+const labelClass = "text-xs font-semibold text-muted";
 
 type SortKey = "candidate" | "stage" | "date" | "match";
 type SortDir = "asc" | "desc";
@@ -41,11 +52,18 @@ function sourceLabel(source: string | null): string {
   return CANDIDATE_SOURCE_LABELS[source as CandidateSource] ?? source;
 }
 
-export function PostuladosTable({ jobId, postulados }: Props) {
+export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [confirmReject, setConfirmReject] = useState(false);
+  // ids que se están por rechazar en el dialog abierto (null = cerrado). Individual y en
+  // lote comparten el mismo dialog; no reusa `selected` porque el individual (vía menú de
+  // fila) no debe tocar la selección de checkboxes.
+  const [rejectTarget, setRejectTarget] = useState<Set<string> | null>(null);
+  const [reason, setReason] = useState<RejectionReason>(REJECTION_REASONS[0]);
+  const [note, setNote] = useState("");
+  const [notifyCandidate, setNotifyCandidate] = useState(false);
+  const [message, setMessage] = useState(DEFAULT_REJECTION_MESSAGE);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "date", dir: "desc" });
 
   const [rows, applyPatch] = useOptimistic(
@@ -151,19 +169,40 @@ export function PostuladosTable({ jobId, postulados }: Props) {
     });
   }
 
-  function doBulkReject() {
-    const ids = [...selected];
-    setConfirmReject(false);
+  function openRejectDialog(ids: Set<string>) {
+    setRejectTarget(ids);
+    setReason(REJECTION_REASONS[0]);
+    setNote("");
+    setNotifyCandidate(false);
+    setMessage(DEFAULT_REJECTION_MESSAGE);
+  }
+
+  function closeRejectDialog() {
+    setRejectTarget(null);
+  }
+
+  function doReject() {
+    if (!rejectTarget) return;
+    const ids = [...rejectTarget];
+    closeRejectDialog();
     startTransition(async () => {
       ids.forEach((id) => applyPatch({ id, changes: { stage: "rejected" } }));
-      const res = await rechazarVariosAction(jobId, ids);
+      const res = await rechazarVariosAction({
+        jobId,
+        applicationIds: ids,
+        reason,
+        note: note.trim() || undefined,
+        notifyCandidate,
+        message: notifyCandidate ? message : undefined,
+      });
       setSelected(new Set());
       if (!res.ok) toast({ message: res.error ?? "No se pudo rechazar.", variant: "danger" });
       else
         toast({
           message:
             `${res.rejected} rechazado${res.rejected !== 1 ? "s" : ""}` +
-            (res.skipped ? ` · ${res.skipped} saltado${res.skipped !== 1 ? "s" : ""}` : ""),
+            (res.skipped ? ` · ${res.skipped} saltado${res.skipped !== 1 ? "s" : ""}` : "") +
+            (notifyCandidate ? ` · ${res.notified ?? 0} notificado${res.notified !== 1 ? "s" : ""}` : ""),
           variant: "success",
         });
     });
@@ -186,7 +225,7 @@ export function PostuladosTable({ jobId, postulados }: Props) {
           <span className="text-sm font-semibold text-primary-hover">
             {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
           </span>
-          <Button size="sm" variant="destructive" onClick={() => setConfirmReject(true)}>
+          <Button size="sm" variant="destructive" onClick={() => openRejectDialog(selected)}>
             Rechazar
           </Button>
           <button
@@ -316,7 +355,11 @@ export function PostuladosTable({ jobId, postulados }: Props) {
                             <MenuItem
                               key={s}
                               destructive={s === "rejected"}
-                              onClick={() => onMove(row, s)}
+                              onClick={() =>
+                                s === "rejected"
+                                  ? openRejectDialog(new Set([row.id]))
+                                  : onMove(row, s)
+                              }
                             >
                               {STAGE_LABELS[s]}
                             </MenuItem>
@@ -333,26 +376,91 @@ export function PostuladosTable({ jobId, postulados }: Props) {
       </div>
 
       <Dialog
-        open={confirmReject}
-        onClose={() => setConfirmReject(false)}
+        open={rejectTarget != null}
+        onClose={closeRejectDialog}
         side="center"
-        title={`¿Rechazar ${selected.size} postulación${selected.size !== 1 ? "es" : ""}?`}
-        className="max-w-sm"
+        title={`¿Rechazar ${rejectTarget?.size ?? 0} postulación${(rejectTarget?.size ?? 0) !== 1 ? "es" : ""}?`}
+        className="max-w-md"
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted">
-            Las postulaciones seleccionadas pasarán a <span className="font-semibold text-text">Descartado</span>.
-            Las que ya estén en una etapa terminal se saltan.
+            Las postulaciones seleccionadas pasarán a{" "}
+            <span className="font-semibold text-text">Descartado</span>. Las que ya estén
+            descartadas o en una etapa terminal se saltan.
           </p>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="reject-reason" className={labelClass}>
+              Motivo de descarte (interno, no lo ve el candidato)
+            </label>
+            <select
+              id="reject-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value as RejectionReason)}
+              className={fieldClass}
+            >
+              {REJECTION_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {REJECTION_REASON_LABELS[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="reject-note" className={labelClass}>
+              Nota interna (opcional)
+            </label>
+            <textarea
+              id="reject-note"
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Solo la ve el equipo de reclutamiento."
+              className={`${fieldClass} resize-none`}
+            />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-text">
+            <Checkbox
+              checked={notifyCandidate}
+              onChange={() => setNotifyCandidate((v) => !v)}
+            />
+            Notificar al candidato
+          </label>
+
+          {notifyCandidate && (
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="reject-message" className={labelClass}>
+                Mensaje para el candidato
+              </label>
+              <textarea
+                id="reject-message"
+                rows={4}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className={`${fieldClass} resize-y`}
+              />
+              <p className="text-[11px] text-muted">
+                Variables: <code>{"{{candidato}}"}</code> y <code>{"{{puesto}}"}</code> ({jobTitle}
+                ). No incluye la nota interna.
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center justify-end gap-3">
             <button
               type="button"
-              onClick={() => setConfirmReject(false)}
+              onClick={closeRejectDialog}
               className="text-sm font-semibold text-muted hover:text-text"
             >
               Cancelar
             </button>
-            <Button variant="destructive" onClick={doBulkReject}>
+            <Button
+              variant="destructive"
+              disabled={notifyCandidate && message.trim().length === 0}
+              onClick={doReject}
+            >
               Rechazar
             </Button>
           </div>

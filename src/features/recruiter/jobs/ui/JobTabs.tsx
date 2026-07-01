@@ -11,9 +11,7 @@ import { usePathname } from "next/navigation";
 const TABS: { label: string; segment: string; hidden?: boolean }[] = [
   { label: "Detalle", segment: "" },
   { label: "Aviso", segment: "aviso" },
-  // Oculta: esta info ya vive en el Kanban de Pipeline (score + columnas). La página y su
-  // acción "Analizar con IA" siguen intactas por si hace falta volver a mostrarla.
-  { label: "Postulados", segment: "postulados", hidden: true },
+  { label: "Postulados", segment: "postulados" },
   { label: "Pipeline", segment: "pipeline" },
   { label: "Rendimiento", segment: "rendimiento" },
   { label: "Ofertas", segment: "ofertas" },
