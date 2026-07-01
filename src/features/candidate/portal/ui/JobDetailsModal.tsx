@@ -123,7 +123,7 @@ export function JobDetailsModal({
                     <span className="text-[10px] text-muted">CV: {application.cvName} • Enviado: {application.appliedAt}</span>
                   </div>
                 </div>
-                <Badge variant={application.stage} className="text-xs">
+                <Badge variant={application.stage} className="text-xs whitespace-nowrap w-fit">
                   {application.stage === "new" && "Postulado"}
                   {application.stage === "screening" && "En revisión"}
                   {application.stage === "interview" && "Entrevista"}

@@ -180,7 +180,7 @@ export default function MisPostulacionesPage() {
                     </div>
                   </div>
 
-                  <Badge variant={app.stage} className="text-[10px]">
+                  <Badge variant={app.stage} className="text-[10px] whitespace-nowrap w-fit">
                     {app.stage === "new" && "Postulado"}
                     {app.stage === "screening" && "En revisión"}
                     {app.stage === "interview" && "Entrevista"}
