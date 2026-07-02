@@ -253,7 +253,7 @@ export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
                 />
               </th>
               <SortableTh label="Candidato" active={sort} sortKey="candidate" onSort={setSortKey} />
-              <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted md:table-cell">
+              <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label md:table-cell">
                 Fuente
               </th>
               <SortableTh label="Match" active={sort} sortKey="match" onSort={setSortKey} />
@@ -492,7 +492,7 @@ function SortableTh({
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted transition-colors hover:text-text"
+        className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-label transition-colors hover:text-text"
         aria-label={`Ordenar por ${label}`}
       >
         {label}

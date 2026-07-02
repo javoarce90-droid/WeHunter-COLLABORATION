@@ -7,6 +7,7 @@ import { CandidateTabs } from "@/features/recruiter/candidates/ui/CandidateTabs"
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { normalizeIfUncapitalized } from "@/lib/text";
 
 /**
  * Shell de la ficha del candidato: cabecera única (breadcrumb + avatar + datos + acciones)
@@ -29,6 +30,8 @@ export default async function CandidateLayout({
 
   // profileId seteado = persona con cuenta vinculada; null = cargado a mano (DATA_MODEL.md).
   const isLinked = candidate.profileId !== null;
+  const fullName = normalizeIfUncapitalized(candidate.fullName);
+  const location = candidate.location ? normalizeIfUncapitalized(candidate.location) : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -42,16 +45,16 @@ export default async function CandidateLayout({
             Candidatos
           </Link>
           <span aria-hidden>/</span>
-          <span className="truncate text-text">{candidate.fullName}</span>
+          <span className="truncate text-text">{fullName}</span>
         </nav>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <Avatar name={candidate.fullName} size="lg" />
+            <Avatar name={fullName} size="lg" />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                 <h1 className="font-display text-xl font-bold text-text">
-                  {candidate.fullName}
+                  {fullName}
                 </h1>
                 <Badge variant={isLinked ? "primary" : "muted"}>
                   {isLinked ? "Cuenta vinculada" : "Cargado a mano"}
@@ -63,7 +66,7 @@ export default async function CandidateLayout({
                 </p>
               )}
               <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-                {candidate.location && <span>{candidate.location}</span>}
+                {location && <span>{location}</span>}
                 {candidate.source && (
                   <>
                     {candidate.location && <span aria-hidden>·</span>}

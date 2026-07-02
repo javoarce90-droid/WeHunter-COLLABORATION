@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { logout } from "@/app/(auth)/actions";
+import { Button } from "@/components/ui/button";
 import { Sidebar } from "./_components/Sidebar";
 import { AppChrome } from "./_components/AppChrome";
 import { CommandTrigger } from "./_components/CommandTrigger";
@@ -43,13 +44,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
                 <NotificationBellLoader organizationId={membership.organizationId} />
               </Suspense>
               <span className="truncate">{user.email}</span>
+              <span className="h-4 w-px bg-border" aria-hidden />
               <form action={logout}>
-                <button
-                  type="submit"
-                  className="font-semibold text-primary transition-colors hover:text-primary-hover"
-                >
+                <Button type="submit" variant="ghost" size="sm">
                   Salir
-                </button>
+                </Button>
               </form>
             </div>
           </header>

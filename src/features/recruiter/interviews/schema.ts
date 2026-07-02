@@ -20,6 +20,13 @@ export const STATUS_LABELS: Record<InterviewStatus, string> = {
   cancelled: "Cancelada",
 };
 
+/** Variante de Badge por estado (vocabulario del design system, ver DESIGN.md). */
+export const STATUS_BADGE: Record<InterviewStatus, "blue" | "success" | "muted"> = {
+  scheduled: "blue",
+  completed: "success",
+  cancelled: "muted",
+};
+
 export const LOCATION_MAX_LENGTH = 500;
 export const INTERVIEW_NOTES_MAX_LENGTH = 5000;
 

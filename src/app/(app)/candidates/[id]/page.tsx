@@ -6,6 +6,8 @@ import { listApplicationsByCandidate } from "@/features/recruiter/applications/d
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
 import { Badge } from "@/components/ui/badge";
 import { AiScore } from "@/components/ui/ai";
+import { EmptyState } from "@/components/ui/empty-state";
+import { normalizeIfUncapitalized } from "@/lib/text";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
@@ -53,7 +55,12 @@ export default async function CandidateDetailPage({
       {/* Cuerpo: participación (aside) + CV (principal) */}
       <div className="grid gap-5 lg:grid-cols-3">
         {/* CV — preview embebido. Principal en desktop, debajo en mobile. */}
-        <section className="order-2 lg:order-1 lg:col-span-2">
+        <section
+          className={[
+            "order-2 lg:order-1 lg:col-span-2",
+            candidate.cvUrl ? "" : "self-start",
+          ].join(" ")}
+        >
           <div className="flex h-full flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
             <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
               <h2 className="text-sm font-bold text-text">CV</h2>
@@ -75,17 +82,13 @@ export default async function CandidateDetailPage({
                 className="h-[640px] w-full bg-bg"
               />
             ) : (
-              <div className="px-5 py-16 text-center">
-                <p className="text-sm text-muted">
-                  Este candidato no tiene CV cargado.
-                </p>
-                <Link
-                  href={`/candidates/${candidate.id}/edit`}
-                  className="mt-3 inline-block text-sm font-semibold text-primary hover:text-primary-hover"
-                >
-                  Subir CV
-                </Link>
-              </div>
+              <EmptyState
+                icon={<DocumentIcon />}
+                title="Este candidato no tiene CV cargado."
+                action={{ label: "Subir CV", href: `/candidates/${candidate.id}/edit` }}
+                variant="plain"
+                className="py-10"
+              />
             )}
           </div>
         </section>
@@ -107,7 +110,7 @@ export default async function CandidateDetailPage({
                       key={s}
                       className="rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary-hover"
                     >
-                      {s}
+                      {normalizeIfUncapitalized(s)}
                     </span>
                   ))}
                 </div>
@@ -158,5 +161,14 @@ export default async function CandidateDetailPage({
         </aside>
       </div>
     </div>
+  );
+}
+
+function DocumentIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
   );
 }

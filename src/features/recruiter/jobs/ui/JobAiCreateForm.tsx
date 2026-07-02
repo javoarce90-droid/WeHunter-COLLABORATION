@@ -74,7 +74,7 @@ export function JobAiCreateForm({ action }: JobAiCreateFormProps) {
                 onChange={(e) => setEmploymentType(e.target.value)}
                 className={selectClass}
               >
-                <option value="">—</option>
+                <option value="">Sin jornada</option>
                 {Object.entries(EMPLOYMENT_LABELS).map(([v, l]) => (
                   <option key={v} value={v}>
                     {l}
@@ -88,7 +88,7 @@ export function JobAiCreateForm({ action }: JobAiCreateFormProps) {
                 onChange={(e) => setModality(e.target.value)}
                 className={selectClass}
               >
-                <option value="">—</option>
+                <option value="">Sin modalidad</option>
                 {Object.entries(MODALITY_LABELS).map(([v, l]) => (
                   <option key={v} value={v}>
                     {l}

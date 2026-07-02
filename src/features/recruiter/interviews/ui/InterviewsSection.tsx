@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import {
   eliminarInterviewAction,
   type InterviewActionState,
 } from "../actions";
-import { MODE_LABELS, STATUS_LABELS, type InterviewStatus } from "../schema";
+import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS } from "../schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
 import { InterviewForm } from "./InterviewForm";
 
@@ -13,12 +14,6 @@ type Props = {
   applicationId: string;
   jobId: string;
   interviews: InterviewRow[];
-};
-
-const STATUS_STYLES: Record<InterviewStatus, string> = {
-  scheduled: "bg-blue-50 text-blue-700",
-  completed: "bg-green-50 text-green-700",
-  cancelled: "bg-[#F3F4F6] text-muted line-through",
 };
 
 const dateFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -34,7 +29,7 @@ export function InterviewsSection({ applicationId, jobId, interviews }: Props) {
 
   return (
     <div className="mt-2 border-t border-border pt-2">
-      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-label">
         Entrevistas
       </p>
 
@@ -59,11 +54,12 @@ export function InterviewsSection({ applicationId, jobId, interviews }: Props) {
                   <span className="text-xs font-medium text-text">
                     {dateFormatter.format(it.scheduledAt)}
                   </span>
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${STATUS_STYLES[it.status]}`}
+                  <Badge
+                    variant={STATUS_BADGE[it.status]}
+                    className={it.status === "cancelled" ? "line-through" : ""}
                   >
                     {STATUS_LABELS[it.status]}
-                  </span>
+                  </Badge>
                 </div>
                 <p className="mt-0.5 text-[11px] text-muted">{MODE_LABELS[it.mode]}</p>
                 {it.location && (
@@ -119,7 +115,7 @@ function DeleteButton({ interviewId, jobId }: { interviewId: string; jobId: stri
       <button
         type="submit"
         disabled={isPending}
-        className="text-[11px] font-semibold text-muted hover:text-red-600 disabled:opacity-50"
+        className="text-[11px] font-semibold text-muted hover:text-danger disabled:opacity-50"
         title={state.error ?? undefined}
       >
         {isPending ? "Eliminando…" : "Eliminar"}

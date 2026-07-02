@@ -89,16 +89,16 @@ export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                <th className="py-2.5 pl-4 pr-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                <th className="py-2.5 pl-4 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                   Candidato
                 </th>
-                <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted sm:table-cell">
+                <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label sm:table-cell">
                   Puesto
                 </th>
-                <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted md:table-cell">
+                <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label md:table-cell">
                   Salario
                 </th>
-                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                   Estado
                 </th>
                 <th className="py-2.5 pr-4" />
