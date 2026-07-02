@@ -182,7 +182,7 @@ export function JobForm({
                   onChange={(e) => setJobArea(e.target.value)}
                   className={selectClass}
                 >
-                  <option value="">—</option>
+                  <option value="">Sin área</option>
                   {Object.entries(AREA_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>
                       {l}
@@ -215,7 +215,7 @@ export function JobForm({
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Modalidad">
                 <select name="modality" defaultValue={defaults?.modality ?? ""} className={selectClass}>
-                  <option value="">—</option>
+                  <option value="">Sin modalidad</option>
                   {Object.entries(MODALITY_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
                   ))}
@@ -223,7 +223,7 @@ export function JobForm({
               </Field>
               <Field label="Seniority">
                 <select name="seniority" defaultValue={defaults?.seniority ?? ""} className={selectClass}>
-                  <option value="">—</option>
+                  <option value="">Sin seniority</option>
                   {Object.entries(SENIORITY_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
                   ))}
@@ -231,7 +231,7 @@ export function JobForm({
               </Field>
               <Field label="Jornada">
                 <select name="employmentType" defaultValue={defaults?.employmentType ?? ""} className={selectClass}>
-                  <option value="">—</option>
+                  <option value="">Sin jornada</option>
                   {Object.entries(EMPLOYMENT_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
                   ))}
@@ -239,7 +239,7 @@ export function JobForm({
               </Field>
               <Field label="Prioridad">
                 <select name="priority" defaultValue={defaults?.priority ?? ""} className={selectClass}>
-                  <option value="">—</option>
+                  <option value="">Sin prioridad</option>
                   {Object.entries(PRIORITY_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
                   ))}
@@ -294,7 +294,7 @@ export function JobForm({
                 />
                 {f.value.trim() && (
                   <div className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2.5">
-                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-label">
                       Vista previa
                     </p>
                     <JobMarkdown text={f.value} className="text-sm text-text" />

@@ -98,7 +98,7 @@ export function CandidateForm({
             <label className="flex flex-col gap-1">
               <span className="text-xs font-semibold text-muted">Fuente (opcional)</span>
               <select name="source" defaultValue={defaults?.source ?? ""} className={selectClass}>
-                <option value="">—</option>
+                <option value="">Sin especificar</option>
                 {Object.entries(CANDIDATE_SOURCE_LABELS).map(([v, l]) => (
                   <option key={v} value={v}>{l}</option>
                 ))}

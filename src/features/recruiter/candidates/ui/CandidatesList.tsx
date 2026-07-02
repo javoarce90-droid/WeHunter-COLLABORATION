@@ -13,6 +13,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/lib/toast";
+import { normalizeIfUncapitalized } from "@/lib/text";
 import { postularVariosAction } from "@/features/recruiter/applications/actions";
 import { cambiarEstadoTalentoAction } from "../actions";
 import { CANDIDATE_SOURCE_LABELS } from "./source-meta";
@@ -240,13 +241,13 @@ export function CandidatesList({ candidates, jobs }: Props) {
                     onChange={toggleAll}
                   />
                 </th>
-                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                   Candidato
                 </th>
-                <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted md:table-cell">
+                <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label md:table-cell">
                   Fuente
                 </th>
-                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted">
+                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                   Estado
                 </th>
                 <th className="py-2.5 pr-4" />
@@ -367,6 +368,7 @@ function QuickViewDrawer({
   candidate: Candidate | null;
   onClose: () => void;
 }) {
+  const fullName = candidate ? normalizeIfUncapitalized(candidate.fullName) : "";
   return (
     <Dialog
       open={candidate !== null}
@@ -376,10 +378,10 @@ function QuickViewDrawer({
       header={
         candidate ? (
           <div className="flex min-w-0 items-center gap-2.5">
-            <Avatar name={candidate.fullName} size="md" />
+            <Avatar name={fullName} size="md" />
             <div className="min-w-0">
               <p className="truncate font-display text-base font-bold text-text">
-                {candidate.fullName}
+                {fullName}
               </p>
               {candidate.headline && (
                 <p className="truncate text-xs text-muted">{candidate.headline}</p>
@@ -400,10 +402,12 @@ function QuickViewDrawer({
 
           <dl className="flex flex-col gap-2.5 text-sm">
             {candidate.email && <QuickRow label="Email" value={candidate.email} />}
-            {candidate.location && <QuickRow label="Ubicación" value={candidate.location} />}
+            {candidate.location && (
+              <QuickRow label="Ubicación" value={normalizeIfUncapitalized(candidate.location)} />
+            )}
             {candidate.linkedinUrl && (
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-muted">LinkedIn</dt>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-label">LinkedIn</dt>
                 <dd className="mt-0.5">
                   <a
                     href={candidate.linkedinUrl}
@@ -420,11 +424,11 @@ function QuickViewDrawer({
 
           {candidate.skills && candidate.skills.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Skills</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-label">Skills</span>
               <div className="flex flex-wrap gap-1.5">
                 {candidate.skills.map((s) => (
                   <span key={s} className="rounded-full bg-bg px-2 py-0.5 text-xs text-text">
-                    {s}
+                    {normalizeIfUncapitalized(s)}
                   </span>
                 ))}
               </div>
@@ -433,7 +437,7 @@ function QuickViewDrawer({
 
           {candidate.summary && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Resumen</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-label">Resumen</span>
               <p className="whitespace-pre-wrap text-sm text-text">{candidate.summary}</p>
             </div>
           )}
@@ -471,7 +475,7 @@ function QuickViewDrawer({
 function QuickRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-label">{label}</dt>
       <dd className="mt-0.5 truncate text-text">{value}</dd>
     </div>
   );

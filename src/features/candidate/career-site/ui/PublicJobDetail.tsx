@@ -99,7 +99,7 @@ export function PublicJobDetail({
 
         {(job.skills?.length ?? 0) > 0 && (
           <div className="mt-6 border-t border-border pt-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Skills</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-label">Skills</p>
             <div className="flex flex-wrap gap-1.5">
               {job.skills!.map((s) => (
                 <span key={s} className="rounded-full bg-bg px-2.5 py-0.5 text-xs font-medium text-text">

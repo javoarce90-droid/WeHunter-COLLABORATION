@@ -111,9 +111,9 @@ export function TeamSection({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left">
-              <th className="py-2.5 pl-4 pr-3 text-xs font-semibold uppercase tracking-wide text-muted">Miembro</th>
-              <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted">Rol</th>
-              <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-muted">Estado</th>
+              <th className="py-2.5 pl-4 pr-3 text-xs font-semibold uppercase tracking-wide text-label">Miembro</th>
+              <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">Rol</th>
+              <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">Estado</th>
               <th className="py-2.5 pr-4" />
             </tr>
           </thead>
@@ -183,7 +183,7 @@ export function TeamSection({
       {/* Invitaciones pendientes */}
       {invitations.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
             Invitaciones pendientes
           </h3>
           <ul className="flex flex-col gap-1.5">

@@ -53,7 +53,7 @@ export function StageTiming({ perf }: { perf: JobPerformance }) {
           {/* Promedio por etapa */}
           {avgTimeInStage.length > 0 && (
             <div className="flex flex-col gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
                 Promedio por etapa
               </h3>
               {avgTimeInStage.map((s) => (

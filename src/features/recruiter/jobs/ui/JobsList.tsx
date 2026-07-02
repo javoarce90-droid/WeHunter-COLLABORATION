@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Job } from "@/db/schema";
 import type { JobWithStats } from "../data/jobs.queries";
 import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { JOB_STATUS_META, relativeTime } from "./status-meta";
 import { cambiarEstadoBusquedaAction } from "../actions";
 import { JOB_FILTERS, FILTER_LABEL, type JobFilter } from "./job-filters";
@@ -27,16 +28,19 @@ const STATUS_ACTIONS: Record<Status, { label: string; to: Status }[]> = {
 };
 
 function StatusButton({ jobId, label, to }: { jobId: string; label: string; to: Status }) {
+  const isClosing = to === "closed";
   return (
     <form action={cambiarEstadoBusquedaAction}>
       <input type="hidden" name="jobId" value={jobId} />
       <input type="hidden" name="nuevoEstado" value={to} />
-      <button
+      <Button
         type="submit"
-        className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
+        variant="ghost"
+        size="sm"
+        className={isClosing ? "hover:border-danger hover:text-danger" : undefined}
       >
         {label}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -112,13 +116,13 @@ function JobRow({ job }: { job: JobWithStats }) {
         ))}
         <Link
           href={`/jobs/${job.id}/pipeline`}
-          className="rounded-lg bg-primary-light px-2.5 py-1.5 text-xs font-semibold text-primary-hover transition-colors hover:bg-[color-mix(in_oklab,var(--primary)_18%,white)]"
+          className="rounded-[var(--radius)] bg-primary-light px-2.5 py-1.5 text-xs font-semibold text-primary-hover transition-colors hover:bg-[color-mix(in_oklab,var(--primary)_18%,white)]"
         >
           Pipeline
         </Link>
         <Link
           href={`/jobs/${job.id}/edit`}
-          className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors hover:text-primary"
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
         >
           Editar
         </Link>

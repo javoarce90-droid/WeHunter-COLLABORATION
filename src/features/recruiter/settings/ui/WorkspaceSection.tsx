@@ -9,6 +9,8 @@ import type { OrgSettings } from "../data/settings.queries";
 const fieldClass =
   "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
 
+const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
 export function WorkspaceSection({
   org,
   hasLogo,
@@ -26,6 +28,8 @@ export function WorkspaceSection({
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const branding = org.branding;
+  const [primaryColor, setPrimaryColor] = useState(branding?.primaryColor ?? "");
+  const [accentColor, setAccentColor] = useState(branding?.accentColor ?? "");
 
   if (!canEdit) {
     return (
@@ -44,7 +48,7 @@ export function WorkspaceSection({
 
   return (
     <form action={dispatch} className="flex flex-col gap-5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">Workspace</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-label">Workspace</p>
 
       <div className="flex items-center gap-4">
         {logoPreview ? (
@@ -82,7 +86,7 @@ export function WorkspaceSection({
         <input name="name" defaultValue={org.name} required className={fieldClass} />
       </div>
 
-      <p className="mt-2 border-t border-border pt-4 text-xs font-semibold uppercase tracking-wide text-muted">
+      <p className="mt-2 border-t border-border pt-4 text-xs font-semibold uppercase tracking-wide text-label">
         Career Site
       </p>
 
@@ -131,23 +135,39 @@ export function WorkspaceSection({
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted">Color primario</label>
-            <input
-              name="primaryColor"
-              type="text"
-              placeholder="#6D28D9"
-              defaultValue={branding?.primaryColor ?? ""}
-              className={fieldClass}
-            />
+            <div className="flex items-center gap-2">
+              <span
+                className="h-9 w-9 shrink-0 rounded-[var(--radius)] border border-border"
+                style={{ backgroundColor: HEX_COLOR.test(primaryColor) ? primaryColor : "transparent" }}
+                aria-hidden
+              />
+              <input
+                name="primaryColor"
+                type="text"
+                placeholder="#6D28D9"
+                value={primaryColor}
+                onChange={(e) => setPrimaryColor(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted">Color de acento</label>
-            <input
-              name="accentColor"
-              type="text"
-              placeholder="#F59E0B"
-              defaultValue={branding?.accentColor ?? ""}
-              className={fieldClass}
-            />
+            <div className="flex items-center gap-2">
+              <span
+                className="h-9 w-9 shrink-0 rounded-[var(--radius)] border border-border"
+                style={{ backgroundColor: HEX_COLOR.test(accentColor) ? accentColor : "transparent" }}
+                aria-hidden
+              />
+              <input
+                name="accentColor"
+                type="text"
+                placeholder="#F59E0B"
+                value={accentColor}
+                onChange={(e) => setAccentColor(e.target.value)}
+                className={fieldClass}
+              />
+            </div>
           </div>
         </div>
         <div className="flex flex-col gap-1.5">

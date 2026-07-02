@@ -93,7 +93,7 @@ export function PipelineDetailSheet({
           {/* Etapa actual + mover */}
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <span className="text-xs font-semibold uppercase tracking-wide text-label">
                 Etapa
               </span>
               <div className="flex items-center gap-2">
@@ -145,7 +145,7 @@ export function PipelineDetailSheet({
           {/* Historial de etapa (timeline de application_events) */}
           <section className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
                 Historial de etapa
               </h3>
               <Link
@@ -160,7 +160,7 @@ export function PipelineDetailSheet({
 
           {/* Notas internas (timeline) */}
           <section className="flex flex-col gap-1.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
               Notas internas
             </h3>
             <NoteTimeline
@@ -182,7 +182,7 @@ export function PipelineDetailSheet({
           {/* Guía de entrevista (IA mock) */}
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
                 Guía de entrevista
               </h3>
               <AiButton type="button" onClick={generarGuia}>
