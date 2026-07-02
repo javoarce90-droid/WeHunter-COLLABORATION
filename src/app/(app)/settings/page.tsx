@@ -9,7 +9,14 @@ import { PasswordSection } from "@/features/recruiter/settings/ui/PasswordSectio
 import { WorkspaceSection } from "@/features/recruiter/settings/ui/WorkspaceSection";
 import { TeamSection } from "@/features/recruiter/team/ui/TeamSection";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { OrgRole } from "@/features/recruiter/team/domain/gestionar-equipo";
+
+const NOTIFICATION_PREVIEW = [
+  "Nuevo candidato en el pipeline",
+  "Entrevista agendada",
+  "Cambio de etapa en una postulación",
+];
 
 function Section({
   title,
@@ -102,7 +109,17 @@ export default async function SettingsPage() {
         title="Notificaciones"
         description="Pronto vas a poder elegir qué eventos te notifican y por qué canal."
       >
-        <Badge variant="muted">Próximamente</Badge>
+        <ul className="flex flex-col gap-2">
+          {NOTIFICATION_PREVIEW.map((label) => (
+            <li
+              key={label}
+              className="flex items-center justify-between rounded-[var(--radius)] border border-border px-3 py-2.5 opacity-60"
+            >
+              <span className="text-sm font-medium text-text">{label}</span>
+              <Checkbox aria-label={label} defaultChecked disabled />
+            </li>
+          ))}
+        </ul>
       </Section>
 
       <Section title="Integraciones">

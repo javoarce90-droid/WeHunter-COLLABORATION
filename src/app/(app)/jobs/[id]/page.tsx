@@ -178,7 +178,7 @@ export default async function JobDetailPage({
             {avisoSections.length > 0
               ? avisoSections.map((s) => (
                   <div key={s.title}>
-                    <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-muted">
+                    <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-label">
                       {s.title}
                     </h3>
                     <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
@@ -193,7 +193,7 @@ export default async function JobDetailPage({
                 )}
             {(job.benefits?.length ?? 0) > 0 && (
               <div>
-                <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted">
+                <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-label">
                   Beneficios
                 </h3>
                 <ul className="flex flex-col gap-1">

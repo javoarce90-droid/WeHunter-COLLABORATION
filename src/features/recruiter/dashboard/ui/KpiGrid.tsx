@@ -42,6 +42,7 @@ function buildItems(k: DashboardKpis): KpiItem[] {
     {
       label: "Contrataciones",
       value: k.contrataciones,
+      hint: `de ${k.postulacionesTotales} postulaciones`,
       color: "var(--success)",
       href: "/jobs?status=closed",
       icon: <CheckIcon />,
@@ -66,7 +67,7 @@ export function KpiGrid({ kpis }: { kpis: DashboardKpis }) {
             />
             <div className="p-5">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                <p className="text-xs font-semibold uppercase tracking-wide text-label">
                   {item.label}
                 </p>
                 <span

@@ -153,7 +153,7 @@ export default async function JobPostingPreviewPage({
 
         {(job.skills?.length ?? 0) > 0 && (
           <div className="mt-6 border-t border-border pt-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-label">
               Skills
             </p>
             <div className="flex flex-wrap gap-1.5">

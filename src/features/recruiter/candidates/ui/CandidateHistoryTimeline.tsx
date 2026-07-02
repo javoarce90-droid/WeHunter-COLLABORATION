@@ -53,13 +53,13 @@ export function CandidateHistoryTimeline({
 
           <div className="flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-1.5">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
                 Historial de etapa
               </h3>
               <StageHistoryTimeline events={stageEventsByApplication[app.id] ?? []} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
                 Notas internas
               </h3>
               <NoteList notes={notesByApplication[app.id] ?? []} />

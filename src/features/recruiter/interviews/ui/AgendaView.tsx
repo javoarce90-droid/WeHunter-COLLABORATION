@@ -3,13 +3,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { AgendaInterview } from "../data/interviews.queries";
-import { MODE_LABELS, STATUS_LABELS, type InterviewStatus } from "../schema";
-
-const STATUS_BADGE: Record<InterviewStatus, "blue" | "success" | "muted"> = {
-  scheduled: "blue",
-  completed: "success",
-  cancelled: "muted",
-};
+import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS } from "../schema";
 
 const timeFmt = new Intl.DateTimeFormat("es-AR", {
   hour: "2-digit",
@@ -43,7 +37,7 @@ function InterviewRow({
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 transition-colors hover:bg-bg">
       <span
         className={[
-          "w-[110px] shrink-0 text-sm font-semibold tabular-nums",
+          "w-[140px] shrink-0 whitespace-nowrap text-sm font-semibold tabular-nums",
           muted ? "text-muted line-through" : "text-text",
         ].join(" ")}
       >
