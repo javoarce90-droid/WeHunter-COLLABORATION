@@ -10,6 +10,7 @@ import { filtrarEmpleos } from "../domain/filtrar-empleos";
 import { alternarFavorito } from "../domain/gestionar-favoritos";
 import { toggleFavoriteAction, toggleHiddenAction } from "../actions";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
+import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 
 interface PortalViewProps {
@@ -84,7 +85,7 @@ export function PortalView({
     <div className="min-h-screen bg-bg flex flex-col">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-sidebar border border-sidebar-alt/30 text-white px-4 py-3.5 rounded-xl shadow-overlay flex items-center gap-3 text-xs font-semibold animate-toast-in border-l-4 border-l-primary">
+        <div className="fixed bottom-5 right-5 z-50 bg-sidebar border border-sidebar-alt/50 text-white px-4 py-3.5 rounded-xl shadow-overlay flex items-center gap-3 text-xs font-semibold animate-toast-in">
           <div className="w-5 h-5 bg-primary/15 rounded-full flex items-center justify-center text-primary shrink-0">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -258,15 +259,16 @@ export function PortalView({
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center p-12 bg-surface border border-border/30 rounded-2xl text-center">
-            <svg className="w-12 h-12 text-muted mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h3 className="font-bold text-text mb-1">No se encontraron ofertas</h3>
-            <p className="text-xs text-muted max-w-xs">
-              Probá ajustando los términos de búsqueda o removiendo algún filtro.
-            </p>
-          </div>
+          <EmptyState
+            variant="subtle"
+            icon={
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+            title="No se encontraron ofertas"
+            description="Probá ajustando los términos de búsqueda o removiendo algún filtro."
+          />
         )}
       </main>
 

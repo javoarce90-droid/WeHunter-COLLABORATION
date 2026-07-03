@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { candidateLogin, type CandidateAuthFormState } from "../actions";
+import { candidateLogin, type CandidateAuthFormState } from "../../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";

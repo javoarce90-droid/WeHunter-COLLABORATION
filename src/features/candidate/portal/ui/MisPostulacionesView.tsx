@@ -8,6 +8,7 @@ import { retirarPostulacionAction } from "../actions";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { X, MapPin, Briefcase, DollarSign } from "lucide-react";
 import Link from "next/link";
 
@@ -53,7 +54,7 @@ export function MisPostulacionesView({ initialApplications }: MisPostulacionesVi
     <div className="min-h-screen bg-bg flex flex-col">
       {/* Toast */}
       {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-sidebar border border-sidebar-alt/30 text-white px-4 py-3.5 rounded-xl shadow-overlay flex items-center justify-between gap-4 text-xs font-semibold animate-toast-in border-l-4 border-l-primary">
+        <div className="fixed bottom-5 right-5 z-50 bg-sidebar border border-sidebar-alt/50 text-white px-4 py-3.5 rounded-xl shadow-overlay flex items-center justify-between gap-4 text-xs font-semibold animate-toast-in">
           <div className="flex items-center gap-2.5">
             <div className="w-5 h-5 bg-primary/15 rounded-full flex items-center justify-center text-primary shrink-0">
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -259,21 +260,17 @@ export function MisPostulacionesView({ initialApplications }: MisPostulacionesVi
             )}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center p-16 bg-surface border border-border rounded-[var(--radius)] text-center">
-            <svg className="w-16 h-16 text-muted mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-            </svg>
-            <h3 className="font-bold text-text mb-1">Aún no te postulaste a ningún empleo</h3>
-            <p className="text-xs text-muted max-w-sm mb-6">
-              Explorá las búsquedas de empleo disponibles y enviá tu CV para dar el primer paso.
-            </p>
-            <Link
-              href="/portal"
-              className="h-10 px-5 bg-primary hover:bg-primary-hover text-white font-semibold text-xs rounded-[var(--radius)] transition-all shadow-md shadow-primary/10 flex items-center justify-center"
-            >
-              Explorar Empleos
-            </Link>
-          </div>
+          <EmptyState
+            variant="activation"
+            icon={
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            }
+            title="Aún no te postulaste a ningún empleo"
+            description="Explorá las búsquedas de empleo disponibles y enviá tu CV para dar el primer paso."
+            action={{ label: "Explorar Empleos", href: "/portal" }}
+          />
         )}
       </main>
     </div>
