@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getMockSessionUserId } from "@/features/candidate/profile/actions";
+import { getCandidateProfile } from "@/lib/auth/session";
+import { getCvSignedUrl } from "@/features/recruiter/candidates/data/candidates.storage";
 import { CandidateProfileForm } from "@/features/candidate/profile/ui/CandidateProfileForm";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
 import Link from "next/link";
@@ -10,19 +11,12 @@ export const metadata = {
 };
 
 export default async function CandidateProfilePage() {
-  const userId = await getMockSessionUserId();
-  if (!userId) {
+  const candidate = await getCandidateProfile();
+  if (!candidate) {
     redirect("/c/login");
   }
 
-  // Datos mockeados para la vista de perfil (UI-Only)
-  const profile = {
-    fullName: "Usuario de Prueba",
-    email: "prueba@candidato.com",
-    cvUrl: null as string | null,
-  };
-
-  const cvDownloadUrl = null;
+  const cvDownloadUrl = candidate.cvUrl ? await getCvSignedUrl(candidate.cvUrl) : null;
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
@@ -32,7 +26,7 @@ export default async function CandidateProfilePage() {
           <Link href="/portal" className="font-display text-lg font-bold">
             <span className="text-ai">We</span>Hunter <span className="text-xs bg-primary px-2 py-0.5 rounded ml-1 font-sans font-normal">Talento</span>
           </Link>
-          
+
           <nav className="flex items-center gap-6">
             <Link
               href="/portal"
@@ -75,9 +69,14 @@ export default async function CandidateProfilePage() {
         </div>
 
         <CandidateProfileForm
-          initialFullName={profile.fullName}
-          initialEmail={profile.email}
-          initialCvUrl={profile.cvUrl}
+          initialFullName={candidate.fullName ?? ""}
+          initialEmail={candidate.email}
+          initialHeadline={candidate.headline}
+          initialLocation={candidate.location}
+          initialLinkedinUrl={candidate.linkedinUrl}
+          initialSummary={candidate.bio}
+          initialSkills={candidate.skills}
+          initialCvUrl={candidate.cvUrl}
           initialCvDownloadUrl={cvDownloadUrl}
         />
       </main>

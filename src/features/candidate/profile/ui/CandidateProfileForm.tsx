@@ -181,16 +181,15 @@ export function CandidateProfileForm({
                   <p className="text-xs font-semibold text-text truncate">CV Cargado: {fileName || "Ver archivo"}</p>
                   <p className="text-[10px] text-muted">Ya tenés un currículum activo en tu perfil.</p>
                 </div>
-                {(initialCvDownloadUrl || fileName) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      alert(`Visualizando archivo: ${fileName || "cv.pdf"}`);
-                    }}
+                {initialCvDownloadUrl && !fileName && (
+                  <a
+                    href={initialCvDownloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-xs font-semibold text-primary hover:text-primary-hover shrink-0 px-2 py-1 bg-white border border-border rounded-md hover:shadow-sm transition-all"
                   >
                     Ver CV
-                  </button>
+                  </a>
                 )}
               </div>
             )}
