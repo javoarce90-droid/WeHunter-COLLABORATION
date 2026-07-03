@@ -162,6 +162,13 @@
       "when": 1783085086738,
       "tag": "0022_groovy_cardiac",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783092195792,
+      "tag": "0023_nasty_warbound",
+      "breakpoints": true
     }
   ]
 }

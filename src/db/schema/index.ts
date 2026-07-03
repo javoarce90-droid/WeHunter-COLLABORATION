@@ -141,6 +141,12 @@ export const talentState = pgEnum("talent_state", [
   "archived", // archivado
 ]);
 
+// Interacción del candidato con un job en el portal (favorito/ocultar). Global, no por org.
+export const candidateJobInteractionKind = pgEnum("candidate_job_interaction_kind", [
+  "favorite",
+  "hidden",
+]);
+
 // Estado de una oferta en su ciclo de vida.
 export const offerStatus = pgEnum("offer_status", [
   "draft", // borrador, editable, todavía no enviada
@@ -212,6 +218,13 @@ export const profiles = pgTable("profiles", {
   location: text("location"),
   linkedinUrl: text("linkedin_url"),
   bio: text("bio"), // resumen breve (≤500 chars, validado en la action)
+  // Perfil global del candidato (portal). `location`/`linkedinUrl`/`bio`/`cvUrl` de arriba se
+  // reusan tal cual (mismo significado para candidato que para recruiter).
+  headline: text("headline"), // puesto/título actual, ej "Frontend Senior"
+  skills: text("skills").array(),
+  // null = todavía no pasó (o saltó) el onboarding de candidato. No bloquea nada, solo decide
+  // si al loguearse cae en /c/onboarding o directo al portal.
+  candidateOnboardingCompletedAt: timestamp("candidate_onboarding_completed_at"),
   ...timestamps,
 });
 
@@ -367,6 +380,27 @@ export const candidates = pgTable("candidates", {
 }, (t) => ({
   orgIdx: index("candidates_org_idx").on(t.organizationId),
   profileIdx: index("candidates_profile_idx").on(t.profileId),
+}));
+
+// Favoritos/ocultos del candidato sobre un job en el portal. Global (no por organization):
+// es una preferencia del candidato, no del pool de ninguna org.
+export const candidateJobInteractions = pgTable("candidate_job_interactions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  profileId: uuid("profile_id")
+    .references(() => profiles.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id")
+    .references(() => jobs.id, { onDelete: "cascade" })
+    .notNull(),
+  kind: candidateJobInteractionKind("kind").notNull(),
+  ...timestamps,
+}, (t) => ({
+  profileIdx: index("candidate_job_interactions_profile_idx").on(t.profileId),
+  uniqueInteraction: uniqueIndex("candidate_job_interactions_unique_idx").on(
+    t.profileId,
+    t.jobId,
+    t.kind,
+  ),
 }));
 
 // Postulación: un candidato dentro del pipeline de un job.
@@ -675,6 +709,7 @@ export type Client = typeof clients.$inferSelect;
 export type PipelineStageRow = typeof pipelineStages.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
+export type CandidateJobInteraction = typeof candidateJobInteractions.$inferSelect;
 export type Application = typeof applications.$inferSelect;
 export type Interview = typeof interviews.$inferSelect;
 export type Note = typeof notes.$inferSelect;
