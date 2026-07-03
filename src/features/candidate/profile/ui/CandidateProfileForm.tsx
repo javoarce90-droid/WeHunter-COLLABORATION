@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect } from "react";
+import { useActionState, useState } from "react";
 import { actualizarPerfilAction, type ProfileFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,13 @@ interface CandidateProfileFormProps {
   initialHeadline?: string | null;
   initialLocation?: string | null;
   initialLinkedinUrl?: string | null;
+  initialSummary?: string | null;
+  initialSkills?: string[] | null;
   initialCvUrl: string | null;
   initialCvDownloadUrl: string | null;
+  /** Onboarding pasa su propia action (marca candidateOnboardingCompletedAt al guardar). */
+  action?: typeof actualizarPerfilAction;
+  submitLabel?: string;
 }
 
 const initialState: ProfileFormState = {};
@@ -24,54 +29,24 @@ export function CandidateProfileForm({
   initialHeadline,
   initialLocation,
   initialLinkedinUrl,
+  initialSummary,
+  initialSkills,
   initialCvUrl,
   initialCvDownloadUrl,
+  action = actualizarPerfilAction,
+  submitLabel,
 }: CandidateProfileFormProps) {
-  const [state, formAction, pending] = useActionState(actualizarPerfilAction, initialState);
+  const [state, formAction, pending] = useActionState(action, initialState);
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
 
   const [fullName, setFullName] = useState(initialFullName);
-  const [email, setEmail] = useState(initialEmail);
+  const [email] = useState(initialEmail);
   const [headline, setHeadline] = useState(initialHeadline || "");
   const [location, setLocation] = useState(initialLocation || "");
   const [linkedinUrl, setLinkedinUrl] = useState(initialLinkedinUrl || "");
-
-  // Load data from localStorage (wh_profile) asynchronously to avoid hydration issues and ESLint react-hooks/set-state-in-effect
-  useEffect(() => {
-    const saved = localStorage.getItem("wh_profile");
-    if (saved) {
-      const timer = setTimeout(() => {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.fullName) setFullName(parsed.fullName);
-          if (parsed.email) setEmail(parsed.email);
-          if (parsed.headline) setHeadline(parsed.headline);
-          if (parsed.location) setLocation(parsed.location);
-          if (parsed.linkedinUrl) setLinkedinUrl(parsed.linkedinUrl);
-          if (parsed.cvName) setFileName(parsed.cvName);
-        } catch (e) {
-          console.error("Error reading wh_profile", e);
-        }
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  // Sync back to localStorage upon successful submit
-  useEffect(() => {
-    if (state.success) {
-      const profile = {
-        fullName: fullName.trim(),
-        email: email.trim(),
-        headline: headline.trim(),
-        location: location.trim(),
-        linkedinUrl: linkedinUrl.trim(),
-        cvName: fileName || "",
-      };
-      localStorage.setItem("wh_profile", JSON.stringify(profile));
-    }
-  }, [state.success, fullName, email, headline, location, linkedinUrl, fileName]);
+  const [summary, setSummary] = useState(initialSummary || "");
+  const [skills, setSkills] = useState((initialSkills ?? []).join(", "));
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -169,6 +144,30 @@ export function CandidateProfileForm({
             placeholder="https://linkedin.com/in/tu-perfil"
           />
 
+          {/* Resumen */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-muted">Resumen profesional</label>
+            <textarea
+              name="summary"
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="Contá brevemente tu experiencia y lo que buscás"
+              rows={3}
+              className="w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+            />
+          </div>
+
+          {/* Skills */}
+          <Input
+            label="Skills"
+            name="skills"
+            type="text"
+            value={skills}
+            onChange={(e) => setSkills(e.target.value)}
+            placeholder="Ej. React, Node, SQL"
+          />
+          <p className="text-[10px] text-muted -mt-4">Separadas por coma. Al menos una te ayuda a postularte.</p>
+
           {/* CV Drag & Drop Dropzone */}
           <div className="flex flex-col gap-2">
             <span className="text-xs font-semibold text-muted">Currículum Vitae (CV)</span>
@@ -252,7 +251,7 @@ export function CandidateProfileForm({
 
           {/* Botón de envío */}
           <Button type="submit" disabled={pending} className="w-full mt-2 font-bold py-3">
-            {pending ? "Guardando cambios…" : "Guardar Perfil"}
+            {pending ? "Guardando cambios…" : submitLabel ?? "Guardar Perfil"}
           </Button>
         </form>
       </CardContent>

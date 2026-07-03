@@ -10,6 +10,8 @@ import type {
   DraftJobPostingInput,
   DraftJobOfferInput,
   DraftJobOffer,
+  DraftCandidateProfileInput,
+  DraftCandidateProfile,
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";
@@ -204,6 +206,59 @@ export class GeminiAiProvider implements AiProvider {
     } catch (err) {
       logFallback("draftJobOffer", err);
       return this.fallback.draftJobOffer(input);
+    }
+  }
+
+  async draftCandidateProfile(
+    input: DraftCandidateProfileInput,
+  ): Promise<DraftCandidateProfile> {
+    const prompt = prompts.draftCandidateProfile(input);
+    try {
+      const res = await this.client.models.generateContent({
+        model: this.model,
+        contents: prompt.user,
+        config: {
+          systemInstruction: prompt.system,
+          temperature: 0.4,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              headline: { type: Type.STRING },
+              location: { type: Type.STRING },
+              linkedinUrl: { type: Type.STRING },
+              summary: { type: Type.STRING },
+              skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            },
+            required: ["headline", "summary", "skills"],
+          },
+        },
+      });
+
+      const raw = res.text?.trim();
+      if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
+      const parsed = JSON.parse(raw) as Partial<DraftCandidateProfile>;
+      if (typeof parsed.headline !== "string" || !parsed.headline.trim()) {
+        throw new Error("Gemini devolvió un perfil con forma inesperada");
+      }
+
+      return {
+        headline: parsed.headline.trim(),
+        location: typeof parsed.location === "string" && parsed.location.trim()
+          ? parsed.location.trim()
+          : null,
+        linkedinUrl:
+          typeof parsed.linkedinUrl === "string" && parsed.linkedinUrl.trim()
+            ? parsed.linkedinUrl.trim()
+            : null,
+        summary: typeof parsed.summary === "string" ? parsed.summary.trim() : "",
+        skills: Array.isArray(parsed.skills)
+          ? parsed.skills.filter((s): s is string => typeof s === "string")
+          : [],
+      };
+    } catch (err) {
+      logFallback("draftCandidateProfile", err);
+      return this.fallback.draftCandidateProfile(input);
     }
   }
 

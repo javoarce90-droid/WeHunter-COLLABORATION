@@ -8,6 +8,10 @@ export type {
   ScoreApplicationResult,
   DraftOfferInput,
   DraftJobPostingInput,
+  DraftJobOfferInput,
+  DraftJobOffer,
+  DraftCandidateProfileInput,
+  DraftCandidateProfile,
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";

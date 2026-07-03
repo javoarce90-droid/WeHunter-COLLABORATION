@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { getCurrentUser } from "@/lib/auth/session";
 import {
   candidateCredentialsSchema,
   candidateRegisterSchema,
@@ -12,6 +13,8 @@ import {
   MOCK_SESSION_COOKIE,
 } from "./schema";
 import { actualizarPerfil } from "./domain/actualizar-perfil";
+import { updateCandidateProfile } from "./data/profile.mutations";
+import { uploadCandidateProfileCv } from "./data/profile.storage";
 
 export interface AuthFormState {
   error?: string;
@@ -110,13 +113,18 @@ function readCvFile(
   return { file: raw };
 }
 
-/** Server Action: Actualizar perfil de candidato (Mock) */
+/** Server Action: Actualizar perfil de candidato. */
 export async function actualizarPerfilAction(
   _prev: ProfileFormState,
   formData: FormData,
 ): Promise<ProfileFormState> {
   const parsed = candidateProfileSchema.safeParse({
     fullName: formData.get("fullName"),
+    headline: formData.get("headline"),
+    location: formData.get("location"),
+    linkedinUrl: formData.get("linkedinUrl"),
+    summary: formData.get("summary"),
+    skills: formData.get("skills"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
@@ -125,16 +133,17 @@ export async function actualizarPerfilAction(
   const cv = readCvFile(formData);
   if ("error" in cv) return { error: cv.error };
 
-  const userId = await getMockSessionUserId();
-  if (!userId) {
+  const user = await getCurrentUser();
+  if (!user) {
     return { error: "No tenés sesión activa." };
   }
 
-  await simulateNetworkDelay();
+  const cvUrl = cv.file ? (await uploadCandidateProfileCv(user.id, cv.file)).path : undefined;
 
   const result = await actualizarPerfil(
-    { fullName: parsed.data.fullName },
-    { userId },
+    { ...parsed.data, cvUrl },
+    { userId: user.id },
+    { updateProfile: updateCandidateProfile },
   );
 
   if (!result.ok) {
