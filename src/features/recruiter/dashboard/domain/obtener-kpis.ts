@@ -32,6 +32,7 @@ export interface DashboardKpis {
   busquedasTotales: number;
   candidatosEnPool: number;
   postulacionesActivas: number;
+  postulacionesTotales: number;
   contrataciones: number;
   /** Conteo de postulaciones por etapa, en orden, para el funnel de conversión. */
   funnel: { stage: Stage; count: number }[];
@@ -80,6 +81,7 @@ export async function obtenerKpis(
     busquedasTotales: jobs.total,
     candidatosEnPool,
     postulacionesActivas: totalPostulaciones - cerradas,
+    postulacionesTotales: totalPostulaciones,
     contrataciones: byStage.hired ?? 0,
     funnel: FUNNEL_ORDER.map((stage) => ({ stage, count: byStage[stage] ?? 0 })),
   });

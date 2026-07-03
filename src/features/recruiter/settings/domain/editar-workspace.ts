@@ -1,4 +1,4 @@
-import type { OrgPatch } from "../data/settings.mutations";
+import type { OrgPatch, CareerSiteBranding } from "../data/settings.mutations";
 
 export type OrgRole = "owner" | "admin" | "recruiter" | "consultant";
 
@@ -9,8 +9,10 @@ function canEditWorkspace(role: OrgRole): boolean {
 
 export type EditarWorkspaceInput = {
   name: string;
-  timezone?: string | null;
+  careerSiteEnabled: boolean;
+  branding: CareerSiteBranding;
   logoPath?: string | null; // path ya subido a Storage; null = sin cambio gestionado aparte
+  coverPath?: string | null; // idem, portada del Career Site
 };
 
 export type WorkspaceContext = { organizationId: string; role: OrgRole };
@@ -20,7 +22,8 @@ export type EditarWorkspaceDeps = {
 };
 
 /**
- * Caso de uso: editar el workspace (nombre, zona horaria, logo).
+ * Caso de uso: editar el workspace y su Career Site (nombre, logo, portada, publicación y
+ * branding). Es una única config: el Career Site es la cara pública de ese mismo workspace.
  * Autorización primaria acá (owner/admin) + RLS de respaldo (org_admin_can_update).
  */
 export async function editarWorkspace(
@@ -39,12 +42,12 @@ export async function editarWorkspace(
 
   const patch: OrgPatch = {
     name,
-    preferences: { timezone: input.timezone?.trim() || undefined },
+    careerSiteEnabled: input.careerSiteEnabled,
+    careerSiteSettings: input.branding,
   };
-  // Solo tocamos el logo si vino un path nuevo (la subida se resuelve en la action).
-  if (input.logoPath !== undefined && input.logoPath !== null) {
-    patch.logoUrl = input.logoPath;
-  }
+  // Logo y portada: solo se tocan si vino un path nuevo (la subida se resuelve en la action).
+  if (input.logoPath) patch.logoUrl = input.logoPath;
+  if (input.coverPath) patch.careerSiteCoverUrl = input.coverPath;
 
   await deps.updateOrganization(ctx.organizationId, patch);
   return { ok: true };

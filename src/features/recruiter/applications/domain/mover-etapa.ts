@@ -1,8 +1,5 @@
-import type { ApplicationStage } from "../schema";
+import { isClosingStage, STAGE_LABELS, type ApplicationStage } from "../schema";
 import type { ApplicationRow } from "./postular-candidato";
-
-// Etapas terminales: no se puede avanzar desde ellas
-const TERMINAL_STAGES: ApplicationStage[] = ["hired", "rejected"];
 
 // ---- Tipos del caso de uso ----
 
@@ -49,11 +46,11 @@ export async function moverEtapa(
     return { ok: false, error: "El candidato ya está en esa etapa." };
   }
 
-  // No se puede salir de una etapa terminal (hired/rejected)
-  if (TERMINAL_STAGES.includes(application.stage)) {
+  // No se puede salir de una etapa de cierre (hoy: Contratado)
+  if (isClosingStage(application.stage)) {
     return {
       ok: false,
-      error: `No se puede mover un candidato que ya está en etapa "${application.stage}".`,
+      error: `No se puede mover un candidato que ya está en etapa "${STAGE_LABELS[application.stage]}".`,
     };
   }
 

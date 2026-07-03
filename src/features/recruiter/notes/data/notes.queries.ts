@@ -53,6 +53,48 @@ export async function listNotesByJob(
   }));
 }
 
+/**
+ * Notas de TODAS las postulaciones (pasadas y presentes) de un candidato, para el tab
+ * Historial de su ficha. Mismo join que listNotesByJob pero filtrando por candidate_id
+ * (cubierto por applications_candidate_idx) en vez de job_id.
+ */
+export async function listNotesByCandidate(
+  candidateId: string,
+  organizationId: string,
+): Promise<TimelineNote[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: notes.id,
+        applicationId: notes.applicationId,
+        body: notes.body,
+        createdAt: notes.createdAt,
+        authorName: profiles.fullName,
+        authorEmail: profiles.email,
+      })
+      .from(notes)
+      .innerJoin(applications, eq(notes.applicationId, applications.id))
+      .leftJoin(profiles, eq(notes.createdBy, profiles.id))
+      .where(
+        and(
+          eq(applications.candidateId, candidateId),
+          eq(notes.organizationId, organizationId),
+        ),
+      )
+      .orderBy(asc(notes.createdAt))
+      .limit(500),
+    "db.notes.by-candidate",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    applicationId: r.applicationId,
+    body: r.body,
+    createdAt: r.createdAt,
+    authorName: r.authorName ?? r.authorEmail ?? null,
+  }));
+}
+
 export async function getApplicationForNote(
   applicationId: string,
   organizationId: string,

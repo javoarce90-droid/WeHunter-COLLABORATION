@@ -2,13 +2,21 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { getOwnProfile, getOrganization } from "@/features/recruiter/settings/data/settings.queries";
+import { getCareerSiteCoverPublicUrl } from "@/features/recruiter/settings/data/settings.storage";
 import { listMembers, listPendingInvitations } from "@/features/recruiter/team/data/team.queries";
 import { ProfileSection } from "@/features/recruiter/settings/ui/ProfileSection";
 import { PasswordSection } from "@/features/recruiter/settings/ui/PasswordSection";
 import { WorkspaceSection } from "@/features/recruiter/settings/ui/WorkspaceSection";
 import { TeamSection } from "@/features/recruiter/team/ui/TeamSection";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import type { OrgRole } from "@/features/recruiter/team/domain/gestionar-equipo";
+
+const NOTIFICATION_PREVIEW = [
+  "Nuevo candidato en el pipeline",
+  "Entrevista agendada",
+  "Cambio de etapa en una postulación",
+];
 
 function Section({
   title,
@@ -42,6 +50,7 @@ export default async function SettingsPage() {
     listMembers(membership.organizationId),
     listPendingInvitations(membership.organizationId),
   ]);
+  const coverUrl = org?.careerSiteCoverUrl ? getCareerSiteCoverPublicUrl(org.careerSiteCoverUrl) : null;
 
   const role = membership.role as OrgRole;
   const canEditWorkspace = role === "owner" || role === "admin";
@@ -66,8 +75,11 @@ export default async function SettingsPage() {
       </Section>
 
       {org && (
-        <Section title="Workspace" description="Nombre, logo y zona horaria de tu organización.">
-          <WorkspaceSection org={org} hasLogo={!!org.logoUrl} canEdit={canEditWorkspace} />
+        <Section
+          title="Workspace"
+          description="Nombre, logo, portada y marca de tu organización — es lo que ven tus candidatos en el Career Site."
+        >
+          <WorkspaceSection org={org} hasLogo={!!org.logoUrl} coverUrl={coverUrl} canEdit={canEditWorkspace} />
         </Section>
       )}
 
@@ -97,7 +109,17 @@ export default async function SettingsPage() {
         title="Notificaciones"
         description="Pronto vas a poder elegir qué eventos te notifican y por qué canal."
       >
-        <Badge variant="muted">Próximamente</Badge>
+        <ul className="flex flex-col gap-2">
+          {NOTIFICATION_PREVIEW.map((label) => (
+            <li
+              key={label}
+              className="flex items-center justify-between rounded-[var(--radius)] border border-border px-3 py-2.5 opacity-60"
+            >
+              <span className="text-sm font-medium text-text">{label}</span>
+              <Checkbox aria-label={label} defaultChecked disabled />
+            </li>
+          ))}
+        </ul>
       </Section>
 
       <Section title="Integraciones">

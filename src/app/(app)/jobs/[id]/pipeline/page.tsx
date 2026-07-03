@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
-import { listApplicationsByJob, getStageEntryTimes } from "@/features/recruiter/applications/data/applications.queries";
+import {
+  listApplicationsByJob,
+  getStageEntryTimes,
+  listStageEventsByJob,
+  type StageHistoryEvent,
+} from "@/features/recruiter/applications/data/applications.queries";
 import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
 import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
@@ -20,12 +25,13 @@ export default async function PipelinePage({ params }: Props) {
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [applications, candidates, interviews, notes, stageConfig] = await Promise.all([
+  const [applications, candidates, interviews, notes, stageConfig, stageEvents] = await Promise.all([
     listApplicationsByJob(jobId, membership.organizationId),
     listCandidates(membership.organizationId),
     listInterviewsByJob(jobId, membership.organizationId),
     listNotesByJob(jobId, membership.organizationId),
     getPipelineStageConfigs(membership.organizationId),
+    listStageEventsByJob(jobId, membership.organizationId),
   ]);
 
   // getStageEntryTimes se hace después de tener las applications para poder hacer el fallback.
@@ -54,6 +60,13 @@ export default async function PipelinePage({ params }: Props) {
     (acc[n.applicationId] ??= []).push(n);
     return acc;
   }, {});
+  const stageEventsByApplication = stageEvents.reduce<Record<string, StageHistoryEvent[]>>(
+    (acc, e) => {
+      (acc[e.applicationId] ??= []).push(e);
+      return acc;
+    },
+    {},
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -72,6 +85,7 @@ export default async function PipelinePage({ params }: Props) {
         applications={applications}
         interviewsByApplication={interviewsByApplication}
         notesByApplication={notesByApplication}
+        stageEventsByApplication={stageEventsByApplication}
         stageConfig={stageConfig}
         stageEntryTimes={stageEntryTimes}
       />

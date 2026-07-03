@@ -41,7 +41,7 @@ export default async function OfferPrintPage({ params }: Props) {
 
       <article className="print-document rounded-[var(--radius)] border border-border bg-surface p-10 shadow-[var(--shadow)]">
         <header className="mb-8 border-b border-border pb-5">
-          <p className="text-xs uppercase tracking-wide text-muted">Carta de oferta</p>
+          <p className="text-xs uppercase tracking-wide text-label">Carta de oferta</p>
           <h1 className="mt-1 font-display text-2xl font-bold text-text">{offer.title}</h1>
           <p className="mt-1 text-sm text-muted">
             Para {offer.candidateName}
@@ -73,7 +73,7 @@ export default async function OfferPrintPage({ params }: Props) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</dt>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-label">{label}</dt>
       <dd className="mt-0.5 text-text">{value}</dd>
     </div>
   );

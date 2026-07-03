@@ -21,7 +21,7 @@ export default async function EditJobPage({
   if (!job) notFound();
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <JobForm
         action={editarBusquedaAction}
         submitLabel="Guardar cambios"

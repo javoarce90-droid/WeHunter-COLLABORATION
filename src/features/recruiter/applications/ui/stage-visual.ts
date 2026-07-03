@@ -1,4 +1,4 @@
-import type { ApplicationStage } from "../schema";
+import { isClosingStage, type ApplicationStage } from "../schema";
 
 /** Color sólido por etapa para marcadores de columna/dots (semántica de DESIGN.md). */
 export const STAGE_DOT: Record<ApplicationStage, string> = {
@@ -13,11 +13,8 @@ export const STAGE_DOT: Record<ApplicationStage, string> = {
   rejected: "#DC2626",
 };
 
-/** Etapas terminales: no se puede salir de ellas (espeja el dominio `moverEtapa`). */
-export const TERMINAL_STAGES: ApplicationStage[] = ["hired", "rejected"];
-
 export function isTerminal(stage: ApplicationStage): boolean {
-  return TERMINAL_STAGES.includes(stage);
+  return isClosingStage(stage);
 }
 
 /** "hace 3 d", "hace 2 h" — relativo compacto para metadata de card. */

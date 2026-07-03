@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
  * depende del pathname. La navegación es por <Link> (prefetch + transición de RSC).
  */
 
-const TABS = [
+const TABS: { label: string; segment: string; hidden?: boolean }[] = [
   { label: "Detalle", segment: "" },
   { label: "Aviso", segment: "aviso" },
   { label: "Postulados", segment: "postulados" },
@@ -17,7 +17,7 @@ const TABS = [
   { label: "Ofertas", segment: "ofertas" },
   { label: "Shortlists", segment: "shortlists" },
   { label: "Editar", segment: "edit" },
-] as const;
+];
 
 export function JobTabs({ jobId }: { jobId: string }) {
   const pathname = usePathname();
@@ -28,7 +28,7 @@ export function JobTabs({ jobId }: { jobId: string }) {
       aria-label="Secciones de la búsqueda"
       className="-mb-px flex gap-1 overflow-x-auto border-b border-border"
     >
-      {TABS.map((tab) => {
+      {TABS.filter((tab) => !tab.hidden).map((tab) => {
         const href = tab.segment ? `${base}/${tab.segment}` : base;
         const active = tab.segment
           ? pathname.startsWith(href)

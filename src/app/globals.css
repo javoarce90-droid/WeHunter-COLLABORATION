@@ -13,6 +13,7 @@
   --border: #E5E7EB;
   --text: #0F0A1A;
   --muted: #6B6578;
+  --label: #5C5568;
   --ai: #9D6DF1;
   --success: #059669;
   --warning: #EA580C;
@@ -59,6 +60,7 @@
   --color-border: var(--border);
   --color-text: var(--text);
   --color-muted: var(--muted);
+  --color-label: var(--label);
   --color-ai: var(--ai);
   --color-success: var(--success);
   --color-warning: var(--warning);

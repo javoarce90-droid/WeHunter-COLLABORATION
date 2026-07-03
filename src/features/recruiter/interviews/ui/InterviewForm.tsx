@@ -123,7 +123,7 @@ export function InterviewForm({ applicationId, jobId, interview, onDone }: Props
         />
       </label>
 
-      {state.error && <p className="text-xs text-red-600">{state.error}</p>}
+      {state.error && <p className="text-xs text-danger">{state.error}</p>}
 
       <div className="flex items-center justify-end gap-2">
         <button

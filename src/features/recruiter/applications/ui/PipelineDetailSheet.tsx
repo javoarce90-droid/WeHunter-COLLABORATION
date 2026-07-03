@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
+import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
 import { AiButton, AiScore } from "@/components/ui/ai";
 import { useToast } from "@/lib/toast";
 import { NoteTimeline } from "@/features/recruiter/notes/ui/NoteTimeline";
@@ -12,15 +13,17 @@ import { InterviewsSection } from "@/features/recruiter/interviews/ui/Interviews
 import { generarGuiaEntrevistaAction } from "../actions";
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
-import type { ApplicationWithCandidate } from "../data/applications.queries";
+import type { ApplicationWithCandidate, StageHistoryEvent } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import { isTerminal } from "./stage-visual";
+import { StageHistoryTimeline } from "./StageHistoryTimeline";
 
 type Props = {
   application: ApplicationWithCandidate | null;
   interviews: InterviewRow[];
   notes: TimelineNote[];
+  stageEvents: StageHistoryEvent[];
   onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
   onClose: () => void;
   /** Si se pasa, solo muestra botones para estas etapas (activas). */
@@ -36,6 +39,7 @@ export function PipelineDetailSheet({
   application,
   interviews,
   notes,
+  stageEvents,
   onMoveStage,
   onClose,
   activeStageKeys,
@@ -89,7 +93,7 @@ export function PipelineDetailSheet({
           {/* Etapa actual + mover */}
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <span className="text-xs font-semibold uppercase tracking-wide text-label">
                 Etapa
               </span>
               <div className="flex items-center gap-2">
@@ -97,39 +101,66 @@ export function PipelineDetailSheet({
                 <Badge variant={application.stage}>{STAGE_LABELS[application.stage]}</Badge>
               </div>
             </div>
+            {application.aiScore != null && application.aiSummary && (
+              <p className="text-xs text-muted">{application.aiSummary}</p>
+            )}
             {terminal ? (
               <p className="rounded-[var(--radius)] bg-bg px-3 py-2 text-xs text-muted">
                 Etapa terminal: este candidato ya está {STAGE_LABELS[application.stage].toLowerCase()}.
               </p>
             ) : (
-              <div className="flex flex-wrap gap-1.5">
+              <Menu
+                align="start"
+                trigger={
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-border px-2.5 py-1.5 text-xs font-semibold text-text transition-colors hover:border-primary hover:text-primary"
+                  >
+                    Cambiar etapa
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="m2.5 4.5 3.5 3 3.5-3" />
+                    </svg>
+                  </button>
+                }
+              >
+                <MenuLabel>Mover a</MenuLabel>
                 {(activeStageKeys ?? APPLICATION_STAGES)
                   .filter((s) => s !== application.stage)
                   .map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => onMoveStage(application.id, s)}
-                    className={[
-                      "rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
-                      s === "rejected"
-                        ? "border-border text-muted hover:border-danger hover:text-danger"
-                        : "border-border text-muted hover:border-primary hover:text-primary",
-                    ].join(" ")}
-                  >
-                    {STAGE_LABELS[s]}
-                  </button>
-                ))}
-              </div>
+                    <MenuItem
+                      key={s}
+                      destructive={s === "rejected"}
+                      onClick={() => onMoveStage(application.id, s)}
+                    >
+                      {STAGE_LABELS[s]}
+                    </MenuItem>
+                  ))}
+              </Menu>
             )}
             {application.candidate.email && (
               <p className="text-xs text-muted">{application.candidate.email}</p>
             )}
           </section>
 
+          {/* Historial de etapa (timeline de application_events) */}
+          <section className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
+                Historial de etapa
+              </h3>
+              <Link
+                href={`/candidates/${application.candidate.id}/historial`}
+                className="text-xs font-medium text-primary hover:text-primary-hover"
+              >
+                Ver historial completo →
+              </Link>
+            </div>
+            <StageHistoryTimeline events={stageEvents} />
+          </section>
+
           {/* Notas internas (timeline) */}
           <section className="flex flex-col gap-1.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
               Notas internas
             </h3>
             <NoteTimeline
@@ -151,7 +182,7 @@ export function PipelineDetailSheet({
           {/* Guía de entrevista (IA mock) */}
           <section className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
                 Guía de entrevista
               </h3>
               <AiButton type="button" onClick={generarGuia}>

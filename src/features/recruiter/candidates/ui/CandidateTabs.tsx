@@ -1,0 +1,49 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+/**
+ * Barra de pestañas de la ficha del candidato. Client Component porque la pestaña activa
+ * depende del pathname. La navegación es por <Link> (prefetch + transición de RSC).
+ */
+
+const TABS: { label: string; segment: string }[] = [
+  { label: "Perfil", segment: "" },
+  { label: "Historial", segment: "historial" },
+];
+
+export function CandidateTabs({ candidateId }: { candidateId: string }) {
+  const pathname = usePathname();
+  const base = `/candidates/${candidateId}`;
+
+  return (
+    <nav
+      aria-label="Secciones del candidato"
+      className="-mb-px flex gap-1 overflow-x-auto border-b border-border"
+    >
+      {TABS.map((tab) => {
+        const href = tab.segment ? `${base}/${tab.segment}` : base;
+        const active = tab.segment
+          ? pathname.startsWith(href)
+          : pathname === base;
+        return (
+          <Link
+            key={tab.label}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={[
+              "relative whitespace-nowrap px-3.5 py-2.5 text-sm font-semibold transition-colors",
+              active ? "text-primary" : "text-muted hover:text-text",
+            ].join(" ")}
+          >
+            {tab.label}
+            {active && (
+              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}

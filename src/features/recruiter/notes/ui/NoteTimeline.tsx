@@ -4,19 +4,13 @@ import { useActionState, useRef } from "react";
 import { agregarNotaAction, type NoteActionState } from "../actions";
 import { NOTE_MAX_LENGTH } from "../schema";
 import type { TimelineNote } from "../data/notes.queries";
+import { NoteList } from "./NoteList";
 
 type Props = {
   applicationId: string;
   jobId: string;
   notes: TimelineNote[];
 };
-
-const dateFmt = new Intl.DateTimeFormat("es-AR", {
-  day: "numeric",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 /**
  * Timeline de notas internas de una postulación (tabla `notes`). Lista cronológica +
@@ -35,24 +29,7 @@ export function NoteTimeline({ applicationId, jobId, notes }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      {notes.length > 0 && (
-        <ul className="flex flex-col gap-2.5">
-          {notes.map((note) => (
-            <li
-              key={note.id}
-              className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2"
-            >
-              <div className="mb-0.5 flex items-center justify-between gap-2 text-[11px] text-muted">
-                <span className="font-semibold text-text/70">
-                  {note.authorName ?? "Equipo"}
-                </span>
-                <span className="tabular-nums">{dateFmt.format(note.createdAt)}</span>
-              </div>
-              <p className="whitespace-pre-wrap text-sm text-text">{note.body}</p>
-            </li>
-          ))}
-        </ul>
-      )}
+      {notes.length > 0 && <NoteList notes={notes} />}
 
       <form ref={formRef} action={dispatch} className="flex flex-col gap-1.5">
         <input type="hidden" name="applicationId" value={applicationId} />

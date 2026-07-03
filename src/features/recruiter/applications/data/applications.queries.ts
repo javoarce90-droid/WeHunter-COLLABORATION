@@ -1,7 +1,7 @@
 import { and, eq, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { applications, applicationEvents, candidates, jobs, type Job } from "@/db/schema";
-import { APPLICATION_STAGES, type ApplicationStage } from "../schema";
+import { applications, applicationEvents, candidates, jobs, profiles, type Job } from "@/db/schema";
+import { APPLICATION_STAGES, type ApplicationStage, type RejectionReason } from "../schema";
 
 /** Lecturas del pipeline. Cliente RLS; filtramos siempre por organization activa. */
 
@@ -12,6 +12,7 @@ export type ApplicationWithCandidate = {
   candidateId: string;
   stage: ApplicationStage;
   aiScore: number | null;
+  aiSummary: string | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +38,7 @@ export async function listApplicationsByJob(
         candidateId: applications.candidateId,
         stage: applications.stage,
         aiScore: applications.aiScore,
+        aiSummary: applications.aiSummary,
         notes: applications.notes,
         createdAt: applications.createdAt,
         updatedAt: applications.updatedAt,
@@ -62,6 +64,7 @@ export async function listApplicationsByJob(
     candidateId: r.candidateId,
     stage: r.stage as ApplicationStage,
     aiScore: r.aiScore,
+    aiSummary: r.aiSummary,
     notes: r.notes,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -134,6 +137,8 @@ export type CandidateApplication = {
   jobStatus: Job["status"];
   stage: ApplicationStage;
   createdAt: Date;
+  aiScore: number | null;
+  aiSummary: string | null;
 };
 
 /**
@@ -154,6 +159,8 @@ export async function listApplicationsByCandidate(
         jobStatus: jobs.status,
         stage: applications.stage,
         createdAt: applications.createdAt,
+        aiScore: applications.aiScore,
+        aiSummary: applications.aiSummary,
       })
       .from(applications)
       .innerJoin(jobs, eq(applications.jobId, jobs.id))
@@ -360,6 +367,116 @@ export async function getStageEntryTimes(
     if (!result[r.applicationId]) result[r.applicationId] = r.createdAt;
   }
   return result;
+}
+
+/** Evento de historial de una postulación, para la timeline en el sheet de detalle.
+ *  rejectionReason/rejectionNote solo vienen presentes en eventos de rechazo, y son
+ *  privados del recruiter (no hay portal de candidato que los exponga). */
+export type StageHistoryEvent = {
+  id: string;
+  applicationId: string;
+  fromStage: ApplicationStage | null;
+  toStage: ApplicationStage;
+  createdAt: Date;
+  changedByName: string | null;
+  rejectionReason: RejectionReason | null;
+  rejectionNote: string | null;
+};
+
+/**
+ * Historial de cambios de etapa de todas las postulaciones de un job (para el pipeline).
+ * Una query con join: application_events → applications (del job) + left join al profile
+ * que hizo el cambio. Sin N+1 (mismo patrón que listNotesByJob).
+ */
+export async function listStageEventsByJob(
+  jobId: string,
+  organizationId: string,
+): Promise<StageHistoryEvent[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: applicationEvents.id,
+        applicationId: applicationEvents.applicationId,
+        fromStage: applicationEvents.fromStage,
+        toStage: applicationEvents.toStage,
+        createdAt: applicationEvents.createdAt,
+        changedByName: profiles.fullName,
+        changedByEmail: profiles.email,
+        rejectionReason: applicationEvents.rejectionReason,
+        rejectionNote: applicationEvents.rejectionNote,
+      })
+      .from(applicationEvents)
+      .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
+      .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applicationEvents.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(applicationEvents.createdAt))
+      .limit(500),
+    "db.applications.stage-events-by-job",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    applicationId: r.applicationId,
+    fromStage: r.fromStage as ApplicationStage | null,
+    toStage: r.toStage as ApplicationStage,
+    createdAt: r.createdAt,
+    changedByName: r.changedByName ?? r.changedByEmail ?? null,
+    rejectionReason: r.rejectionReason as RejectionReason | null,
+    rejectionNote: r.rejectionNote,
+  }));
+}
+
+/**
+ * Historial de cambios de etapa de TODAS las postulaciones (pasadas y presentes) de un
+ * candidato, para el tab Historial de su ficha. Mismo join que listStageEventsByJob pero
+ * filtrando por candidate_id (cubierto por applications_candidate_idx) en vez de job_id.
+ */
+export async function listStageEventsByCandidate(
+  candidateId: string,
+  organizationId: string,
+): Promise<StageHistoryEvent[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        id: applicationEvents.id,
+        applicationId: applicationEvents.applicationId,
+        fromStage: applicationEvents.fromStage,
+        toStage: applicationEvents.toStage,
+        createdAt: applicationEvents.createdAt,
+        changedByName: profiles.fullName,
+        changedByEmail: profiles.email,
+        rejectionReason: applicationEvents.rejectionReason,
+        rejectionNote: applicationEvents.rejectionNote,
+      })
+      .from(applicationEvents)
+      .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
+      .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
+      .where(
+        and(
+          eq(applications.candidateId, candidateId),
+          eq(applicationEvents.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(applicationEvents.createdAt))
+      .limit(500),
+    "db.applications.stage-events-by-candidate",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    applicationId: r.applicationId,
+    fromStage: r.fromStage as ApplicationStage | null,
+    toStage: r.toStage as ApplicationStage,
+    createdAt: r.createdAt,
+    changedByName: r.changedByName ?? r.changedByEmail ?? null,
+    rejectionReason: r.rejectionReason as RejectionReason | null,
+    rejectionNote: r.rejectionNote,
+  }));
 }
 
 /** Verifica que el job exista y pertenezca a la org. */

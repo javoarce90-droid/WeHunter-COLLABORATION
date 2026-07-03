@@ -115,9 +115,70 @@ export async function crearBusquedaAction(
     return { error: result.error };
   }
 
-  // Caés directo en el pipeline de la búsqueda recién creada: ahí mismo sumás candidatos
-  // (del pool o nuevos) sin pasos intermedios. Conecta crear-búsqueda → cargar-candidatos.
-  redirect(`/jobs/${result.data.jobId}/pipeline`);
+  // Caés en el aviso de la búsqueda recién creada: revisás/editás el contenido y desde ahí
+  // mismo sumás candidatos (del pool o nuevos) hacia el pipeline sin pasos intermedios.
+  redirect(`/jobs/${result.data.jobId}/aviso`);
+}
+
+/**
+ * Crear con IA en un solo paso: genera el borrador (mismo `generarBorradorAction`) y
+ * crea la búsqueda directamente con ese borrador, sin pantalla de revisión intermedia.
+ */
+export async function crearBusquedaConIaAction(input: {
+  title: string;
+  modality: string | null;
+  employmentType: string | null;
+  brief: string;
+}): Promise<JobFormState> {
+  const draftResult = await generarBorradorAction({
+    name: input.title,
+    brief: input.brief,
+    modality: input.modality,
+    seniority: null,
+    workDay: input.employmentType,
+  });
+  if (!draftResult.ok || !draftResult.draft) {
+    return { error: draftResult.error ?? "No se pudo generar la búsqueda con IA." };
+  }
+  const draft = draftResult.draft;
+
+  const parsed = jobInputSchema.safeParse({
+    title: input.title,
+    position: draft.position,
+    jobArea: draft.jobArea,
+    description: input.brief || null,
+    modality: input.modality,
+    employmentType: input.employmentType,
+    skills: draft.skills.join(", "),
+    vacancies: draft.vacancies,
+    objectives: draft.objectives,
+    requirements: draft.requirements,
+    responsibilities: draft.responsibilities,
+    benefits: JSON.stringify(draft.benefits),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+  ]);
+
+  const result = await crearBusqueda(
+    parsed.data,
+    {
+      userId: user?.id ?? null,
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+    },
+    { insertJob },
+  );
+  if (!result.ok) {
+    return { error: result.error };
+  }
+
+  redirect(`/jobs/${result.data.jobId}/aviso`);
 }
 
 export async function editarBusquedaAction(

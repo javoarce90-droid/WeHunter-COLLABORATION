@@ -60,7 +60,7 @@ export default async function ClientDetailPage({
 
       {client.notes && (
         <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+          <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-label">
             Notas
           </h2>
           <p className="whitespace-pre-wrap text-sm text-text">{client.notes}</p>

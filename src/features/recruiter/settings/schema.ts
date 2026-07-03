@@ -17,9 +17,26 @@ export const profileInputSchema = z.object({
   ),
 });
 
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const colorField = () =>
+  z.preprocess(emptyToUndef, z.string().trim().regex(HEX_COLOR_RE, "Color inválido (ej: #6D28D9).").optional());
+const urlField = () =>
+  z.preprocess(emptyToUndef, z.string().trim().url("URL inválida.").max(300).optional());
+
 export const workspaceInputSchema = z.object({
   name: z.string().trim().min(1, "El nombre del workspace es obligatorio.").max(120),
-  timezone: z.preprocess(emptyToUndef, z.string().trim().max(60).optional()),
+  careerSiteEnabled: z.preprocess((v) => v === "true" || v === "on", z.boolean()),
+  description: z.preprocess(
+    emptyToUndef,
+    z.string().trim().max(1000, "La descripción no puede superar los 1000 caracteres.").optional(),
+  ),
+  primaryColor: colorField(),
+  accentColor: colorField(),
+  website: urlField(),
+  linkedinUrl: urlField(),
+  instagramUrl: urlField(),
+  xUrl: urlField(),
+  facebookUrl: urlField(),
 });
 
 export const passwordInputSchema = z

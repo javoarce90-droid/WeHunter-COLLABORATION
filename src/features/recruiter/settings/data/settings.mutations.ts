@@ -25,10 +25,20 @@ export async function updateOwnProfile(userId: string, patch: ProfilePatch): Pro
   );
 }
 
+export interface CareerSiteBranding {
+  description?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  website?: string;
+  social?: { linkedin?: string; instagram?: string; x?: string; facebook?: string };
+}
+
 export interface OrgPatch {
   name?: string;
   logoUrl?: string | null;
-  preferences?: { timezone?: string } | null;
+  careerSiteEnabled?: boolean;
+  careerSiteCoverUrl?: string;
+  careerSiteSettings?: CareerSiteBranding;
 }
 
 /** Actualiza el workspace. RLS: org_admin_can_update solo deja al owner/admin de esa org. */

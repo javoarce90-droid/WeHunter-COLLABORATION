@@ -1,5 +1,9 @@
-import { APPLICATION_STAGES, STAGE_LABELS, type ApplicationStage } from "../applications/schema";
-import { TERMINAL_STAGES } from "../applications/ui/stage-visual";
+import {
+  APPLICATION_STAGES,
+  STAGE_LABELS,
+  isClosingStage,
+  type ApplicationStage,
+} from "../applications/schema";
 
 export type PipelineStageConfig = {
   stageKey: ApplicationStage;
@@ -30,9 +34,9 @@ export const DEFAULT_STAGE_CONFIGS: PipelineStageConfig[] = APPLICATION_STAGES.m
   }),
 );
 
-/** Las etapas terminales no se pueden desactivar. */
+/** Las etapas de cierre no se pueden desactivar. */
 export function isNonDeactivatable(stage: ApplicationStage): boolean {
-  return TERMINAL_STAGES.includes(stage);
+  return isClosingStage(stage);
 }
 
 export const configurarEtapaSchema = {

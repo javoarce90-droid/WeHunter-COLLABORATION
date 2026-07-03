@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { organizations, profiles } from "@/db/schema";
+import type { CareerSiteBranding } from "./settings.mutations";
 
 export interface OwnProfile {
   fullName: string | null;
@@ -43,11 +44,14 @@ export async function getOwnProfile(): Promise<OwnProfile | null> {
 export interface OrgSettings {
   id: string;
   name: string;
+  slug: string;
   logoUrl: string | null;
-  preferences: { timezone?: string } | null;
+  careerSiteEnabled: boolean;
+  careerSiteCoverUrl: string | null;
+  branding: CareerSiteBranding | null;
 }
 
-/** Datos del workspace activo (RLS: solo orgs del usuario). */
+/** Datos del workspace activo, incluido su Career Site (RLS: solo orgs del usuario). */
 export async function getOrganization(organizationId: string): Promise<OrgSettings | null> {
   const db = await getDb();
   const rows = await db.rls(
@@ -56,8 +60,11 @@ export async function getOrganization(organizationId: string): Promise<OrgSettin
         .select({
           id: organizations.id,
           name: organizations.name,
+          slug: organizations.slug,
           logoUrl: organizations.logoUrl,
-          preferences: organizations.preferences,
+          careerSiteEnabled: organizations.careerSiteEnabled,
+          careerSiteCoverUrl: organizations.careerSiteCoverUrl,
+          careerSiteSettings: organizations.careerSiteSettings,
         })
         .from(organizations)
         .where(eq(organizations.id, organizationId))
@@ -69,7 +76,10 @@ export async function getOrganization(organizationId: string): Promise<OrgSettin
   return {
     id: row.id,
     name: row.name,
+    slug: row.slug,
     logoUrl: row.logoUrl,
-    preferences: (row.preferences as { timezone?: string } | null) ?? null,
+    careerSiteEnabled: row.careerSiteEnabled,
+    careerSiteCoverUrl: row.careerSiteCoverUrl,
+    branding: (row.careerSiteSettings as CareerSiteBranding | null) ?? null,
   };
 }

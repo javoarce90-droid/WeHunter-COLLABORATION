@@ -60,29 +60,29 @@ describe("moverEtapa", () => {
     expect(result.error).toMatch(/ya está en esa etapa/i);
   });
 
-  it("rechaza si la etapa actual es 'hired' (terminal)", async () => {
+  it("rechaza si la etapa actual es 'hired' (etapa de cierre)", async () => {
     const app = makeApp({ stage: "hired" });
     const deps = makeDeps(app);
     const result = await moverEtapa({ applicationId: "app-1", newStage: "offer" }, ctx, deps);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toMatch(/hired/i);
+    expect(result.error).toMatch(/contratado/i);
   });
 
-  it("rechaza si la etapa actual es 'rejected' (terminal)", async () => {
-    const app = makeApp({ stage: "rejected" });
-    const deps = makeDeps(app);
-    const result = await moverEtapa({ applicationId: "app-1", newStage: "screening" }, ctx, deps);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toMatch(/rejected/i);
-  });
-
-  it("permite mover a 'rejected' desde cualquier etapa no terminal", async () => {
+  it("permite mover a 'rejected' desde cualquier etapa operativa", async () => {
     const app = makeApp({ stage: "interview" });
     const deps = makeDeps(app);
     const result = await moverEtapa({ applicationId: "app-1", newStage: "rejected" }, ctx, deps);
     expect(result.ok).toBe(true);
+  });
+
+  it("permite mover desde 'rejected' hacia otra etapa (ya no es de cierre: puede reactivarse)", async () => {
+    const app = makeApp({ stage: "rejected" });
+    const deps = makeDeps(app);
+    const result = await moverEtapa({ applicationId: "app-1", newStage: "screening" }, ctx, deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.stage).toBe("screening");
   });
 
   it("rechaza si el rol es consultant", async () => {

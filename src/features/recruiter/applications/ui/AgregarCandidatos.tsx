@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useActionState, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -12,19 +13,25 @@ import { crearYPostularCandidatoAction, postularVariosAction } from "../actions"
 
 type PoolCandidate = { id: string; fullName: string; email: string | null };
 
-type Props = { jobId: string; poolCandidates: PoolCandidate[] };
+type Props = {
+  jobId: string;
+  poolCandidates: PoolCandidate[];
+  /** Si se pasa, navega ahí tras agregar candidatos con éxito (no al cancelar). */
+  redirectAfterAddTo?: string;
+};
 
 type Tab = "pool" | "nuevo";
 
 const initialState: { error?: string } = {};
 
 /**
- * Punto de entrada contextual para sumar candidatos a una búsqueda SIN salir del pipeline:
+ * Punto de entrada contextual para sumar candidatos a una búsqueda sin pasos intermedios:
  * - "Del pool": multi-select de candidatos existentes → postularVariosAction.
  * - "Nuevo": alta rápida (nombre + email + skills + fuente) que crea y postula en un paso.
  */
-export function AgregarCandidatos({ jobId, poolCandidates }: Props) {
+export function AgregarCandidatos({ jobId, poolCandidates, redirectAfterAddTo }: Props) {
   const toast = useToast();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>(poolCandidates.length > 0 ? "pool" : "nuevo");
   // Remonta el form del alta para limpiarlo tras un envío exitoso (inputs no controlados).
@@ -73,6 +80,7 @@ export function AgregarCandidatos({ jobId, poolCandidates }: Props) {
         (res.skipped ? ` · ${res.skipped} ya estaban` : "");
       toast({ message: msg, variant: "success" });
       close();
+      if (redirectAfterAddTo) router.push(redirectAfterAddTo);
     });
   }
 
@@ -83,6 +91,7 @@ export function AgregarCandidatos({ jobId, poolCandidates }: Props) {
       if (!result.error) {
         toast({ message: "Candidato creado y postulado.", variant: "success" });
         close();
+        if (redirectAfterAddTo) router.push(redirectAfterAddTo);
       }
       return result;
     },

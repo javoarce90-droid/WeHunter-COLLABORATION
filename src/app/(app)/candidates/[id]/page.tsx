@@ -4,9 +4,10 @@ import { getActiveMembership } from "@/lib/auth/session";
 import { getCandidateById } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listApplicationsByCandidate } from "@/features/recruiter/applications/data/applications.queries";
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
-import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
-import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { AiScore } from "@/components/ui/ai";
+import { EmptyState } from "@/components/ui/empty-state";
+import { normalizeIfUncapitalized } from "@/lib/text";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
@@ -14,7 +15,10 @@ const dateFmt = new Intl.DateTimeFormat("es-AR", {
   year: "numeric",
 });
 
-/** Ficha del candidato: perfil + CV + su participación en búsquedas. */
+/**
+ * Pestaña Perfil: facts + CV + resumen + participación en búsquedas. La cabecera
+ * (breadcrumb, avatar, acciones) la pone el layout de la ficha.
+ */
 export default async function CandidateDetailPage({
   params,
 }: {
@@ -30,9 +34,6 @@ export default async function CandidateDetailPage({
   ]);
   if (!candidate) notFound();
 
-  // profileId seteado = persona con cuenta vinculada; null = cargado a mano (DATA_MODEL.md).
-  const isLinked = candidate.profileId !== null;
-
   const facts: { label: string; value: string }[] = [
     { label: "Email", value: candidate.email || "—" },
     { label: "Búsquedas", value: String(apps.length) },
@@ -41,81 +42,6 @@ export default async function CandidateDetailPage({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Cabecera */}
-      <div className="flex flex-col gap-4">
-        <nav
-          aria-label="Migas de pan"
-          className="flex items-center gap-1.5 text-sm text-muted"
-        >
-          <Link href="/candidates" className="hover:text-text">
-            Candidatos
-          </Link>
-          <span aria-hidden>/</span>
-          <span className="truncate text-text">{candidate.fullName}</span>
-        </nav>
-
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <Avatar name={candidate.fullName} size="lg" />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                <h1 className="font-display text-xl font-bold text-text">
-                  {candidate.fullName}
-                </h1>
-                <Badge variant={isLinked ? "primary" : "muted"}>
-                  {isLinked ? "Cuenta vinculada" : "Cargado a mano"}
-                </Badge>
-              </div>
-              {candidate.headline && (
-                <p className="mt-0.5 truncate text-sm font-medium text-text">
-                  {candidate.headline}
-                </p>
-              )}
-              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
-                {candidate.location && <span>{candidate.location}</span>}
-                {candidate.source && (
-                  <>
-                    {candidate.location && <span aria-hidden>·</span>}
-                    <span>{CANDIDATE_SOURCE_LABELS[candidate.source]}</span>
-                  </>
-                )}
-                {candidate.linkedinUrl && (
-                  <>
-                    {(candidate.location || candidate.source) && <span aria-hidden>·</span>}
-                    <a
-                      href={candidate.linkedinUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-semibold text-primary hover:text-primary-hover"
-                    >
-                      LinkedIn
-                    </a>
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {candidate.cvUrl && (
-              <a
-                href={`/candidates/${candidate.id}/cv`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-[var(--radius)] border border-border px-3 py-2 text-sm font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
-              >
-                Abrir CV
-              </a>
-            )}
-            <Link
-              href={`/candidates/${candidate.id}/edit`}
-              className="inline-flex items-center justify-center rounded-[var(--radius)] border border-border px-3 py-2 text-sm font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
-            >
-              Editar
-            </Link>
-          </div>
-        </div>
-      </div>
-
       {/* Datos clave */}
       <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-[var(--radius)] border border-border bg-border sm:grid-cols-3">
         {facts.map((f) => (
@@ -129,7 +55,12 @@ export default async function CandidateDetailPage({
       {/* Cuerpo: participación (aside) + CV (principal) */}
       <div className="grid gap-5 lg:grid-cols-3">
         {/* CV — preview embebido. Principal en desktop, debajo en mobile. */}
-        <section className="order-2 lg:order-1 lg:col-span-2">
+        <section
+          className={[
+            "order-2 lg:order-1 lg:col-span-2",
+            candidate.cvUrl ? "" : "self-start",
+          ].join(" ")}
+        >
           <div className="flex h-full flex-col overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
             <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
               <h2 className="text-sm font-bold text-text">CV</h2>
@@ -151,17 +82,13 @@ export default async function CandidateDetailPage({
                 className="h-[640px] w-full bg-bg"
               />
             ) : (
-              <div className="px-5 py-16 text-center">
-                <p className="text-sm text-muted">
-                  Este candidato no tiene CV cargado.
-                </p>
-                <Link
-                  href={`/candidates/${candidate.id}/edit`}
-                  className="mt-3 inline-block text-sm font-semibold text-primary hover:text-primary-hover"
-                >
-                  Subir CV
-                </Link>
-              </div>
+              <EmptyState
+                icon={<DocumentIcon />}
+                title="Este candidato no tiene CV cargado."
+                action={{ label: "Subir CV", href: `/candidates/${candidate.id}/edit` }}
+                variant="plain"
+                className="py-10"
+              />
             )}
           </div>
         </section>
@@ -183,7 +110,7 @@ export default async function CandidateDetailPage({
                       key={s}
                       className="rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary-hover"
                     >
-                      {s}
+                      {normalizeIfUncapitalized(s)}
                     </span>
                   ))}
                 </div>
@@ -217,6 +144,14 @@ export default async function CandidateDetailPage({
                           {dateFmt.format(app.createdAt)}
                         </span>
                       </span>
+                      {app.aiScore != null && (
+                        <span className="mt-1 flex items-start gap-1.5">
+                          <AiScore score={app.aiScore} size={20} />
+                          {app.aiSummary && (
+                            <span className="text-xs text-muted">{app.aiSummary}</span>
+                          )}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 ))}
@@ -226,5 +161,14 @@ export default async function CandidateDetailPage({
         </aside>
       </div>
     </div>
+  );
+}
+
+function DocumentIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+    </svg>
   );
 }

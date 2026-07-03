@@ -14,7 +14,7 @@ export function SharedShortlistView({ token, shortlist }: Props) {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <header className="flex flex-col gap-1">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">
+        <span className="text-xs font-semibold uppercase tracking-wide text-label">
           {shortlist.jobTitle}
         </span>
         <h1 className="font-display text-2xl font-bold text-text">{shortlist.shortlistName}</h1>

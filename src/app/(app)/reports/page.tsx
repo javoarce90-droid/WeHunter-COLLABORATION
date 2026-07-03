@@ -89,13 +89,13 @@ export default async function ReportsPage({ searchParams }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                <th className="pb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                <th className="pb-2 text-xs font-semibold uppercase tracking-wide text-label">
                   Recruiter
                 </th>
-                <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-muted">
+                <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-label">
                   Búsquedas
                 </th>
-                <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-muted">
+                <th className="pb-2 text-right text-xs font-semibold uppercase tracking-wide text-label">
                   Contrataciones
                 </th>
               </tr>

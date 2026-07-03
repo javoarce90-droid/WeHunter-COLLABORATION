@@ -127,7 +127,7 @@ export function SourcingView() {
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted">Seniority</label>
             <select value={seniority} onChange={(e) => setSeniority(e.target.value)} className={fieldClass}>
-              <option value="">—</option>
+              <option value="">Cualquier seniority</option>
               {Object.entries(SENIORITY_LABELS).map(([v, l]) => (
                 <option key={v} value={l}>{l}</option>
               ))}

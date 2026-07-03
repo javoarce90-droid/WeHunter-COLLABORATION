@@ -27,13 +27,15 @@ describe("configurarEtapa", () => {
     if (!result.ok) expect(result.error).toMatch(/desactivar/);
   });
 
-  test("cannot deactivate rejected", async () => {
+  test("can deactivate rejected (etapa operativa, no de cierre)", async () => {
+    const upsert = makeUpsert();
     const result = await configurarEtapa(
       { stageKey: "rejected", isActive: false },
       ctx,
-      deps(),
+      deps(upsert),
     );
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(upsert).toHaveBeenCalledWith("org-1", "rejected", { isActive: false });
   });
 
   test("rejects sla_days < 1", async () => {

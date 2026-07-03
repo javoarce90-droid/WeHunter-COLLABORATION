@@ -58,7 +58,7 @@ export function NoteEditor({ applicationId, jobId, initialNotes }: Props) {
         placeholder="Nota interna — no visible para la empresa ni el candidato."
         className="w-full resize-none rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-xs text-text outline-none transition-colors focus:border-primary"
       />
-      {state.error && <p className="text-xs text-red-600">{state.error}</p>}
+      {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <div className="flex items-center justify-end gap-2">
         <button
           type="button"

@@ -13,10 +13,10 @@ import {
 } from "@dnd-kit/core";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/lib/toast";
-import { moverEtapaAction } from "../actions";
+import { analizarPostulacionAction, moverEtapaAction } from "../actions";
 import { STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
-import type { ApplicationWithCandidate } from "../data/applications.queries";
+import type { ApplicationWithCandidate, StageHistoryEvent } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import type { PipelineStageConfig } from "@/features/recruiter/pipeline-stages/schema";
@@ -28,6 +28,7 @@ type Props = {
   applications: ApplicationWithCandidate[];
   interviewsByApplication: Record<string, InterviewRow[]>;
   notesByApplication: Record<string, TimelineNote[]>;
+  stageEventsByApplication: Record<string, StageHistoryEvent[]>;
   stageConfig: PipelineStageConfig[];
   stageEntryTimes: Record<string, Date>;
 };
@@ -46,6 +47,8 @@ type ColumnProps = {
   stageEntryTimes: Record<string, Date>;
   onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
   onOpen: (id: string) => void;
+  onAnalizar: (applicationId: string) => void;
+  analyzingIds: Set<string>;
 };
 
 function PipelineColumn({
@@ -56,6 +59,8 @@ function PipelineColumn({
   stageEntryTimes,
   onMoveStage,
   onOpen,
+  onAnalizar,
+  analyzingIds,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stageConf.stageKey });
 
@@ -101,6 +106,8 @@ function PipelineColumn({
               noteCount={notesByApplication[app.id]?.length ?? 0}
               onMoveStage={onMoveStage}
               onOpen={onOpen}
+              onAnalizar={onAnalizar}
+              analyzing={analyzingIds.has(app.id)}
               enteredStageAt={stageEntryTimes[app.id]}
               slaDays={stageConf.slaDays}
             />
@@ -117,13 +124,29 @@ export function PipelineView({
   applications,
   interviewsByApplication,
   notesByApplication,
+  stageEventsByApplication,
   stageConfig,
   stageEntryTimes,
 }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
+  const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  function onAnalizar(applicationId: string) {
+    setAnalyzingIds((s) => new Set(s).add(applicationId));
+    startTransition(async () => {
+      const res = await analizarPostulacionAction(applicationId);
+      setAnalyzingIds((s) => {
+        const next = new Set(s);
+        next.delete(applicationId);
+        return next;
+      });
+      if (!res.ok) toast({ message: res.error ?? "No se pudo analizar.", variant: "danger" });
+      else toast({ message: "Candidato analizado con IA", variant: "success" });
+    });
+  }
 
   const [optimisticApps, applyMove] = useOptimistic(
     applications,
@@ -212,6 +235,7 @@ export function PipelineView({
   return (
     <>
       <DndContext
+        id="pipeline-dnd"
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
@@ -228,6 +252,8 @@ export function PipelineView({
               stageEntryTimes={stageEntryTimes}
               onMoveStage={onMoveStage}
               onOpen={setSelectedId}
+              onAnalizar={onAnalizar}
+              analyzingIds={analyzingIds}
             />
           ))}
         </div>
@@ -250,6 +276,7 @@ export function PipelineView({
         application={selected}
         interviews={selected ? interviewsByApplication[selected.id] ?? [] : []}
         notes={selected ? notesByApplication[selected.id] ?? [] : []}
+        stageEvents={selected ? stageEventsByApplication[selected.id] ?? [] : []}
         onMoveStage={onMoveStage}
         onClose={() => setSelectedId(null)}
         activeStageKeys={activeStageKeys}

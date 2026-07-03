@@ -64,6 +64,7 @@ describe("obtenerKpis", () => {
       busquedasTotales: 5,
       candidatosEnPool: 12,
       postulacionesActivas: 2,
+      postulacionesTotales: 2,
       contrataciones: 0,
       funnel: [
         { stage: "new", count: 2 },
@@ -89,6 +90,7 @@ describe("obtenerKpis", () => {
       busquedasTotales: 0,
       candidatosEnPool: 0,
       postulacionesActivas: 0,
+      postulacionesTotales: 0,
       contrataciones: 0,
       funnel: ZERO_FUNNEL,
     });
