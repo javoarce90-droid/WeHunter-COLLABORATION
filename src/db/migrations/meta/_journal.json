@@ -155,6 +155,62 @@
       "when": 1782934394408,
       "tag": "0021_career_site_public_access",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1783085086738,
+      "tag": "0022_groovy_cardiac",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1783092195792,
+      "tag": "0023_nasty_warbound",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783093000000,
+      "tag": "0024_portal_jobs_description",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783093100000,
+      "tag": "0025_get_my_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783093200000,
+      "tag": "0026_my_applications_job_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1783096730361,
+      "tag": "0027_young_goliath",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1783109868412,
+      "tag": "0028_fuzzy_kat_farrell",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1783112000000,
+      "tag": "0029_linked_candidate_profile",
+      "breakpoints": true
     }
   ]
 }

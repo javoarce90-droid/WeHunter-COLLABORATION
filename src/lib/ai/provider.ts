@@ -90,11 +90,31 @@ export type ReportInsightsInput = {
   topSource: string | null;
 };
 
+/**
+ * Onboarding de candidato: a partir de texto libre (CV pegado o perfil de LinkedIn copiado),
+ * el modelo arma un borrador de perfil listo para revisar/editar antes de guardar — mismo
+ * criterio que draftJobOffer (nunca se guarda directo, siempre pasa por revisión manual).
+ */
+export type DraftCandidateProfileInput = {
+  /** Texto libre pegado por el candidato: CV, perfil de LinkedIn, o una descripción propia. */
+  rawText: string;
+};
+
+export type DraftCandidateProfile = {
+  /** Puesto/título actual, ej "Frontend Senior". */
+  headline: string;
+  location: string | null;
+  linkedinUrl: string | null;
+  summary: string;
+  skills: string[];
+};
+
 export interface AiProvider {
   scoreApplication(input: ScoreApplicationInput): Promise<ScoreApplicationResult>;
   draftOffer(input: DraftOfferInput): Promise<string>;
   draftJobPosting(input: DraftJobPostingInput): Promise<string>;
   draftJobOffer(input: DraftJobOfferInput): Promise<DraftJobOffer>;
+  draftCandidateProfile(input: DraftCandidateProfileInput): Promise<DraftCandidateProfile>;
   interviewGuide(input: InterviewGuideInput): Promise<string[]>;
   reportInsights(input: ReportInsightsInput): Promise<string>;
 }

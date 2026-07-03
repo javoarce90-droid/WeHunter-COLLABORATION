@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isCandidateRoute } from "@/lib/auth/route-realms";
 
 /**
  * Server actions de autenticación. Son un caparazón fino sobre Supabase Auth:
@@ -23,10 +24,15 @@ const registerSchema = credentialsSchema.extend({
   fullName: z.string().min(2, "Ingresá tu nombre"),
 });
 
-/** Solo permitimos redirects internos (evita open redirect). */
+/**
+ * Solo permitimos redirects internos (evita open redirect) que además pertenezcan al reino
+ * del recruiter — un recruiter nunca termina redirigido a /portal ni /c/* aunque el query
+ * param lo pida (ver fix de tipo de cuenta real: esto es lo que evitaba el bug cruzado).
+ */
 function safeRedirect(raw: FormDataEntryValue | null): string {
   const value = typeof raw === "string" ? raw : "";
-  return value.startsWith("/") && !value.startsWith("//") ? value : "/dashboard";
+  const isInternal = value.startsWith("/") && !value.startsWith("//");
+  return isInternal && !isCandidateRoute(value) ? value : "/dashboard";
 }
 
 export async function login(
@@ -67,7 +73,7 @@ export async function register(
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
-    options: { data: { full_name: parsed.data.fullName } },
+    options: { data: { full_name: parsed.data.fullName, account_type: "recruiter" } },
   });
   if (error) {
     return { error: error.message };

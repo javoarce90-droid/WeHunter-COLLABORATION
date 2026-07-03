@@ -10,6 +10,7 @@ import {
   pgEnum,
   uniqueIndex,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -141,6 +142,18 @@ export const talentState = pgEnum("talent_state", [
   "archived", // archivado
 ]);
 
+// Interacción del candidato con un job en el portal (favorito/ocultar). Global, no por org.
+export const candidateJobInteractionKind = pgEnum("candidate_job_interaction_kind", [
+  "favorite",
+  "hidden",
+]);
+
+// Tipo de cuenta: dato explícito fijado UNA vez al registrarse (por handle_new_user, según
+// el account_type que manda cada signUp), nunca inferido. Un profile es recruiter O
+// candidato, nunca los dos — si algún día hace falta soportar ambos a la vez, es una
+// migración de columna acotada, no algo para resolver hoy.
+export const accountType = pgEnum("account_type", ["recruiter", "candidate"]);
+
 // Estado de una oferta en su ciclo de vida.
 export const offerStatus = pgEnum("offer_status", [
   "draft", // borrador, editable, todavía no enviada
@@ -204,6 +217,10 @@ export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(), // = auth.users.id
   email: text("email").notNull(),
   fullName: text("full_name"),
+  // Fijado por handle_new_user al registrarse (nunca inferido de memberships). Default
+  // "candidate" = mínimo privilegio para cualquier insert que no lo especifique explícito.
+  accountType: accountType("account_type").notNull().default("candidate"),
+  cvUrl: text("cv_url"), // path en Supabase Storage para candidatos
   // Perfil extendido del recruiter. Todo opcional. "Miembro desde" se deriva de created_at.
   avatarUrl: text("avatar_url"), // path en bucket privado `avatars` (signed URL)
   jobTitle: text("job_title"), // cargo
@@ -211,6 +228,13 @@ export const profiles = pgTable("profiles", {
   location: text("location"),
   linkedinUrl: text("linkedin_url"),
   bio: text("bio"), // resumen breve (≤500 chars, validado en la action)
+  // Perfil global del candidato (portal). `location`/`linkedinUrl`/`bio`/`cvUrl` de arriba se
+  // reusan tal cual (mismo significado para candidato que para recruiter).
+  headline: text("headline"), // puesto/título actual, ej "Frontend Senior"
+  skills: text("skills").array(),
+  // null = todavía no pasó (o saltó) el onboarding de candidato. No bloquea nada, solo decide
+  // si al loguearse cae en /c/onboarding o directo al portal.
+  candidateOnboardingCompletedAt: timestamp("candidate_onboarding_completed_at"),
   ...timestamps,
 });
 
@@ -366,6 +390,96 @@ export const candidates = pgTable("candidates", {
 }, (t) => ({
   orgIdx: index("candidates_org_idx").on(t.organizationId),
   profileIdx: index("candidates_profile_idx").on(t.profileId),
+}));
+
+// Las 3 tablas de currículum (experiencia/educación/certificaciones) comparten el mismo
+// modelo de dueño: cada fila es O de un profile_id (currículum global, autoservicio del
+// candidato) O de un candidate_id (nota de sourcing del recruiter en su pool, por
+// organization) — nunca ambos, nunca ninguno. Nunca se fusionan entre sí: son dos fuentes
+// de datos independientes. Ver .claude/rules/database.md y la migración que agrega el
+// constraint `check` (Drizzle no genera el CHECK solo con `.references()`, se agrega a mano).
+
+// Experiencia laboral: uno o más períodos de trabajo.
+export const candidateWorkExperiences = pgTable("candidate_work_experiences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  profileId: uuid("profile_id").references(() => profiles.id, { onDelete: "cascade" }),
+  candidateId: uuid("candidate_id").references(() => candidates.id, { onDelete: "cascade" }),
+  company: text("company").notNull(),
+  position: text("position").notNull(),
+  startDate: date("start_date"),
+  endDate: date("end_date"), // null = actualidad (trabajo en curso)
+  description: text("description"),
+  employmentType: employmentType("employment_type"),
+  modality: jobModality("modality"),
+  ...timestamps,
+}, (t) => ({
+  profileIdx: index("candidate_work_experiences_profile_idx").on(t.profileId),
+  candidateIdx: index("candidate_work_experiences_candidate_idx").on(t.candidateId),
+  ownerCheck: check(
+    "candidate_work_experiences_owner_check",
+    sql`(${t.profileId} is not null) <> (${t.candidateId} is not null)`,
+  ),
+}));
+
+// Educación: uno o más estudios (universidad, curso, etc).
+export const candidateEducation = pgTable("candidate_education", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  profileId: uuid("profile_id").references(() => profiles.id, { onDelete: "cascade" }),
+  candidateId: uuid("candidate_id").references(() => candidates.id, { onDelete: "cascade" }),
+  institution: text("institution").notNull(),
+  degree: text("degree").notNull(), // Título o carrera
+  fieldOfStudy: text("field_of_study"), // Área de estudio
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  description: text("description"),
+  grade: text("grade"), // Calificación
+  activities: text("activities"),
+  ...timestamps,
+}, (t) => ({
+  profileIdx: index("candidate_education_profile_idx").on(t.profileId),
+  candidateIdx: index("candidate_education_candidate_idx").on(t.candidateId),
+  ownerCheck: check(
+    "candidate_education_owner_check",
+    sql`(${t.profileId} is not null) <> (${t.candidateId} is not null)`,
+  ),
+}));
+
+// Certificaciones: uno o más certificados/cursos con constancia.
+export const candidateCertifications = pgTable("candidate_certifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  profileId: uuid("profile_id").references(() => profiles.id, { onDelete: "cascade" }),
+  candidateId: uuid("candidate_id").references(() => candidates.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  url: text("url"),
+  ...timestamps,
+}, (t) => ({
+  profileIdx: index("candidate_certifications_profile_idx").on(t.profileId),
+  candidateIdx: index("candidate_certifications_candidate_idx").on(t.candidateId),
+  ownerCheck: check(
+    "candidate_certifications_owner_check",
+    sql`(${t.profileId} is not null) <> (${t.candidateId} is not null)`,
+  ),
+}));
+
+// Favoritos/ocultos del candidato sobre un job en el portal. Global (no por organization):
+// es una preferencia del candidato, no del pool de ninguna org.
+export const candidateJobInteractions = pgTable("candidate_job_interactions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  profileId: uuid("profile_id")
+    .references(() => profiles.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id")
+    .references(() => jobs.id, { onDelete: "cascade" })
+    .notNull(),
+  kind: candidateJobInteractionKind("kind").notNull(),
+  ...timestamps,
+}, (t) => ({
+  profileIdx: index("candidate_job_interactions_profile_idx").on(t.profileId),
+  uniqueInteraction: uniqueIndex("candidate_job_interactions_unique_idx").on(
+    t.profileId,
+    t.jobId,
+    t.kind,
+  ),
 }));
 
 // Postulación: un candidato dentro del pipeline de un job.
@@ -669,10 +783,15 @@ export const shortlistFeedback = pgTable("shortlist_feedback", {
 
 // Tipos inferidos (fuente de verdad de los tipos de datos)
 export type Organization = typeof organizations.$inferSelect;
+export type Profile = typeof profiles.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type PipelineStageRow = typeof pipelineStages.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
+export type CandidateWorkExperience = typeof candidateWorkExperiences.$inferSelect;
+export type CandidateEducation = typeof candidateEducation.$inferSelect;
+export type CandidateCertification = typeof candidateCertifications.$inferSelect;
+export type CandidateJobInteraction = typeof candidateJobInteractions.$inferSelect;
 export type Application = typeof applications.$inferSelect;
 export type Interview = typeof interviews.$inferSelect;
 export type Note = typeof notes.$inferSelect;

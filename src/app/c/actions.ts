@@ -3,12 +3,16 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isRecruiterRoute } from "@/lib/auth/route-realms";
 
 /**
  * Server actions de autenticación del candidato. Mismo Supabase Auth que el recruiter
- * ((auth)/actions.ts, no importado ni tocado): no hay "tipo de cuenta", solo una puerta de
- * entrada distinta con otro redirect post-login (acá vuelve a donde se estaba postulando,
- * no a /onboarding — un candidato no crea un workspace).
+ * ((auth)/actions.ts, no importado ni tocado), pero el signUp marca `account_type:
+ * "candidate"` explícito (ver handle_new_user) — puerta de entrada distinta con otro
+ * redirect post-login. Si viene de una postulación en curso (Career Site), vuelve ahí; si
+ * no, cae a /portal, cuyo layout decide si hace falta pasar primero por /c/onboarding
+ * (mismo patrón que /onboarding para el recruiter, pero por candidateOnboardingCompletedAt
+ * en vez de membership).
  */
 
 export interface CandidateAuthFormState {
@@ -24,10 +28,15 @@ const registerSchema = credentialsSchema.extend({
   fullName: z.string().min(2, "Ingresá tu nombre"),
 });
 
-/** Solo permitimos redirects internos (evita open redirect). */
+/**
+ * Solo permitimos redirects internos (evita open redirect) que además pertenezcan al reino
+ * del candidato — nunca termina redirigido a /dashboard ni al resto del recruiter aunque el
+ * query param lo pida. Sin redirect explícito (o si el destino es del otro reino) → portal.
+ */
 function safeRedirect(raw: FormDataEntryValue | null): string {
   const value = typeof raw === "string" ? raw : "";
-  return value.startsWith("/") && !value.startsWith("//") ? value : "/";
+  const isInternal = value.startsWith("/") && !value.startsWith("//");
+  return isInternal && !isRecruiterRoute(value) ? value : "/portal";
 }
 
 export async function candidateLogin(
@@ -68,7 +77,7 @@ export async function candidateRegister(
   const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
-    options: { data: { full_name: parsed.data.fullName } },
+    options: { data: { full_name: parsed.data.fullName, account_type: "candidate" } },
   });
   if (error) {
     return { error: error.message };
@@ -81,7 +90,5 @@ export async function candidateRegister(
     redirect(`/c/verify-email?redirect=${encodeURIComponent(redirectTo)}`);
   }
 
-  // Cuenta nueva sin membership: es candidato. A diferencia del recruiter, no hay
-  // onboarding acá — vuelve a donde estaba postulando.
   redirect(redirectTo);
 }
