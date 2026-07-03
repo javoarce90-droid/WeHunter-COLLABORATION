@@ -5,6 +5,7 @@ import { type Job } from "../data/mock-jobs";
 const testJobs: Job[] = [
   {
     id: "job-1",
+    organizationId: "org-1",
     title: "React Developer",
     company: "TechCorp",
     description: "React dev needed.",
@@ -16,6 +17,7 @@ const testJobs: Job[] = [
   },
   {
     id: "job-2",
+    organizationId: "org-2",
     title: "Node.js Developer",
     company: "Devs Inc",
     description: "Backend node dev.",
@@ -27,6 +29,7 @@ const testJobs: Job[] = [
   },
   {
     id: "job-3",
+    organizationId: "org-3",
     title: "UI/UX Designer",
     company: "Creative Studio",
     description: "Designing stuff.",

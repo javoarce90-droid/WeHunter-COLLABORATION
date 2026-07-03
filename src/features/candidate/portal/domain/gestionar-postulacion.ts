@@ -1,59 +1,59 @@
-import { type Job } from "../data/mock-jobs";
+import { ok, err, type Result } from "@/lib/result";
+import type { ApplicationStage } from "@/features/recruiter/applications/schema";
 
-export type ApplicationStage = "new" | "screening" | "interview" | "offer" | "hired" | "rejected";
+export type { ApplicationStage };
 
-export interface MockApplication {
+/** Vista aplanada de una postulación para la UI del portal (mis-postulaciones). Ensamblada
+ * desde datos reales (applications + jobs + organizations + candidates) en
+ * applications.queries.ts — el shape queda igual al que ya usaban los componentes de Ale. */
+export interface PortalApplication {
+  applicationId: string;
   jobId: string;
   jobTitle: string;
   company: string;
   appliedAt: string;
   stage: ApplicationStage;
   fullName: string;
-  cvName: string;
+  cvUrl: string | null;
+  location: string;
+  workplaceType: "Remoto" | "Híbrido" | "Presencial";
+  salary: string;
+  description: string;
+  tags: string[];
 }
 
-/**
- * Caso de uso: Crear una nueva postulación y agregarla a la lista existente.
- */
-export function crearPostulacion(
-  job: Job,
-  fullName: string,
-  cvName: string,
-  existingApplications: MockApplication[],
-  appliedAtDate?: string
-): {
-  newApplication: MockApplication;
-  updatedApplications: MockApplication[];
-} {
-  if (!fullName.trim()) {
-    throw new Error("El nombre completo es obligatorio.");
+/** ApplicationStepper (UI de Ale) solo distingue 5 pasos visuales; las 3 sub-etapas reales de
+ * entrevista se agrupan en un único paso "interview". */
+export function toStepperStage(
+  stage: ApplicationStage,
+): "new" | "screening" | "interview" | "offer" | "hired" | "rejected" {
+  if (stage === "interview_hr" || stage === "interview_tech" || stage === "interview_client") {
+    return "interview";
   }
-  if (!cvName.trim()) {
-    throw new Error("El nombre del archivo de CV es obligatorio.");
-  }
-
-  const newApplication: MockApplication = {
-    jobId: job.id,
-    jobTitle: job.title,
-    company: job.company,
-    appliedAt: appliedAtDate || new Date().toLocaleDateString(),
-    stage: job.defaultStage,
-    fullName: fullName.trim(),
-    cvName: cvName.trim(),
-  };
-
-  return {
-    newApplication,
-    updatedApplications: [newApplication, ...existingApplications],
-  };
+  return stage;
 }
 
-/**
- * Caso de uso: Retirar una postulación existente.
- */
-export function retirarPostulacion(
-  applications: MockApplication[],
-  jobId: string
-): MockApplication[] {
-  return applications.filter((app) => app.jobId !== jobId);
+export interface RetirarPostulacionCtx {
+  userId: string | null;
+}
+
+export interface RetirarPostulacionDeps {
+  withdraw: (applicationId: string) => Promise<void>;
+}
+
+/** Caso de uso: retirar una postulación (fire-and-forget, borra la fila vía RPC). */
+export async function retirarPostulacion(
+  applicationId: string,
+  ctx: RetirarPostulacionCtx,
+  deps: RetirarPostulacionDeps,
+): Promise<Result<{ applicationId: string }>> {
+  if (!ctx.userId) {
+    return err("Necesitás estar autenticado.");
+  }
+  if (!applicationId.trim()) {
+    return err("Postulación inválida.");
+  }
+
+  await deps.withdraw(applicationId);
+  return ok({ applicationId });
 }

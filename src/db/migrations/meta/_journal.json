@@ -169,6 +169,27 @@
       "when": 1783092195792,
       "tag": "0023_nasty_warbound",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783093000000,
+      "tag": "0024_portal_jobs_description",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783093100000,
+      "tag": "0025_get_my_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1783093200000,
+      "tag": "0026_my_applications_job_details",
+      "breakpoints": true
     }
   ]
 }

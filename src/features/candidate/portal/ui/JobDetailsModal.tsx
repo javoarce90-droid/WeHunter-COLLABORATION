@@ -2,7 +2,7 @@
 
 import { X, MapPin, Briefcase, DollarSign, FileText } from "lucide-react";
 import { type Job } from "../data/mock-jobs";
-import { type MockApplication } from "../domain/gestionar-postulacion";
+import { type PortalApplication, toStepperStage } from "../domain/gestionar-postulacion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ApplicationStepper } from "./ApplicationStepper";
@@ -12,7 +12,7 @@ interface JobDetailsModalProps {
   isApplied: boolean;
   onClose: () => void;
   onApply?: () => void;
-  application?: MockApplication;
+  application?: PortalApplication;
   onWithdraw?: () => void;
   isWithdrawing?: boolean;
 }
@@ -120,23 +120,23 @@ export function JobDetailsModal({
                   </div>
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-text">Postulación Activa</span>
-                    <span className="text-[10px] text-muted">CV: {application.cvName} • Enviado: {application.appliedAt}</span>
+                    <span className="text-[10px] text-muted">Enviado: {new Date(application.appliedAt).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <Badge variant={application.stage} className="text-xs whitespace-nowrap w-fit">
-                  {application.stage === "new" && "Postulado"}
-                  {application.stage === "screening" && "En revisión"}
-                  {application.stage === "interview" && "Entrevista"}
-                  {application.stage === "offer" && "Propuesta"}
-                  {application.stage === "hired" && "Contratado"}
-                  {application.stage === "rejected" && "Finalizado"}
+                <Badge variant={toStepperStage(application.stage)} className="text-xs whitespace-nowrap w-fit">
+                  {toStepperStage(application.stage) === "new" && "Postulado"}
+                  {toStepperStage(application.stage) === "screening" && "En revisión"}
+                  {toStepperStage(application.stage) === "interview" && "Entrevista"}
+                  {toStepperStage(application.stage) === "offer" && "Propuesta"}
+                  {toStepperStage(application.stage) === "hired" && "Contratado"}
+                  {toStepperStage(application.stage) === "rejected" && "Finalizado"}
                 </Badge>
               </div>
 
               {/* Stepper progress */}
               <div className="bg-surface border border-border p-5 rounded-[var(--radius)] shadow-xs">
                 <h4 className="text-xs font-bold text-text mb-4">Progreso del Proceso</h4>
-                <ApplicationStepper currentStage={application.stage} />
+                <ApplicationStepper currentStage={toStepperStage(application.stage)} />
               </div>
 
               {/* Withdrawal action */}

@@ -65,6 +65,7 @@ export interface CandidateProfile {
   id: string;
   email: string;
   fullName: string | null;
+  phone: string | null;
   headline: string | null;
   location: string | null;
   linkedinUrl: string | null;
@@ -93,6 +94,7 @@ export const getCandidateProfile = cache(
             id: profiles.id,
             email: profiles.email,
             fullName: profiles.fullName,
+            phone: profiles.phone,
             headline: profiles.headline,
             location: profiles.location,
             linkedinUrl: profiles.linkedinUrl,

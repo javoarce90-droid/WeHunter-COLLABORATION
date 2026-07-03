@@ -2,64 +2,36 @@
 
 import { useState, type DragEvent, type ChangeEvent, useEffect } from "react";
 import { type Job } from "../data/mock-jobs";
+import { postularEnPortalAction, type PortalApplyState } from "../actions";
 import { CloudUpload, FileCheck, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 interface ApplicationModalProps {
   job: Job;
-  onClose: () => void;
-  onSubmit: (data: {
+  candidate: {
     fullName: string;
     email: string;
     phone: string;
-    linkedinUrl?: string;
-    cvName: string;
-    gdprConsent: boolean;
-  }) => void;
+    linkedinUrl: string;
+    cvUrl: string | null;
+  };
+  onClose: () => void;
+  onSuccess: () => void;
 }
 
-export function ApplicationModal({
-  job,
-  onClose,
-  onSubmit,
-}: ApplicationModalProps) {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [linkedinUrl, setLinkedinUrl] = useState("");
+export function ApplicationModal({ job, candidate, onClose, onSuccess }: ApplicationModalProps) {
+  const [fullName, setFullName] = useState(candidate.fullName);
+  const [email, setEmail] = useState(candidate.email);
+  const [phone, setPhone] = useState(candidate.phone);
+  const [linkedinUrl, setLinkedinUrl] = useState(candidate.linkedinUrl);
   const [gdprConsent, setGdprConsent] = useState(false);
-  const [profileCvName, setProfileCvName] = useState<string | null>(null);
-  const [useProfileCv, setUseProfileCv] = useState(true);
-  
-  // States for CV Upload
+  const [useProfileCv, setUseProfileCv] = useState(!!candidate.cvUrl);
+
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-
-  // Load data from localStorage (wh_profile) asynchronously to avoid hydration issues and ESLint react-hooks/set-state-in-effect
-  useEffect(() => {
-    const saved = localStorage.getItem("wh_profile");
-    if (saved) {
-      const timer = setTimeout(() => {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed.fullName) setFullName(parsed.fullName);
-          if (parsed.email) setEmail(parsed.email);
-          if (parsed.phone) setPhone(parsed.phone);
-          if (parsed.linkedinUrl) setLinkedinUrl(parsed.linkedinUrl);
-          if (parsed.cvName) {
-            setProfileCvName(parsed.cvName);
-            setUseProfileCv(true);
-          }
-        } catch (e) {
-          console.error("Error reading wh_profile in modal", e);
-        }
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-  }, []);
 
   // Bloquear scroll del body mientras el modal está abierto
   useEffect(() => {
@@ -102,7 +74,7 @@ export function ApplicationModal({
     e.preventDefault();
     e.stopPropagation();
     setIsDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       validateAndSetFile(e.dataTransfer.files[0]);
     }
@@ -116,39 +88,41 @@ export function ApplicationModal({
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const finalCvName = cvFile ? cvFile.name : (useProfileCv && profileCvName ? profileCvName : "");
 
-    if (!fullName.trim() || !email.trim() || !phone.trim() || !finalCvName || !gdprConsent) {
-      setError("Por favor completá todos los campos obligatorios y adjuntá tu CV.");
+    if (!fullName.trim() || !email.trim() || !phone.trim() || !gdprConsent) {
+      setError("Por favor completá todos los campos obligatorios.");
+      return;
+    }
+    if (!cvFile && !(useProfileCv && candidate.cvUrl)) {
+      setError("Adjuntá tu CV para postularte.");
       return;
     }
 
     setIsSubmitting(true);
     setError("");
 
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    const formData = new FormData();
+    formData.set("jobId", job.id);
+    formData.set("organizationId", job.organizationId);
+    formData.set("fullName", fullName.trim());
+    formData.set("email", email.trim());
+    formData.set("phone", phone.trim());
+    if (linkedinUrl.trim()) formData.set("linkedinUrl", linkedinUrl.trim());
+    if (cvFile) {
+      formData.set("cv", cvFile);
+    } else if (candidate.cvUrl) {
+      formData.set("existingCvUrl", candidate.cvUrl);
+    }
 
-    // Save/update profile in localStorage so it's ready for the next application
-    const profile = {
-      fullName: fullName.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      linkedinUrl: linkedinUrl.trim(),
-      cvName: finalCvName,
-    };
-    localStorage.setItem("wh_profile", JSON.stringify(profile));
-
-    onSubmit({
-      fullName,
-      email,
-      phone,
-      linkedinUrl: linkedinUrl.trim() || undefined,
-      cvName: finalCvName,
-      gdprConsent,
-    });
-    
+    const result: PortalApplyState = await postularEnPortalAction({}, formData);
     setIsSubmitting(false);
+
+    if (!result.ok) {
+      setError(result.error ?? "No se pudo enviar la postulación.");
+      return;
+    }
+
+    onSuccess();
   };
 
   return (
@@ -239,7 +213,7 @@ export function ApplicationModal({
                   ? "border-primary bg-primary/5 scale-[1.02]"
                   : cvFile
                   ? "border-success/40 bg-success/5 hover:border-success/60"
-                  : profileCvName && useProfileCv
+                  : useProfileCv && candidate.cvUrl
                   ? "border-primary/45 bg-primary/5 hover:border-primary/60"
                   : "border-border hover:border-primary/45 bg-bg/10"
               }`}
@@ -262,13 +236,13 @@ export function ApplicationModal({
                   <span className="text-sm font-bold text-text max-w-[200px] text-center truncate">{cvFile.name}</span>
                   <span className="text-[11px] font-medium text-muted mt-0.5">{(cvFile.size / 1024 / 1024).toFixed(2)} MB • Clic para cambiar</span>
                 </div>
-              ) : profileCvName && useProfileCv ? (
+              ) : useProfileCv && candidate.cvUrl ? (
                 <div className="flex flex-col items-center animate-pop-in">
                   <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-1">
                     <FileCheck className="w-6 h-6" />
                   </div>
-                  <span className="text-sm font-bold text-text max-w-[200px] text-center truncate">{profileCvName}</span>
-                  <span className="text-[11px] font-semibold text-primary mt-0.5">CV de tu perfil • Clic para subir otro</span>
+                  <span className="text-sm font-bold text-text max-w-[200px] text-center truncate">CV de tu perfil</span>
+                  <span className="text-[11px] font-semibold text-primary mt-0.5">Clic para subir otro</span>
                 </div>
               ) : (
                 <div className="flex flex-col items-center pointer-events-none">
