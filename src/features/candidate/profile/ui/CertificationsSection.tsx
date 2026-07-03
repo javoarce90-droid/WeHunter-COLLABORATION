@@ -8,11 +8,15 @@ import {
 } from "../resume-actions";
 import type { CandidateCertification } from "@/db/schema";
 
-export function CertificationsSection({
-  certifications,
-}: {
+type ActionFn = (prev: ResumeActionState, formData: FormData) => Promise<ResumeActionState>;
+
+interface Props {
   certifications: CandidateCertification[];
-}) {
+  actions?: { agregar: ActionFn; eliminar: ActionFn };
+  hiddenFields?: Record<string, string>;
+}
+
+export function CertificationsSection({ certifications, actions, hiddenFields }: Props) {
   const [adding, setAdding] = useState(false);
 
   return (
@@ -39,14 +43,22 @@ export function CertificationsSection({
                   </a>
                 )}
               </div>
-              <DeleteButton id={cert.id} />
+              <DeleteButton
+                id={cert.id}
+                action={actions?.eliminar ?? eliminarCertificacionAction}
+                hiddenFields={hiddenFields}
+              />
             </li>
           ))}
         </ul>
       )}
 
       {adding ? (
-        <AddForm onDone={() => setAdding(false)} />
+        <AddForm
+          onDone={() => setAdding(false)}
+          action={actions?.agregar ?? agregarCertificacionAction}
+          hiddenFields={hiddenFields}
+        />
       ) : (
         <button
           type="button"
@@ -60,10 +72,18 @@ export function CertificationsSection({
   );
 }
 
-function AddForm({ onDone }: { onDone: () => void }) {
+function AddForm({
+  onDone,
+  action,
+  hiddenFields,
+}: {
+  onDone: () => void;
+  action: ActionFn;
+  hiddenFields?: Record<string, string>;
+}) {
   const [state, dispatch, isPending] = useActionState<ResumeActionState, FormData>(
     async (prev, formData) => {
-      const result = await agregarCertificacionAction(prev, formData);
+      const result = await action(prev, formData);
       if (!result.error) onDone();
       return result;
     },
@@ -75,6 +95,10 @@ function AddForm({ onDone }: { onDone: () => void }) {
       action={dispatch}
       className="flex flex-col gap-2 rounded-[var(--radius)] border border-border bg-surface p-3"
     >
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
       <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
         Nombre del certificado
         <input
@@ -111,14 +135,26 @@ function AddForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function DeleteButton({ id }: { id: string }) {
+function DeleteButton({
+  id,
+  action,
+  hiddenFields,
+}: {
+  id: string;
+  action: ActionFn;
+  hiddenFields?: Record<string, string>;
+}) {
   const [state, dispatch, isPending] = useActionState<ResumeActionState, FormData>(
-    (prev, formData) => eliminarCertificacionAction(prev, formData),
+    (prev, formData) => action(prev, formData),
     {},
   );
 
   return (
     <form action={dispatch}>
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
       <input type="hidden" name="id" value={id} />
       <button
         type="submit"

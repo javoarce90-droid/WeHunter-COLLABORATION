@@ -5,6 +5,8 @@ import { eliminarEducacionAction, type ResumeActionState } from "../resume-actio
 import type { CandidateEducation } from "@/db/schema";
 import { EducationForm } from "./EducationForm";
 
+type ActionFn = (prev: ResumeActionState, formData: FormData) => Promise<ResumeActionState>;
+
 const dateFormatter = new Intl.DateTimeFormat("es-AR", { month: "short", year: "numeric" });
 
 function formatRange(startDate: string | null, endDate: string | null): string {
@@ -14,8 +16,15 @@ function formatRange(startDate: string | null, endDate: string | null): string {
   return `${start} – ${end}`;
 }
 
-export function EducationSection({ education }: { education: CandidateEducation[] }) {
+interface Props {
+  education: CandidateEducation[];
+  actions?: { agregar: ActionFn; editar: ActionFn; eliminar: ActionFn };
+  hiddenFields?: Record<string, string>;
+}
+
+export function EducationSection({ education, actions, hiddenFields }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
+  const formActions = actions ? { agregar: actions.agregar, editar: actions.editar } : undefined;
 
   return (
     <div className="flex flex-col gap-3 bg-surface border border-border p-6 rounded-[var(--radius)] shadow-[var(--shadow)]">
@@ -26,7 +35,12 @@ export function EducationSection({ education }: { education: CandidateEducation[
           {education.map((edu) =>
             editing === edu.id ? (
               <li key={edu.id}>
-                <EducationForm education={edu} onDone={() => setEditing(null)} />
+                <EducationForm
+                  education={edu}
+                  onDone={() => setEditing(null)}
+                  actions={formActions}
+                  hiddenFields={hiddenFields}
+                />
               </li>
             ) : (
               <li
@@ -56,7 +70,11 @@ export function EducationSection({ education }: { education: CandidateEducation[
                   >
                     Editar
                   </button>
-                  <DeleteButton id={edu.id} />
+                  <DeleteButton
+                    id={edu.id}
+                    action={actions?.eliminar ?? eliminarEducacionAction}
+                    hiddenFields={hiddenFields}
+                  />
                 </div>
               </li>
             ),
@@ -67,7 +85,7 @@ export function EducationSection({ education }: { education: CandidateEducation[
       )}
 
       {editing === "new" ? (
-        <EducationForm onDone={() => setEditing(null)} />
+        <EducationForm onDone={() => setEditing(null)} actions={formActions} hiddenFields={hiddenFields} />
       ) : (
         <button
           type="button"
@@ -81,14 +99,26 @@ export function EducationSection({ education }: { education: CandidateEducation[
   );
 }
 
-function DeleteButton({ id }: { id: string }) {
+function DeleteButton({
+  id,
+  action,
+  hiddenFields,
+}: {
+  id: string;
+  action: ActionFn;
+  hiddenFields?: Record<string, string>;
+}) {
   const [state, dispatch, isPending] = useActionState<ResumeActionState, FormData>(
-    (prev, formData) => eliminarEducacionAction(prev, formData),
+    (prev, formData) => action(prev, formData),
     {},
   );
 
   return (
     <form action={dispatch} className="inline">
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
       <input type="hidden" name="id" value={id} />
       <button
         type="submit"

@@ -8,19 +8,26 @@ import {
 } from "../resume-actions";
 import type { CandidateEducation } from "@/db/schema";
 
+type ActionFn = (prev: ResumeActionState, formData: FormData) => Promise<ResumeActionState>;
+
 interface Props {
   education?: CandidateEducation;
   onDone: () => void;
+  actions?: { agregar: ActionFn; editar: ActionFn };
+  hiddenFields?: Record<string, string>;
 }
 
-export function EducationForm({ education, onDone }: Props) {
+export function EducationForm({
+  education,
+  onDone,
+  actions = { agregar: agregarEducacionAction, editar: editarEducacionAction },
+  hiddenFields,
+}: Props) {
   const isEdit = Boolean(education);
 
   const [state, dispatch, isPending] = useActionState<ResumeActionState, FormData>(
     async (prev, formData) => {
-      const result = isEdit
-        ? await editarEducacionAction(prev, formData)
-        : await agregarEducacionAction(prev, formData);
+      const result = isEdit ? await actions.editar(prev, formData) : await actions.agregar(prev, formData);
       if (!result.error) onDone();
       return result;
     },
@@ -32,6 +39,10 @@ export function EducationForm({ education, onDone }: Props) {
       action={dispatch}
       className="mt-2 flex flex-col gap-2 rounded-[var(--radius)] border border-border bg-surface p-3"
     >
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
       {isEdit && <input type="hidden" name="id" value={education!.id} />}
 
       <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">

@@ -9,19 +9,27 @@ import {
 import { MODALITY_LABELS, EMPLOYMENT_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
 import type { CandidateWorkExperience } from "@/db/schema";
 
+type ActionFn = (prev: ResumeActionState, formData: FormData) => Promise<ResumeActionState>;
+
 interface Props {
   experience?: CandidateWorkExperience;
   onDone: () => void;
+  /** El recruiter reusa este mismo form pasando sus propias actions + candidateId. */
+  actions?: { agregar: ActionFn; editar: ActionFn };
+  hiddenFields?: Record<string, string>;
 }
 
-export function ExperienceForm({ experience, onDone }: Props) {
+export function ExperienceForm({
+  experience,
+  onDone,
+  actions = { agregar: agregarExperienciaAction, editar: editarExperienciaAction },
+  hiddenFields,
+}: Props) {
   const isEdit = Boolean(experience);
 
   const [state, dispatch, isPending] = useActionState<ResumeActionState, FormData>(
     async (prev, formData) => {
-      const result = isEdit
-        ? await editarExperienciaAction(prev, formData)
-        : await agregarExperienciaAction(prev, formData);
+      const result = isEdit ? await actions.editar(prev, formData) : await actions.agregar(prev, formData);
       if (!result.error) onDone();
       return result;
     },
@@ -33,6 +41,10 @@ export function ExperienceForm({ experience, onDone }: Props) {
       action={dispatch}
       className="mt-2 flex flex-col gap-2 rounded-[var(--radius)] border border-border bg-surface p-3"
     >
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
       {isEdit && <input type="hidden" name="id" value={experience!.id} />}
 
       <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">

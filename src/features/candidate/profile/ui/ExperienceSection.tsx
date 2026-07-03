@@ -6,6 +6,8 @@ import { EMPLOYMENT_LABELS, MODALITY_LABELS } from "@/features/recruiter/jobs/ui
 import type { CandidateWorkExperience } from "@/db/schema";
 import { ExperienceForm } from "./ExperienceForm";
 
+type ActionFn = (prev: ResumeActionState, formData: FormData) => Promise<ResumeActionState>;
+
 const dateFormatter = new Intl.DateTimeFormat("es-AR", { month: "short", year: "numeric" });
 
 function formatRange(startDate: string | null, endDate: string | null): string {
@@ -14,8 +16,20 @@ function formatRange(startDate: string | null, endDate: string | null): string {
   return `${start} – ${end}`;
 }
 
-export function ExperienceSection({ experiences }: { experiences: CandidateWorkExperience[] }) {
+interface Props {
+  experiences: CandidateWorkExperience[];
+  /** El recruiter reusa esta sección pasando sus propias actions + candidateId. */
+  actions?: { agregar: ActionFn; editar: ActionFn; eliminar: ActionFn };
+  hiddenFields?: Record<string, string>;
+}
+
+export function ExperienceSection({
+  experiences,
+  actions,
+  hiddenFields,
+}: Props) {
   const [editing, setEditing] = useState<string | null>(null);
+  const formActions = actions ? { agregar: actions.agregar, editar: actions.editar } : undefined;
 
   return (
     <div className="flex flex-col gap-3 bg-surface border border-border p-6 rounded-[var(--radius)] shadow-[var(--shadow)]">
@@ -26,7 +40,12 @@ export function ExperienceSection({ experiences }: { experiences: CandidateWorkE
           {experiences.map((exp) =>
             editing === exp.id ? (
               <li key={exp.id}>
-                <ExperienceForm experience={exp} onDone={() => setEditing(null)} />
+                <ExperienceForm
+                  experience={exp}
+                  onDone={() => setEditing(null)}
+                  actions={formActions}
+                  hiddenFields={hiddenFields}
+                />
               </li>
             ) : (
               <li
@@ -63,7 +82,11 @@ export function ExperienceSection({ experiences }: { experiences: CandidateWorkE
                   >
                     Editar
                   </button>
-                  <DeleteButton id={exp.id} />
+                  <DeleteButton
+                    id={exp.id}
+                    action={actions?.eliminar ?? eliminarExperienciaAction}
+                    hiddenFields={hiddenFields}
+                  />
                 </div>
               </li>
             ),
@@ -72,7 +95,7 @@ export function ExperienceSection({ experiences }: { experiences: CandidateWorkE
       )}
 
       {editing === "new" ? (
-        <ExperienceForm onDone={() => setEditing(null)} />
+        <ExperienceForm onDone={() => setEditing(null)} actions={formActions} hiddenFields={hiddenFields} />
       ) : (
         <button
           type="button"
@@ -86,14 +109,26 @@ export function ExperienceSection({ experiences }: { experiences: CandidateWorkE
   );
 }
 
-function DeleteButton({ id }: { id: string }) {
+function DeleteButton({
+  id,
+  action,
+  hiddenFields,
+}: {
+  id: string;
+  action: ActionFn;
+  hiddenFields?: Record<string, string>;
+}) {
   const [state, dispatch, isPending] = useActionState<ResumeActionState, FormData>(
-    (prev, formData) => eliminarExperienciaAction(prev, formData),
+    (prev, formData) => action(prev, formData),
     {},
   );
 
   return (
     <form action={dispatch} className="inline">
+      {hiddenFields &&
+        Object.entries(hiddenFields).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
       <input type="hidden" name="id" value={id} />
       <button
         type="submit"
