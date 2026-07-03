@@ -1,15 +1,15 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { MOCK_SESSION_COOKIE } from "./features/candidate/profile/schema";
 
 /**
  * Proxy de sesión (en Next 16 reemplaza a `middleware.ts`).
  *  1. Refresca las cookies de la sesión de Supabase en cada request (REQUERIDO por
  *     @supabase/ssr: sin esto la sesión expira en server components).
- *  2. Protege las rutas del reclutador: sin sesión, redirige a /login.
+ *  2. Protege las rutas del reclutador y las del candidato: sin sesión, redirige al login
+ *     que corresponda.
  *
  * No hace autorización por rol (eso vive en el dominio de cada feature). Acá solo
- * "estás logueado o no".
+ * "estás logueado o no". Mismo Supabase Auth para los dos — no hay cookie mock.
  */
 
 const RECRUITER_PROTECTED_PREFIXES = [
@@ -21,32 +21,17 @@ const RECRUITER_PROTECTED_PREFIXES = [
   "/onboarding",
 ];
 
-const CANDIDATE_PROTECTED_PREFIXES = ["/c/profile", "/portal"];
+const CANDIDATE_PROTECTED_PREFIXES = ["/c/profile", "/c/onboarding", "/portal"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
 
-  // 1. Manejo del flujo de Candidatos (UI-Only Mock)
   const isCandidateProtected = CANDIDATE_PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
-
-  if (isCandidateProtected) {
-    const hasMockSession = request.cookies.has(MOCK_SESSION_COOKIE);
-    if (!hasMockSession) {
-      const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/c/login";
-      loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-    // Si tiene la cookie mockeada, lo dejamos pasar sin tocar Supabase.
-    return response;
-  }
-
-  // 2. Manejo del flujo de Reclutadores (Supabase Real)
   const isRecruiterProtected = RECRUITER_PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 
   const supabase = createServerClient(
@@ -78,6 +63,13 @@ export async function proxy(request: NextRequest) {
   if (isRecruiterProtected && !user) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (isCandidateProtected && !user) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/c/login";
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
   }

@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { getAuth, getDb } from "@/db/client";
-import { memberships, orgRole } from "@/db/schema";
+import { memberships, orgRole, profiles } from "@/db/schema";
 
 export type OrgRole = (typeof orgRole.enumValues)[number];
 
@@ -55,6 +55,56 @@ export const getActiveMembership = cache(
           .orderBy(memberships.createdAt)
           .limit(1),
       "db.membership",
+    );
+
+    return rows[0] ?? null;
+  },
+);
+
+export interface CandidateProfile {
+  id: string;
+  email: string;
+  fullName: string | null;
+  headline: string | null;
+  location: string | null;
+  linkedinUrl: string | null;
+  bio: string | null;
+  cvUrl: string | null;
+  skills: string[] | null;
+  candidateOnboardingCompletedAt: Date | null;
+}
+
+/**
+ * Perfil del candidato autenticado (distinto de getActiveMembership: un candidato no tiene
+ * membership de organization). `candidateOnboardingCompletedAt === null` es la señal de
+ * "todavía no pasó (o saltó) el onboarding de candidato" — no bloquea nada, solo decide el
+ * destino post-login (`/c/onboarding` vs portal). cache() por request, mismo motivo que
+ * getActiveMembership.
+ */
+export const getCandidateProfile = cache(
+  async (): Promise<CandidateProfile | null> => {
+    const db = await getDb();
+    if (!db.userId) return null;
+
+    const rows = await db.rls(
+      (tx) =>
+        tx
+          .select({
+            id: profiles.id,
+            email: profiles.email,
+            fullName: profiles.fullName,
+            headline: profiles.headline,
+            location: profiles.location,
+            linkedinUrl: profiles.linkedinUrl,
+            bio: profiles.bio,
+            cvUrl: profiles.cvUrl,
+            skills: profiles.skills,
+            candidateOnboardingCompletedAt: profiles.candidateOnboardingCompletedAt,
+          })
+          .from(profiles)
+          .where(eq(profiles.id, db.userId!))
+          .limit(1),
+      "db.candidateProfile",
     );
 
     return rows[0] ?? null;
