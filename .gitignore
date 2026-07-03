@@ -42,3 +42,9 @@ next-env.d.ts
 
 # resultados del harness de evaluación de IA (CSVs locales)
 src/lib/ai/eval/results/
+
+# AI Agents
+GEMINI.md
+.gemini/
+.agents/
+local-notes/

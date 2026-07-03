@@ -1,7 +1,7 @@
 import { type ReactNode, Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
+import { getAccountType, getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { logout } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "./_components/Sidebar";
@@ -15,6 +15,7 @@ import {
 /**
  * Shell de las pantallas del reclutador (rutas protegidas). Resuelve el contexto base:
  *  - sin sesión → /login (el middleware ya lo cubre; esto es defensa en profundidad).
+ *  - cuenta de candidato → /portal (nunca debe ver el shell de recruiter, ni su onboarding).
  *  - sesión sin workspace → /onboarding.
  * La navegación vive en la barra lateral (Sidebar); el header queda como topbar de cuenta.
  */
@@ -22,6 +23,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const user = await getCurrentUser();
   if (!user) {
     redirect("/login");
+  }
+
+  const accountType = await getAccountType();
+  if (accountType === "candidate") {
+    redirect("/portal");
   }
 
   const membership = await getActiveMembership();

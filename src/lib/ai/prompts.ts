@@ -3,6 +3,7 @@ import type {
   DraftOfferInput,
   DraftJobPostingInput,
   DraftJobOfferInput,
+  DraftCandidateProfileInput,
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";
@@ -85,6 +86,23 @@ export const prompts = {
         `atencion_cliente, otro), objectives, requirements y responsibilities (Markdown con ` +
         `viñetas), benefits (lista de {name, description}), vacancies (entero ≥1) y skills ` +
         `(lista de tecnologías/competencias clave para el matching).`,
+    };
+  },
+
+  draftCandidateProfile({ rawText }: DraftCandidateProfileInput): Prompt {
+    return {
+      system:
+        "Sos un asistente que arma perfiles de talento en español rioplatense a partir de " +
+        "texto libre (CV pegado o perfil de LinkedIn). Devolvés SOLO un objeto JSON con los " +
+        "campos pedidos, extrayendo lo que el texto realmente dice — no inventes experiencia, " +
+        "títulos ni skills que no estén sugeridos por el texto.",
+      user:
+        `A partir de este texto (CV o perfil pegado por la persona), extraé su perfil:\n\n` +
+        `"""\n${rawText}\n"""\n\n` +
+        `Devolvé: headline (puesto/título actual, ej "Frontend Senior"), location (ciudad/país ` +
+        `si se menciona, si no null), linkedinUrl (si aparece una URL de linkedin.com en el ` +
+        `texto, si no null), summary (resumen breve en 2-3 frases) y skills (lista de ` +
+        `tecnologías/competencias mencionadas).`,
     };
   },
 

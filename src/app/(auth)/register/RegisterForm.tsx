@@ -13,48 +13,58 @@ export function RegisterForm() {
   const [state, formAction, pending] = useActionState(register, initialState);
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-4">
-        {state.message ? (
-          <p className="text-sm text-text">{state.message}</p>
-        ) : (
-          <form action={formAction} className="flex flex-col gap-4">
-            <Input
-              label="Nombre completo"
-              name="fullName"
-              type="text"
-              autoComplete="name"
-              required
-            />
-            <Input
-              label="Email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-            />
-            <Input
-              label="Contraseña"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              required
-            />
-            {state.error && (
-              <p className="text-xs text-danger">{state.error}</p>
-            )}
-            <Button type="submit" disabled={pending}>
-              {pending ? "Creando cuenta…" : "Crear cuenta"}
-            </Button>
-          </form>
-        )}
-        <p className="text-center text-xs text-muted">
-          ¿Ya tenés cuenta?{" "}
-          <Link href="/login" className="font-semibold text-primary">
-            Ingresá
-          </Link>
-        </p>
-      </CardContent>
-    </Card>
+    <>
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          {state.message ? (
+            <p className="text-sm text-text">{state.message}</p>
+          ) : (
+            <form action={formAction} className="flex flex-col gap-4">
+              <Input
+                label="Nombre completo"
+                name="fullName"
+                type="text"
+                autoComplete="name"
+                required
+              />
+              <Input
+                label="Email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+              />
+              <Input
+                label="Contraseña"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+              />
+              {state.error && (
+                <p className="text-xs text-danger">{state.error}</p>
+              )}
+              <Button type="submit" disabled={pending}>
+                {pending ? "Creando cuenta…" : "Crear cuenta"}
+              </Button>
+            </form>
+          )}
+          <p className="text-center text-xs text-muted">
+            ¿Ya tenés cuenta?{" "}
+            <Link href="/login" className="font-semibold text-primary">
+              Ingresá
+            </Link>
+          </p>
+        </CardContent>
+      </Card>
+      <p className="mt-4 text-center text-xs text-white/60">
+        <Link
+          href="/c/register"
+          className="font-semibold text-white hover:underline"
+        >
+          Soy candidato →
+        </Link>
+      </p>
+    </>
   );
 }

@@ -2,8 +2,22 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getCandidateById } from "@/features/recruiter/candidates/data/candidates.queries";
+import { getCandidateResume } from "@/features/recruiter/candidates/data/resume.queries";
 import { listApplicationsByCandidate } from "@/features/recruiter/applications/data/applications.queries";
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
+import {
+  agregarExperienciaRecruiterAction,
+  editarExperienciaRecruiterAction,
+  eliminarExperienciaRecruiterAction,
+  agregarEducacionRecruiterAction,
+  editarEducacionRecruiterAction,
+  eliminarEducacionRecruiterAction,
+  agregarCertificacionRecruiterAction,
+  eliminarCertificacionRecruiterAction,
+} from "@/features/recruiter/candidates/resume-actions";
+import { ExperienceSection } from "@/features/candidate/profile/ui/ExperienceSection";
+import { EducationSection } from "@/features/candidate/profile/ui/EducationSection";
+import { CertificationsSection } from "@/features/candidate/profile/ui/CertificationsSection";
 import { Badge } from "@/components/ui/badge";
 import { AiScore } from "@/components/ui/ai";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -34,6 +48,9 @@ export default async function CandidateDetailPage({
   ]);
   if (!candidate) notFound();
 
+  const resume = await getCandidateResume(candidate.id);
+  const resumeHiddenFields = { candidateId: candidate.id };
+
   const facts: { label: string; value: string }[] = [
     { label: "Email", value: candidate.email || "—" },
     { label: "Búsquedas", value: String(apps.length) },
@@ -51,6 +68,22 @@ export default async function CandidateDetailPage({
           </div>
         ))}
       </dl>
+
+      {/* Indicador de cuenta vinculada: solo informa + linkea, nunca reemplaza ni fusiona
+          lo que el recruiter ya cargó acá (ver plan: "no se pisan ni se combinan"). */}
+      {candidate.profileId && (
+        <div className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-primary/20 bg-primary-light/40 px-4 py-3">
+          <p className="text-xs font-semibold text-primary-hover">
+            Este candidato tiene una cuenta propia en WeHunter.
+          </p>
+          <Link
+            href={`/candidates/${candidate.id}/perfil-real`}
+            className="text-xs font-semibold text-primary hover:text-primary-hover whitespace-nowrap"
+          >
+            Ver perfil completo →
+          </Link>
+        </div>
+      )}
 
       {/* Cuerpo: participación (aside) + CV (principal) */}
       <div className="grid gap-5 lg:grid-cols-3">
@@ -160,6 +193,35 @@ export default async function CandidateDetailPage({
           </section>
         </aside>
       </div>
+
+      {/* Currículum cargado a mano por el recruiter (candidate_id) — nunca se fusiona con
+          el perfil real del candidato si más adelante se registra (ver indicador arriba). */}
+      <ExperienceSection
+        experiences={resume.experiences}
+        actions={{
+          agregar: agregarExperienciaRecruiterAction,
+          editar: editarExperienciaRecruiterAction,
+          eliminar: eliminarExperienciaRecruiterAction,
+        }}
+        hiddenFields={resumeHiddenFields}
+      />
+      <EducationSection
+        education={resume.education}
+        actions={{
+          agregar: agregarEducacionRecruiterAction,
+          editar: editarEducacionRecruiterAction,
+          eliminar: eliminarEducacionRecruiterAction,
+        }}
+        hiddenFields={resumeHiddenFields}
+      />
+      <CertificationsSection
+        certifications={resume.certifications}
+        actions={{
+          agregar: agregarCertificacionRecruiterAction,
+          eliminar: eliminarCertificacionRecruiterAction,
+        }}
+        hiddenFields={resumeHiddenFields}
+      />
     </div>
   );
 }
