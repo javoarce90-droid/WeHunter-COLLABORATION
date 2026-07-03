@@ -147,6 +147,12 @@ export const candidateJobInteractionKind = pgEnum("candidate_job_interaction_kin
   "hidden",
 ]);
 
+// Tipo de cuenta: dato explícito fijado UNA vez al registrarse (por handle_new_user, según
+// el account_type que manda cada signUp), nunca inferido. Un profile es recruiter O
+// candidato, nunca los dos — si algún día hace falta soportar ambos a la vez, es una
+// migración de columna acotada, no algo para resolver hoy.
+export const accountType = pgEnum("account_type", ["recruiter", "candidate"]);
+
 // Estado de una oferta en su ciclo de vida.
 export const offerStatus = pgEnum("offer_status", [
   "draft", // borrador, editable, todavía no enviada
@@ -210,6 +216,9 @@ export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(), // = auth.users.id
   email: text("email").notNull(),
   fullName: text("full_name"),
+  // Fijado por handle_new_user al registrarse (nunca inferido de memberships). Default
+  // "candidate" = mínimo privilegio para cualquier insert que no lo especifique explícito.
+  accountType: accountType("account_type").notNull().default("candidate"),
   cvUrl: text("cv_url"), // path en Supabase Storage para candidatos
   // Perfil extendido del recruiter. Todo opcional. "Miembro desde" se deriva de created_at.
   avatarUrl: text("avatar_url"), // path en bucket privado `avatars` (signed URL)

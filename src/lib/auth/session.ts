@@ -1,9 +1,10 @@
 import { cache } from "react";
 import { eq } from "drizzle-orm";
 import { getAuth, getDb } from "@/db/client";
-import { memberships, orgRole, profiles } from "@/db/schema";
+import { accountType, memberships, orgRole, profiles } from "@/db/schema";
 
 export type OrgRole = (typeof orgRole.enumValues)[number];
+export type AccountType = (typeof accountType.enumValues)[number];
 
 /**
  * Helpers de sesión y tenancy. Son la base de la autorización: cada caso de uso del
@@ -60,6 +61,30 @@ export const getActiveMembership = cache(
     return rows[0] ?? null;
   },
 );
+
+/**
+ * Tipo de cuenta REAL del usuario actual (fijado explícito al registrarse por
+ * handle_new_user, nunca inferido de si tiene o no membership — un recruiter que abandona
+ * el onboarding sin crear organization también tendría cero memberships, y sería
+ * indistinguible de un candidato si se infiriera). `null` si no hay sesión.
+ * cache() por request, mismo motivo que getActiveMembership/getCandidateProfile.
+ */
+export const getAccountType = cache(async (): Promise<AccountType | null> => {
+  const db = await getDb();
+  if (!db.userId) return null;
+
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ accountType: profiles.accountType })
+        .from(profiles)
+        .where(eq(profiles.id, db.userId!))
+        .limit(1),
+    "db.accountType",
+  );
+
+  return rows[0]?.accountType ?? null;
+});
 
 export interface CandidateProfile {
   id: string;

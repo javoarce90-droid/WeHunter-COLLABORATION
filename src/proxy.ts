@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isCandidateRoute, isRecruiterRoute } from "@/lib/auth/route-realms";
 
 /**
  * Proxy de sesión (en Next 16 reemplaza a `middleware.ts`).
@@ -12,27 +13,12 @@ import { NextResponse, type NextRequest } from "next/server";
  * "estás logueado o no". Mismo Supabase Auth para los dos — no hay cookie mock.
  */
 
-const RECRUITER_PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/jobs",
-  "/talent",
-  "/interviews",
-  "/reports",
-  "/onboarding",
-];
-
-const CANDIDATE_PROTECTED_PREFIXES = ["/c/profile", "/c/onboarding", "/portal"];
-
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const { pathname } = request.nextUrl;
 
-  const isCandidateProtected = CANDIDATE_PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-  const isRecruiterProtected = RECRUITER_PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  const isCandidateProtected = isCandidateRoute(pathname);
+  const isRecruiterProtected = isRecruiterRoute(pathname);
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

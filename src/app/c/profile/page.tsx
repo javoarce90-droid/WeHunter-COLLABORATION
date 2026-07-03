@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getCandidateProfile } from "@/lib/auth/session";
+import { getAccountType, getCandidateProfile } from "@/lib/auth/session";
 import { getCvSignedUrl } from "@/features/recruiter/candidates/data/candidates.storage";
 import { CandidateProfileForm } from "@/features/candidate/profile/ui/CandidateProfileForm";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
@@ -14,6 +14,11 @@ export default async function CandidateProfilePage() {
   const candidate = await getCandidateProfile();
   if (!candidate) {
     redirect("/c/login");
+  }
+
+  const accountType = await getAccountType();
+  if (accountType === "recruiter") {
+    redirect("/dashboard");
   }
 
   const cvDownloadUrl = candidate.cvUrl ? await getCvSignedUrl(candidate.cvUrl) : null;

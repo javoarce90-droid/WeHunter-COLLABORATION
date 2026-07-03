@@ -190,6 +190,13 @@
       "when": 1783093200000,
       "tag": "0026_my_applications_job_details",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1783096730361,
+      "tag": "0027_young_goliath",
+      "breakpoints": true
     }
   ]
 }
