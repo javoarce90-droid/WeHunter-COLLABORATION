@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { getAccountType, getCandidateProfile } from "@/lib/auth/session";
 import { getCvSignedUrl } from "@/features/recruiter/candidates/data/candidates.storage";
+import { getMyResume } from "@/features/candidate/profile/data/resume.queries";
 import { CandidateProfileForm } from "@/features/candidate/profile/ui/CandidateProfileForm";
+import { ExperienceSection } from "@/features/candidate/profile/ui/ExperienceSection";
+import { EducationSection } from "@/features/candidate/profile/ui/EducationSection";
+import { CertificationsSection } from "@/features/candidate/profile/ui/CertificationsSection";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
 import Link from "next/link";
 
@@ -21,7 +25,10 @@ export default async function CandidateProfilePage() {
     redirect("/dashboard");
   }
 
-  const cvDownloadUrl = candidate.cvUrl ? await getCvSignedUrl(candidate.cvUrl) : null;
+  const [cvDownloadUrl, resume] = await Promise.all([
+    candidate.cvUrl ? getCvSignedUrl(candidate.cvUrl) : Promise.resolve(null),
+    getMyResume(),
+  ]);
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
@@ -84,6 +91,10 @@ export default async function CandidateProfilePage() {
           initialCvUrl={candidate.cvUrl}
           initialCvDownloadUrl={cvDownloadUrl}
         />
+
+        <ExperienceSection experiences={resume.experiences} />
+        <EducationSection education={resume.education} />
+        <CertificationsSection certifications={resume.certifications} />
       </main>
     </div>
   );

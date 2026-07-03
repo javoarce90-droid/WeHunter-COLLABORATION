@@ -91,11 +91,20 @@ export async function editarExperienciaAction(
   return {};
 }
 
-export async function eliminarExperienciaAction(id: string): Promise<void> {
+export async function eliminarExperienciaAction(
+  _prev: ResumeActionState,
+  formData: FormData,
+): Promise<ResumeActionState> {
   const owner = await ownProfileOwner();
-  if (!owner) return;
-  await eliminarExperiencia(id, owner, { deleteExperience });
+  if (!owner) return { error: "No tenés sesión activa." };
+
+  const result = await eliminarExperiencia(String(formData.get("id") ?? ""), owner, {
+    deleteExperience,
+  });
+  if (!result.ok) return { error: result.error };
+
   revalidatePath("/c/profile");
+  return {};
 }
 
 // ---- Educación ----
@@ -156,11 +165,20 @@ export async function editarEducacionAction(
   return {};
 }
 
-export async function eliminarEducacionAction(id: string): Promise<void> {
+export async function eliminarEducacionAction(
+  _prev: ResumeActionState,
+  formData: FormData,
+): Promise<ResumeActionState> {
   const owner = await ownProfileOwner();
-  if (!owner) return;
-  await eliminarEducacion(id, owner, { deleteEducation });
+  if (!owner) return { error: "No tenés sesión activa." };
+
+  const result = await eliminarEducacion(String(formData.get("id") ?? ""), owner, {
+    deleteEducation,
+  });
+  if (!result.ok) return { error: result.error };
+
   revalidatePath("/c/profile");
+  return {};
 }
 
 // ---- Certificaciones ----
@@ -186,9 +204,18 @@ export async function agregarCertificacionAction(
   return {};
 }
 
-export async function eliminarCertificacionAction(id: string): Promise<void> {
+export async function eliminarCertificacionAction(
+  _prev: ResumeActionState,
+  formData: FormData,
+): Promise<ResumeActionState> {
   const owner = await ownProfileOwner();
-  if (!owner) return;
-  await eliminarCertificacion(id, owner, { deleteCertification });
+  if (!owner) return { error: "No tenés sesión activa." };
+
+  const result = await eliminarCertificacion(String(formData.get("id") ?? ""), owner, {
+    deleteCertification,
+  });
+  if (!result.ok) return { error: result.error };
+
   revalidatePath("/c/profile");
+  return {};
 }
