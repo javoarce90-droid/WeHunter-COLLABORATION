@@ -211,6 +211,48 @@
       "when": 1783112000000,
       "tag": "0029_linked_candidate_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1783112100000,
+      "tag": "0030_apply_optional_cv_phone",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1783112200000,
+      "tag": "0031_portal_jobs_full_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1783112300000,
+      "tag": "0032_my_applications_full_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1783112400000,
+      "tag": "0033_withdraw_only_early_stage",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1783112500000,
+      "tag": "0034_fix_cvs_tenant_policy_profiles_path",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1783366803034,
+      "tag": "0035_elite_lenny_balinger",
+      "breakpoints": true
     }
   ]
 }

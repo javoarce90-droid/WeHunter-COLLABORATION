@@ -4,7 +4,8 @@ export type PostularDesdeCareerSiteInput = {
   email: string;
   phone?: string;
   coverNote?: string;
-  cvPath: string;
+  /** Ni el CV ni el teléfono son obligatorios para postularse. */
+  cvPath?: string;
 };
 
 export type PostularDesdeCareerSiteDeps = {
@@ -17,7 +18,7 @@ export type PostularDesdeCareerSiteDeps = {
     email: string;
     phone: string | null;
     coverNote: string | null;
-    cvPath: string;
+    cvPath: string | null;
   }) => Promise<{ applicationId: string; candidateId: string } | null>;
 };
 
@@ -42,7 +43,7 @@ export async function postularDesdeCareerSite(
     email: input.email.trim(),
     phone: input.phone?.trim() || null,
     coverNote: input.coverNote?.trim() || null,
-    cvPath: input.cvPath,
+    cvPath: input.cvPath?.trim() || null,
   });
 
   if (!result) {

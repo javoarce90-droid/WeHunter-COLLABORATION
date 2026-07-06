@@ -8,6 +8,7 @@ import {
 } from "../resume-actions";
 import { MODALITY_LABELS, EMPLOYMENT_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
 import type { CandidateWorkExperience } from "@/db/schema";
+import { SkillsPillsInput } from "./SkillsPillsInput";
 
 type ActionFn = (prev: ResumeActionState, formData: FormData) => Promise<ResumeActionState>;
 
@@ -133,6 +134,13 @@ export function ExperienceForm({
           </select>
         </label>
       </div>
+
+      <SkillsPillsInput
+        name="skills"
+        label="Skills"
+        initialSkills={experience?.skills ?? []}
+        placeholder="Escribí una skill y presioná Enter"
+      />
 
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
 

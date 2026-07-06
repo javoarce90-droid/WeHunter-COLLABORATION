@@ -411,6 +411,7 @@ export const candidateWorkExperiences = pgTable("candidate_work_experiences", {
   description: text("description"),
   employmentType: employmentType("employment_type"),
   modality: jobModality("modality"),
+  skills: text("skills").array(),
   ...timestamps,
 }, (t) => ({
   profileIdx: index("candidate_work_experiences_profile_idx").on(t.profileId),

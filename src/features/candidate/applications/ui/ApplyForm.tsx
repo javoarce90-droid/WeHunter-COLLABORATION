@@ -17,12 +17,16 @@ export function ApplyForm({
   job,
   defaultName,
   defaultEmail,
+  defaultPhone,
+  existingCvUrl,
   accentColor,
 }: {
   slug: string;
   job: CareerSiteJobDetail;
   defaultName: string;
   defaultEmail: string;
+  defaultPhone?: string;
+  existingCvUrl?: string | null;
   accentColor?: string;
 }) {
   const [state, formAction, pending] = useActionState(postularAction, initialState);
@@ -47,26 +51,34 @@ export function ApplyForm({
 
       <Input label="Nombre completo" name="fullName" defaultValue={defaultName} required />
       <Input label="Email" name="email" type="email" defaultValue={defaultEmail} required />
-      <Input label="Teléfono (opcional)" name="phone" type="tel" />
+
+      {defaultPhone ? (
+        <input type="hidden" name="phone" value={defaultPhone} />
+      ) : (
+        <Input label="Teléfono (opcional)" name="phone" type="tel" />
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-semibold text-muted">Mensaje (opcional)</label>
         <textarea name="coverNote" rows={4} maxLength={2000} className={fieldClass} />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-muted">CV</label>
-        <div className={fieldClass}>
-          <input
-            type="file"
-            name="cv"
-            accept=".pdf,.doc,.docx"
-            required
-            className="w-full text-sm text-text file:mr-3 file:rounded-[var(--radius)] file:border-0 file:bg-primary-light file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-hover"
-          />
+      {existingCvUrl ? (
+        <input type="hidden" name="existingCvUrl" value={existingCvUrl} />
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-muted">CV (opcional)</label>
+          <div className={fieldClass}>
+            <input
+              type="file"
+              name="cv"
+              accept=".pdf,.doc,.docx"
+              className="w-full text-sm text-text file:mr-3 file:rounded-[var(--radius)] file:border-0 file:bg-primary-light file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-hover"
+            />
+          </div>
+          <span className="text-xs text-muted">PDF, DOC o DOCX · máx. 5 MB</span>
         </div>
-        <span className="text-xs text-muted">PDF, DOC o DOCX · máx. 5 MB</span>
-      </div>
+      )}
 
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <Button

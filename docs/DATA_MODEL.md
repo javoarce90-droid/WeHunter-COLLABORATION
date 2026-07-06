@@ -24,6 +24,40 @@ Aparte, fuera del modelo de organization:
 - **Hiring Manager / empresa:** revisa candidatos que un reclutador le comparte. Acceso por
   link con token, sin ver la base interna del reclutador.
 
+## Modelo de usuarios (confirmado con el cliente, 2026-07-06)
+
+La elección de modelo se hace **al autenticarse / crear el workspace**: **freelance/consultora**
+o **empresa**. No es una feature aparte, es una decisión de onboarding.
+
+- **Freelance / consultora:** el recruiter ya recibe la JD por afuera y la carga directo como
+  búsqueda — es el flujo de hoy, sin cambios.
+- **Empresa:** el recruiter puede cargar la búsqueda igual que en el modelo anterior, **pero
+  además** un Hiring Manager puede generar una solicitud sin pasar primero por el recruiter:
+  1. El HM nota que necesita cubrir/crear un puesto y entra a la plataforma.
+  2. Formulario corto: presupuesto, motivo (baja/creación del puesto), fecha estimada de ingreso.
+  3. Define el perfil — la JD (soft skills, hard skills, experiencia, educación,
+     responsabilidades, objetivos) — **asistido por IA**.
+  4. Envía la solicitud al recruiter.
+  5. El recruiter valida y aprueba → ahí se crea la búsqueda (`job`) para trabajar en el ATS.
+
+Esto afina el flujo genérico de "Rol Empresa" de más abajo (pasos 2–3 del documento): "crear
+solicitud" no es un formulario libre, es este proceso de dos pasos (form corto + JD asistida
+por IA), y "aprobar" del recruiter es lo que dispara la creación real de la búsqueda. La
+`requisition` y el `job` son entidades distintas: una requisition aprobada **genera** un job,
+no lo reemplaza.
+
+**Implicancia de modelado:**
+- La `requisition` necesita: presupuesto, motivo, fecha estimada de ingreso, y los mismos
+  campos ricos de JD que ya tiene `jobs` (skills, objectives, requirements, responsibilities —
+  ver Entidades principales). El armado asistido por IA es Suite IA (§14, Etapa 2).
+- Estado de la solicitud: pendiente → aprobada (crea un `job` vinculado) / rechazada.
+- El tipo de workspace (freelance/consultora vs empresa) hoy **no** está modelado en
+  `organizations` — se define en el signup. 🧱 Falta la columna/enum cuando se arranque esta
+  pieza (backlog §17).
+
+Confirmado explícitamente: el marketplace de recruiters no participa de ninguno de los dos
+modelos.
+
 ## Rol Empresa / Hiring Manager (según el flujo de usuarios = fuente de verdad)
 El documento de flujo de usuarios define el alcance y NO se modifica. Según ese flujo, la
 Empresa **NO recluta por sí misma**: crea solicitudes (requisitions) y supervisa, mientras el

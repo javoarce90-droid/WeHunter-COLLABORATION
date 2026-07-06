@@ -3,14 +3,33 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ApplicationStepper } from "./ApplicationStepper";
-import { toStepperStage, type PortalApplication } from "../domain/gestionar-postulacion";
+import {
+  toStepperStage,
+  puedeRetirarPostulacion,
+  type PortalApplication,
+} from "../domain/gestionar-postulacion";
 import { retirarPostulacionAction } from "../actions";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { X, MapPin, Briefcase, DollarSign } from "lucide-react";
+import {
+  X,
+  MapPin,
+  Briefcase,
+  DollarSign,
+  Building2,
+  Award,
+  Clock,
+  Users,
+} from "lucide-react";
 import Link from "next/link";
+import {
+  AREA_LABELS,
+  SENIORITY_LABELS,
+  EMPLOYMENT_LABELS,
+} from "@/features/recruiter/jobs/ui/field-meta";
+import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
 
 const STAGE_LABEL: Record<PortalApplication["stage"], string> = {
   new: "Postulado",
@@ -24,15 +43,118 @@ const STAGE_LABEL: Record<PortalApplication["stage"], string> = {
   rejected: "Finalizado",
 };
 
+type StageFilter = "all" | ReturnType<typeof toStepperStage>;
+
+const STAGE_FILTERS: StageFilter[] = [
+  "all",
+  "new",
+  "screening",
+  "interview",
+  "offer",
+  "hired",
+  "rejected",
+];
+
+const FILTER_LABEL: Record<StageFilter, string> = {
+  all: "Todas",
+  new: "Postulado",
+  screening: "En revisión",
+  interview: "Entrevista",
+  offer: "Propuesta",
+  hired: "Contratado",
+  rejected: "Finalizado",
+};
+
 interface MisPostulacionesViewProps {
   initialApplications: PortalApplication[];
 }
 
-export function MisPostulacionesView({ initialApplications }: MisPostulacionesViewProps) {
+export function MisPostulacionesView({
+  initialApplications,
+}: MisPostulacionesViewProps) {
   const router = useRouter();
   const [applications, setApplications] = useState(initialApplications);
-  const [selectedApp, setSelectedApp] = useState<PortalApplication | null>(null);
+  const [selectedApp, setSelectedApp] = useState<PortalApplication | null>(
+    null,
+  );
   const [toastMessage, setToastMessage] = useState("");
+  const [activeFilter, setActiveFilter] = useState<StageFilter>("all");
+
+  const filterCounts = STAGE_FILTERS.reduce(
+    (acc, key) => {
+      acc[key] =
+        key === "all"
+          ? applications.length
+          : applications.filter((a) => toStepperStage(a.stage) === key).length;
+      return acc;
+    },
+    {} as Record<StageFilter, number>,
+  );
+
+  const filteredApplications =
+    activeFilter === "all"
+      ? applications
+      : applications.filter((a) => toStepperStage(a.stage) === activeFilter);
+
+  const metadata = selectedApp
+    ? [
+        { icon: MapPin, label: "Ubicación", value: selectedApp.location },
+        selectedApp.jobArea
+          ? {
+              icon: Building2,
+              label: "Área",
+              value: AREA_LABELS[selectedApp.jobArea],
+            }
+          : null,
+        {
+          icon: Briefcase,
+          label: "Modalidad",
+          value: selectedApp.workplaceType,
+        },
+        selectedApp.seniority
+          ? {
+              icon: Award,
+              label: "Seniority",
+              value: SENIORITY_LABELS[selectedApp.seniority],
+            }
+          : null,
+        selectedApp.employmentType
+          ? {
+              icon: Clock,
+              label: "Jornada",
+              value: EMPLOYMENT_LABELS[selectedApp.employmentType],
+            }
+          : null,
+        selectedApp.vacancies
+          ? {
+              icon: Users,
+              label: "Vacantes",
+              value: `${selectedApp.vacancies} ${selectedApp.vacancies === 1 ? "puesto" : "puestos"}`,
+            }
+          : null,
+        selectedApp.salary
+          ? {
+              icon: DollarSign,
+              label: "Remuneración",
+              value: selectedApp.salary,
+              valueClassName: "text-success",
+            }
+          : null,
+      ].filter((m): m is NonNullable<typeof m> => m !== null)
+    : [];
+
+  const sections = selectedApp
+    ? [
+        { title: "Objetivos del puesto", body: selectedApp.objectives },
+        { title: "Responsabilidades", body: selectedApp.responsibilities },
+        { title: "Requisitos", body: selectedApp.requirements },
+      ].filter((s): s is { title: string; body: string } => !!s.body?.trim())
+    : [];
+
+  const hasDetails =
+    sections.length > 0 || (selectedApp?.benefits?.length ?? 0) > 0;
+
+  const canWithdraw = !!selectedApp && puedeRetirarPostulacion(selectedApp.stage);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -40,7 +162,9 @@ export function MisPostulacionesView({ initialApplications }: MisPostulacionesVi
   };
 
   const handleWithdraw = async (app: PortalApplication) => {
-    const updated = applications.filter((a) => a.applicationId !== app.applicationId);
+    const updated = applications.filter(
+      (a) => a.applicationId !== app.applicationId,
+    );
     setApplications(updated);
     if (selectedApp?.applicationId === app.applicationId) {
       setSelectedApp(updated[0] || null);
@@ -57,8 +181,18 @@ export function MisPostulacionesView({ initialApplications }: MisPostulacionesVi
         <div className="fixed bottom-5 right-5 z-50 bg-sidebar border border-sidebar-alt/50 text-white px-4 py-3.5 rounded-xl shadow-overlay flex items-center justify-between gap-4 text-xs font-semibold animate-toast-in">
           <div className="flex items-center gap-2.5">
             <div className="w-5 h-5 bg-primary/15 rounded-full flex items-center justify-center text-primary shrink-0">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="w-3.5 h-3.5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={3}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
             <span>{toastMessage}</span>
@@ -113,158 +247,283 @@ export function MisPostulacionesView({ initialApplications }: MisPostulacionesVi
       {/* Content */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 flex flex-col gap-6">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold font-display text-text">Mis Postulaciones</h1>
+          <h1 className="text-2xl font-bold font-display text-text">
+            Mis Postulaciones
+          </h1>
           <p className="text-xs text-muted">
-            Seguí de cerca el avance de tus postulaciones y procesos de contratación.
+            Seguí de cerca el avance de tus postulaciones y procesos de
+            contratación.
           </p>
         </div>
 
-        {applications.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Left Column: List of applied jobs */}
-            <div className={[
-              "flex flex-col gap-4 transition-all duration-300 w-full",
-              selectedApp ? "lg:col-span-1 hidden lg:flex" : "lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            ].join(" ")}>
-              {applications.map((app) => (
-                <div
-                  key={app.applicationId}
-                  onClick={() => setSelectedApp(app)}
+        {applications.length > 0 && (
+          <nav
+            aria-label="Filtrar postulaciones por estado"
+            className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-[var(--radius)] border border-border bg-surface p-1 shadow-[var(--shadow)]"
+          >
+            {STAGE_FILTERS.map((key) => {
+              const isActive = key === activeFilter;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-current={isActive ? "page" : undefined}
+                  onClick={() => {
+                    setActiveFilter(key);
+                    setSelectedApp(null);
+                  }}
                   className={[
-                    "bg-surface border p-5 rounded-[var(--radius)] shadow-[var(--shadow)] hover:shadow-md cursor-pointer transition-all flex justify-between items-center gap-4 group",
-                    selectedApp?.applicationId === app.applicationId
-                      ? "border-primary/55 ring-1 ring-primary/10"
-                      : "border-border hover:border-primary/35"
+                    "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+                    isActive
+                      ? "bg-primary text-white"
+                      : "text-muted hover:bg-bg hover:text-text",
                   ].join(" ")}
                 >
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] font-bold text-primary uppercase tracking-wider">
-                      {app.company}
-                    </span>
-                    <h3 className="text-base font-bold text-text group-hover:text-primary transition-colors">
-                      {app.jobTitle}
-                    </h3>
-                    <div className="flex items-center gap-3 text-[10px] text-muted mt-1">
-                      <span>Postulado el: {new Date(app.appliedAt).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-
-                  <Badge variant={toStepperStage(app.stage)} className="text-[10px] whitespace-nowrap w-fit">
-                    {STAGE_LABEL[app.stage]}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-
-            {/* Right Column: Detailed panel containing all job details & stepper & withdraw */}
-            {selectedApp && (
-              <div className="lg:col-span-2 flex flex-col gap-6 bg-surface border border-border p-6 rounded-[var(--radius)] shadow-[var(--shadow)] animate-pop-in relative w-full">
-                {/* Header with Title and Close button */}
-                <div className="flex justify-between items-start border-b border-border/60 pb-5">
-                  <div className="flex flex-col gap-1.5 pr-8">
-                    <span className="text-xs font-semibold text-primary uppercase tracking-wider">
-                      {selectedApp.company}
-                    </span>
-                    <h2 className="text-xl font-bold font-display text-text leading-tight">
-                      {selectedApp.jobTitle}
-                    </h2>
-                    <div className="flex items-center gap-3 text-[10px] text-muted mt-1">
-                      <span>Postulado el: {new Date(selectedApp.appliedAt).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSelectedApp(null)}
-                    className="p-1.5 -mr-1.5 rounded-xl hover:bg-muted/50 text-text hover:text-primary transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold border border-border/80 px-2.5 py-1 bg-surface shadow-xs active:scale-95"
-                    type="button"
-                    title="Cerrar detalles"
+                  {FILTER_LABEL[key]}
+                  <span
+                    className={[
+                      "tabular-nums",
+                      isActive ? "text-white/70" : "text-muted/70",
+                    ].join(" ")}
                   >
-                    <span>Cerrar</span>
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                    {filterCounts[key]}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+        )}
 
-                {/* Progress Stepper */}
-                <div className="border border-border/60 p-5 rounded-[var(--radius)] bg-muted/5">
-                  <h4 className="text-xs font-bold text-text mb-4">Progreso del Proceso</h4>
-                  <ApplicationStepper currentStage={toStepperStage(selectedApp.stage)} />
-                </div>
-
-                {/* Metadata Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/10 border border-border/40 p-4 rounded-[var(--radius)]">
-                  <div className="flex items-center gap-2.5 text-xs text-text">
-                    <div className="p-1.5 bg-surface border border-border rounded-lg text-muted">
-                      <MapPin className="w-4 h-4 text-muted" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-muted font-medium">Ubicación</span>
-                      <span className="font-semibold">{selectedApp.location}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2.5 text-xs text-text">
-                    <div className="p-1.5 bg-surface border border-border rounded-lg text-muted">
-                      <Briefcase className="w-4 h-4 text-muted" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[10px] text-muted font-medium">Modalidad</span>
-                      <span className="font-semibold">{selectedApp.workplaceType}</span>
-                    </div>
-                  </div>
-                  {selectedApp.salary && (
-                    <div className="flex items-center gap-2.5 text-xs text-text">
-                      <div className="p-1.5 bg-surface border border-border rounded-lg text-muted">
-                        <DollarSign className="w-4 h-4 text-muted" />
+        {applications.length > 0 ? (
+          filteredApplications.length > 0 ? (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              {/* Left Column: List of applied jobs */}
+              <div
+                className={[
+                  "flex flex-col gap-4 transition-all duration-300 w-full",
+                  selectedApp
+                    ? "lg:col-span-1 hidden lg:flex"
+                    : "lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6",
+                ].join(" ")}
+              >
+                {filteredApplications.map((app) => (
+                  <div
+                    key={app.applicationId}
+                    onClick={() => setSelectedApp(app)}
+                    className={[
+                      "bg-surface border p-5 rounded-[var(--radius)] shadow-[var(--shadow)] hover:shadow-md cursor-pointer transition-all flex justify-between items-center gap-4 group",
+                      selectedApp?.applicationId === app.applicationId
+                        ? "border-primary/55 ring-1 ring-primary/10"
+                        : "border-border hover:border-primary/35",
+                    ].join(" ")}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-primary uppercase tracking-wider">
+                        {app.company}
+                      </span>
+                      <h3 className="text-base font-bold text-text group-hover:text-primary transition-colors">
+                        {app.jobTitle}
+                      </h3>
+                      <div className="flex items-center gap-3 text-[10px] text-muted mt-1">
+                        <span>
+                          Postulado el:{" "}
+                          {new Date(app.appliedAt).toLocaleDateString()}
+                        </span>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-muted font-medium">Remuneración</span>
-                        <span className="font-semibold text-success">{selectedApp.salary}</span>
+                    </div>
+
+                    <Badge
+                      variant={toStepperStage(app.stage)}
+                      className="text-[10px] whitespace-nowrap w-fit"
+                    >
+                      {STAGE_LABEL[app.stage]}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+
+              {/* Right Column: Detailed panel containing all job details & stepper & withdraw */}
+              {selectedApp && (
+                <div className="lg:col-span-2 flex flex-col gap-6 bg-surface border border-border p-6 rounded-[var(--radius)] shadow-[var(--shadow)] animate-pop-in relative w-full">
+                  {/* Header with Title and Close button */}
+                  <div className="flex justify-between items-start border-b border-border/60 pb-5">
+                    <div className="flex flex-col gap-1.5 pr-8">
+                      <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+                        {selectedApp.company}
+                      </span>
+                      <h2 className="text-xl font-bold font-display text-text leading-tight">
+                        {selectedApp.jobTitle}
+                      </h2>
+                      <div className="flex items-center gap-3 text-[10px] text-muted mt-1">
+                        <span>
+                          Postulado el:{" "}
+                          {new Date(selectedApp.appliedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedApp(null)}
+                      className="p-1.5 -mr-1.5 rounded-xl hover:bg-muted/50 text-text hover:text-primary transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-semibold border border-border/80 px-2.5 py-1 bg-surface shadow-xs active:scale-95"
+                      type="button"
+                      title="Cerrar detalles"
+                    >
+                      <span>Cerrar</span>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Progress Stepper */}
+                  <div className="border border-border/60 p-5 rounded-[var(--radius)] bg-muted/5">
+                    <h4 className="text-xs font-bold text-text mb-4">
+                      Progreso del Proceso
+                    </h4>
+                    <ApplicationStepper
+                      currentStage={toStepperStage(selectedApp.stage)}
+                    />
+                  </div>
+
+                  {/* Metadata Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/10 border border-border/40 p-4 rounded-[var(--radius)]">
+                    {metadata.map(
+                      ({ icon: Icon, label, value, valueClassName }) => (
+                        <div
+                          key={label}
+                          className="flex items-center gap-2.5 text-xs text-text"
+                        >
+                          <div className="p-1.5 bg-surface border border-border rounded-lg text-muted">
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-muted font-medium">
+                              {label}
+                            </span>
+                            <span
+                              className={["font-semibold", valueClassName]
+                                .filter(Boolean)
+                                .join(" ")}
+                            >
+                              {value}
+                            </span>
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+
+                  {hasDetails ? (
+                    <>
+                      {/* Objetivos / Responsabilidades / Requisitos */}
+                      {sections.map((s) => (
+                        <div key={s.title} className="flex flex-col gap-2">
+                          <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">
+                            {s.title}
+                          </h3>
+                          <div className="text-sm text-text/80 leading-relaxed bg-muted/5 border border-border/30 p-4 rounded-[var(--radius)] max-h-64 overflow-y-auto custom-scrollbar">
+                            <JobMarkdown text={s.body} />
+                          </div>
+                        </div>
+                      ))}
+
+                      {/* Beneficios (cards) */}
+                      {(selectedApp.benefits?.length ?? 0) > 0 && (
+                        <div className="flex flex-col gap-2">
+                          <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">
+                            Beneficios
+                          </h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {selectedApp.benefits!.map((b, i) => (
+                              <div
+                                key={i}
+                                className="rounded-[var(--radius)] border border-border/60 bg-bg/40 px-3 py-2.5"
+                              >
+                                <p className="text-xs font-bold text-text">
+                                  {b.name}
+                                </p>
+                                {b.description && (
+                                  <p className="mt-0.5 text-[11px] text-muted leading-relaxed">
+                                    {b.description}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      {selectedApp.description}
+                    </p>
+                  )}
+
+                  {/* Skills */}
+                  {selectedApp.tags.length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">
+                        Skills
+                      </h3>
+                      <div className="flex flex-wrap gap-1.5">
+                        {selectedApp.tags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="muted"
+                            className="text-xs px-2.5 py-0.5 rounded-md font-medium"
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
                       </div>
                     </div>
                   )}
-                </div>
 
-                {/* Description */}
-                <div className="flex flex-col gap-2">
-                  <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">Descripción del puesto</h3>
-                  <p className="text-sm text-text/80 leading-relaxed whitespace-pre-line bg-muted/5 border border-border/30 p-4 rounded-[var(--radius)] max-h-64 overflow-y-auto custom-scrollbar">
-                    {selectedApp.description}
-                  </p>
-                </div>
-
-                {/* Tech Tags */}
-                <div className="flex flex-col gap-2">
-                  <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">Tecnologías / Requisitos</h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedApp.tags.map((tag) => (
-                      <Badge key={tag} variant="muted" className="text-xs px-2.5 py-0.5 rounded-md font-medium">
-                        {tag}
-                      </Badge>
-                    ))}
+                  {/* Withdraw application panel */}
+                  <div className="bg-danger/5 border border-danger/15 p-4 rounded-[var(--radius)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-bold text-danger">
+                        ¿Querés retirarte de la búsqueda?
+                      </span>
+                      <span className="text-[10px] text-muted leading-tight">
+                        {canWithdraw
+                          ? "Esta acción removerá tu postulación de forma permanente."
+                          : "Ya no podés retirarte: el proceso avanzó a la etapa de " +
+                            STAGE_LABEL[selectedApp.stage].toLowerCase() +
+                            "."}
+                      </span>
+                    </div>
+                    <Button
+                      onClick={() => handleWithdraw(selectedApp)}
+                      disabled={!canWithdraw}
+                      variant="secondary"
+                      className="border-danger/35 hover:border-danger/55 hover:bg-danger/5 text-danger hover:text-danger active:scale-95 text-xs h-9 py-1 px-4 shrink-0 font-semibold disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-danger/35 disabled:hover:bg-transparent"
+                    >
+                      Retirar Postulación
+                    </Button>
                   </div>
                 </div>
-
-                {/* Withdraw application panel */}
-                <div className="bg-danger/5 border border-danger/15 p-4 rounded-[var(--radius)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-bold text-danger">¿Querés retirarte de la búsqueda?</span>
-                    <span className="text-[10px] text-muted leading-tight">Esta acción removerá tu postulación de forma permanente.</span>
-                  </div>
-                  <Button
-                    onClick={() => handleWithdraw(selectedApp)}
-                    variant="secondary"
-                    className="border-danger/35 hover:border-danger/55 hover:bg-danger/5 text-danger hover:text-danger active:scale-95 text-xs h-9 py-1 px-4 shrink-0 font-semibold"
-                  >
-                    Retirar Postulación
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">
+              No tenés postulaciones en estado &quot;
+              {FILTER_LABEL[activeFilter]}&quot;.
+            </p>
+          )
         ) : (
           <EmptyState
             variant="activation"
             icon={
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                />
               </svg>
             }
             title="Aún no te postulaste a ningún empleo"

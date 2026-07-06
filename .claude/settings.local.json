@@ -1,5 +1,4 @@
 {
-  "description": "Impeccable design detector: runs after Edit/Write/MultiEdit on UI files and surfaces findings as system reminders.",
   "hooks": {
     "PostToolUse": [
       {
@@ -13,6 +12,13 @@
           }
         ]
       }
+    ]
+  },
+  "description": "Impeccable design detector: runs after Edit/Write/MultiEdit on UI files and surfaces findings as system reminders.",
+  "permissions": {
+    "allow": [
+      "Bash(lsof -i:3000 -sTCP:LISTEN -n -P)",
+      "Bash(ps -p 132235 -o pid,ppid,cmd)"
     ]
   }
 }

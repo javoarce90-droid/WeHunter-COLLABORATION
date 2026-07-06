@@ -2,13 +2,14 @@ import { ok, err, type Result } from "@/lib/result";
 import type { DraftCandidateProfile } from "@/lib/ai";
 
 /**
- * Caso de uso: generar un borrador de perfil con IA a partir de texto libre (CV pegado o
- * perfil de LinkedIn). NO persiste nada — el candidato revisa/edita el borrador antes de
- * guardar (mismo criterio que generarBorradorAction del lado recruiter).
+ * Caso de uso: generar un borrador de perfil con IA a partir de un CV en PDF y/o una URL de
+ * LinkedIn. NO persiste nada — el candidato revisa/edita el borrador antes de guardar (mismo
+ * criterio que generarBorradorAction del lado recruiter).
  */
 
 export interface GenerarPerfilConIaInput {
-  rawText: string;
+  linkedinUrl?: string;
+  cvFile?: { base64: string; mimeType: "application/pdf" };
 }
 
 export interface GenerarPerfilConIaCtx {
@@ -16,7 +17,7 @@ export interface GenerarPerfilConIaCtx {
 }
 
 export interface GenerarPerfilConIaDeps {
-  draftProfile: (rawText: string) => Promise<DraftCandidateProfile>;
+  draftProfile: (input: GenerarPerfilConIaInput) => Promise<DraftCandidateProfile>;
 }
 
 export async function generarPerfilConIa(
@@ -28,11 +29,10 @@ export async function generarPerfilConIa(
     return err("Necesitás estar autenticado.");
   }
 
-  const rawText = input.rawText.trim();
-  if (rawText.length < 20) {
-    return err("Pegá tu CV o perfil de LinkedIn con un poco más de detalle.");
+  if (!input.linkedinUrl && !input.cvFile) {
+    return err("Ingresá tu LinkedIn o subí tu CV en PDF (al menos uno de los dos).");
   }
 
-  const draft = await deps.draftProfile(rawText);
+  const draft = await deps.draftProfile(input);
   return ok(draft);
 }

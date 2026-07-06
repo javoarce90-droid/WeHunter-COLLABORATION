@@ -13,6 +13,8 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 > cambiar contraseña, editar workspace con logo + zona horaria) y la **preview del aviso**. Con
 > eso el alcance operativo de v1 queda completo. Idioma de la app y firma de email se difieren
 > (no entraron al alcance acordado del perfil).
+> **Actualizado el 2026-07-06**: triage de 12 tarjetas de Trello del cliente contra este backlog
+> y el flujo confirmado. Decisiones del cliente reflejadas abajo; detalle en §17–18.
 
 ## Leyenda
 
@@ -21,6 +23,9 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 - 🔭 **Etapa 2 / IA / diferido** — la demo lo mostraba pero los docs lo marcan fuera de v1
   (IA generativa, integraciones reales, multiposting, marketplace, scraping, CRM avanzado).
 - 🧱 **Falta modelo** — requiere tabla/columna nueva en `src/db/schema/` (zona compartida → coordinar).
+- ❓ **Pendiente de confirmación con cliente** — se habló informalmente pero no hay acuerdo
+  explícito; no es alcance hasta que el cliente lo confirme por escrito.
+- ❌ **Descartado** — decisión de producto: no entra, no se construye.
 
 ---
 
@@ -34,7 +39,7 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 | ✅ | Cambiar contraseña | `cambiarContrasenaAction` (Supabase Auth) |
 | ✅ | Invitar miembros al equipo + asignar rol (admin/recruiter) | `team` + `invitarMiembroAction` |
 | ✅ | Activar/desactivar miembro; revocar invitación | `actualizarMiembroAction`, `revocarInvitacionAction` |
-| 🔭 | Checklist de activación / tour / bonus IA | REQ-08, Etapa 2 |
+| 🔭 | Checklist de activación / tour | REQ-08, Etapa 2. Confirmado 2026-07-06: acotado al checklist/tour simple, **sin** el paso de "Identidad" (logo/firma/redes) que pedía la tarjeta — ese paso queda con §18 Centro de Comunicaciones |
 
 ## 2. Búsquedas (`jobs`)
 
@@ -59,7 +64,7 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 | ✅ | Redactar y editar el texto del aviso público | `jobs.posting` + `JobForm` |
 | ✅ | Preview del aviso antes de publicar | tab `Aviso` (`jobs/[id]/aviso`) — render público read-only |
 | 🔲 | Career Site: micrositio público por workspace (`/careers/{slug}`), branding + listado + postulación | Fase 1 (schema/RLS/storage) hecha; falta settings UI (Javi) y portal público (Ale) |
-| 🔭 | Portal único cross-org (`/portal`, listado de todas las orgs) | sigue parkeado, es el marketplace de recruiters — no confundir con el Career Site de arriba |
+| 🔭 | Portal único cross-org (`/portal`, listado de todas las orgs) | sigue parkeado, es el marketplace de recruiters — no confundir con el Career Site de arriba. Ver ❓ §18 (cliente lo repidió en Trello como "Comunidad de Recruiters") |
 | 🔭 | Multiposting (LinkedIn, bolsas) | Etapa 2 |
 | 🔭 | Métricas de publicación (vistas, postulaciones, origen) | Etapa 2, ver §12 |
 
@@ -112,7 +117,8 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 | ✅ | Listar / agenda de entrevistas | `/agenda` — vista org-wide, próximas por día + pasadas |
 | 🔭 | Tipo de entrevista (screening/técnica/comportamental/cliente) | 🧱 falta columna `type` en `interviews` |
 | 🔭 | Guía de entrevista con preguntas IA; informe post-entrevista | Etapa 2 / IA |
-| 🔭 | Integración Google Calendar; grabación | Etapa 2 |
+| 🔭 | Integración Google Calendar: agendar desde la app + agregar participantes a la entrevista | Etapa 2. Confirmado 2026-07-06: **solo Google Calendar** por ahora — se descartan Meet/Teams/Zoom/Calendly que pedía la tarjeta |
+| 🔭 | Grabación de entrevista | Etapa 2 |
 
 ## 8. Notas / Comunicación
 
@@ -121,7 +127,7 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 | ✅ | Guardar nota interna sobre la postulación | `guardarNota` / `agregarNota` |
 | ✅ | Timeline de notas (varias por candidato) | tabla `notes` + `NoteTimeline` |
 | ✅ | Mensajería a candidato (registro por canal) | `messaging` + `message_threads`/`messages` + `Inbox` |
-| 🔭 | Envío real por email / WhatsApp / LinkedIn (integración) | Etapa 2 (WhatsApp v1.1) |
+| 🔭 | Envío real por email / WhatsApp / LinkedIn (integración) | Etapa 2 (WhatsApp v1.1). Confirmado 2026-07-06: se entrega **una sola vez** — la tarjeta "Centro de Comunicaciones" pedía el mismo canal WhatsApp por separado, queda fusionado acá |
 | 🔭 | Inbox de hilos Gmail/Outlook (sync externo) | Etapa 2 |
 | 🔭 | Generar outreach con IA (canal + tono) | Etapa 2 / IA |
 
@@ -135,7 +141,8 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 | ✅ | (Empresa) revisar shortlist por token y dejar feedback | `company/shortlist-review` |
 | ✅ | Marcar candidato como shortlist/favorito desde el pipeline | `marcarFavorito` |
 | ✅ | Ver feedback del cliente reflejado del lado recruiter | `ShortlistCard` (decision + comment) |
-| 🔭 | Control fino de campos compartidos (qué ve el cliente) | 🧱 |
+| 🔲 | Cliente puede solicitar entrevista desde la revisión de shortlist | confirmado 2026-07-06 (Trello "Participación de Clientes Externos") — extensión menor sobre lo ya construido |
+| 🔭 | Control fino de campos compartidos (qué ve el cliente) | 🧱. Confirmado 2026-07-06 (Trello "Visibilidad de Notas con HM") — falta descomponer en tareas atómicas |
 
 ## 10. Ofertas / Cierre
 
@@ -153,6 +160,7 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 |---|---|---|
 | ✅ | CRUD de empresas cliente | `crearCliente` / `editarCliente` + tabla `clients` |
 | ✅ | Vincular cliente ↔ búsqueda; ver búsquedas por cliente | `jobs.clientId` |
+| 🔲 | Distinguir Cliente vs Hiring Manager según tipo de Workspace (mismo módulo técnico, distinta etiqueta) | confirmado 2026-07-06 (Trello "Gestión de Clientes/HM", implementación directa del "Modelo de usuarios") |
 | 🔭 | Contactos del cliente, CRM completo | v1.1 / v2 |
 
 ## 12. Reportes / Analytics
@@ -184,6 +192,10 @@ la **demo previa** (`wehunterats`, lo que la UI exponía), los **docs de requeri
 🔭 Generar/mejorar/analizar JD · screening con IA · scoring de CV · mini-bio · query booleana de sourcing ·
 mensajes outreach · guía de entrevista · "Hunti" copiloto contextual · agentes IA modal · límites/quota mensual.
 
+> ❌ **Descartado 2026-07-06** (Trello "Insights IA / Copiloto"): un agente autónomo que ejecuta
+> tareas operativas por su cuenta. El copiloto contextual de arriba se limita a resúmenes/alertas,
+> no a acción autónoma. Ver §18.
+
 ## 15. Sourcing / Scraping
 
 | | Capacidad | Nota |
@@ -199,6 +211,33 @@ mensajes outreach · guía de entrevista · "Hunti" copiloto contextual · agent
 | ✅ | Gestión básica de equipo (invitar / rol / activar / revocar) | `team` (ver §1) |
 | 🔭 | `job_assignments` (asignar recruiters/consultores por búsqueda) | 🧱 |
 | 🔭 | Consultor externo con acceso acotado · auditoría | Etapa 2 |
+
+## 17. Empresa / Hiring Manager (Enterprise)
+
+Capa "Empresa/HM" del flujo confirmado (pasos 1–8 del PDF). Confirmado 2026-07-06 (Trello
+"Participación de Hiring Managers Enterprise") — coincide con el "Modelo de usuarios" (§1/§11),
+no es scope creep, pero es trabajo real y **no arrancado**. Falta descomponer en tareas atómicas.
+
+| | Capacidad | Nota |
+|---|---|---|
+| 🔲 | HM solicita una búsqueda: form corto (presupuesto, motivo, fecha estimada de ingreso) + JD asistida por IA (soft/hard skills, experiencia, educación, responsabilidades, objetivos) | confirmado, no arrancado. Ver `DATA_MODEL.md` "Modelo de usuarios" — la JD con IA es Suite IA (§14) |
+| 🔲 | Recruiter valida/aprueba la solicitud → se crea el `job` vinculado | confirmado, no arrancado — la requisition no reemplaza al job, lo genera |
+| 🔲 | HM ve el estado de sus solicitudes | confirmado, no arrancado |
+| 🔲 | HM revisa candidatos y deja feedback | confirmado, no arrancado — puede solaparse con §9 (shortlists) |
+| 🔲 | HM coordina entrevistas | confirmado, no arrancado — ver §7 (solo Google Calendar) |
+| 🔲 | Reporte para HM | confirmado, no arrancado — puede solaparse con §12 |
+
+## 18. Descartadas / parkeadas (sin acción por ahora)
+
+De las 12 tarjetas de Trello originales, estas 4 no avanzan. Ninguna requiere volver al
+cliente por ahora — quedan cerradas hasta que surja de otra parte.
+
+| | Capacidad | Nota |
+|---|---|---|
+| 🔭 | Visibilidad en Comunidad de Recruiters (perfil público cross-org) | sigue parkeada (§3, es el marketplace). Decidido 2026-07-06: eventualmente **podría** entrar en una versión mínima ("solo vidriera", sin funcionalidad de marketplace real), pero no ahora — no tratar como alcance |
+| 🔭 | Encuesta de Feedback al Cliente / Reputación | parkeada junto con el ítem anterior (depende 100% de él) |
+| ❌ | Agente IA autónomo que ejecuta tareas operativas por su cuenta | descartado 2026-07-06: "una flasheada", no entra. El copiloto de insights/alertas (§14) sigue en pie, esto era solo la parte de agente autónomo |
+| ❌ | Centro de Comunicaciones y Templates (motor de templates completo + 4 canales + branding + historial) | descartado 2026-07-06: es agrandar el producto más allá de lo acordado (antecedente chico en §8/§10, esto bundlea una feature grande nueva con un "Chat Interno WeHunter" que no existe en ningún lado) |
 
 ---
 

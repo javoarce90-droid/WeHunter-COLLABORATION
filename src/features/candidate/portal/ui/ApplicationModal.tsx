@@ -25,7 +25,6 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
   const [email, setEmail] = useState(candidate.email);
   const [phone, setPhone] = useState(candidate.phone);
   const [linkedinUrl, setLinkedinUrl] = useState(candidate.linkedinUrl);
-  const [gdprConsent, setGdprConsent] = useState(false);
   const [useProfileCv, setUseProfileCv] = useState(!!candidate.cvUrl);
 
   const [cvFile, setCvFile] = useState<File | null>(null);
@@ -89,12 +88,8 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fullName.trim() || !email.trim() || !phone.trim() || !gdprConsent) {
+    if (!fullName.trim() || !email.trim()) {
       setError("Por favor completá todos los campos obligatorios.");
-      return;
-    }
-    if (!cvFile && !(useProfileCv && candidate.cvUrl)) {
-      setError("Adjuntá tu CV para postularte.");
       return;
     }
 
@@ -178,15 +173,16 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="alejandro@ejemplo.com"
               />
-              <Input
-                label="Teléfono *"
-                type="tel"
-                required
-                disabled={isSubmitting}
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+54 9 11 1234 5678"
-              />
+              {!candidate.phone && (
+                <Input
+                  label="Teléfono (opcional)"
+                  type="tel"
+                  disabled={isSubmitting}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+54 9 11 1234 5678"
+                />
+              )}
             </div>
 
             {/* LinkedIn (Opcional) */}
@@ -202,7 +198,7 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
 
           {/* CV Upload Section */}
           <div className="flex flex-col gap-1.5 mt-2">
-            <label className="text-xs font-semibold text-muted">Currículum Vitae (CV) *</label>
+            <label className="text-xs font-semibold text-muted">Currículum Vitae (CV) — opcional</label>
             <div
               onDragEnter={handleDrag}
               onDragOver={handleDrag}
@@ -256,24 +252,16 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
             </div>
           </div>
 
-          {/* GDPR Consent */}
-          <div className="flex items-start gap-3 mt-4 bg-muted/5 p-4 border border-border rounded-[var(--radius)] transition-colors hover:bg-muted/10 cursor-pointer"
-               onClick={() => !isSubmitting && setGdprConsent(!gdprConsent)}>
-            <div className="flex items-center h-5 mt-0.5">
-              <input
-                id="gdpr"
-                type="checkbox"
-                required
-                disabled={isSubmitting}
-                checked={gdprConsent}
-                onChange={(e) => setGdprConsent(e.target.checked)}
-                className="w-4 h-4 text-primary bg-bg rounded border-border focus:ring-primary focus:ring-offset-surface cursor-pointer"
-                onClick={(e) => e.stopPropagation()}
-              />
+          {/* Aviso de privacidad */}
+          <div className="flex items-start gap-3 mt-4 bg-primary/5 p-4 border border-primary/15 rounded-[var(--radius)]">
+            <div className="flex items-center h-5 mt-0.5 text-primary shrink-0">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
-            <label htmlFor="gdpr" className="text-xs text-text/80 leading-relaxed cursor-pointer select-none" onClick={(e) => e.stopPropagation()}>
-              Acepto y doy consentimiento para que <strong className="text-text">{job.company}</strong> procese mi información laboral y currículum para este proceso de selección.
-            </label>
+            <p className="text-xs text-text/80 leading-relaxed">
+              Se compartirá con <strong className="text-text">{job.company}</strong> la información que cargaste en Mi Perfil.
+            </p>
           </div>
 
           {/* Actions Footer */}

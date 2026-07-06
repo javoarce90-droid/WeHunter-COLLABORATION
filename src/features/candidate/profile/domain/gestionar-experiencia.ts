@@ -16,9 +16,11 @@ export interface ExperienciaInput {
   description?: string;
   employmentType?: EmploymentType;
   modality?: JobModality;
+  /** Texto separado por comas, tal como lo manda el form (mismo criterio que el perfil). */
+  skills?: string;
 }
 
-interface NormalizedExperiencia {
+export interface NormalizedExperiencia {
   company: string;
   position: string;
   startDate: string | null;
@@ -26,13 +28,19 @@ interface NormalizedExperiencia {
   description: string | null;
   employmentType: EmploymentType | null;
   modality: JobModality | null;
+  skills: string[] | null;
 }
 
-function normalize(input: ExperienciaInput): Result<NormalizedExperiencia> {
+/** Exportada para reusar la misma validación desde completarOnboardingConIa (onboarding con IA). */
+export function normalizeExperiencia(input: ExperienciaInput): Result<NormalizedExperiencia> {
   const company = input.company.trim();
   if (!company) return err("La empresa es obligatoria.");
   const position = input.position.trim();
   if (!position) return err("El puesto es obligatorio.");
+
+  const skills = input.skills
+    ? Array.from(new Set(input.skills.split(",").map((s) => s.trim()).filter(Boolean)))
+    : null;
 
   return ok({
     company,
@@ -42,6 +50,7 @@ function normalize(input: ExperienciaInput): Result<NormalizedExperiencia> {
     description: input.description?.trim() || null,
     employmentType: input.employmentType ?? null,
     modality: input.modality ?? null,
+    skills,
   });
 }
 
@@ -54,7 +63,7 @@ export async function agregarExperiencia(
   owner: ResumeOwner,
   deps: AgregarExperienciaDeps,
 ): Promise<Result<{ id: string }>> {
-  const normalized = normalize(input);
+  const normalized = normalizeExperiencia(input);
   if (!normalized.ok) return normalized;
 
   const created = await deps.insertExperience(owner, normalized.data);
@@ -75,7 +84,7 @@ export async function editarExperiencia(
   owner: ResumeOwner,
   deps: EditarExperienciaDeps,
 ): Promise<Result<{ id: string }>> {
-  const normalized = normalize(input);
+  const normalized = normalizeExperiencia(input);
   if (!normalized.ok) return normalized;
 
   const updated = await deps.updateExperience(id, owner, normalized.data);

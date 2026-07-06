@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { retirarPostulacion, toStepperStage } from "./gestionar-postulacion";
+import { retirarPostulacion, toStepperStage, puedeRetirarPostulacion } from "./gestionar-postulacion";
 
 describe("retirarPostulacion", () => {
   it("rechaza si no hay usuario autenticado", async () => {
@@ -22,6 +22,12 @@ describe("retirarPostulacion", () => {
     expect(res).toEqual({ ok: true, data: { applicationId: "app-1" } });
     expect(deps.withdraw).toHaveBeenCalledWith("app-1");
   });
+
+  it("devuelve error si el RPC rechaza el retiro (etapa ya avanzada)", async () => {
+    const deps = { withdraw: vi.fn().mockRejectedValue(new Error("invalid: etapa avanzada")) };
+    const res = await retirarPostulacion("app-1", { userId: "candidate-1" }, deps);
+    expect(res.ok).toBe(false);
+  });
 });
 
 describe("toStepperStage", () => {
@@ -35,5 +41,21 @@ describe("toStepperStage", () => {
     expect(toStepperStage("new")).toBe("new");
     expect(toStepperStage("hired")).toBe("hired");
     expect(toStepperStage("rejected")).toBe("rejected");
+  });
+});
+
+describe("puedeRetirarPostulacion", () => {
+  it("permite retirarse en Postulado o En revisión", () => {
+    expect(puedeRetirarPostulacion("new")).toBe(true);
+    expect(puedeRetirarPostulacion("screening")).toBe(true);
+  });
+
+  it("no permite retirarse una vez que arrancó el proceso de entrevistas o se resolvió", () => {
+    expect(puedeRetirarPostulacion("interview_hr")).toBe(false);
+    expect(puedeRetirarPostulacion("interview_tech")).toBe(false);
+    expect(puedeRetirarPostulacion("interview_client")).toBe(false);
+    expect(puedeRetirarPostulacion("offer")).toBe(false);
+    expect(puedeRetirarPostulacion("hired")).toBe(false);
+    expect(puedeRetirarPostulacion("rejected")).toBe(false);
   });
 });

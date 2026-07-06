@@ -7,6 +7,8 @@ import { ExperienceSection } from "@/features/candidate/profile/ui/ExperienceSec
 import { EducationSection } from "@/features/candidate/profile/ui/EducationSection";
 import { CertificationsSection } from "@/features/candidate/profile/ui/CertificationsSection";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
+import { Avatar } from "@/components/ui/avatar";
+import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 
 export const metadata = {
@@ -74,27 +76,63 @@ export default async function CandidateProfilePage() {
       </header>
 
       {/* Contenido Principal */}
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 flex flex-col gap-6">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 flex flex-col gap-6">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold font-display text-text">Configuración de Cuenta</h1>
+          <h1 className="text-2xl font-bold font-display text-text">Perfil de candidato</h1>
           <p className="text-xs text-muted">Asegurate de que tu información profesional esté al día para aumentar tus posibilidades de contratación.</p>
         </div>
 
-        <CandidateProfileForm
-          initialFullName={candidate.fullName ?? ""}
-          initialEmail={candidate.email}
-          initialHeadline={candidate.headline}
-          initialLocation={candidate.location}
-          initialLinkedinUrl={candidate.linkedinUrl}
-          initialSummary={candidate.bio}
-          initialSkills={candidate.skills}
-          initialCvUrl={candidate.cvUrl}
-          initialCvDownloadUrl={cvDownloadUrl}
-        />
+        {/* Hero de perfil */}
+        <div className="flex flex-wrap items-center justify-between gap-4 bg-surface border border-border rounded-[var(--radius)] shadow-[var(--shadow)] p-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar name={candidate.fullName || candidate.email} size="lg" />
+            <div className="min-w-0">
+              <h2 className="font-display text-xl font-bold text-text truncate">
+                {candidate.fullName || candidate.email}
+              </h2>
+              {candidate.headline && (
+                <p className="mt-0.5 truncate text-sm font-medium text-muted">{candidate.headline}</p>
+              )}
+              {candidate.location && (
+                <p className="mt-0.5 text-xs text-muted">{candidate.location}</p>
+              )}
+            </div>
+          </div>
 
-        <ExperienceSection experiences={resume.experiences} />
-        <EducationSection education={resume.education} />
-        <CertificationsSection certifications={resume.certifications} />
+          {cvDownloadUrl && (
+            <a
+              href={cvDownloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
+              Ver CV
+            </a>
+          )}
+        </div>
+
+        {/* Datos + currículum */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          <CandidateProfileForm
+            initialFullName={candidate.fullName ?? ""}
+            initialEmail={candidate.email}
+            initialHeadline={candidate.headline}
+            initialPhone={candidate.phone}
+            initialLocation={candidate.location}
+            initialLinkedinUrl={candidate.linkedinUrl}
+            initialSummary={candidate.bio}
+            initialSkills={candidate.skills}
+            initialCvUrl={candidate.cvUrl}
+            initialCvDownloadUrl={cvDownloadUrl}
+            wide
+          />
+
+          <div className="flex flex-col gap-6">
+            <ExperienceSection experiences={resume.experiences} />
+            <EducationSection education={resume.education} />
+            <CertificationsSection certifications={resume.certifications} />
+          </div>
+        </div>
       </main>
     </div>
   );
