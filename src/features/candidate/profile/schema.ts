@@ -10,6 +10,7 @@ export const CV_ALLOWED_TYPES = [
 export const candidateProfileSchema = z.object({
   fullName: z.string().min(2, "El nombre completo debe tener al menos 2 caracteres"),
   headline: z.string().trim().optional(),
+  phone: z.string().trim().optional(),
   location: z.string().trim().optional(),
   linkedinUrl: z.string().trim().optional(),
   summary: z.string().trim().optional(),

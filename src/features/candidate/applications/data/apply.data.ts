@@ -15,7 +15,7 @@ export async function applyToJobRpc(args: {
   email: string;
   phone: string | null;
   coverNote: string | null;
-  cvPath: string;
+  cvPath: string | null;
 }): Promise<ApplyResult | null> {
   const db = await getDb();
   try {

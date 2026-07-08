@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/session";
-import { toggleInteraction } from "./data/interactions.mutations";
 import { withdrawApplicationRpc } from "./data/applications.mutations";
 import { retirarPostulacion } from "./domain/gestionar-postulacion";
 import { postularDesdeCareerSite } from "@/features/candidate/applications/domain/postular-desde-career-site";
@@ -13,20 +12,6 @@ import { CV_MAX_BYTES, CV_ALLOWED_TYPES } from "@/features/candidate/application
 export interface PortalApplyState {
   error?: string;
   ok?: boolean;
-}
-
-export async function toggleFavoriteAction(jobId: string): Promise<void> {
-  const user = await getCurrentUser();
-  if (!user) return;
-  await toggleInteraction(user.id, jobId, "favorite");
-  revalidatePath("/portal");
-}
-
-export async function toggleHiddenAction(jobId: string): Promise<void> {
-  const user = await getCurrentUser();
-  if (!user) return;
-  await toggleInteraction(user.id, jobId, "hidden");
-  revalidatePath("/portal");
 }
 
 /** Extrae y valida el CV del FormData (mismo criterio que candidate/applications/actions.ts). */
@@ -65,13 +50,11 @@ export async function postularEnPortalAction(
   if ("error" in cv) return { error: cv.error };
 
   const existingCvUrl = formData.get("existingCvUrl");
-  let cvPath: string;
+  let cvPath: string | undefined;
   if (cv.file) {
     cvPath = (await uploadCareerSiteApplicationCv(organizationId, user.id, cv.file)).path;
   } else if (typeof existingCvUrl === "string" && existingCvUrl) {
     cvPath = existingCvUrl;
-  } else {
-    return { error: "Subí tu CV para postularte." };
   }
 
   const phone = formData.get("phone");

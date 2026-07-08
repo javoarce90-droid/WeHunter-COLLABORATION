@@ -14,6 +14,14 @@ const testJobs: Job[] = [
     salary: "$1.000.000",
     tags: ["React", "TypeScript"],
     defaultStage: "new",
+    jobArea: null,
+    seniority: null,
+    employmentType: null,
+    vacancies: null,
+    objectives: null,
+    requirements: null,
+    responsibilities: null,
+    benefits: null,
   },
   {
     id: "job-2",
@@ -26,6 +34,14 @@ const testJobs: Job[] = [
     salary: "$2.000 USD",
     tags: ["Node.js", "Javascript"],
     defaultStage: "screening",
+    jobArea: null,
+    seniority: null,
+    employmentType: null,
+    vacancies: null,
+    objectives: null,
+    requirements: null,
+    responsibilities: null,
+    benefits: null,
   },
   {
     id: "job-3",
@@ -38,6 +54,14 @@ const testJobs: Job[] = [
     salary: "$1.500 USD",
     tags: ["Figma", "UI/UX"],
     defaultStage: "interview",
+    jobArea: null,
+    seniority: null,
+    employmentType: null,
+    vacancies: null,
+    objectives: null,
+    requirements: null,
+    responsibilities: null,
+    benefits: null,
   },
 ];
 
@@ -45,23 +69,19 @@ describe("filtrarEmpleos", () => {
   it("debería retornar todos los empleos si no hay filtros activos", () => {
     const result = filtrarEmpleos({
       jobs: testJobs,
-      hiddenIds: [],
-      favoriteIds: [],
+      appliedIds: [],
       search: "",
       locationFilter: "",
-      filterTab: "all",
     });
     expect(result).toHaveLength(3);
   });
 
-  it("debería excluir empleos ocultos en pestaña 'all'", () => {
+  it("debería excluir empleos a los que el candidato ya se postuló", () => {
     const result = filtrarEmpleos({
       jobs: testJobs,
-      hiddenIds: ["job-2"],
-      favoriteIds: [],
+      appliedIds: ["job-2"],
       search: "",
       locationFilter: "",
-      filterTab: "all",
     });
     expect(result).toHaveLength(2);
     expect(result.map((j) => j.id)).not.toContain("job-2");
@@ -70,11 +90,9 @@ describe("filtrarEmpleos", () => {
   it("debería buscar por título de forma insensible a mayúsculas", () => {
     const result = filtrarEmpleos({
       jobs: testJobs,
-      hiddenIds: [],
-      favoriteIds: [],
+      appliedIds: [],
       search: "react",
       locationFilter: "",
-      filterTab: "all",
     });
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("job-1");
@@ -83,11 +101,9 @@ describe("filtrarEmpleos", () => {
   it("debería buscar por compañía de forma insensible a mayúsculas", () => {
     const result = filtrarEmpleos({
       jobs: testJobs,
-      hiddenIds: [],
-      favoriteIds: [],
+      appliedIds: [],
       search: "devs",
       locationFilter: "",
-      filterTab: "all",
     });
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("job-2");
@@ -96,11 +112,9 @@ describe("filtrarEmpleos", () => {
   it("debería buscar por tags", () => {
     const result = filtrarEmpleos({
       jobs: testJobs,
-      hiddenIds: [],
-      favoriteIds: [],
+      appliedIds: [],
       search: "figma",
       locationFilter: "",
-      filterTab: "all",
     });
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("job-3");
@@ -109,11 +123,9 @@ describe("filtrarEmpleos", () => {
   it("debería filtrar por ubicación", () => {
     const result = filtrarEmpleos({
       jobs: testJobs,
-      hiddenIds: [],
-      favoriteIds: [],
+      appliedIds: [],
       search: "",
       locationFilter: "remoto",
-      filterTab: "all",
     });
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("job-2");
@@ -122,52 +134,20 @@ describe("filtrarEmpleos", () => {
   it("debería combinar búsqueda y ubicación correctamente", () => {
     const result = filtrarEmpleos({
       jobs: testJobs,
-      hiddenIds: [],
-      favoriteIds: [],
+      appliedIds: [],
       search: "developer",
       locationFilter: "remoto",
-      filterTab: "all",
     });
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("job-2");
   });
 
-  it("debería filtrar por favoritos en la pestaña 'favorites'", () => {
+  it("debería combinar la exclusión de postulados con el resto de los filtros", () => {
     const result = filtrarEmpleos({
       jobs: testJobs,
-      hiddenIds: [],
-      favoriteIds: ["job-1", "job-3"],
-      search: "",
+      appliedIds: ["job-1"],
+      search: "developer",
       locationFilter: "",
-      filterTab: "favorites",
-    });
-    expect(result).toHaveLength(2);
-    expect(result.map((j) => j.id)).toContain("job-1");
-    expect(result.map((j) => j.id)).toContain("job-3");
-    expect(result.map((j) => j.id)).not.toContain("job-2");
-  });
-
-  it("debería excluir ocultos en la pestaña 'favorites'", () => {
-    const result = filtrarEmpleos({
-      jobs: testJobs,
-      hiddenIds: ["job-1"],
-      favoriteIds: ["job-1", "job-3"],
-      search: "",
-      locationFilter: "",
-      filterTab: "favorites",
-    });
-    expect(result).toHaveLength(1);
-    expect(result[0]?.id).toBe("job-3");
-  });
-
-  it("debería mostrar solo los empleos ocultos en la pestaña 'hidden'", () => {
-    const result = filtrarEmpleos({
-      jobs: testJobs,
-      hiddenIds: ["job-2"],
-      favoriteIds: [],
-      search: "",
-      locationFilter: "",
-      filterTab: "hidden",
     });
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("job-2");

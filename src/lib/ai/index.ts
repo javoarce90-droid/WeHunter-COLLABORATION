@@ -12,6 +12,9 @@ export type {
   DraftJobOffer,
   DraftCandidateProfileInput,
   DraftCandidateProfile,
+  DraftWorkExperience,
+  DraftEducation,
+  DraftCertification,
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";

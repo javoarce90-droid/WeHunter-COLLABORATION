@@ -13,10 +13,10 @@ export interface PostularActionState {
   ok?: boolean;
 }
 
-/** Valida el CV subido por formulario. Devuelve el File si es válido, o un error. */
-function readCv(value: FormDataEntryValue | null): { file: File } | { error: string } {
+/** Valida el CV subido por formulario. El CV es opcional: sin archivo no es un error. */
+function readCv(value: FormDataEntryValue | null): { file: File | null } | { error: string } {
   if (!(value instanceof File) || value.size === 0) {
-    return { error: "Subí tu CV para postularte." };
+    return { file: null };
   }
   if (!CV_ALLOWED_TYPES.includes(value.type)) {
     return { error: "Formato de CV no soportado (usá PDF, DOC o DOCX)." };
@@ -58,11 +58,15 @@ export async function postularAction(
   const jobPage = await getCareerSiteJob(slug, parsed.data.jobId);
   if (!jobPage) return { error: "Esta búsqueda ya no está disponible." };
 
-  const { path: cvPath } = await uploadCareerSiteApplicationCv(
-    jobPage.organization.organizationId,
-    user.id,
-    cv.file,
-  );
+  const existingCvUrl = formData.get("existingCvUrl");
+  let cvPath: string | undefined;
+  if (cv.file) {
+    cvPath = (
+      await uploadCareerSiteApplicationCv(jobPage.organization.organizationId, user.id, cv.file)
+    ).path;
+  } else if (typeof existingCvUrl === "string" && existingCvUrl) {
+    cvPath = existingCvUrl;
+  }
 
   const result = await postularDesdeCareerSite(
     {

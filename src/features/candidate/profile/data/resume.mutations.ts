@@ -33,6 +33,7 @@ export interface ExperienceFields {
   description: string | null;
   employmentType: string | null;
   modality: string | null;
+  skills: string[] | null;
 }
 
 export async function insertExperience(

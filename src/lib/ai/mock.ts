@@ -150,29 +150,18 @@ export class MockAiProvider implements AiProvider {
   async draftCandidateProfile(
     input: DraftCandidateProfileInput,
   ): Promise<DraftCandidateProfile> {
-    const text = input.rawText.trim();
-    const firstLine = text.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
-    const linkedinMatch = text.match(/https?:\/\/(www\.)?linkedin\.com\/\S+/i);
-    const locationMatch = text.match(
-      /(?:ubicaci[oó]n|location|ciudad)\s*[:\-]?\s*([^\n,]+)/i,
-    );
-
-    const skills = Array.from(
-      new Set(
-        text
-          .toLowerCase()
-          .split(/[^a-záéíóúñ0-9+#.]+/i)
-          .map((w) => w.trim())
-          .filter((w) => w.length >= 3),
-      ),
-    ).slice(0, 8);
-
+    // Sin modelo real no hay forma de leer el PDF ni el contenido de LinkedIn: placeholder
+    // determinístico, listo para revisar/editar. Los arrays quedan vacíos (no hay parseo real).
     return {
-      headline: firstLine.slice(0, 120) || "Perfil de talento",
-      location: locationMatch?.[1]?.trim() ?? null,
-      linkedinUrl: linkedinMatch?.[0] ?? null,
-      summary: text.slice(0, 280) || "Sin resumen disponible.",
-      skills,
+      headline: "Perfil de talento",
+      location: null,
+      linkedinUrl: input.linkedinUrl?.trim() || null,
+      summary: "Sin resumen disponible.",
+      skills: [],
+      workExperiences: [],
+      education: [],
+      certifications: [],
+      linkedinFetchStatus: input.linkedinUrl ? "ok" : undefined,
     };
   }
 

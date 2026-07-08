@@ -3,15 +3,20 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getAiProvider, type DraftCandidateProfile } from "@/lib/ai";
-import { actualizarPerfil } from "@/features/candidate/profile/domain/actualizar-perfil";
-import {
-  updateCandidateProfile,
-  markCandidateOnboardingComplete,
-} from "@/features/candidate/profile/data/profile.mutations";
-import { uploadCandidateProfileCv } from "@/features/candidate/profile/data/profile.storage";
 import { candidateProfileSchema } from "@/features/candidate/profile/schema";
+import { uploadCandidateProfileCv } from "@/features/candidate/profile/data/profile.storage";
+import { markCandidateOnboardingComplete } from "@/features/candidate/profile/data/profile.mutations";
 import { omitirOnboarding } from "./domain/omitir-onboarding";
 import { generarPerfilConIa } from "./domain/generar-perfil-con-ia";
+import { completarOnboardingConIa } from "./domain/completar-onboarding-con-ia";
+import { persistOnboardingDraft } from "./data/persist-onboarding-draft.mutations";
+import {
+  CV_MAX_BYTES,
+  AI_CV_ALLOWED_TYPES,
+  aiWorkExperiencesSchema,
+  aiEducationEntriesSchema,
+  aiCertificationsSchema,
+} from "./schema";
 
 export interface OnboardingFormState {
   error?: string;
@@ -23,6 +28,21 @@ export interface GenerarPerfilConIaState {
   draft?: DraftCandidateProfile;
 }
 
+/** Parsea un campo hidden de FormData como JSON y lo valida con el schema dado. Ausente = []. */
+function parseDraftItems<T>(formData: FormData, key: string, schema: { safeParse: (v: unknown) => { success: boolean; data?: T } }): T | { error: string } {
+  const raw = formData.get(key);
+  if (typeof raw !== "string" || !raw) return schema.safeParse([]).data as T;
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { error: "Datos de currículum inválidos." };
+  }
+  const validated = schema.safeParse(json);
+  if (!validated.success) return { error: "Datos de currículum inválidos." };
+  return validated.data as T;
+}
+
 /** Server Action: completar el onboarding a mano (o revisando/editando el borrador de IA). */
 export async function completarOnboardingAction(
   _prev: OnboardingFormState,
@@ -31,6 +51,7 @@ export async function completarOnboardingAction(
   const parsed = candidateProfileSchema.safeParse({
     fullName: formData.get("fullName"),
     headline: formData.get("headline"),
+    phone: formData.get("phone"),
     location: formData.get("location"),
     linkedinUrl: formData.get("linkedinUrl"),
     summary: formData.get("summary"),
@@ -49,18 +70,25 @@ export async function completarOnboardingAction(
       ? (await uploadCandidateProfileCv(user.id, cvFile)).path
       : undefined;
 
-  const result = await actualizarPerfil(
-    { ...parsed.data, cvUrl },
-    { userId: user.id, markOnboardingComplete: true },
-    { updateProfile: updateCandidateProfile },
+  const workExperiences = parseDraftItems(formData, "workExperiences", aiWorkExperiencesSchema);
+  if (workExperiences && "error" in workExperiences) return { error: workExperiences.error };
+  const education = parseDraftItems(formData, "education", aiEducationEntriesSchema);
+  if (education && "error" in education) return { error: education.error };
+  const certifications = parseDraftItems(formData, "certifications", aiCertificationsSchema);
+  if (certifications && "error" in certifications) return { error: certifications.error };
+
+  const result = await completarOnboardingConIa(
+    { ...parsed.data, cvUrl, workExperiences, education, certifications },
+    { userId: user.id },
+    { persistDraft: persistOnboardingDraft },
   );
 
   if (!result.ok) return { error: result.error };
 
-  redirect("/portal");
+  redirect("/c/profile");
 }
 
-/** Server Action: generar un borrador de perfil con IA a partir de texto pegado (CV/LinkedIn). */
+/** Server Action: generar un borrador de perfil con IA a partir de un CV en PDF y/o LinkedIn. */
 export async function generarPerfilConIaAction(
   _prev: GenerarPerfilConIaState,
   formData: FormData,
@@ -68,11 +96,36 @@ export async function generarPerfilConIaAction(
   const user = await getCurrentUser();
   if (!user) return { error: "No tenés sesión activa." };
 
-  const rawText = formData.get("rawText");
+  const linkedinUrlRaw = formData.get("linkedinUrl");
+  const linkedinUrl = typeof linkedinUrlRaw === "string" ? linkedinUrlRaw.trim() : "";
+
+  const cv = formData.get("cv");
+  const hasCv = cv instanceof File && cv.size > 0;
+
+  if (!linkedinUrl && !hasCv) {
+    return { error: "Ingresá tu LinkedIn o subí tu CV en PDF (al menos uno de los dos)." };
+  }
+  if (hasCv) {
+    const file = cv as File;
+    if (!AI_CV_ALLOWED_TYPES.includes(file.type)) {
+      return { error: "Por ahora este asistente solo acepta CV en PDF. Convertilo a PDF e intentá de nuevo." };
+    }
+    if (file.size > CV_MAX_BYTES) {
+      return { error: "El PDF supera los 5 MB permitidos." };
+    }
+  }
+
+  const cvFile = hasCv
+    ? {
+        base64: Buffer.from(await (cv as File).arrayBuffer()).toString("base64"),
+        mimeType: "application/pdf" as const,
+      }
+    : undefined;
+
   const result = await generarPerfilConIa(
-    { rawText: typeof rawText === "string" ? rawText : "" },
+    { linkedinUrl: linkedinUrl || undefined, cvFile },
     { userId: user.id },
-    { draftProfile: (text) => getAiProvider().draftCandidateProfile({ rawText: text }) },
+    { draftProfile: (input) => getAiProvider().draftCandidateProfile(input) },
   );
 
   if (!result.ok) return { error: result.error };
@@ -85,5 +138,5 @@ export async function omitirOnboardingAction(): Promise<void> {
   if (!user) redirect("/c/login");
 
   await omitirOnboarding({ userId: user.id }, { markOnboardingComplete: markCandidateOnboardingComplete });
-  redirect("/portal");
+  redirect("/c/profile");
 }

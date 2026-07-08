@@ -5,6 +5,7 @@ import { profiles } from "@/db/schema";
 export interface CandidateProfileFields {
   fullName: string;
   headline: string | null;
+  phone: string | null;
   location: string | null;
   linkedinUrl: string | null;
   bio: string | null;
@@ -25,6 +26,7 @@ export async function updateCandidateProfile(
         .set({
           fullName: fields.fullName,
           headline: fields.headline,
+          phone: fields.phone,
           location: fields.location,
           linkedinUrl: fields.linkedinUrl,
           bio: fields.bio,

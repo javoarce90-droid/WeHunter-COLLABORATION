@@ -5,116 +5,29 @@ import { Badge } from "@/components/ui/badge";
 
 interface JobCardProps {
   job: Job;
-  isFavorite: boolean;
-  isApplied: boolean;
-  isHidden: boolean;
-  onToggleFavorite: (jobId: string) => void;
-  onHide: (jobId: string) => void;
   onApply: (job: Job) => void;
   onClickCard?: () => void;
 }
 
 export function JobCard({
   job,
-  isFavorite,
-  isApplied,
-  isHidden,
-  onToggleFavorite,
-  onHide,
   onApply,
   onClickCard,
 }: JobCardProps) {
   return (
-    <div 
+    <div
       onClick={onClickCard}
       className={`bg-surface border border-border hover:border-primary/35 rounded-[var(--radius)] p-6 shadow-[var(--shadow)] hover:shadow-md transition-all duration-300 flex flex-col justify-between gap-4 group hover:-translate-y-0.5 ${onClickCard ? "cursor-pointer" : ""}`}
     >
       <div className="flex flex-col gap-3">
-        {/* Header: Company & Favorite/Hide Actions */}
-        <div className="flex justify-between items-start gap-4">
-          <div className="flex flex-col">
-            <span className="text-xs font-semibold text-primary uppercase tracking-wider">
-              {job.company}
-            </span>
-            <h3 className="text-lg font-bold font-display text-text mt-1 group-hover:text-primary transition-colors">
-              {job.title}
-            </h3>
-          </div>
-
-          <div className="flex items-center gap-1">
-            {/* Toggle Favorite Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleFavorite(job.id);
-              }}
-              className="p-2 rounded-lg hover:bg-muted text-muted hover:text-danger active:scale-95 transition-all hover:cursor-pointer"
-              title="Guardar favorito"
-            >
-              <svg
-                className={`w-5 h-5 transition-transform duration-200 ${
-                  isFavorite ? "fill-danger text-danger scale-110" : "fill-none"
-                }`}
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                />
-              </svg>
-            </button>
-
-            {/* Hide/Unhide Job Card Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onHide(job.id);
-              }}
-              className={`p-2 rounded-lg hover:bg-muted active:scale-95 transition-all hover:cursor-pointer ${
-                isHidden ? "text-primary bg-primary-light" : "text-muted hover:text-text"
-              }`}
-              title={isHidden ? "Mostrar oferta" : "Ocultar oferta"}
-            >
-              {isHidden ? (
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                  />
-                </svg>
-              ) : (
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                  />
-                </svg>
-              )}
-            </button>
-          </div>
+        {/* Header: Company & Title */}
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold text-primary uppercase tracking-wider">
+            {job.company}
+          </span>
+          <h3 className="text-lg font-bold font-display text-text mt-1 group-hover:text-primary transition-colors">
+            {job.title}
+          </h3>
         </div>
 
         {/* Location & Workplace Type */}
@@ -188,34 +101,15 @@ export function JobCard({
         </div>
 
         {/* Apply Button */}
-        {isApplied ? (
-          <div className="w-full h-10 bg-success/10 text-success border border-success/20 font-semibold text-xs rounded-[var(--radius)] flex items-center justify-center gap-1.5 select-none">
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-            ¡Ya postulado!
-          </div>
-        ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onApply(job);
-            }}
-            className="w-full h-10 bg-primary hover:bg-primary-hover active:scale-[0.98] text-white font-semibold text-xs rounded-[var(--radius)] transition-all shadow-sm hover:cursor-pointer flex items-center justify-center"
-          >
-            Postularse
-          </button>
-        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onApply(job);
+          }}
+          className="w-full h-10 bg-primary hover:bg-primary-hover active:scale-[0.98] text-white font-semibold text-xs rounded-[var(--radius)] transition-all shadow-sm hover:cursor-pointer flex items-center justify-center"
+        >
+          Postularse
+        </button>
       </div>
     </div>
   );

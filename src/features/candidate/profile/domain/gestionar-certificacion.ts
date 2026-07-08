@@ -8,12 +8,13 @@ export interface CertificacionInput {
   url?: string;
 }
 
-interface NormalizedCertificacion {
+export interface NormalizedCertificacion {
   name: string;
   url: string | null;
 }
 
-function normalize(input: CertificacionInput): Result<NormalizedCertificacion> {
+/** Exportada para reusar la misma validación desde completarOnboardingConIa (onboarding con IA). */
+export function normalizeCertificacion(input: CertificacionInput): Result<NormalizedCertificacion> {
   const name = input.name.trim();
   if (!name) return err("El nombre del certificado es obligatorio.");
 
@@ -32,7 +33,7 @@ export async function agregarCertificacion(
   owner: ResumeOwner,
   deps: AgregarCertificacionDeps,
 ): Promise<Result<{ id: string }>> {
-  const normalized = normalize(input);
+  const normalized = normalizeCertificacion(input);
   if (!normalized.ok) return normalized;
 
   const created = await deps.insertCertification(owner, normalized.data);

@@ -14,6 +14,7 @@ export default async function OnboardingManualPage() {
         initialFullName={candidate.fullName ?? ""}
         initialEmail={candidate.email}
         initialHeadline={candidate.headline}
+        initialPhone={candidate.phone}
         initialLocation={candidate.location}
         initialLinkedinUrl={candidate.linkedinUrl}
         initialSummary={candidate.bio}

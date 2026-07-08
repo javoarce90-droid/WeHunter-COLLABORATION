@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { agregarEducacion, editarEducacion, eliminarEducacion } from "./gestionar-educacion";
+import {
+  agregarEducacion,
+  editarEducacion,
+  eliminarEducacion,
+  normalizeEducacion,
+} from "./gestionar-educacion";
 
 const owner = { kind: "profile" as const, profileId: "candidate-1" };
 
@@ -53,5 +58,19 @@ describe("eliminarEducacion", () => {
     const deps = { deleteEducation: vi.fn().mockResolvedValue(true) };
     const res = await eliminarEducacion("edu-1", owner, deps);
     expect(res).toEqual({ ok: true, data: { id: "edu-1" } });
+  });
+});
+
+describe("normalizeEducacion (reusada por el onboarding con IA)", () => {
+  it("está exportada y valida igual que antes", () => {
+    const res = normalizeEducacion({ institution: " UBA ", degree: " Ingeniería " });
+    expect(res).toEqual({
+      ok: true,
+      data: expect.objectContaining({ institution: "UBA", degree: "Ingeniería" }),
+    });
+  });
+
+  it("rechaza sin institution/degree", () => {
+    expect(normalizeEducacion({ institution: " ", degree: "Ingeniería" }).ok).toBe(false);
   });
 });

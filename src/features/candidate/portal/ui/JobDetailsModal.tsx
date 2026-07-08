@@ -1,11 +1,22 @@
 "use client";
 
-import { X, MapPin, Briefcase, DollarSign, FileText } from "lucide-react";
+import { X, MapPin, Briefcase, DollarSign, FileText, Building2, Award, Clock, Users } from "lucide-react";
 import { type Job } from "../data/mock-jobs";
-import { type PortalApplication, toStepperStage } from "../domain/gestionar-postulacion";
+import { type PortalApplication, toStepperStage, puedeRetirarPostulacion } from "../domain/gestionar-postulacion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ApplicationStepper } from "./ApplicationStepper";
+import { AREA_LABELS, SENIORITY_LABELS, EMPLOYMENT_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
+import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
+
+const STEPPER_STAGE_LABEL: Record<ReturnType<typeof toStepperStage>, string> = {
+  new: "Postulado",
+  screening: "En revisión",
+  interview: "Entrevista",
+  offer: "Propuesta",
+  hired: "Contratado",
+  rejected: "Finalizado",
+};
 
 interface JobDetailsModalProps {
   job: Job;
@@ -26,6 +37,36 @@ export function JobDetailsModal({
   onWithdraw,
   isWithdrawing = false,
 }: JobDetailsModalProps) {
+  const metadata = [
+    { icon: MapPin, label: "Ubicación", value: job.location },
+    job.jobArea ? { icon: Building2, label: "Área", value: AREA_LABELS[job.jobArea] } : null,
+    { icon: Briefcase, label: "Modalidad", value: job.workplaceType },
+    job.seniority
+      ? { icon: Award, label: "Seniority", value: SENIORITY_LABELS[job.seniority] }
+      : null,
+    job.employmentType
+      ? { icon: Clock, label: "Jornada", value: EMPLOYMENT_LABELS[job.employmentType] }
+      : null,
+    job.vacancies
+      ? {
+          icon: Users,
+          label: "Vacantes",
+          value: `${job.vacancies} ${job.vacancies === 1 ? "puesto" : "puestos"}`,
+        }
+      : null,
+    job.salary
+      ? { icon: DollarSign, label: "Remuneración", value: job.salary, valueClassName: "text-success" }
+      : null,
+  ].filter((m): m is NonNullable<typeof m> => m !== null);
+
+  const sections = [
+    { title: "Objetivos del puesto", body: job.objectives },
+    { title: "Responsabilidades", body: job.responsibilities },
+    { title: "Requisitos", body: job.requirements },
+  ].filter((s): s is { title: string; body: string } => !!s.body?.trim());
+
+  const hasDetails = sections.length > 0 || (job.benefits?.length ?? 0) > 0;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
@@ -59,56 +100,65 @@ export function JobDetailsModal({
         <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-6 custom-scrollbar">
           {/* Metadata Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/10 border border-border/40 p-4 rounded-[var(--radius)]">
-            <div className="flex items-center gap-2.5 text-xs text-text">
-              <div className="p-1.5 bg-surface border border-border rounded-lg text-muted">
-                <MapPin className="w-4 h-4" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-muted font-medium">Ubicación</span>
-                <span className="font-semibold">{job.location}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2.5 text-xs text-text">
-              <div className="p-1.5 bg-surface border border-border rounded-lg text-muted">
-                <Briefcase className="w-4 h-4" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] text-muted font-medium">Modalidad</span>
-                <span className="font-semibold">{job.workplaceType}</span>
-              </div>
-            </div>
-            {job.salary && (
-              <div className="flex items-center gap-2.5 text-xs text-text">
+            {metadata.map(({ icon: Icon, label, value, valueClassName }) => (
+              <div key={label} className="flex items-center gap-2.5 text-xs text-text">
                 <div className="p-1.5 bg-surface border border-border rounded-lg text-muted">
-                  <DollarSign className="w-4 h-4" />
+                  <Icon className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-muted font-medium">Remuneración</span>
-                  <span className="font-semibold text-success">{job.salary}</span>
+                  <span className="text-[10px] text-muted font-medium">{label}</span>
+                  <span className={["font-semibold", valueClassName].filter(Boolean).join(" ")}>{value}</span>
                 </div>
               </div>
-            )}
+            ))}
           </div>
 
-          {/* Description Section */}
-          <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">Descripción del puesto</h3>
-            <p className="text-sm text-text/80 leading-relaxed whitespace-pre-line bg-muted/5 border border-border/30 p-4 rounded-[var(--radius)]">
-              {job.description}
-            </p>
-          </div>
-
-          {/* Tech Tags */}
-          <div className="flex flex-col gap-2">
-            <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">Tecnologías / Requisitos</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {job.tags.map((tag) => (
-                <Badge key={tag} variant="muted" className="text-xs px-2.5 py-0.5 rounded-md font-medium">
-                  {tag}
-                </Badge>
+          {hasDetails ? (
+            <>
+              {/* Objetivos / Responsabilidades / Requisitos */}
+              {sections.map((s) => (
+                <div key={s.title} className="flex flex-col gap-2">
+                  <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">{s.title}</h3>
+                  <div className="text-sm text-text/80 leading-relaxed bg-muted/5 border border-border/30 p-4 rounded-[var(--radius)]">
+                    <JobMarkdown text={s.body} />
+                  </div>
+                </div>
               ))}
+
+              {/* Beneficios (cards) */}
+              {(job.benefits?.length ?? 0) > 0 && (
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">Beneficios</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {job.benefits!.map((b, i) => (
+                      <div key={i} className="rounded-[var(--radius)] border border-border/60 bg-bg/40 px-3 py-2.5">
+                        <p className="text-xs font-bold text-text">{b.name}</p>
+                        {b.description && (
+                          <p className="mt-0.5 text-[11px] text-muted leading-relaxed">{b.description}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted">{job.description}</p>
+          )}
+
+          {/* Skills */}
+          {job.tags.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <h3 className="text-xs font-bold text-text/80 uppercase tracking-wider">Skills</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {job.tags.map((tag) => (
+                  <Badge key={tag} variant="muted" className="text-xs px-2.5 py-0.5 rounded-md font-medium">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Postulación / Stepper Context Section */}
           {isApplied && application && (
@@ -124,12 +174,7 @@ export function JobDetailsModal({
                   </div>
                 </div>
                 <Badge variant={toStepperStage(application.stage)} className="text-xs whitespace-nowrap w-fit">
-                  {toStepperStage(application.stage) === "new" && "Postulado"}
-                  {toStepperStage(application.stage) === "screening" && "En revisión"}
-                  {toStepperStage(application.stage) === "interview" && "Entrevista"}
-                  {toStepperStage(application.stage) === "offer" && "Propuesta"}
-                  {toStepperStage(application.stage) === "hired" && "Contratado"}
-                  {toStepperStage(application.stage) === "rejected" && "Finalizado"}
+                  {STEPPER_STAGE_LABEL[toStepperStage(application.stage)]}
                 </Badge>
               </div>
 
@@ -144,13 +189,19 @@ export function JobDetailsModal({
                 <div className="bg-danger/5 border border-danger/15 p-4 rounded-[var(--radius)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-xs font-bold text-danger">¿Querés retirarte de la búsqueda?</span>
-                    <span className="text-[10px] text-muted leading-tight">Esta acción removerá tu postulación de forma permanente.</span>
+                    <span className="text-[10px] text-muted leading-tight">
+                      {puedeRetirarPostulacion(application.stage)
+                        ? "Esta acción removerá tu postulación de forma permanente."
+                        : "Ya no podés retirarte: el proceso avanzó a la etapa de " +
+                          STEPPER_STAGE_LABEL[toStepperStage(application.stage)].toLowerCase() +
+                          "."}
+                    </span>
                   </div>
                   <Button
                     onClick={onWithdraw}
-                    disabled={isWithdrawing}
+                    disabled={isWithdrawing || !puedeRetirarPostulacion(application.stage)}
                     variant="secondary"
-                    className="border-danger/35 hover:border-danger/55 hover:bg-danger/5 text-danger hover:text-danger active:scale-95 text-xs h-9 py-1 px-4 shrink-0"
+                    className="border-danger/35 hover:border-danger/55 hover:bg-danger/5 text-danger hover:text-danger active:scale-95 text-xs h-9 py-1 px-4 shrink-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-danger/35 disabled:hover:bg-transparent"
                   >
                     {isWithdrawing ? "Retirando..." : "Retirar Postulación"}
                   </Button>

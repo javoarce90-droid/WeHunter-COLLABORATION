@@ -10,6 +10,7 @@ import type { CandidateProfileFields } from "../data/profile.mutations";
 export interface ActualizarPerfilInput {
   fullName: string;
   headline?: string;
+  phone?: string;
   location?: string;
   linkedinUrl?: string;
   summary?: string;
@@ -54,6 +55,7 @@ export async function actualizarPerfil(
     {
       fullName,
       headline: input.headline?.trim() || null,
+      phone: input.phone?.trim() || null,
       location: input.location?.trim() || null,
       linkedinUrl: input.linkedinUrl?.trim() || null,
       bio: input.summary?.trim() || null,
