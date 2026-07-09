@@ -79,6 +79,12 @@ export async function register(
     return { error: error.message };
   }
 
+  // Supabase no devuelve error por un email ya registrado (protección anti-enumeración):
+  // responde éxito sin sesión y sin crear usuario. La señal es identities vacío.
+  if (data.user && data.user.identities && data.user.identities.length === 0) {
+    return { error: "Ese email ya tiene una cuenta. Iniciá sesión, o registrate con un email distinto." };
+  }
+
   // Si el proyecto exige verificación de email, no hay sesión todavía.
   if (!data.session) {
     return {

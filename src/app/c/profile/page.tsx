@@ -9,6 +9,7 @@ import { CertificationsSection } from "@/features/candidate/profile/ui/Certifica
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
 import { Avatar } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
+import { WehunterLogo } from "@/components/ui/wehunter-logo";
 import Link from "next/link";
 
 export const metadata = {
@@ -37,8 +38,9 @@ export default async function CandidateProfilePage() {
       {/* Header / Navbar del Candidato */}
       <header className="bg-sidebar text-white shadow-md border-b border-sidebar-alt/30">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/portal" className="font-display text-lg font-bold">
-            <span className="text-ai">We</span>Hunter <span className="text-xs bg-primary px-2 py-0.5 rounded ml-1 font-sans font-normal">Talento</span>
+          <Link href="/portal" className="flex items-center gap-2">
+            <WehunterLogo variant="white" height={22} />
+            <span className="text-xs bg-primary px-2 py-0.5 rounded font-sans font-normal">Talento</span>
           </Link>
 
           <nav className="flex items-center gap-6">

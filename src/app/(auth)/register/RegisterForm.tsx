@@ -6,6 +6,7 @@ import { register, type AuthFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { AccountTypeTabs } from "@/components/ui/account-type-tabs";
 
 const initialState: AuthFormState = {};
 
@@ -14,6 +15,7 @@ export function RegisterForm() {
 
   return (
     <>
+      <AccountTypeTabs />
       <Card>
         <CardContent className="flex flex-col gap-4">
           {state.message ? (
@@ -57,14 +59,6 @@ export function RegisterForm() {
           </p>
         </CardContent>
       </Card>
-      <p className="mt-4 text-center text-xs text-white/60">
-        <Link
-          href="/c/register"
-          className="font-semibold text-white hover:underline"
-        >
-          Soy candidato →
-        </Link>
-      </p>
     </>
   );
 }

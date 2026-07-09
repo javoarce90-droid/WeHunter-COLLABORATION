@@ -6,6 +6,7 @@ import { candidateRegister, type CandidateAuthFormState } from "../../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { AccountTypeTabs } from "@/components/ui/account-type-tabs";
 
 const initialState: CandidateAuthFormState = {};
 
@@ -21,6 +22,7 @@ export function RegisterForm({ redirectTo }: { redirectTo: string }) {
 
   return (
     <>
+      <AccountTypeTabs />
       <Card>
         <CardContent className="flex flex-col gap-4">
           <form action={formAction} className="flex flex-col gap-4">
@@ -61,14 +63,6 @@ export function RegisterForm({ redirectTo }: { redirectTo: string }) {
           </p>
         </CardContent>
       </Card>
-      <p className="mt-4 text-center text-xs text-white/60">
-        <Link
-          href="/register"
-          className="font-semibold text-white hover:underline"
-        >
-          Soy recruiter →
-        </Link>
-      </p>
     </>
   );
 }

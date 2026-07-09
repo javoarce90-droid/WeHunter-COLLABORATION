@@ -1,6 +1,10 @@
 import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/session";
+import { LandingPage } from "./_marketing/LandingPage";
 
-/** Entrada raíz: el middleware decide si hay sesión; si no, /dashboard rebota a /login. */
-export default function Home() {
-  redirect("/dashboard");
+export default async function Home() {
+  const user = await getCurrentUser();
+  if (user) redirect("/dashboard");
+
+  return <LandingPage />;
 }
