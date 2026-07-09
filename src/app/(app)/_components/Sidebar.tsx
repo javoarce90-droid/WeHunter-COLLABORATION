@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { WehunterLogo } from "@/components/ui/wehunter-logo";
 
 /**
  * Barra lateral del workspace del reclutador. Identidad visual heredada de la demo
@@ -71,10 +72,7 @@ export function Sidebar({
             </span>
           ) : (
             <span className="flex min-w-0 flex-col">
-              <span className="truncate font-display text-[17px] font-bold leading-tight tracking-tight">
-                <span className="font-serif italic font-normal text-[#C4B5FD]">We</span>
-                Hunter
-              </span>
+              <WehunterLogo variant="white" height={20} />
               <span className="text-[10px] font-medium tracking-wide text-white/45">
                 Talent platform
               </span>
