@@ -10,6 +10,7 @@ export type ActualizarEntrevistaInput = {
   status: InterviewStatus;
   location?: string;
   notes?: string;
+  participantEmails?: string[];
 };
 
 export type ActualizarEntrevistaContext = {
@@ -31,6 +32,7 @@ export type ActualizarEntrevistaDeps = {
       status: InterviewStatus;
       location: string | null;
       notes: string | null;
+      participantEmails: string[];
     },
   ) => Promise<InterviewRow>;
 };
@@ -63,6 +65,7 @@ export async function actualizarEntrevista(
     status: input.status,
     location: normalize(input.location),
     notes: normalize(input.notes),
+    participantEmails: input.participantEmails ?? [],
   });
 
   return { ok: true, data: updated };

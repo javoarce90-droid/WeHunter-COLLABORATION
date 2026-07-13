@@ -9,3 +9,8 @@ export const registrarFeedbackSchema = z.object({
   }),
   comment: z.string().max(2000, "El comentario no puede superar los 2.000 caracteres.").optional(),
 });
+
+export const solicitarEntrevistaSchema = z.object({
+  token: z.string().min(1, "Enlace inválido."),
+  shortlistCandidateId: z.string().uuid("Candidato inválido."),
+});

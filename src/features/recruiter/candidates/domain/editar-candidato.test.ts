@@ -43,6 +43,20 @@ describe("editarCandidato", () => {
     );
   });
 
+  it("normaliza el teléfono al editar", async () => {
+    const d = deps();
+    await editarCandidato(
+      { candidateId: "cand-1", fullName: "Ada Lovelace", phone: "  +54 9 351 555-1234  " },
+      ctx,
+      d,
+    );
+    expect(d.updateCandidateFields).toHaveBeenCalledWith(
+      "cand-1",
+      "org-1",
+      expect.objectContaining({ phone: "+54 9 351 555-1234" }),
+    );
+  });
+
   it("reemplaza el CV cuando se adjunta uno nuevo", async () => {
     const uploadCv = vi.fn(async () => ({ path: "org-1/nuevo.pdf" }));
     const d = { ...deps(), uploadCv };

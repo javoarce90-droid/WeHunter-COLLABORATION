@@ -70,6 +70,7 @@ export async function importarSourcingAction(result: {
     summary: null,
     skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
     source: platformToSource(parsed.data.platform),
+    phone: null,
   });
 
   revalidatePath("/candidates");

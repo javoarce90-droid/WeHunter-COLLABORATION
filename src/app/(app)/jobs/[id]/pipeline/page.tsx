@@ -8,6 +8,7 @@ import {
 } from "@/features/recruiter/applications/data/applications.queries";
 import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
+import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import { getPipelineStageConfigs } from "@/features/recruiter/pipeline-stages/data/pipeline-stages.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
@@ -25,14 +26,19 @@ export default async function PipelinePage({ params }: Props) {
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [applications, candidates, interviews, notes, stageConfig, stageEvents] = await Promise.all([
-    listApplicationsByJob(jobId, membership.organizationId),
-    listCandidates(membership.organizationId),
-    listInterviewsByJob(jobId, membership.organizationId),
-    listNotesByJob(jobId, membership.organizationId),
-    getPipelineStageConfigs(membership.organizationId),
-    listStageEventsByJob(jobId, membership.organizationId),
-  ]);
+  const [applications, candidates, interviews, notes, stageConfig, stageEvents, members] =
+    await Promise.all([
+      listApplicationsByJob(jobId, membership.organizationId),
+      listCandidates(membership.organizationId),
+      listInterviewsByJob(jobId, membership.organizationId),
+      listNotesByJob(jobId, membership.organizationId),
+      getPipelineStageConfigs(membership.organizationId),
+      listStageEventsByJob(jobId, membership.organizationId),
+      listMembers(membership.organizationId),
+    ]);
+  const teamMembers = members
+    .filter((m) => m.status === "active")
+    .map((m) => ({ profileId: m.profileId, name: m.name, email: m.email }));
 
   // getStageEntryTimes se hace después de tener las applications para poder hacer el fallback.
   const entryTimesFromEvents = await getStageEntryTimes(jobId, membership.organizationId);
@@ -84,6 +90,7 @@ export default async function PipelinePage({ params }: Props) {
       <PipelineView
         applications={applications}
         interviewsByApplication={interviewsByApplication}
+        teamMembers={teamMembers}
         notesByApplication={notesByApplication}
         stageEventsByApplication={stageEventsByApplication}
         stageConfig={stageConfig}

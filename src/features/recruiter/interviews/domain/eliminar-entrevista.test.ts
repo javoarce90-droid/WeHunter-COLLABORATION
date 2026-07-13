@@ -15,6 +15,9 @@ const existing: InterviewRow = {
   location: null,
   notes: null,
   status: "scheduled",
+  participantEmails: [],
+  googleEventId: null,
+  googleSyncError: null,
 };
 
 const makeDeps = (overrides?: Partial<EliminarEntrevistaDeps>): EliminarEntrevistaDeps => ({

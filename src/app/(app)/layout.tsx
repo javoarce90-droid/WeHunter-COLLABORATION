@@ -11,6 +11,7 @@ import {
   NotificationBellLoader,
   NotificationBellFallback,
 } from "@/features/recruiter/notifications/ui/NotificationBellLoader";
+import { OnboardingTour } from "@/features/recruiter/onboarding-tour/ui/OnboardingTour";
 
 /**
  * Shell de las pantallas del reclutador (rutas protegidas). Resuelve el contexto base:
@@ -61,6 +62,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <main className="flex-1 overflow-auto p-6">{children}</main>
         </div>
       </AppChrome>
+      {membership.onboardingDismissedAt === null && <OnboardingTour />}
     </div>
   );
 }

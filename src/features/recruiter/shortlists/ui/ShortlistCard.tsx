@@ -55,6 +55,9 @@ export function ShortlistCard({ shortlistId, jobId, name, candidates, shares, ap
                 ) : (
                   <Badge variant="muted">Sin feedback</Badge>
                 )}
+                {c.interviewRequestedAt && (
+                  <Badge variant="warning">Pidió entrevista</Badge>
+                )}
                 {c.feedbackComment && (
                   <p className="w-full text-xs italic text-muted">“{c.feedbackComment}”</p>
                 )}
