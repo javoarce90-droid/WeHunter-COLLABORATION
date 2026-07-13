@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { SparkleIcon } from "@/components/ui/ai";
 import { Button } from "@/components/ui/button";
@@ -21,18 +21,27 @@ export function JobAiCreateForm({ action }: JobAiCreateFormProps) {
   const [brief, setBrief] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Guard síncrono: `pending` recién bloquea el botón después de un re-render, dejando una
+  // ventana para un doble click/tap que dispare `submit()` dos veces (bug: job duplicado).
+  const submittingRef = useRef(false);
 
   function submit() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
     startTransition(async () => {
-      const res = await action({
-        title: title.trim(),
-        modality: modality || null,
-        employmentType: employmentType || null,
-        brief: brief.trim(),
-      });
-      if (res.error) {
-        setError(res.error);
+      try {
+        const res = await action({
+          title: title.trim(),
+          modality: modality || null,
+          employmentType: employmentType || null,
+          brief: brief.trim(),
+        });
+        if (res.error) {
+          setError(res.error);
+        }
+      } finally {
+        submittingRef.current = false;
       }
     });
   }
@@ -112,7 +121,7 @@ export function JobAiCreateForm({ action }: JobAiCreateFormProps) {
           {error && <p className="text-xs text-danger">{error}</p>}
 
           <div className="flex items-center gap-3">
-            <Button type="button" disabled={!title.trim()} onClick={submit}>
+            <Button type="button" disabled={pending || !title.trim()} onClick={submit}>
               Crear oferta
             </Button>
             <Link href="/jobs/new" className="text-sm font-semibold text-muted">

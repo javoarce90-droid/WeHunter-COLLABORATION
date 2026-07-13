@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCandidateProfile, getCurrentUser } from "@/lib/auth/session";
 import { getCareerSiteJob } from "@/features/candidate/career-site/data/career-site.data";
 import { accentStyle } from "@/features/candidate/career-site/ui/brand";
 import { ApplyForm } from "@/features/candidate/applications/ui/ApplyForm";
@@ -46,6 +46,7 @@ export default async function CareerSiteApplyPage({
 
   const defaultName =
     typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : "";
+  const candidate = await getCandidateProfile();
 
   return (
     <ApplyForm
@@ -53,6 +54,8 @@ export default async function CareerSiteApplyPage({
       job={result.job}
       defaultName={defaultName}
       defaultEmail={user.email ?? ""}
+      defaultPhone={candidate?.phone ?? undefined}
+      existingCvUrl={candidate?.cvUrl}
       accentColor={result.organization.settings?.accentColor}
     />
   );

@@ -5,6 +5,7 @@ import { eliminarExperienciaAction, type ResumeActionState } from "../resume-act
 import { EMPLOYMENT_LABELS, MODALITY_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
 import type { CandidateWorkExperience } from "@/db/schema";
 import { ExperienceForm } from "./ExperienceForm";
+import { Badge } from "@/components/ui/badge";
 
 type ActionFn = (prev: ResumeActionState, formData: FormData) => Promise<ResumeActionState>;
 
@@ -73,6 +74,15 @@ export function ExperienceSection({
                 )}
                 {exp.description && (
                   <p className="mt-2 text-sm text-text/80 leading-relaxed">{exp.description}</p>
+                )}
+                {exp.skills && exp.skills.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {exp.skills.map((skill) => (
+                      <Badge key={skill} variant="muted" className="text-[10px] px-2 py-0.5 rounded-md font-semibold">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </div>
                 )}
                 <div className="mt-2 flex items-center gap-3">
                   <button

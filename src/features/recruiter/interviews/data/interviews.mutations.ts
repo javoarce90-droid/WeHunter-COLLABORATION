@@ -15,6 +15,9 @@ const returning = {
   location: interviews.location,
   notes: interviews.notes,
   status: interviews.status,
+  participantEmails: interviews.participantEmails,
+  googleEventId: interviews.googleEventId,
+  googleSyncError: interviews.googleSyncError,
 };
 
 function toRow(r: {
@@ -26,6 +29,9 @@ function toRow(r: {
   location: string | null;
   notes: string | null;
   status: string;
+  participantEmails: string[] | null;
+  googleEventId: string | null;
+  googleSyncError: string | null;
 }): InterviewRow {
   return {
     id: r.id,
@@ -36,6 +42,9 @@ function toRow(r: {
     location: r.location,
     notes: r.notes,
     status: r.status as InterviewStatus,
+    participantEmails: r.participantEmails ?? [],
+    googleEventId: r.googleEventId,
+    googleSyncError: r.googleSyncError,
   };
 }
 
@@ -46,6 +55,7 @@ export async function insertInterview(data: {
   mode: InterviewMode;
   location: string | null;
   notes: string | null;
+  participantEmails: string[];
   createdBy: string | null;
 }): Promise<InterviewRow> {
   const db = await getDb();
@@ -64,6 +74,7 @@ export async function updateInterview(
     status: InterviewStatus;
     location: string | null;
     notes: string | null;
+    participantEmails: string[];
   },
 ): Promise<InterviewRow> {
   const db = await getDb();
@@ -83,5 +94,21 @@ export async function deleteInterview(interviewId: string): Promise<void> {
   await db.rls((tx) =>
     tx.delete(interviews).where(eq(interviews.id, interviewId)),
     "db.interviews.delete",
+  );
+}
+
+/** Persiste el resultado de un intento de sync con Google Calendar (no toca otros campos). */
+export async function updateInterviewGoogleSync(
+  interviewId: string,
+  sync: { googleEventId: string | null; googleSyncError: string | null },
+): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx
+        .update(interviews)
+        .set({ ...sync, updatedAt: new Date() })
+        .where(eq(interviews.id, interviewId)),
+    "db.interviews.google-sync",
   );
 }

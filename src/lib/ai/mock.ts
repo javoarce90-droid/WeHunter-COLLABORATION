@@ -125,17 +125,16 @@ export class MockAiProvider implements AiProvider {
     return {
       position,
       jobArea: null,
+      // Sin heading propio: la UI ya muestra el título de cada sección (Objetivos/Requisitos/
+      // Responsabilidades) antes de este contenido — un "## Título" acá lo duplicaba.
       objectives:
-        `## Objetivos del puesto\n` +
         `- Aportar al equipo desde el rol de ${position}.\n` +
         `- ${briefLine}\n`,
       requirements:
-        `## Requisitos\n` +
         `- Experiencia previa relevante para el puesto${ctx ? ` (${ctx})` : ""}.\n` +
         (skills.length ? `- Conocimientos en ${skills.join(", ")}.\n` : "") +
         `- Buena comunicación y trabajo en equipo.\n`,
       responsibilities:
-        `## Responsabilidades\n` +
         `- Ejecutar las tareas principales del rol de ${position}.\n` +
         `- Colaborar con las distintas áreas para cumplir los objetivos.\n`,
       benefits: [
@@ -150,29 +149,20 @@ export class MockAiProvider implements AiProvider {
   async draftCandidateProfile(
     input: DraftCandidateProfileInput,
   ): Promise<DraftCandidateProfile> {
-    const text = input.rawText.trim();
-    const firstLine = text.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
-    const linkedinMatch = text.match(/https?:\/\/(www\.)?linkedin\.com\/\S+/i);
-    const locationMatch = text.match(
-      /(?:ubicaci[oó]n|location|ciudad)\s*[:\-]?\s*([^\n,]+)/i,
-    );
-
-    const skills = Array.from(
-      new Set(
-        text
-          .toLowerCase()
-          .split(/[^a-záéíóúñ0-9+#.]+/i)
-          .map((w) => w.trim())
-          .filter((w) => w.length >= 3),
-      ),
-    ).slice(0, 8);
-
+    // Sin modelo real no hay forma de leer el PDF ni el contenido de LinkedIn: placeholder
+    // determinístico, listo para revisar/editar. Los arrays quedan vacíos (no hay parseo real).
     return {
-      headline: firstLine.slice(0, 120) || "Perfil de talento",
-      location: locationMatch?.[1]?.trim() ?? null,
-      linkedinUrl: linkedinMatch?.[0] ?? null,
-      summary: text.slice(0, 280) || "Sin resumen disponible.",
-      skills,
+      fullName: null,
+      phone: null,
+      headline: "Perfil de talento",
+      location: null,
+      linkedinUrl: input.linkedinUrl?.trim() || null,
+      summary: "Sin resumen disponible.",
+      skills: [],
+      workExperiences: [],
+      education: [],
+      certifications: [],
+      linkedinFetchStatus: input.linkedinUrl ? "ok" : undefined,
     };
   }
 

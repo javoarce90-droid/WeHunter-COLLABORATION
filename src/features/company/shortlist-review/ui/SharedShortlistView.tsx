@@ -4,6 +4,7 @@ import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
 import type { ApplicationStage } from "@/features/recruiter/applications/schema";
 import type { SharedShortlist } from "../data/shortlist-review.data";
 import { FeedbackForm } from "./FeedbackForm";
+import { RequestInterviewButton } from "./RequestInterviewButton";
 
 type Props = {
   token: string;
@@ -56,6 +57,12 @@ export function SharedShortlistView({ token, shortlist }: Props) {
                 shortlistCandidateId={c.shortlistCandidateId}
                 currentDecision={c.feedbackDecision}
                 currentComment={c.feedbackComment}
+              />
+
+              <RequestInterviewButton
+                token={token}
+                shortlistCandidateId={c.shortlistCandidateId}
+                requested={c.interviewRequestedAt !== null}
               />
             </div>
           </Card>

@@ -8,6 +8,10 @@ import { ProfileSection } from "@/features/recruiter/settings/ui/ProfileSection"
 import { PasswordSection } from "@/features/recruiter/settings/ui/PasswordSection";
 import { WorkspaceSection } from "@/features/recruiter/settings/ui/WorkspaceSection";
 import { TeamSection } from "@/features/recruiter/team/ui/TeamSection";
+import { OnboardingTourReplayButton } from "@/features/recruiter/onboarding-tour/ui/OnboardingTourReplayButton";
+import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
+import { isGoogleCalendarConfigured } from "@/features/recruiter/google-calendar/data/oauth-client";
+import { GoogleCalendarSection } from "@/features/recruiter/google-calendar/ui/GoogleCalendarSection";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { OrgRole } from "@/features/recruiter/team/domain/gestionar-equipo";
@@ -38,17 +42,18 @@ function Section({
   );
 }
 
-const INTEGRATIONS = ["Gmail", "WhatsApp", "Google Calendar", "LinkedIn"];
+const INTEGRATIONS = ["Gmail", "WhatsApp", "LinkedIn"];
 
 export default async function SettingsPage() {
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!user || !membership) notFound();
 
-  const [profile, org, members, invitations] = await Promise.all([
+  const [profile, org, members, invitations, googleConnection] = await Promise.all([
     getOwnProfile(),
     getOrganization(membership.organizationId),
     listMembers(membership.organizationId),
     listPendingInvitations(membership.organizationId),
+    getConnectionByProfile(user.id, membership.organizationId),
   ]);
   const coverUrl = org?.careerSiteCoverUrl ? getCareerSiteCoverPublicUrl(org.careerSiteCoverUrl) : null;
 
@@ -95,6 +100,13 @@ export default async function SettingsPage() {
         />
       </Section>
 
+      <Section
+        title="Onboarding"
+        description="Volvé a ver la guía de bienvenida cuando quieras."
+      >
+        <OnboardingTourReplayButton />
+      </Section>
+
       <Section title="Mi plan">
         <div className="flex items-center justify-between">
           <div>
@@ -124,6 +136,10 @@ export default async function SettingsPage() {
 
       <Section title="Integraciones">
         <ul className="flex flex-col gap-2">
+          <GoogleCalendarSection
+            configured={isGoogleCalendarConfigured()}
+            connectedEmail={googleConnection?.googleEmail ?? null}
+          />
           {INTEGRATIONS.map((name) => (
             <li
               key={name}

@@ -155,6 +155,7 @@ export type ShortlistCandidateWithFeedback = {
   stage: ApplicationStage;
   feedbackDecision: FeedbackDecision | null;
   feedbackComment: string | null;
+  interviewRequestedAt: Date | null;
 };
 
 /** Candidatos del shortlist con el feedback de la empresa (vista interna del reclutador). */
@@ -172,6 +173,7 @@ export async function listShortlistCandidates(
         stage: applications.stage,
         feedbackDecision: shortlistFeedback.decision,
         feedbackComment: shortlistFeedback.comment,
+        interviewRequestedAt: shortlistCandidates.interviewRequestedAt,
       })
       .from(shortlistCandidates)
       .innerJoin(applications, eq(shortlistCandidates.applicationId, applications.id))
@@ -195,5 +197,6 @@ export async function listShortlistCandidates(
     stage: r.stage as ApplicationStage,
     feedbackDecision: (r.feedbackDecision as FeedbackDecision | null) ?? null,
     feedbackComment: r.feedbackComment,
+    interviewRequestedAt: r.interviewRequestedAt,
   }));
 }

@@ -1,3 +1,5 @@
+import type { EmploymentType, JobModality } from "@/features/recruiter/jobs/domain/job-details";
+
 /**
  * Interfaz del proveedor de IA. La app SIEMPRE habla con esta interfaz, nunca con un modelo
  * directo. Hoy detrás hay un MockAiProvider determinístico (sin modelo real); cuando exista
@@ -91,22 +93,66 @@ export type ReportInsightsInput = {
 };
 
 /**
- * Onboarding de candidato: a partir de texto libre (CV pegado o perfil de LinkedIn copiado),
- * el modelo arma un borrador de perfil listo para revisar/editar antes de guardar — mismo
- * criterio que draftJobOffer (nunca se guarda directo, siempre pasa por revisión manual).
+ * Onboarding de candidato: a partir de un CV en PDF y/o una URL de LinkedIn, el modelo arma un
+ * borrador de perfil (datos + experiencia + educación + certificaciones) listo para
+ * revisar/editar antes de guardar — mismo criterio que draftJobOffer (nunca se guarda directo).
  */
 export type DraftCandidateProfileInput = {
-  /** Texto libre pegado por el candidato: CV, perfil de LinkedIn, o una descripción propia. */
-  rawText: string;
+  /** CV del candidato. Solo PDF: Gemini lo entiende nativamente, sin parseo previo. */
+  cvFile?: { base64: string; mimeType: "application/pdf" };
+  /** URL de un perfil de LinkedIn. Best-effort: LinkedIn bloquea el fetch seguido. */
+  linkedinUrl?: string;
+};
+
+export type DraftWorkExperience = {
+  company: string;
+  position: string;
+  startDate: string | null;
+  endDate: string | null;
+  description: string | null;
+  employmentType: EmploymentType | null;
+  modality: JobModality | null;
+  /** Solo si el CV/LinkedIn lista skills explícitas para este puesto puntual; si no, []. */
+  skills: string[];
+};
+
+export type DraftEducation = {
+  institution: string;
+  degree: string;
+  fieldOfStudy: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  description: string | null;
+  grade: string | null;
+  activities: string | null;
+};
+
+export type DraftCertification = {
+  name: string;
+  url: string | null;
 };
 
 export type DraftCandidateProfile = {
+  /** Nombre completo si aparece en el CV/LinkedIn, si no null (se usa el de la cuenta). */
+  fullName: string | null;
+  /** Teléfono si aparece en el CV/LinkedIn, si no null. */
+  phone: string | null;
   /** Puesto/título actual, ej "Frontend Senior". */
   headline: string;
   location: string | null;
   linkedinUrl: string | null;
   summary: string;
+  /** Solo skills de una sección explícita ("Skills"/"Habilidades"/etc.); si no hay, []. */
   skills: string[];
+  workExperiences: DraftWorkExperience[];
+  education: DraftEducation[];
+  certifications: DraftCertification[];
+  /** Resultado de intentar leer la URL de LinkedIn. Ausente si no se pidió linkedinUrl. */
+  linkedinFetchStatus?: "ok" | "low_signal" | "failed";
+  /** true si Gemini falló y se cayó al mock — el borrador es un placeholder, no una extracción
+   * real. Ausente/false cuando no hubo error (incluye el caso "no hay API key", que usa el mock
+   * directamente sin haber intentado Gemini). */
+  extractionFailed?: boolean;
 };
 
 export interface AiProvider {

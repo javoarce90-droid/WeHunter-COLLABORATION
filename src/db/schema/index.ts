@@ -250,6 +250,10 @@ export const memberships = pgTable("memberships", {
   role: orgRole("role").notNull().default("recruiter"),
   // Activo/inactivo: permite desactivar el acceso de un miembro sin borrarlo.
   status: membershipStatus("status").notNull().default("active"),
+  // null = todavía no descartó/terminó el tour de bienvenida. Es por membership (no por
+  // organization) para que un miembro invitado más tarde vea el tour aunque el resto ya lo
+  // haya cerrado.
+  onboardingDismissedAt: timestamp("onboarding_dismissed_at"),
   ...timestamps,
 }, (t) => ({
   uniqueMember: uniqueIndex("memberships_org_profile_idx").on(
@@ -411,6 +415,7 @@ export const candidateWorkExperiences = pgTable("candidate_work_experiences", {
   description: text("description"),
   employmentType: employmentType("employment_type"),
   modality: jobModality("modality"),
+  skills: text("skills").array(),
   ...timestamps,
 }, (t) => ({
   profileIdx: index("candidate_work_experiences_profile_idx").on(t.profileId),
@@ -512,6 +517,13 @@ export const applications = pgTable("applications", {
   jobIdx: index("applications_job_idx").on(t.jobId),
   // Acceso "búsquedas de un candidato" (ficha de candidato): filtra por candidate_id.
   candidateIdx: index("applications_candidate_idx").on(t.candidateId),
+  // Un candidato no puede estar dos veces en la misma búsqueda (bug: pipeline duplicaba
+  // candidatos bajo check-then-insert sin lock). Respaldo a nivel DB de la regla de negocio
+  // que ya valida postularCandidato.
+  uniqueJobCandidate: uniqueIndex("applications_job_candidate_unique").on(
+    t.jobId,
+    t.candidateId,
+  ),
 }));
 
 // Entrevista agendada sobre una postulación. Es interna del equipo reclutador:
@@ -532,6 +544,15 @@ export const interviews = pgTable("interviews", {
   notes: text("notes"),
   status: interviewStatus("status").notNull().default("scheduled"),
   createdBy: uuid("created_by").references(() => profiles.id),
+  // Emails invitados al evento (colegas de equipo y/o externos). Array simple, sin tabla
+  // intermedia — alcance acotado a "agregar participantes", no un módulo de invitados.
+  participantEmails: text("participant_emails").array(),
+  // Id del evento en Google Calendar si se sincronizó (null = no sincronizada: sin conexión
+  // del creador, o falló). Se usa para propagar updates/cancelaciones al mismo evento.
+  googleEventId: text("google_event_id"),
+  // Motivo del último intento de sync fallido, para mostrarlo al recruiter. null = sin error
+  // (sincronizada o nunca se intentó por no tener conexión).
+  googleSyncError: text("google_sync_error"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("interviews_org_idx").on(t.organizationId),
@@ -540,6 +561,28 @@ export const interviews = pgTable("interviews", {
   orgScheduledIdx: index("interviews_org_scheduled_idx").on(
     t.organizationId,
     t.scheduledAt,
+  ),
+}));
+
+// Conexión OAuth de un recruiter con su propio Google Calendar. Por profile (no por org):
+// cada persona conecta su cuenta y sus entrevistas agendadas sincronizan a SU calendario.
+export const googleCalendarConnections = pgTable("google_calendar_connections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  profileId: uuid("profile_id")
+    .references(() => profiles.id, { onDelete: "cascade" })
+    .notNull(),
+  googleEmail: text("google_email").notNull(),
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  ...timestamps,
+}, (t) => ({
+  uniqueMember: uniqueIndex("google_calendar_connections_profile_idx").on(
+    t.organizationId,
+    t.profileId,
   ),
 }));
 
@@ -728,6 +771,9 @@ export const shortlistCandidates = pgTable("shortlist_candidates", {
   applicationId: uuid("application_id")
     .references(() => applications.id, { onDelete: "cascade" })
     .notNull(),
+  // null = la empresa todavía no pidió entrevista para este candidato. Se setea desde la
+  // función SECURITY DEFINER request_shortlist_interview (acceso sin cuenta, por token).
+  interviewRequestedAt: timestamp("interview_requested_at"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("shortlist_candidates_org_idx").on(t.organizationId),

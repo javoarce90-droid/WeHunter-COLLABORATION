@@ -18,6 +18,7 @@ import { STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate, StageHistoryEvent } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import type { PipelineStageConfig } from "@/features/recruiter/pipeline-stages/schema";
 import { PipelineCard } from "./PipelineCard";
@@ -27,6 +28,7 @@ import { STAGE_DOT, isTerminal } from "./stage-visual";
 type Props = {
   applications: ApplicationWithCandidate[];
   interviewsByApplication: Record<string, InterviewRow[]>;
+  teamMembers: TeamMemberOption[];
   notesByApplication: Record<string, TimelineNote[]>;
   stageEventsByApplication: Record<string, StageHistoryEvent[]>;
   stageConfig: PipelineStageConfig[];
@@ -123,6 +125,7 @@ function PipelineColumn({
 export function PipelineView({
   applications,
   interviewsByApplication,
+  teamMembers,
   notesByApplication,
   stageEventsByApplication,
   stageConfig,
@@ -275,6 +278,7 @@ export function PipelineView({
       <PipelineDetailSheet
         application={selected}
         interviews={selected ? interviewsByApplication[selected.id] ?? [] : []}
+        teamMembers={teamMembers}
         notes={selected ? notesByApplication[selected.id] ?? [] : []}
         stageEvents={selected ? stageEventsByApplication[selected.id] ?? [] : []}
         onMoveStage={onMoveStage}

@@ -10,6 +10,11 @@ export type InterviewRow = {
   location: string | null;
   notes: string | null;
   status: InterviewStatus;
+  participantEmails: string[];
+  // null = no sincronizada con Google Calendar (sin conexión del creador, o nunca se intentó).
+  googleEventId: string | null;
+  // Motivo del último intento de sync fallido. null si está sincronizada o nunca se intentó.
+  googleSyncError: string | null;
 };
 
 // ---- Tipos del caso de uso ----
@@ -20,6 +25,7 @@ export type AgendarEntrevistaInput = {
   mode: InterviewMode;
   location?: string;
   notes?: string;
+  participantEmails?: string[];
 };
 
 export type AgendarEntrevistaContext = {
@@ -40,6 +46,7 @@ export type AgendarEntrevistaDeps = {
     mode: InterviewMode;
     location: string | null;
     notes: string | null;
+    participantEmails: string[];
     createdBy: string | null;
   }) => Promise<InterviewRow>;
 };
@@ -78,6 +85,7 @@ export async function agendarEntrevista(
     mode: input.mode,
     location: normalize(input.location),
     notes: normalize(input.notes),
+    participantEmails: input.participantEmails ?? [],
     createdBy: ctx.userId || null,
   });
 

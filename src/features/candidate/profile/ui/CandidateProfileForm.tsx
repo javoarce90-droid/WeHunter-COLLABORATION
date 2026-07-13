@@ -5,11 +5,13 @@ import { actualizarPerfilAction, type ProfileFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { SkillsPillsInput } from "./SkillsPillsInput";
 
 interface CandidateProfileFormProps {
   initialFullName: string;
   initialEmail: string;
   initialHeadline?: string | null;
+  initialPhone?: string | null;
   initialLocation?: string | null;
   initialLinkedinUrl?: string | null;
   initialSummary?: string | null;
@@ -19,6 +21,11 @@ interface CandidateProfileFormProps {
   /** Onboarding pasa su propia action (marca candidateOnboardingCompletedAt al guardar). */
   action?: typeof actualizarPerfilAction;
   submitLabel?: string;
+  /** /c/profile lo usa dentro de una columna de grid; onboarding lo centra en pantalla completa. */
+  wide?: boolean;
+  /** Contenido extra dentro del mismo <form>, antes del botón de envío (el onboarding con IA
+   * lo usa para el checklist de experiencia/educación/certificaciones extraídas). */
+  extraSection?: React.ReactNode;
 }
 
 const initialState: ProfileFormState = {};
@@ -27,6 +34,7 @@ export function CandidateProfileForm({
   initialFullName,
   initialEmail,
   initialHeadline,
+  initialPhone,
   initialLocation,
   initialLinkedinUrl,
   initialSummary,
@@ -35,18 +43,19 @@ export function CandidateProfileForm({
   initialCvDownloadUrl,
   action = actualizarPerfilAction,
   submitLabel,
+  wide = false,
+  extraSection,
 }: CandidateProfileFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
 
-  const [fullName, setFullName] = useState(initialFullName);
   const [email] = useState(initialEmail);
   const [headline, setHeadline] = useState(initialHeadline || "");
+  const [phone, setPhone] = useState(initialPhone || "");
   const [location, setLocation] = useState(initialLocation || "");
   const [linkedinUrl, setLinkedinUrl] = useState(initialLinkedinUrl || "");
   const [summary, setSummary] = useState(initialSummary || "");
-  const [skills, setSkills] = useState((initialSkills ?? []).join(", "));
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -83,7 +92,12 @@ export function CandidateProfileForm({
   };
 
   return (
-    <Card className="w-full max-w-xl mx-auto border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)] bg-surface animate-pop-in">
+    <Card
+      className={[
+        "w-full border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.04)] bg-surface animate-pop-in",
+        wide ? "" : "max-w-xl mx-auto",
+      ].join(" ")}
+    >
       <CardHeader className="p-6 border-b border-border/80">
         <h2 className="text-xl font-bold font-display text-text">Mi Perfil Profesional</h2>
         <p className="text-xs text-muted mt-1">Mantené tus datos personales y tu CV actualizados para las postulaciones</p>
@@ -103,16 +117,18 @@ export function CandidateProfileForm({
             <p className="text-[10px] text-muted">El correo electrónico no puede ser modificado por seguridad.</p>
           </div>
 
-          {/* Nombre completo */}
-          <Input
-            label="Nombre completo"
-            name="fullName"
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Ej. Alejandro López"
-            required
-          />
+          {/* Nombre completo (No editable) */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-muted">Nombre completo</label>
+            <input
+              type="text"
+              value={initialFullName}
+              disabled
+              className="w-full rounded-[var(--radius)] border border-border bg-bg/50 px-3 py-2.5 text-sm text-muted cursor-not-allowed outline-none"
+            />
+            <p className="text-[10px] text-muted">El nombre completo no puede ser modificado por seguridad.</p>
+          </div>
+          <input type="hidden" name="fullName" value={initialFullName} />
 
           {/* Titular y Ubicación */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -133,6 +149,16 @@ export function CandidateProfileForm({
               placeholder="Ej. Buenos Aires, Argentina"
             />
           </div>
+
+          {/* Teléfono */}
+          <Input
+            label="Teléfono"
+            name="phone"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+54 9 11 1234 5678"
+          />
 
           {/* LinkedIn URL */}
           <Input
@@ -158,15 +184,13 @@ export function CandidateProfileForm({
           </div>
 
           {/* Skills */}
-          <Input
-            label="Skills"
+          <SkillsPillsInput
             name="skills"
-            type="text"
-            value={skills}
-            onChange={(e) => setSkills(e.target.value)}
-            placeholder="Ej. React, Node, SQL"
+            label="Skills"
+            initialSkills={initialSkills ?? []}
+            placeholder="Escribí una skill y presioná Enter"
+            helpText="Al menos una te ayuda a postularte."
           />
-          <p className="text-[10px] text-muted -mt-4">Separadas por coma. Al menos una te ayuda a postularte.</p>
 
           {/* CV Drag & Drop Dropzone */}
           <div className="flex flex-col gap-2">
@@ -234,6 +258,8 @@ export function CandidateProfileForm({
               )}
             </div>
           </div>
+
+          {extraSection}
 
           {/* Mensajes de feedback */}
           {state.error && (

@@ -15,6 +15,9 @@ function toRow(r: {
   location: string | null;
   notes: string | null;
   status: string;
+  participantEmails: string[] | null;
+  googleEventId: string | null;
+  googleSyncError: string | null;
 }): InterviewRow {
   return {
     id: r.id,
@@ -25,6 +28,9 @@ function toRow(r: {
     location: r.location,
     notes: r.notes,
     status: r.status as InterviewStatus,
+    participantEmails: r.participantEmails ?? [],
+    googleEventId: r.googleEventId,
+    googleSyncError: r.googleSyncError,
   };
 }
 
@@ -37,6 +43,9 @@ const columns = {
   location: interviews.location,
   notes: interviews.notes,
   status: interviews.status,
+  participantEmails: interviews.participantEmails,
+  googleEventId: interviews.googleEventId,
+  googleSyncError: interviews.googleSyncError,
 };
 
 /** Verifica que la application exista y pertenezca a la org (para agendar). */
@@ -57,6 +66,35 @@ export async function getApplicationForInterview(
       )
       .limit(1),
     "db.interviews.app-for-interview",
+  );
+  return rows[0] ?? null;
+}
+
+/** Candidato + búsqueda de una application, para armar el título/descripción del evento de Calendar. */
+export async function getInterviewSyncContext(
+  applicationId: string,
+  organizationId: string,
+): Promise<{ candidateName: string; candidateEmail: string | null; jobTitle: string } | null> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          candidateName: candidates.fullName,
+          candidateEmail: candidates.email,
+          jobTitle: jobs.title,
+        })
+        .from(applications)
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .innerJoin(jobs, eq(applications.jobId, jobs.id))
+        .where(
+          and(
+            eq(applications.id, applicationId),
+            eq(applications.organizationId, organizationId),
+          ),
+        )
+        .limit(1),
+    "db.interviews.sync-context",
   );
   return rows[0] ?? null;
 }

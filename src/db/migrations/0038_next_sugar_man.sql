@@ -1,0 +1,1 @@
+ALTER TABLE "shortlist_candidates" ADD COLUMN "interview_requested_at" timestamp;

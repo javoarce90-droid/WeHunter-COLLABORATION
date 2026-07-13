@@ -59,6 +59,7 @@ function parseCandidateForm(formData: FormData) {
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     headline: formData.get("headline"),
+    phone: formData.get("phone"),
     location: formData.get("location"),
     linkedinUrl: formData.get("linkedinUrl"),
     summary: formData.get("summary"),

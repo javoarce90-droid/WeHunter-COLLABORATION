@@ -14,7 +14,7 @@ export interface EducacionInput {
   activities?: string;
 }
 
-interface NormalizedEducacion {
+export interface NormalizedEducacion {
   institution: string;
   degree: string;
   fieldOfStudy: string | null;
@@ -25,7 +25,8 @@ interface NormalizedEducacion {
   activities: string | null;
 }
 
-function normalize(input: EducacionInput): Result<NormalizedEducacion> {
+/** Exportada para reusar la misma validación desde completarOnboardingConIa (onboarding con IA). */
+export function normalizeEducacion(input: EducacionInput): Result<NormalizedEducacion> {
   const institution = input.institution.trim();
   if (!institution) return err("La institución es obligatoria.");
   const degree = input.degree.trim();
@@ -52,7 +53,7 @@ export async function agregarEducacion(
   owner: ResumeOwner,
   deps: AgregarEducacionDeps,
 ): Promise<Result<{ id: string }>> {
-  const normalized = normalize(input);
+  const normalized = normalizeEducacion(input);
   if (!normalized.ok) return normalized;
 
   const created = await deps.insertEducation(owner, normalized.data);
@@ -69,7 +70,7 @@ export async function editarEducacion(
   owner: ResumeOwner,
   deps: EditarEducacionDeps,
 ): Promise<Result<{ id: string }>> {
-  const normalized = normalize(input);
+  const normalized = normalizeEducacion(input);
   if (!normalized.ok) return normalized;
 
   const updated = await deps.updateEducation(id, owner, normalized.data);

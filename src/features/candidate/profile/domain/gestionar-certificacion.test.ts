@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { agregarCertificacion, eliminarCertificacion } from "./gestionar-certificacion";
+import {
+  agregarCertificacion,
+  eliminarCertificacion,
+  normalizeCertificacion,
+} from "./gestionar-certificacion";
 
 const owner = { kind: "profile" as const, profileId: "candidate-1" };
 
@@ -33,5 +37,16 @@ describe("eliminarCertificacion", () => {
     const deps = { deleteCertification: vi.fn().mockResolvedValue(true) };
     const res = await eliminarCertificacion("cert-1", owner, deps);
     expect(res).toEqual({ ok: true, data: { id: "cert-1" } });
+  });
+});
+
+describe("normalizeCertificacion (reusada por el onboarding con IA)", () => {
+  it("está exportada y valida igual que antes", () => {
+    const res = normalizeCertificacion({ name: " AWS Certified " });
+    expect(res).toEqual({ ok: true, data: { name: "AWS Certified", url: null } });
+  });
+
+  it("rechaza sin nombre", () => {
+    expect(normalizeCertificacion({ name: " " }).ok).toBe(false);
   });
 });

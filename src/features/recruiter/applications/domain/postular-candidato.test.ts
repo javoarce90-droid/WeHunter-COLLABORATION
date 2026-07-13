@@ -52,6 +52,16 @@ describe("postularCandidato", () => {
     expect(result.error).toMatch(/ya está postulado/i);
   });
 
+  it("rechaza si createApplication devuelve null por conflicto de unicidad (race condition)", async () => {
+    const deps = makeDeps({
+      createApplication: vi.fn().mockResolvedValue(null),
+    });
+    const result = await postularCandidato(input, ctx, deps);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/ya está postulado/i);
+  });
+
   it("rechaza si el job está cerrado", async () => {
     const deps = makeDeps({
       getJobById: vi.fn().mockResolvedValue({ id: "job-1", status: "closed" }),

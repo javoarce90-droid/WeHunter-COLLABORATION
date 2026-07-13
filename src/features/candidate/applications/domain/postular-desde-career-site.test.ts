@@ -41,6 +41,18 @@ describe("postularDesdeCareerSite", () => {
     );
   });
 
+  it("permite postularse sin CV ni teléfono (no son obligatorios)", async () => {
+    const deps = makeDeps();
+    const result = await postularDesdeCareerSite(
+      { jobId: input.jobId, fullName: input.fullName, email: input.email },
+      deps,
+    );
+    expect(result.ok).toBe(true);
+    expect(deps.applyToJob).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: null, cvPath: null }),
+    );
+  });
+
   it("propaga el rechazo de la función definer (ya postulado / búsqueda no disponible)", async () => {
     const deps = makeDeps({ applyToJob: vi.fn().mockResolvedValue(null) });
     const result = await postularDesdeCareerSite(input, deps);

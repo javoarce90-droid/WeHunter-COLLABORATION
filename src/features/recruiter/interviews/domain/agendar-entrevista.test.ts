@@ -17,6 +17,9 @@ const sampleRow: InterviewRow = {
   location: null,
   notes: null,
   status: "scheduled",
+  participantEmails: [],
+  googleEventId: null,
+  googleSyncError: null,
 };
 
 const makeDeps = (overrides?: Partial<AgendarEntrevistaDeps>): AgendarEntrevistaDeps => ({
@@ -102,6 +105,24 @@ describe("agendarEntrevista", () => {
     if (result.ok) return;
     expect(result.error).toMatch(/consultores/i);
     expect(deps.getApplicationById).not.toHaveBeenCalled();
+  });
+
+  it("pasa los participantes al crear, o un array vacío si no vienen", async () => {
+    const deps = makeDeps();
+    await agendarEntrevista(
+      { ...input, participantEmails: ["ana@empresa.com", "lead@wehunter.com"] },
+      ctx,
+      deps,
+    );
+    expect(deps.createInterview).toHaveBeenCalledWith(
+      expect.objectContaining({ participantEmails: ["ana@empresa.com", "lead@wehunter.com"] }),
+    );
+
+    const deps2 = makeDeps();
+    await agendarEntrevista(input, ctx, deps2);
+    expect(deps2.createInterview).toHaveBeenCalledWith(
+      expect.objectContaining({ participantEmails: [] }),
+    );
   });
 
   it("permite agendar siendo owner o admin", async () => {

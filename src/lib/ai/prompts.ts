@@ -3,7 +3,6 @@ import type {
   DraftOfferInput,
   DraftJobPostingInput,
   DraftJobOfferInput,
-  DraftCandidateProfileInput,
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";
@@ -18,6 +17,18 @@ import type {
  */
 
 export type Prompt = { system: string; user: string };
+
+/**
+ * `draftCandidateProfile` recibe esto en vez del `DraftCandidateProfileInput` del provider:
+ * el fetch de la URL de LinkedIn (si la hay) ya corrió antes (2 llamadas, ver gemini.ts — Gemini
+ * no soporta combinar la tool de URL-context con responseSchema en la misma llamada), así que acá
+ * ya solo hay texto plano resuelto.
+ */
+export type DraftCandidateProfilePromptInput = {
+  hasCvFile: boolean;
+  linkedinText: string | null;
+  linkedinFetchFailed: boolean;
+};
 
 const list = (xs: string[] | null | undefined, fallback: string) =>
   xs && xs.length > 0 ? xs.join(", ") : fallback;
@@ -74,7 +85,9 @@ export const prompts = {
         "Sos un especialista en employer branding y redacción de avisos de empleo en español " +
         "rioplatense. A partir de unos pocos datos, completás una oferta de trabajo estructurada, " +
         "atractiva y realista. Devolvés SOLO un objeto JSON con los campos pedidos. Los textos " +
-        "(objectives, requirements, responsibilities) van en Markdown con viñetas. No inventes " +
+        "(objectives, requirements, responsibilities) van en Markdown con viñetas, SIN un título " +
+        "u encabezado propio al inicio (nada de '## Objetivos del puesto' ni similar): la interfaz " +
+        "ya muestra el título de cada sección, empezá directo con el contenido. No inventes " +
         "datos sensibles ni discriminatorios (nada de edad, género ni nivel educativo obligatorio).",
       user:
         `Generá una oferta de trabajo a partir de:\n` +
@@ -89,20 +102,71 @@ export const prompts = {
     };
   },
 
-  draftCandidateProfile({ rawText }: DraftCandidateProfileInput): Prompt {
+  draftCandidateProfile({ hasCvFile, linkedinText, linkedinFetchFailed }: DraftCandidateProfilePromptInput): Prompt {
+    const sources = [
+      hasCvFile ? "un CV en PDF adjunto" : null,
+      linkedinText ? "el texto transcripto de un perfil de LinkedIn" : null,
+    ].filter(Boolean);
+
     return {
       system:
-        "Sos un asistente que arma perfiles de talento en español rioplatense a partir de " +
-        "texto libre (CV pegado o perfil de LinkedIn). Devolvés SOLO un objeto JSON con los " +
-        "campos pedidos, extrayendo lo que el texto realmente dice — no inventes experiencia, " +
-        "títulos ni skills que no estén sugeridos por el texto.",
+        "Sos un asistente que arma perfiles de talento en español rioplatense a partir de un CV " +
+        "en PDF y/o un perfil de LinkedIn. Devolvés SOLO un objeto JSON con los campos pedidos, " +
+        "extrayendo lo que la fuente realmente dice — no inventes experiencia, títulos, empresas, " +
+        "instituciones, certificaciones ni fechas que no figuren en el material provisto. Para " +
+        "`skills` (tanto el general como el de cada experiencia): nunca las infieras de " +
+        "descripciones de tareas o logros; solo de una sección explícita.",
       user:
-        `A partir de este texto (CV o perfil pegado por la persona), extraé su perfil:\n\n` +
-        `"""\n${rawText}\n"""\n\n` +
-        `Devolvé: headline (puesto/título actual, ej "Frontend Senior"), location (ciudad/país ` +
-        `si se menciona, si no null), linkedinUrl (si aparece una URL de linkedin.com en el ` +
-        `texto, si no null), summary (resumen breve en 2-3 frases) y skills (lista de ` +
-        `tecnologías/competencias mencionadas).`,
+        `Extraé el perfil de esta persona a partir de ${sources.join(" y ") || "el material adjunto"}` +
+        `:\n\n` +
+        (linkedinText ? `Texto del perfil de LinkedIn:\n"""\n${linkedinText}\n"""\n\n` : "") +
+        (linkedinFetchFailed
+          ? `No se pudo obtener contenido de la URL de LinkedIn provista; ignorala por completo, ` +
+            `no inventes nada a partir de ella.\n\n`
+          : "") +
+        `Devolvé:\n` +
+        `- fullName (nombre completo de la persona tal como figura en el material, si no ` +
+        `aparece con claridad, null)\n` +
+        `- phone (teléfono de contacto si se menciona, si no null)\n` +
+        `- headline (puesto/título actual, ej "Frontend Senior")\n` +
+        `- location (ciudad/país si se menciona, si no null)\n` +
+        `- linkedinUrl (si aparece una URL de linkedin.com en el material, si no null)\n` +
+        `- summary (resumen breve en 2-3 frases)\n` +
+        `- skills: incluí una tecnología/competencia ÚNICAMENTE si aparece dentro de una ` +
+        `sección EXPLÍCITAMENTE titulada "Skills", "Habilidades", "Competencias" o ` +
+        `"Tecnologías" (encabezado propio, lista de aptitudes, o la sección de Skills de ` +
+        `LinkedIn). NO la infieras de descripciones de puestos, logros o texto libre, aunque ` +
+        `mencionen tecnologías. Si no hay una sección así de explícita, devolvé skills: []. ` +
+        `Ante la duda, dejá la lista vacía — es preferible perder una skill real a inventar ` +
+        `una que no está declarada como tal.\n` +
+        `- workExperiences: lista de experiencias laborales, cada una con company, position, ` +
+        `startDate/endDate (formato YYYY-MM-DD; si solo se conoce mes/año usá el día 01; si no ` +
+        `hay dato, null; endDate null también puede significar "trabajo actual"), description, ` +
+        `employmentType (uno de: full_time, part_time, contract, internship, temporary, ` +
+        `freelance, o null si no se puede inferir con confianza), modality (uno de: onsite, ` +
+        `remote, hybrid, o null), y skills (misma regla estricta de arriba, pero solo si el ` +
+        `material lista skills explícitas para ESE puesto puntual; si no, []).\n` +
+        `- education: lista de estudios, cada uno con institution, degree, fieldOfStudy, ` +
+        `startDate/endDate (mismo formato), description, grade, activities (todos null si no ` +
+        `hay dato).\n` +
+        `- certifications: lista de certificaciones, cada una con name y url (null si no hay).\n\n` +
+        `Si una lista no tiene ningún ítem detectable, devolvela vacía ([]). No inventes ` +
+        `elementos para "completar" el perfil.`,
+    };
+  },
+
+  /** Llamada previa (sin responseSchema) que intenta transcribir un perfil de LinkedIn vía la
+   * tool de URL-context de Gemini. Separada de draftCandidateProfile porque la API no acepta
+   * combinar tools con responseSchema en el mismo pedido. */
+  fetchLinkedinProfile(linkedinUrl: string): Prompt {
+    return {
+      system:
+        "Tenés acceso a una tool para leer contenido de una URL. Transcribís en texto plano " +
+        "todo el contenido visible de un perfil de LinkedIn, sin resumir ni interpretar.",
+      user:
+        `Leé este perfil de LinkedIn y transcribí en texto plano todo su contenido visible ` +
+        `(titular, ubicación, acerca de, experiencia, educación, certificaciones, y la sección ` +
+        `de Skills si existe): ${linkedinUrl}`,
     };
   },
 

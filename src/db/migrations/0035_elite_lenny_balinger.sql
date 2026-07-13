@@ -1,0 +1,1 @@
+ALTER TABLE "candidate_work_experiences" ADD COLUMN "skills" text[];

@@ -27,12 +27,13 @@ export type PostularDeps = {
   getJobById: (jobId: string, organizationId: string) => Promise<{ id: string; status: string } | null>;
   getCandidateById: (candidateId: string, organizationId: string) => Promise<{ id: string } | null>;
   findExistingApplication: (jobId: string, candidateId: string) => Promise<{ id: string } | null>;
+  /** `null` = conflicto de unicidad (carrera con otro insert simultáneo, ver applications.mutations). */
   createApplication: (data: {
     organizationId: string;
     jobId: string;
     candidateId: string;
     stage: ApplicationStage;
-  }) => Promise<ApplicationRow>;
+  }) => Promise<ApplicationRow | null>;
 };
 
 // ---- Caso de uso ----
@@ -74,6 +75,9 @@ export async function postularCandidato(
     candidateId: input.candidateId,
     stage: "new",
   });
+  if (!application) {
+    return { ok: false, error: "El candidato ya está postulado a esta búsqueda." };
+  }
 
   return { ok: true, data: application };
 }

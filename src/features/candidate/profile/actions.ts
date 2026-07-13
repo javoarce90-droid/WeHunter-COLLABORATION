@@ -37,6 +37,7 @@ export async function actualizarPerfilAction(
   const parsed = candidateProfileSchema.safeParse({
     fullName: formData.get("fullName"),
     headline: formData.get("headline"),
+    phone: formData.get("phone"),
     location: formData.get("location"),
     linkedinUrl: formData.get("linkedinUrl"),
     summary: formData.get("summary"),

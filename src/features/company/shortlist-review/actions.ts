@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { registrarFeedbackSchema } from "./schema";
+import { registrarFeedbackSchema, solicitarEntrevistaSchema } from "./schema";
 import { registrarFeedback } from "./domain/registrar-feedback";
-import { submitFeedbackRpc } from "./data/shortlist-review.data";
+import { solicitarEntrevista } from "./domain/solicitar-entrevista";
+import { submitFeedbackRpc, requestInterviewRpc } from "./data/shortlist-review.data";
 
 export interface FeedbackActionState {
   error?: string;
@@ -33,6 +34,31 @@ export async function registrarFeedbackAction(
     },
     { submitFeedback: submitFeedbackRpc },
   );
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/share/${parsed.data.token}`);
+  return { ok: true };
+}
+
+export interface RequestInterviewActionState {
+  error?: string;
+  ok?: boolean;
+}
+
+export async function solicitarEntrevistaAction(
+  _prev: RequestInterviewActionState,
+  formData: FormData,
+): Promise<RequestInterviewActionState> {
+  const parsed = solicitarEntrevistaSchema.safeParse({
+    token: formData.get("token"),
+    shortlistCandidateId: formData.get("shortlistCandidateId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const result = await solicitarEntrevista(parsed.data, { requestInterview: requestInterviewRpc });
 
   if (!result.ok) return { error: result.error };
 

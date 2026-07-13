@@ -7,16 +7,13 @@ import { JobCard } from "./JobCard";
 import { ApplicationModal } from "./ApplicationModal";
 import { JobDetailsModal } from "./JobDetailsModal";
 import { filtrarEmpleos } from "../domain/filtrar-empleos";
-import { alternarFavorito } from "../domain/gestionar-favoritos";
-import { toggleFavoriteAction, toggleHiddenAction } from "../actions";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
 import { EmptyState } from "@/components/ui/empty-state";
+import { WehunterLogo } from "@/components/ui/wehunter-logo";
 import Link from "next/link";
 
 interface PortalViewProps {
   initialJobs: Job[];
-  initialFavorites: string[];
-  initialHidden: string[];
   appliedJobIds: string[];
   candidate: {
     fullName: string;
@@ -29,18 +26,13 @@ interface PortalViewProps {
 
 export function PortalView({
   initialJobs,
-  initialFavorites,
-  initialHidden,
   appliedJobIds,
   candidate,
 }: PortalViewProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
-  const [filterTab, setFilterTab] = useState<"all" | "favorites" | "hidden">("all");
 
-  const [favorites, setFavorites] = useState<string[]>(initialFavorites);
-  const [hidden, setHidden] = useState<string[]>(initialHidden);
   const [applied, setApplied] = useState<string[]>(appliedJobIds);
 
   const [activeApplyJob, setActiveApplyJob] = useState<Job | null>(null);
@@ -50,18 +42,6 @@ export function PortalView({
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(""), 3000);
-  };
-
-  const handleToggleFavorite = (jobId: string) => {
-    setFavorites(alternarFavorito(favorites, jobId));
-    void toggleFavoriteAction(jobId);
-  };
-
-  const handleToggleHideJob = (jobId: string) => {
-    const wasHidden = hidden.includes(jobId);
-    setHidden(wasHidden ? hidden.filter((id) => id !== jobId) : [...hidden, jobId]);
-    void toggleHiddenAction(jobId);
-    showToast(wasHidden ? "Oferta visible nuevamente." : "Oferta ocultada correctamente.");
   };
 
   const handleApplySuccess = () => {
@@ -74,11 +54,9 @@ export function PortalView({
 
   const filteredJobs = filtrarEmpleos({
     jobs: initialJobs,
-    hiddenIds: hidden,
-    favoriteIds: favorites,
+    appliedIds: applied,
     search,
     locationFilter,
-    filterTab,
   });
 
   return (
@@ -98,9 +76,9 @@ export function PortalView({
       {/* Header / Navbar */}
       <header className="bg-sidebar text-white shadow-md border-b border-sidebar-alt/30">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/portal" className="font-display text-lg font-bold">
-            <span className="text-ai">We</span>Hunter{" "}
-            <span className="text-xs bg-primary px-2 py-0.5 rounded ml-1 font-sans font-normal">
+          <Link href="/portal" className="flex items-center gap-2">
+            <WehunterLogo variant="white" height={22} />
+            <span className="text-xs bg-primary px-2 py-0.5 rounded font-sans font-normal">
               Talento
             </span>
           </Link>
@@ -149,59 +127,6 @@ export function PortalView({
           </p>
         </div>
 
-        {/* Tabs for All, Favorites, Hidden */}
-        <div className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-[var(--radius)] border border-border bg-surface p-1 shadow-[var(--shadow)]">
-          <button
-            onClick={() => setFilterTab("all")}
-            className={[
-              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 hover:cursor-pointer",
-              filterTab === "all"
-                ? "bg-primary text-white"
-                : "text-muted hover:bg-bg hover:text-text",
-            ].join(" ")}
-          >
-            Todos los empleos
-          </button>
-          <button
-            onClick={() => setFilterTab("favorites")}
-            className={[
-              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 hover:cursor-pointer",
-              filterTab === "favorites"
-                ? "bg-primary text-white"
-                : "text-muted hover:bg-bg hover:text-text",
-            ].join(" ")}
-          >
-            Favoritos
-            <span
-              className={[
-                "tabular-nums text-[10px] font-bold px-1.5 py-0.5 rounded-full transition-colors",
-                filterTab === "favorites" ? "bg-white/20 text-white" : "bg-primary-light text-primary",
-              ].join(" ")}
-            >
-              {favorites.length}
-            </span>
-          </button>
-          <button
-            onClick={() => setFilterTab("hidden")}
-            className={[
-              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all active:scale-95 hover:cursor-pointer",
-              filterTab === "hidden"
-                ? "bg-primary text-white"
-                : "text-muted hover:bg-bg hover:text-text",
-            ].join(" ")}
-          >
-            Ocultos
-            <span
-              className={[
-                "tabular-nums text-[10px] font-bold px-1.5 py-0.5 rounded-full transition-colors",
-                filterTab === "hidden" ? "bg-white/20 text-white" : "bg-primary-light text-primary",
-              ].join(" ")}
-            >
-              {hidden.length}
-            </span>
-          </button>
-        </div>
-
         {/* Search Bar & Filters Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-surface border border-border p-4 rounded-[var(--radius)] shadow-[var(--shadow)]">
           <div className="relative md:col-span-2">
@@ -248,11 +173,6 @@ export function PortalView({
               <JobCard
                 key={job.id}
                 job={job}
-                isFavorite={favorites.includes(job.id)}
-                isApplied={applied.includes(job.id)}
-                isHidden={hidden.includes(job.id)}
-                onToggleFavorite={handleToggleFavorite}
-                onHide={handleToggleHideJob}
                 onApply={(j) => setActiveApplyJob(j)}
                 onClickCard={() => setSelectedJobForDetails(job)}
               />
@@ -286,7 +206,7 @@ export function PortalView({
       {selectedJobForDetails && (
         <JobDetailsModal
           job={selectedJobForDetails}
-          isApplied={applied.includes(selectedJobForDetails.id)}
+          isApplied={false}
           onClose={() => setSelectedJobForDetails(null)}
           onApply={() => {
             const jobToApply = selectedJobForDetails;

@@ -23,6 +23,7 @@ import {
   saveApplicationScore,
 } from "./data/applications.mutations";
 import { getCandidateById } from "../candidates/data/candidates.queries";
+import { getLinkedCandidateProfile } from "../candidates/data/linked-profile.queries";
 import { getJobById } from "../jobs/data/jobs.queries";
 import { candidateInputSchema } from "../candidates/schema";
 import { cargarCandidato } from "../candidates/domain/cargar-candidato";
@@ -340,6 +341,10 @@ export async function analizarPostulacionAction(
   ]);
   if (!job || !candidate) return { ok: false, error: "Datos no encontrados." };
 
+  // Para candidatos vinculados, profiles es la fuente de verdad de bio/skills/CV para el
+  // scoring — sin tocar candidates.summary/skills/cvUrl (eso lo lee la ficha, separada a propósito).
+  const linkedProfile = candidate.profileId ? await getLinkedCandidateProfile(candidate.id) : null;
+
   const result = await puntuarPostulaciones(
     {
       job: { title: job.title, position: job.position, skills: job.skills },
@@ -348,10 +353,10 @@ export async function analizarPostulacionAction(
           id: application.id,
           candidate: {
             id: candidate.id,
-            skills: candidate.skills,
-            summary: candidate.summary,
+            skills: candidate.skills?.length ? candidate.skills : linkedProfile?.skills ?? null,
+            summary: candidate.summary ?? linkedProfile?.bio ?? null,
             source: candidate.source,
-            hasCv: candidate.cvUrl != null,
+            hasCv: candidate.cvUrl != null || linkedProfile?.cvUrl != null,
           },
         },
       ],

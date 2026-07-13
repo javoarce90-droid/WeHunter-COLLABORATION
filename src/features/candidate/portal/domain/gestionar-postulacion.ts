@@ -1,5 +1,6 @@
 import { ok, err, type Result } from "@/lib/result";
 import type { ApplicationStage } from "@/features/recruiter/applications/schema";
+import type { JobArea, JobSeniority, EmploymentType, Benefit } from "@/features/recruiter/jobs/domain/job-details";
 
 export type { ApplicationStage };
 
@@ -20,6 +21,15 @@ export interface PortalApplication {
   salary: string;
   description: string;
   tags: string[];
+  /** Campos ricos del detalle (panel de "mis postulaciones"). Null si el job no los tiene. */
+  jobArea: JobArea | null;
+  seniority: JobSeniority | null;
+  employmentType: EmploymentType | null;
+  vacancies: number | null;
+  objectives: string | null;
+  requirements: string | null;
+  responsibilities: string | null;
+  benefits: Benefit[] | null;
 }
 
 /** ApplicationStepper (UI de Ale) solo distingue 5 pasos visuales; las 3 sub-etapas reales de
@@ -33,6 +43,14 @@ export function toStepperStage(
   return stage;
 }
 
+/** El candidato solo puede autogestionar el retiro mientras la postulación sigue en una
+ * etapa temprana (Postulado o En revisión). Una vez que arrancó el proceso de entrevistas
+ * (o ya se resolvió con oferta/contratación/rechazo), el retiro deja de estar disponible. */
+export function puedeRetirarPostulacion(stage: ApplicationStage): boolean {
+  const visualStage = toStepperStage(stage);
+  return visualStage === "new" || visualStage === "screening";
+}
+
 export interface RetirarPostulacionCtx {
   userId: string | null;
 }
@@ -41,7 +59,10 @@ export interface RetirarPostulacionDeps {
   withdraw: (applicationId: string) => Promise<void>;
 }
 
-/** Caso de uso: retirar una postulación (fire-and-forget, borra la fila vía RPC). */
+/** Caso de uso: retirar una postulación (borra la fila vía RPC). La etapa la valida la
+ * función SECURITY DEFINER (withdraw_application) contra el dato real en base — no
+ * confiamos en una etapa que nos pase el cliente. Si la rechaza (ya avanzó de etapa),
+ * devolvemos un error explícito en vez de dejar la excepción sin manejar. */
 export async function retirarPostulacion(
   applicationId: string,
   ctx: RetirarPostulacionCtx,
@@ -54,6 +75,10 @@ export async function retirarPostulacion(
     return err("Postulación inválida.");
   }
 
-  await deps.withdraw(applicationId);
+  try {
+    await deps.withdraw(applicationId);
+  } catch {
+    return err("No se pudo retirar la postulación: ya no está disponible en esta etapa del proceso.");
+  }
   return ok({ applicationId });
 }

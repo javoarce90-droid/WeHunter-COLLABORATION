@@ -16,11 +16,18 @@ import {
 } from "../schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
 
+export type TeamMemberOption = {
+  profileId: string;
+  name: string | null;
+  email: string;
+};
+
 type Props = {
   applicationId: string;
   jobId: string;
   /** Si viene, el form edita esa entrevista; si no, agenda una nueva. */
   interview?: InterviewRow;
+  teamMembers: TeamMemberOption[];
   onDone: () => void;
 };
 
@@ -33,8 +40,17 @@ function toLocalInputValue(date: Date): string {
   );
 }
 
-export function InterviewForm({ applicationId, jobId, interview, onDone }: Props) {
+export function InterviewForm({ applicationId, jobId, interview, teamMembers, onDone }: Props) {
   const isEdit = Boolean(interview);
+
+  const teamEmailSet = new Set(teamMembers.map((m) => m.email.toLowerCase()));
+  const currentParticipants = interview?.participantEmails ?? [];
+  const currentTeamEmails = new Set(
+    currentParticipants.filter((e) => teamEmailSet.has(e.toLowerCase())),
+  );
+  const currentExternalEmails = currentParticipants.filter(
+    (e) => !teamEmailSet.has(e.toLowerCase()),
+  );
 
   const [state, dispatch, isPending] = useActionState<InterviewActionState, FormData>(
     async (prev, formData) => {
@@ -107,6 +123,37 @@ export function InterviewForm({ applicationId, jobId, interview, onDone }: Props
           maxLength={LOCATION_MAX_LENGTH}
           defaultValue={interview?.location ?? ""}
           placeholder="Dirección o link de la videollamada"
+          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+        />
+      </label>
+
+      {teamMembers.length > 0 && (
+        <fieldset className="flex flex-col gap-1">
+          <legend className="text-[11px] font-medium text-muted">Participantes del equipo</legend>
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            {teamMembers.map((m) => (
+              <label key={m.profileId} className="flex items-center gap-1.5 text-[11px] text-text">
+                <input
+                  type="checkbox"
+                  name="participantEmails"
+                  value={m.email}
+                  defaultChecked={currentTeamEmails.has(m.email)}
+                  className="accent-primary"
+                />
+                {m.name ?? m.email}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
+        Otros participantes (emails)
+        <input
+          type="text"
+          name="externalEmails"
+          defaultValue={currentExternalEmails.join(", ")}
+          placeholder="cliente@empresa.com, otro@ejemplo.com"
           className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
         />
       </label>

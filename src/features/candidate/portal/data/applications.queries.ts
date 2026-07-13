@@ -1,6 +1,12 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import type { JobModality } from "@/features/recruiter/jobs/domain/job-details";
+import type {
+  JobModality,
+  JobArea,
+  JobSeniority,
+  EmploymentType,
+  Benefit,
+} from "@/features/recruiter/jobs/domain/job-details";
 import { formatSalary, toDescription, toWorkplaceType } from "./job-formatting";
 import type { PortalApplication } from "../domain/gestionar-postulacion";
 
@@ -13,13 +19,20 @@ type RawMyApplication = {
   stage: PortalApplication["stage"];
   fullName: string;
   cvUrl: string | null;
+  jobArea: JobArea | null;
   location: string | null;
   modality: JobModality | null;
+  seniority: JobSeniority | null;
+  employmentType: EmploymentType | null;
+  vacancies: number | null;
   salaryMin: number | null;
   salaryMax: number | null;
   salaryCurrency: string | null;
   skills: string[] | null;
   objectives: string | null;
+  requirements: string | null;
+  responsibilities: string | null;
+  benefits: Benefit[] | null;
 };
 
 function toPortalApplication(raw: RawMyApplication): PortalApplication {
@@ -37,6 +50,14 @@ function toPortalApplication(raw: RawMyApplication): PortalApplication {
     salary: formatSalary(raw.salaryMin, raw.salaryMax, raw.salaryCurrency),
     description: toDescription(raw.objectives),
     tags: raw.skills ?? [],
+    jobArea: raw.jobArea,
+    seniority: raw.seniority,
+    employmentType: raw.employmentType,
+    vacancies: raw.vacancies,
+    objectives: raw.objectives,
+    requirements: raw.requirements,
+    responsibilities: raw.responsibilities,
+    benefits: raw.benefits,
   };
 }
 
