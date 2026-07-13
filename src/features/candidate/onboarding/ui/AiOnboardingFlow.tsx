@@ -29,25 +29,29 @@ export function AiOnboardingFlow({ fullName, email }: AiOnboardingFlowProps) {
   if (state.draft) {
     return (
       <CandidateProfileForm
-        initialFullName={fullName}
+        initialFullName={state.draft.fullName || fullName}
         initialEmail={email}
         initialHeadline={state.draft.headline}
+        initialPhone={state.draft.phone}
         initialLocation={state.draft.location}
         initialLinkedinUrl={state.draft.linkedinUrl}
         initialSummary={state.draft.summary}
         initialSkills={state.draft.skills}
-        initialCvUrl={null}
-        initialCvDownloadUrl={null}
+        initialCvUrl={state.cvUrl ?? null}
+        initialCvDownloadUrl={state.cvDownloadUrl ?? null}
         action={completarOnboardingAction}
         submitLabel="Finalizar registro"
         extraSection={
-          <AiDraftReviewSection
-            workExperiences={state.draft.workExperiences}
-            education={state.draft.education}
-            certifications={state.draft.certifications}
-            linkedinFetchStatus={state.draft.linkedinFetchStatus}
-            cvFile={cvFile}
-          />
+          <>
+            {state.cvUrl && <input type="hidden" name="existingCvUrl" value={state.cvUrl} />}
+            <AiDraftReviewSection
+              workExperiences={state.draft.workExperiences}
+              education={state.draft.education}
+              certifications={state.draft.certifications}
+              linkedinFetchStatus={state.draft.linkedinFetchStatus}
+              extractionFailed={state.draft.extractionFailed}
+            />
+          </>
         }
       />
     );

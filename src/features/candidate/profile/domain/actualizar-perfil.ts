@@ -5,10 +5,12 @@ import type { CandidateProfileFields } from "../data/profile.mutations";
  * Caso de uso: actualizar el perfil del candidato. Lo usan tanto la edición posterior
  * (/c/profile) como el onboarding manual (/c/onboarding) — la diferencia entre ambos es
  * `ctx.markOnboardingComplete`, no la lógica de guardado.
+ *
+ * `fullName` NO se acepta acá: una vez registrado, el nombre no es editable (se fija en el
+ * alta/onboarding). Aunque el form lo mande, este caso de uso nunca lo persiste.
  */
 
 export interface ActualizarPerfilInput {
-  fullName: string;
   headline?: string;
   phone?: string;
   location?: string;
@@ -41,11 +43,6 @@ export async function actualizarPerfil(
     return err("Necesitás estar autenticado para actualizar tu perfil.");
   }
 
-  const fullName = input.fullName.trim();
-  if (fullName.length < 2) {
-    return err("El nombre completo es demasiado corto.");
-  }
-
   const skills = input.skills
     ? Array.from(new Set(input.skills.split(",").map((s) => s.trim()).filter(Boolean)))
     : null;
@@ -53,7 +50,6 @@ export async function actualizarPerfil(
   await deps.updateProfile(
     ctx.userId,
     {
-      fullName,
       headline: input.headline?.trim() || null,
       phone: input.phone?.trim() || null,
       location: input.location?.trim() || null,

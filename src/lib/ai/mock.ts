@@ -125,17 +125,16 @@ export class MockAiProvider implements AiProvider {
     return {
       position,
       jobArea: null,
+      // Sin heading propio: la UI ya muestra el título de cada sección (Objetivos/Requisitos/
+      // Responsabilidades) antes de este contenido — un "## Título" acá lo duplicaba.
       objectives:
-        `## Objetivos del puesto\n` +
         `- Aportar al equipo desde el rol de ${position}.\n` +
         `- ${briefLine}\n`,
       requirements:
-        `## Requisitos\n` +
         `- Experiencia previa relevante para el puesto${ctx ? ` (${ctx})` : ""}.\n` +
         (skills.length ? `- Conocimientos en ${skills.join(", ")}.\n` : "") +
         `- Buena comunicación y trabajo en equipo.\n`,
       responsibilities:
-        `## Responsabilidades\n` +
         `- Ejecutar las tareas principales del rol de ${position}.\n` +
         `- Colaborar con las distintas áreas para cumplir los objetivos.\n`,
       benefits: [
@@ -153,6 +152,8 @@ export class MockAiProvider implements AiProvider {
     // Sin modelo real no hay forma de leer el PDF ni el contenido de LinkedIn: placeholder
     // determinístico, listo para revisar/editar. Los arrays quedan vacíos (no hay parseo real).
     return {
+      fullName: null,
+      phone: null,
       headline: "Perfil de talento",
       location: null,
       linkedinUrl: input.linkedinUrl?.trim() || null,

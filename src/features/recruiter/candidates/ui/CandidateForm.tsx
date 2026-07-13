@@ -18,9 +18,12 @@ interface CandidateFormProps {
   action: CandidateAction;
   submitLabel: string;
   candidateId?: string;
+  /** A dónde vuelve "Cancelar". Default: el listado. Al editar, conviene volver a la ficha. */
+  cancelHref?: string;
   defaults?: {
     fullName?: string;
     email?: string | null;
+    phone?: string | null;
     hasCv?: boolean;
     headline?: string | null;
     location?: string | null;
@@ -40,6 +43,7 @@ export function CandidateForm({
   action,
   submitLabel,
   candidateId,
+  cancelHref = "/candidates",
   defaults,
 }: CandidateFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -62,13 +66,20 @@ export function CandidateForm({
             autoFocus
           />
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Input
               label="Email (opcional)"
               name="email"
               type="email"
               placeholder="ada@ejemplo.com"
               defaultValue={defaults?.email ?? ""}
+            />
+            <Input
+              label="Teléfono (opcional)"
+              name="phone"
+              type="tel"
+              placeholder="Ej: +54 9 351 555-1234"
+              defaultValue={defaults?.phone ?? ""}
             />
             <Input
               label="Ubicación (opcional)"
@@ -149,7 +160,7 @@ export function CandidateForm({
             <Button type="submit" disabled={pending}>
               {pending ? "Guardando…" : submitLabel}
             </Button>
-            <Link href="/candidates" className="text-sm font-semibold text-muted">
+            <Link href={cancelHref} className="text-sm font-semibold text-muted">
               Cancelar
             </Link>
           </div>

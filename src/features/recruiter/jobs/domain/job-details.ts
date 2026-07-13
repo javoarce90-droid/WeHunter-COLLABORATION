@@ -80,6 +80,31 @@ export interface JobDetails {
 
 const clean = (s?: string | null) => (s?.trim() ? s.trim() : null);
 
+// Títulos estáticos que ya muestra la UI de preview del aviso (aviso/page.tsx, jobs/[id]/page.tsx)
+// antes de este contenido. Si el texto guardado empieza repitiendo ese mismo título como heading
+// Markdown (típico de contenido generado con IA, ver prompts.ts), se ve duplicado en pantalla.
+const SECTION_TITLES: Record<"objectives" | "requirements" | "responsibilities", string> = {
+  objectives: "Objetivos del puesto",
+  requirements: "Requisitos",
+  responsibilities: "Responsabilidades",
+};
+
+function stripRedundantHeading(text: string, title: string): string {
+  const lines = text.split("\n");
+  let i = 0;
+  while (i < lines.length && lines[i]!.trim() === "") i++;
+  const heading = lines[i]?.trim().match(/^#{1,6}\s+(.*)/);
+  if (heading && heading[1]!.trim().toLowerCase() === title.toLowerCase()) {
+    return lines.slice(i + 1).join("\n").replace(/^\n+/, "");
+  }
+  return text;
+}
+
+const cleanAvisoSection = (key: keyof typeof SECTION_TITLES) => (s?: string | null) => {
+  const cleaned = clean(s);
+  return cleaned ? clean(stripRedundantHeading(cleaned, SECTION_TITLES[key])) : null;
+};
+
 function cleanBenefits(benefits?: Benefit[] | null): Benefit[] | null {
   if (!benefits?.length) return null;
   const out = benefits
@@ -113,9 +138,9 @@ export function normalizeJobDetails(input: JobDetailsInput): JobDetails {
     priority: input.priority ?? null,
     deadline: clean(input.deadline),
     vacancies: input.vacancies ?? null,
-    objectives: clean(input.objectives),
-    requirements: clean(input.requirements),
-    responsibilities: clean(input.responsibilities),
+    objectives: cleanAvisoSection("objectives")(input.objectives),
+    requirements: cleanAvisoSection("requirements")(input.requirements),
+    responsibilities: cleanAvisoSection("responsibilities")(input.responsibilities),
     benefits: cleanBenefits(input.benefits),
   };
 }

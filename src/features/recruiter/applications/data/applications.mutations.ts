@@ -22,13 +22,18 @@ function toRow(r: typeof applications.$inferSelect): ApplicationRow {
  * Crea la postulación Y su evento de historial inicial (fromStage=null) en UNA transacción,
  * para que el historial nunca quede inconsistente con el estado. El evento habilita las
  * métricas de funnel y time-in-stage (§5/§12 del backlog).
+ *
+ * `postularCandidato` ya chequea duplicados antes de llamar acá, pero ese check-then-insert no
+ * es atómico (dos requests casi simultáneos pueden pasar el check antes de que el primer insert
+ * commitee). El `onConflictDoNothing` contra `applications_job_candidate_unique` es el respaldo:
+ * si hubo carrera, no se inserta una segunda fila y devolvemos `null` en vez de tirar.
  */
 export async function insertApplication(args: {
   organizationId: string;
   jobId: string;
   candidateId: string;
   stage: ApplicationStage;
-}): Promise<ApplicationRow> {
+}): Promise<ApplicationRow | null> {
   const db = await getDb();
   const row = await db.rls(async (tx) => {
     const [app] = await tx
@@ -39,20 +44,23 @@ export async function insertApplication(args: {
         candidateId: args.candidateId,
         stage: args.stage,
       })
+      .onConflictDoNothing({ target: [applications.jobId, applications.candidateId] })
       .returning();
+
+    if (!app) return null;
 
     await tx.insert(applicationEvents).values({
       organizationId: args.organizationId,
-      applicationId: app!.id,
+      applicationId: app.id,
       fromStage: null, // evento de creación
       toStage: args.stage,
       changedBy: db.userId, // profileId del token RLS
     });
 
-    return app!;
+    return app;
   }, "db.applications.insert");
 
-  return toRow(row);
+  return row ? toRow(row) : null;
 }
 
 /**

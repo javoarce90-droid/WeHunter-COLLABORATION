@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { generarPerfilConIa } from "./generar-perfil-con-ia";
 
 const fakeDraft = {
+  fullName: null,
+  phone: null,
   headline: "Frontend Senior",
   location: null,
   linkedinUrl: null,

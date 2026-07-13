@@ -6,6 +6,7 @@ import { getAiProvider, type DraftCandidateProfile } from "@/lib/ai";
 import { candidateProfileSchema } from "@/features/candidate/profile/schema";
 import { uploadCandidateProfileCv } from "@/features/candidate/profile/data/profile.storage";
 import { markCandidateOnboardingComplete } from "@/features/candidate/profile/data/profile.mutations";
+import { getCvSignedUrl } from "@/features/recruiter/candidates/data/candidates.storage";
 import { omitirOnboarding } from "./domain/omitir-onboarding";
 import { generarPerfilConIa } from "./domain/generar-perfil-con-ia";
 import { completarOnboardingConIa } from "./domain/completar-onboarding-con-ia";
@@ -26,6 +27,9 @@ export interface OnboardingFormState {
 export interface GenerarPerfilConIaState {
   error?: string;
   draft?: DraftCandidateProfile;
+  /** Path del CV ya subido a Storage en este paso — evita pedirlo de nuevo en el paso 2. */
+  cvUrl?: string;
+  cvDownloadUrl?: string | null;
 }
 
 /** Parsea un campo hidden de FormData como JSON y lo valida con el schema dado. Ausente = []. */
@@ -65,10 +69,13 @@ export async function completarOnboardingAction(
   if (!user) return { error: "No tenés sesión activa." };
 
   const cvFile = formData.get("cv");
+  const existingCvUrl = formData.get("existingCvUrl");
   const cvUrl =
     cvFile instanceof File && cvFile.size > 0
       ? (await uploadCandidateProfileCv(user.id, cvFile)).path
-      : undefined;
+      : typeof existingCvUrl === "string" && existingCvUrl
+        ? existingCvUrl
+        : undefined;
 
   const workExperiences = parseDraftItems(formData, "workExperiences", aiWorkExperiencesSchema);
   if (workExperiences && "error" in workExperiences) return { error: workExperiences.error };
@@ -122,6 +129,11 @@ export async function generarPerfilConIaAction(
       }
     : undefined;
 
+  // Subimos el CV a Storage ACÁ (no en el paso 2): así queda persistido server-side y el paso
+  // de revisión no depende de reinyectar el mismo File en memoria del cliente (bug: pedía
+  // subirlo de nuevo si se recargaba la página o el navegador bloqueaba el truco de DataTransfer).
+  const uploaded = hasCv ? await uploadCandidateProfileCv(user.id, cv as File) : null;
+
   const result = await generarPerfilConIa(
     { linkedinUrl: linkedinUrl || undefined, cvFile },
     { userId: user.id },
@@ -129,7 +141,11 @@ export async function generarPerfilConIaAction(
   );
 
   if (!result.ok) return { error: result.error };
-  return { draft: result.data };
+  return {
+    draft: result.data,
+    cvUrl: uploaded?.path,
+    cvDownloadUrl: uploaded ? await getCvSignedUrl(uploaded.path) : null,
+  };
 }
 
 /** Server Action: saltear el onboarding — se puede completar el perfil después. */
