@@ -8,12 +8,13 @@ import {
 } from "../actions";
 import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS } from "../schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
-import { InterviewForm } from "./InterviewForm";
+import { InterviewForm, type TeamMemberOption } from "./InterviewForm";
 
 type Props = {
   applicationId: string;
   jobId: string;
   interviews: InterviewRow[];
+  teamMembers: TeamMemberOption[];
 };
 
 const dateFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -23,7 +24,7 @@ const dateFormatter = new Intl.DateTimeFormat("es-AR", {
   minute: "2-digit",
 });
 
-export function InterviewsSection({ applicationId, jobId, interviews }: Props) {
+export function InterviewsSection({ applicationId, jobId, interviews, teamMembers }: Props) {
   // null = nada abierto; "new" = form de alta; un id = editando esa entrevista.
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -42,6 +43,7 @@ export function InterviewsSection({ applicationId, jobId, interviews }: Props) {
                   applicationId={applicationId}
                   jobId={jobId}
                   interview={it}
+                  teamMembers={teamMembers}
                   onDone={() => setEditing(null)}
                 />
               </li>
@@ -67,6 +69,14 @@ export function InterviewsSection({ applicationId, jobId, interviews }: Props) {
                     {it.location}
                   </p>
                 )}
+                {it.googleEventId && (
+                  <p className="text-[11px] text-muted">📅 Sincronizada con Google Calendar</p>
+                )}
+                {it.googleSyncError && (
+                  <p className="text-[11px] text-danger" title={it.googleSyncError}>
+                    No se pudo sincronizar con Google Calendar
+                  </p>
+                )}
                 <div className="mt-1 flex items-center gap-2">
                   <button
                     type="button"
@@ -87,6 +97,7 @@ export function InterviewsSection({ applicationId, jobId, interviews }: Props) {
         <InterviewForm
           applicationId={applicationId}
           jobId={jobId}
+          teamMembers={teamMembers}
           onDone={() => setEditing(null)}
         />
       ) : (

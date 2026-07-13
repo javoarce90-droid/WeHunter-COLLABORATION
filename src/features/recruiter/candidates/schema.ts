@@ -39,6 +39,7 @@ export const candidateInputSchema = z.object({
       .optional(),
   ),
   headline: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
+  phone: z.preprocess(emptyToUndef, z.string().trim().max(40).optional()),
   location: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
   linkedinUrl: z.preprocess(emptyToUndef, z.string().trim().max(300).optional()),
   summary: z.preprocess(emptyToUndef, z.string().trim().max(5000).optional()),

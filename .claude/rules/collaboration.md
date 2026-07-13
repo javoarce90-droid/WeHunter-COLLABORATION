@@ -1,49 +1,40 @@
-# Regla: Colaboración (cómo trabajamos los dos sin pisarnos)
+# Regla: Flujo de trabajo
 
-Somos dos personas trabajando en paralelo y mergeando en `dev`. Es la primera vez que
-colaboramos con código, así que estas reglas son para evitar el caos. Seguilas al pie.
+Trabajás solo en este proyecto (Ale ya no participa). No hay ownership de carpetas ni
+coordinación entre personas que respetar — estas son las reglas que igual conviene mantener.
 
-## Ownership de carpetas
-- **Javi (@javoarce90-droid):** `src/features/recruiter/`.
-- **Ale:** `src/features/candidate/` y el portal público.
-- **Regla de oro:** no edites una carpeta de feature que no es tuya. Si necesitás un cambio
-  ahí, avisá y que lo haga el dueño. Esto elimina el 90% de los conflictos de merge.
-
-## Zonas compartidas (coordinar SIEMPRE antes de tocar)
-Estas las tocamos los dos, así que hay que avisarse antes:
-- `src/db/schema/` — el modelo de datos. Cambios acá afectan a todos.
-- `src/components/ui/` — el design system compartido.
-- `src/lib/` — helpers compartidos.
-- `CLAUDE.md` y `.claude/rules/` — las reglas del proyecto.
-
-**Antes de modificar una zona compartida:** mandá un mensaje rápido ("voy a tocar el schema
-para agregar la tabla interviews"). Evita que los dos cambien lo mismo a la vez.
+## Zona sensible: schema y RLS
+`src/db/schema/` sigue siendo lo más riesgoso de tocar, trabajando solo o no: un error ahí
+rompe la base real. Mismo cuidado de siempre — generar la migración, revisar el SQL antes de
+aplicarlo, aplicar con `pnpm db:migrate` contra `DIRECT_DATABASE_URL`.
 
 ## Ramas (branching)
-- `main` = producción. No se commitea directo. Nunca.
-- `dev` = integración. Acá mergeamos lo de los dos.
-- `feat/<feature>-<que-hace>` = tu rama de trabajo. Ej: `feat/candidate-postulacion`.
+- `main` = producción. No se commitea directo.
+- `dev` = integración, lo que se prueba antes de ir a producción.
+- Cambios chicos/medianos pueden ir directo a `dev`. Para algo grande o riesgoso, una rama
+  `feat/<qué-hace>` y merge a `dev` cuando esté probado.
 
-Flujo:
-1. Salís de `dev`: `git checkout dev && git pull && git checkout -b feat/candidate-x`
-2. Trabajás, commiteás seguido con mensajes claros.
-3. Antes de abrir PR: `git checkout dev && git pull` y mergeás dev en tu rama para resolver
-   conflictos en tu cancha, no en la de dev.
-4. Abrís Pull Request a `dev`. El otro lo revisa (aunque sea por arriba) antes de mergear.
+## Remotos
+Dos remotos configurados — confirmar siempre a cuál corresponde pushear:
+- `client` (`Wehunter2026/WehunterPlatform`) — el repo real del cliente.
+- `origin` (`javoarce90-droid/WeHunter-COLLABORATION`) — fork personal, ya no es el principal
+  ahora que no hay colaboración con otra persona.
 
-## Migraciones de base = sequenciales
-Si los dos generan una migración a la vez, se pisan. Regla: **una migración por vez**.
-El que va a tocar el schema avisa, genera y mergea su migración antes de que el otro toque
-el schema. Es molesto pero evita romper la base.
+## Migraciones de base
+Sin riesgo de pisarse con otra persona, pero seguí generando y aplicando de a una, revisando
+el SQL antes de correr `pnpm db:migrate` contra la base real.
+
+## docs/ no se versiona
+`docs/` son notas internas — está en `.gitignore`, nunca se commitea. `CLAUDE.md` sigue
+apuntando ahí para contexto (se lee del disco igual), pero no forma parte del historial del repo.
 
 ## Antes de cada commit
 ```bash
 pnpm lint && pnpm typecheck && pnpm test
 ```
-Si algo falla, no commitees. Código roto en `dev` nos frena a los dos.
+Si algo falla, no commitees.
 
-## Cómo le hablamos a Claude Code
-- Una sesión = una tarea acotada (ej: "implementá el caso de uso postularCandidato").
+## Cómo le hablás a Claude Code
+- Una sesión = una tarea acotada.
 - Si Claude propone agregar una librería nueva, frenalo y verificá que haga falta.
-- Si Claude empieza a tocar archivos fuera de tu feature, paralo.
 - Pedile que escriba el test del caso de uso junto con el caso de uso.

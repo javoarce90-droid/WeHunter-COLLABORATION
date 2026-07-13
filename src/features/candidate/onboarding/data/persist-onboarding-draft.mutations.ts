@@ -9,7 +9,8 @@ import type {
 } from "@/features/candidate/profile/data/resume.mutations";
 
 export interface PersistOnboardingDraftFields {
-  profile: CandidateProfileFields;
+  /** A diferencia de una edición posterior, el onboarding SÍ fija el nombre por primera vez. */
+  profile: CandidateProfileFields & { fullName: string };
   workExperiences: ExperienceFields[];
   education: EducationFields[];
   certifications: CertificationFields[];

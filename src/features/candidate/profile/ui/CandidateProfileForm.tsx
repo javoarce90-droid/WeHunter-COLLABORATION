@@ -50,7 +50,6 @@ export function CandidateProfileForm({
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
 
-  const [fullName, setFullName] = useState(initialFullName);
   const [email] = useState(initialEmail);
   const [headline, setHeadline] = useState(initialHeadline || "");
   const [phone, setPhone] = useState(initialPhone || "");
@@ -118,16 +117,18 @@ export function CandidateProfileForm({
             <p className="text-[10px] text-muted">El correo electrónico no puede ser modificado por seguridad.</p>
           </div>
 
-          {/* Nombre completo */}
-          <Input
-            label="Nombre completo"
-            name="fullName"
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Ej. Alejandro López"
-            required
-          />
+          {/* Nombre completo (No editable) */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-muted">Nombre completo</label>
+            <input
+              type="text"
+              value={initialFullName}
+              disabled
+              className="w-full rounded-[var(--radius)] border border-border bg-bg/50 px-3 py-2.5 text-sm text-muted cursor-not-allowed outline-none"
+            />
+            <p className="text-[10px] text-muted">El nombre completo no puede ser modificado por seguridad.</p>
+          </div>
+          <input type="hidden" name="fullName" value={initialFullName} />
 
           {/* Titular y Ubicación */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

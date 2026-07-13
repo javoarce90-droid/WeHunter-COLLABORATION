@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { EMPLOYMENT_LABELS, MODALITY_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
@@ -11,8 +11,8 @@ interface AiDraftReviewSectionProps {
   education: DraftEducation[];
   certifications: DraftCertification[];
   linkedinFetchStatus?: "ok" | "low_signal" | "failed";
-  /** El mismo File elegido en la fase 1, para precargarlo en el dropzone de CV de esta fase. */
-  cvFile: File | null;
+  /** true si Gemini falló al leer el CV y se cayó a un borrador placeholder. */
+  extractionFailed?: boolean;
 }
 
 const dateFormatter = new Intl.DateTimeFormat("es-AR", { month: "short", year: "numeric" });
@@ -33,20 +33,11 @@ export function AiDraftReviewSection({
   education,
   certifications,
   linkedinFetchStatus,
-  cvFile,
+  extractionFailed,
 }: AiDraftReviewSectionProps) {
   const [excludedExp, setExcludedExp] = useState<Set<number>>(new Set());
   const [excludedEdu, setExcludedEdu] = useState<Set<number>>(new Set());
   const [excludedCert, setExcludedCert] = useState<Set<number>>(new Set());
-
-  useEffect(() => {
-    if (!cvFile) return;
-    const input = document.getElementById("cv-file-input") as HTMLInputElement | null;
-    if (!input) return;
-    const dataTransfer = new DataTransfer();
-    dataTransfer.items.add(cvFile);
-    input.files = dataTransfer.files;
-  }, [cvFile]);
 
   const toggle = (set: Set<number>, setSet: (s: Set<number>) => void, i: number) => {
     const next = new Set(set);
@@ -59,6 +50,11 @@ export function AiDraftReviewSection({
 
   return (
     <div className="flex flex-col gap-4">
+      {extractionFailed && (
+        <p className="text-xs font-medium text-danger bg-danger/5 p-3 rounded-[var(--radius)] border border-danger/10">
+          No pudimos leer tu CV automáticamente — completá los datos a mano.
+        </p>
+      )}
       {linkedinFetchStatus === "failed" && (
         <p className="text-xs font-medium text-danger bg-danger/5 p-3 rounded-[var(--radius)] border border-danger/10">
           No pudimos leer tu perfil de LinkedIn automáticamente — completá lo que falte a mano o subí tu CV.

@@ -17,7 +17,7 @@ pnpm typecheck        # tsc --noEmit
 pnpm test             # tests de casos de uso
 ```
 
-## Stack (no cambiar sin acordarlo entre los dos)
+## Stack (no cambiar sin pensarlo dos veces)
 - Next.js (App Router) + TypeScript
 - Supabase: Postgres + Auth + Realtime + Storage
 - Drizzle ORM (schema en `src/db/schema/`)
@@ -38,7 +38,7 @@ src/
     data/                   # queries y mutations con Drizzle
     ui/                     # componentes de la feature
     actions.ts              # server actions = puerta de entrada desde la UI
-  db/schema/                # schema Drizzle (COMPARTIDO: ver collaboration.md)
+  db/schema/                # schema Drizzle (zona sensible: ver collaboration.md)
   db/client.ts              # clientes admin + rls (ver database.md)
   lib/                      # auth, utils, helpers compartidos
   components/ui/            # design system compartido
@@ -56,14 +56,13 @@ src/
   revisá `package.json` primero. Si falta, avisá antes de agregarlo.
 - **Toda tabla de dominio lleva `organization_id`.** El aislamiento entre tenants es
   sagrado. → `.claude/rules/database.md`
-- **No edites carpetas de features que no son tuyas.** → `.claude/rules/collaboration.md`
 
 
 ## Antes de tocar cada área, leé su regla
 - Base de datos / Drizzle / RLS / Supabase → `.claude/rules/database.md`
 - Estructura, capas, dónde va cada cosa → `.claude/rules/architecture.md`
 - Nombres, imports, formato → `.claude/rules/conventions.md`
-- Ramas, ownership, cómo mergeamos → `.claude/rules/collaboration.md`
+- Ramas, remotos, flujo de trabajo → `.claude/rules/collaboration.md`
 - Modelo de datos y entidades → `docs/DATA_MODEL.md`
 - Pantallas con subtabs o secciones → `.claude/rules/routing-and-tabs.md`
 

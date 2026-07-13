@@ -281,6 +281,8 @@ export class GeminiAiProvider implements AiProvider {
           responseSchema: {
             type: Type.OBJECT,
             properties: {
+              fullName: { type: Type.STRING },
+              phone: { type: Type.STRING },
               headline: { type: Type.STRING },
               location: { type: Type.STRING },
               linkedinUrl: { type: Type.STRING },
@@ -345,6 +347,8 @@ export class GeminiAiProvider implements AiProvider {
       }
 
       return {
+        fullName: str(parsed.fullName),
+        phone: str(parsed.phone),
         headline: parsed.headline.trim(),
         location: str(parsed.location),
         linkedinUrl: str(parsed.linkedinUrl) ?? input.linkedinUrl ?? null,
@@ -359,7 +363,11 @@ export class GeminiAiProvider implements AiProvider {
       };
     } catch (err) {
       logFallback("draftCandidateProfile", err);
-      return this.fallback.draftCandidateProfile(input);
+      // A diferencia de otros fallbacks (que devuelven prosa genérica sin gran diferencia visible
+      // para el usuario), acá el mock es un placeholder casi vacío — sin esta marca, un fallo real
+      // de Gemini es indistinguible de "el candidato eligió completar todo a mano" (bug reportado).
+      const fallback = await this.fallback.draftCandidateProfile(input);
+      return { ...fallback, extractionFailed: true };
     }
   }
 

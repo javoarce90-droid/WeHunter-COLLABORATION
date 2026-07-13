@@ -28,6 +28,20 @@ describe("candidateInputSchema.email", () => {
   });
 });
 
+describe("candidateInputSchema.phone", () => {
+  it("acepta el campo ausente y el string vacío como sin teléfono", () => {
+    const r1 = candidateInputSchema.safeParse({ fullName: "Ada" });
+    const r2 = candidateInputSchema.safeParse({ fullName: "Ada", phone: "   " });
+    expect(r1.success && r1.data.phone).toBeUndefined();
+    expect(r2.success && r2.data.phone).toBeUndefined();
+  });
+
+  it("recorta espacios de un teléfono real", () => {
+    const r = candidateInputSchema.safeParse({ fullName: "Ada", phone: "  +54 9 351 555-1234  " });
+    expect(r.success && r.data.phone).toBe("+54 9 351 555-1234");
+  });
+});
+
 describe("CV tipos/extensiones", () => {
   it("la extensión sale del MIME validado y los tipos permitidos derivan del mapa", () => {
     expect(CV_EXT_BY_TYPE["application/pdf"]).toBe(".pdf");

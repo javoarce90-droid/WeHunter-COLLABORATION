@@ -253,6 +253,76 @@
       "when": 1783366803034,
       "tag": "0035_elite_lenny_balinger",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1783704713546,
+      "tag": "0036_square_anita_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1783704819826,
+      "tag": "0037_backfill_onboarding_dismissed_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1783705739548,
+      "tag": "0038_next_sugar_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1783705748704,
+      "tag": "0039_shortlist_interview_request_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1783706839567,
+      "tag": "0040_orange_ironclad",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1783706859844,
+      "tag": "0041_google_calendar_connections_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1783950773817,
+      "tag": "0042_tired_sentinels",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1783950853558,
+      "tag": "0043_apply_career_site_job_conflict_and_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1783952347674,
+      "tag": "0044_sync_candidates_from_profile_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1783954053896,
+      "tag": "0045_revert_candidate_profile_sync_trigger",
+      "breakpoints": true
     }
   ]
 }

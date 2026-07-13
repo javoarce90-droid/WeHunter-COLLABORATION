@@ -22,6 +22,7 @@ export type SharedCandidate = {
   stage: ApplicationStage;
   feedbackDecision: FeedbackDecision | null;
   feedbackComment: string | null;
+  interviewRequestedAt: string | null;
 };
 
 export type SharedShortlist = {
@@ -53,6 +54,24 @@ export async function submitFeedbackRpc(args: {
         ${args.shortlistCandidateId}::uuid,
         ${args.decision},
         ${args.comment}
+      ) as ok`,
+    );
+    return rows[0]?.ok === true;
+  } catch {
+    // La función lanza excepción si el token es inválido/vencido o el candidato es ajeno.
+    return false;
+  }
+}
+
+export async function requestInterviewRpc(args: {
+  token: string;
+  shortlistCandidateId: string;
+}): Promise<boolean> {
+  try {
+    const rows = await admin.execute<{ ok: boolean }>(
+      sql`select request_shortlist_interview(
+        ${args.token},
+        ${args.shortlistCandidateId}::uuid
       ) as ok`,
     );
     return rows[0]?.ok === true;

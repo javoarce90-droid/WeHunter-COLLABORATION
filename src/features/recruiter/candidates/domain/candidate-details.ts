@@ -17,6 +17,7 @@ export interface CandidateDetailsInput {
   summary?: string | null;
   skills?: string[] | null;
   source?: CandidateSource | null;
+  phone?: string | null;
 }
 
 export interface CandidateDetails {
@@ -26,6 +27,7 @@ export interface CandidateDetails {
   summary: string | null;
   skills: string[] | null;
   source: CandidateSource | null;
+  phone: string | null;
 }
 
 const clean = (s?: string | null) => (s?.trim() ? s.trim() : null);
@@ -38,5 +40,6 @@ export function normalizeCandidateDetails(input: CandidateDetailsInput): Candida
     summary: clean(input.summary),
     skills: input.skills && input.skills.length ? input.skills : null,
     source: input.source ?? null,
+    phone: clean(input.phone),
   };
 }

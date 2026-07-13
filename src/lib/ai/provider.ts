@@ -133,6 +133,10 @@ export type DraftCertification = {
 };
 
 export type DraftCandidateProfile = {
+  /** Nombre completo si aparece en el CV/LinkedIn, si no null (se usa el de la cuenta). */
+  fullName: string | null;
+  /** Teléfono si aparece en el CV/LinkedIn, si no null. */
+  phone: string | null;
   /** Puesto/título actual, ej "Frontend Senior". */
   headline: string;
   location: string | null;
@@ -145,6 +149,10 @@ export type DraftCandidateProfile = {
   certifications: DraftCertification[];
   /** Resultado de intentar leer la URL de LinkedIn. Ausente si no se pidió linkedinUrl. */
   linkedinFetchStatus?: "ok" | "low_signal" | "failed";
+  /** true si Gemini falló y se cayó al mock — el borrador es un placeholder, no una extracción
+   * real. Ausente/false cuando no hubo error (incluye el caso "no hay API key", que usa el mock
+   * directamente sin haber intentado Gemini). */
+  extractionFailed?: boolean;
 };
 
 export interface AiProvider {

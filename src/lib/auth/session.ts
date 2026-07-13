@@ -15,6 +15,7 @@ export type AccountType = (typeof accountType.enumValues)[number];
 export interface ActiveMembership {
   organizationId: string;
   role: OrgRole;
+  onboardingDismissedAt: Date | null;
 }
 
 /**
@@ -50,6 +51,7 @@ export const getActiveMembership = cache(
           .select({
             organizationId: memberships.organizationId,
             role: memberships.role,
+            onboardingDismissedAt: memberships.onboardingDismissedAt,
           })
           .from(memberships)
           .where(eq(memberships.profileId, db.userId!))

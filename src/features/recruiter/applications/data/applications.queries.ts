@@ -261,6 +261,10 @@ export async function listApplicationsForScoring(
   organizationId: string,
 ): Promise<ScoringRow[]> {
   const db = await getDb();
+  // Para candidatos vinculados (profileId), profiles es la fuente de verdad de bio/skills/CV
+  // para el scoring — candidates.summary/skills/cvUrl NO se tocan (esas mismas columnas las
+  // muestra la ficha del recruiter, que deliberadamente no se fusiona con el perfil real). El
+  // join acá es solo para leer, nunca para escribir.
   const rows = await db.rls((tx) =>
     tx
       .select({
@@ -270,9 +274,13 @@ export async function listApplicationsForScoring(
         summary: candidates.summary,
         source: candidates.source,
         cvUrl: candidates.cvUrl,
+        profileBio: profiles.bio,
+        profileSkills: profiles.skills,
+        profileCvUrl: profiles.cvUrl,
       })
       .from(applications)
       .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .leftJoin(profiles, eq(candidates.profileId, profiles.id))
       .where(
         and(
           eq(applications.jobId, jobId),
@@ -286,10 +294,10 @@ export async function listApplicationsForScoring(
     id: r.id,
     candidate: {
       id: r.candidateId,
-      skills: r.skills,
-      summary: r.summary,
+      skills: r.skills?.length ? r.skills : r.profileSkills,
+      summary: r.summary ?? r.profileBio,
       source: r.source,
-      hasCv: r.cvUrl != null,
+      hasCv: r.cvUrl != null || r.profileCvUrl != null,
     },
   }));
 }

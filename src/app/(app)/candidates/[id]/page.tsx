@@ -57,6 +57,12 @@ export default async function CandidateDetailPage({
     { label: "En el pool desde", value: dateFmt.format(candidate.createdAt) },
   ];
 
+  // wa.me solo acepta dígitos (código de país + número, sin "+" ni separadores). El teléfono
+  // es texto libre cargado por el recruiter — hacemos un best-effort, no validamos formato.
+  const whatsappHref = candidate.phone
+    ? `https://wa.me/${candidate.phone.replace(/\D/g, "")}`
+    : null;
+
   return (
     <div className="flex flex-col gap-5">
       {/* Datos clave */}
@@ -67,6 +73,26 @@ export default async function CandidateDetailPage({
             <dd className="mt-0.5 truncate font-semibold text-text">{f.value}</dd>
           </div>
         ))}
+        {candidate.phone && (
+          <div className="bg-surface px-4 py-3">
+            <dt className="text-xs font-medium text-muted">Teléfono</dt>
+            <dd className="mt-0.5 truncate font-semibold text-text">
+              {whatsappHref ? (
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:text-primary-hover"
+                  title="Abrir chat de WhatsApp con este número"
+                >
+                  {candidate.phone} ↗
+                </a>
+              ) : (
+                candidate.phone
+              )}
+            </dd>
+          </div>
+        )}
       </dl>
 
       {/* Indicador de cuenta vinculada: solo informa + linkea, nunca reemplaza ni fusiona

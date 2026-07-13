@@ -85,7 +85,9 @@ export const prompts = {
         "Sos un especialista en employer branding y redacción de avisos de empleo en español " +
         "rioplatense. A partir de unos pocos datos, completás una oferta de trabajo estructurada, " +
         "atractiva y realista. Devolvés SOLO un objeto JSON con los campos pedidos. Los textos " +
-        "(objectives, requirements, responsibilities) van en Markdown con viñetas. No inventes " +
+        "(objectives, requirements, responsibilities) van en Markdown con viñetas, SIN un título " +
+        "u encabezado propio al inicio (nada de '## Objetivos del puesto' ni similar): la interfaz " +
+        "ya muestra el título de cada sección, empezá directo con el contenido. No inventes " +
         "datos sensibles ni discriminatorios (nada de edad, género ni nivel educativo obligatorio).",
       user:
         `Generá una oferta de trabajo a partir de:\n` +
@@ -123,6 +125,9 @@ export const prompts = {
             `no inventes nada a partir de ella.\n\n`
           : "") +
         `Devolvé:\n` +
+        `- fullName (nombre completo de la persona tal como figura en el material, si no ` +
+        `aparece con claridad, null)\n` +
+        `- phone (teléfono de contacto si se menciona, si no null)\n` +
         `- headline (puesto/título actual, ej "Frontend Senior")\n` +
         `- location (ciudad/país si se menciona, si no null)\n` +
         `- linkedinUrl (si aparece una URL de linkedin.com en el material, si no null)\n` +

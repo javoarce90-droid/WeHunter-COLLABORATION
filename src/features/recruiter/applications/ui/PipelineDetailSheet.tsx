@@ -10,6 +10,7 @@ import { AiButton, AiScore } from "@/components/ui/ai";
 import { useToast } from "@/lib/toast";
 import { NoteTimeline } from "@/features/recruiter/notes/ui/NoteTimeline";
 import { InterviewsSection } from "@/features/recruiter/interviews/ui/InterviewsSection";
+import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
 import { generarGuiaEntrevistaAction } from "../actions";
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
@@ -22,6 +23,7 @@ import { StageHistoryTimeline } from "./StageHistoryTimeline";
 type Props = {
   application: ApplicationWithCandidate | null;
   interviews: InterviewRow[];
+  teamMembers: TeamMemberOption[];
   notes: TimelineNote[];
   stageEvents: StageHistoryEvent[];
   onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
@@ -38,6 +40,7 @@ type Props = {
 export function PipelineDetailSheet({
   application,
   interviews,
+  teamMembers,
   notes,
   stageEvents,
   onMoveStage,
@@ -176,6 +179,7 @@ export function PipelineDetailSheet({
               applicationId={application.id}
               jobId={application.jobId}
               interviews={interviews}
+              teamMembers={teamMembers}
             />
           </section>
 

@@ -3,7 +3,6 @@ import { getDb } from "@/db/client";
 import { profiles } from "@/db/schema";
 
 export interface CandidateProfileFields {
-  fullName: string;
   headline: string | null;
   phone: string | null;
   location: string | null;
@@ -24,7 +23,6 @@ export async function updateCandidateProfile(
       tx
         .update(profiles)
         .set({
-          fullName: fields.fullName,
           headline: fields.headline,
           phone: fields.phone,
           location: fields.location,

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getCandidateById } from "@/features/recruiter/candidates/data/candidates.queries";
 import { getLinkedCandidateProfile } from "@/features/recruiter/candidates/data/linked-profile.queries";
+import { getCvSignedUrl } from "@/features/recruiter/candidates/data/candidates.storage";
 import { EMPLOYMENT_LABELS, MODALITY_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
 import { normalizeIfUncapitalized } from "@/lib/text";
 
@@ -33,12 +34,26 @@ export default async function LinkedCandidateProfilePage({
   const profile = await getLinkedCandidateProfile(id);
   if (!profile) notFound();
 
+  const cvDownloadUrl = profile.cvUrl ? await getCvSignedUrl(profile.cvUrl) : null;
+
   return (
     <div className="flex flex-col gap-5">
       <div className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-        <h2 className="text-sm font-bold text-text">
-          {profile.fullName ? normalizeIfUncapitalized(profile.fullName) : "Perfil del candidato"}
-        </h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-sm font-bold text-text">
+            {profile.fullName ? normalizeIfUncapitalized(profile.fullName) : "Perfil del candidato"}
+          </h2>
+          {cvDownloadUrl && (
+            <a
+              href={cvDownloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              Abrir CV →
+            </a>
+          )}
+        </div>
         {profile.headline && <p className="mt-0.5 text-sm text-text/80">{profile.headline}</p>}
         <p className="mt-1 text-xs text-muted">
           {[profile.location, profile.email].filter(Boolean).join(" · ")}

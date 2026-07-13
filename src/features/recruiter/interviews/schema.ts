@@ -29,6 +29,7 @@ export const STATUS_BADGE: Record<InterviewStatus, "blue" | "success" | "muted">
 
 export const LOCATION_MAX_LENGTH = 500;
 export const INTERVIEW_NOTES_MAX_LENGTH = 5000;
+export const MAX_PARTICIPANTS = 20;
 
 /** Campos comunes a agendar y actualizar. */
 const interviewFields = {
@@ -48,6 +49,11 @@ const interviewFields = {
       INTERVIEW_NOTES_MAX_LENGTH,
       `Las notas no pueden superar los ${INTERVIEW_NOTES_MAX_LENGTH} caracteres.`,
     )
+    .optional(),
+  // Ya viene mergeado (equipo + externos, deduplicado) desde la action antes de validar.
+  participantEmails: z
+    .array(z.string().trim().email("Uno de los emails de participantes no es válido."))
+    .max(MAX_PARTICIPANTS, `No podés agregar más de ${MAX_PARTICIPANTS} participantes.`)
     .optional(),
 };
 

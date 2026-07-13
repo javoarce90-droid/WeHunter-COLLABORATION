@@ -62,6 +62,24 @@ describe("cargarCandidato", () => {
     );
   });
 
+  it("normaliza el teléfono (trim) y lo guarda null si viene vacío", async () => {
+    const d = deps();
+    await cargarCandidato(
+      { fullName: "Grace Hopper", phone: "  +54 9 351 555-1234  " },
+      ctx,
+      d,
+    );
+    expect(d.insertCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: "+54 9 351 555-1234" }),
+    );
+
+    const d2 = deps();
+    await cargarCandidato({ fullName: "Grace Hopper", phone: "   " }, ctx, d2);
+    expect(d2.insertCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: null }),
+    );
+  });
+
   it("sube el CV solo después de autorizar y guarda su path", async () => {
     const uploadCv = vi.fn(async () => ({ path: "org-1/abc.pdf" }));
     const d = { ...deps(), uploadCv };
