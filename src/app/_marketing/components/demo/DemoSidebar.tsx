@@ -48,10 +48,10 @@ export function DemoSidebar({
       </div>
       <div className="dw-side-user">
         <div className="dw-av" style={{ background: "#6d28d9", color: "#fff" }}>
-          Y
+          S
         </div>
         <div>
-          <div className="dw-uname">Yas</div>
+          <div className="dw-uname">Sofi</div>
           <div className="dw-urole">Admin · starter</div>
         </div>
       </div>

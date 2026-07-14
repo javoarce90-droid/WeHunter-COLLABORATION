@@ -571,6 +571,11 @@ html {scroll-behavior:smooth;}
 .wh-landing .demo-tooltip::after {content:'';position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1a0a3d;border-bottom:none;}
 .wh-landing .demo-tooltip.visible {opacity:1;}
 
+/* Cursor falso / tooltip / badge del tour no tienen sentido en táctil (no hay cursor real) */
+@media(max-width:640px){
+  .wh-landing .demo-cursor,.wh-landing .demo-tooltip,.wh-landing .demo-tour-badge {display:none !important;}
+}
+
 
 /* ══ TYPOGRAPHY SYSTEM ══ */
 /* Instrument Serif: headings only */

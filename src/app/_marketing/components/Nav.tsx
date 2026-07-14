@@ -20,7 +20,7 @@ export function Nav() {
           <NoopLink message="Portal de empleos próximamente!">
             Empleos
           </NoopLink>
-          <a href="#contact-form-anchor">Precios</a>
+          <Link href="/precios">Precios</Link>
           <Link href="/login">Iniciar Sesión</Link>
         </div>
         <a className="btn-pill" href="#contact-form-anchor">

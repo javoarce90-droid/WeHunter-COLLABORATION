@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { ReactNode } from "react";
+
+export interface AsistenteAutoDemoHandle {
+  runAutoDemo: () => void;
+}
+
+const AUTO_DEMO_MESSAGE = "Resumime el pipeline de Acme Corp";
 
 const SUGGESTIONS = [
   "Buscame Python senior en mi pool",
@@ -67,13 +73,16 @@ interface Message {
 
 let nextId = 1;
 
-export function AsistentePanel() {
+export const AsistentePanel = forwardRef<AsistenteAutoDemoHandle>(function AsistentePanel(
+  _props,
+  ref,
+) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 0,
       role: "bot",
       content:
-        "Hola Yas! ¿En qué te ayudo? Puedo buscar candidatos, resumir pipelines, generar queries booleanas o redactar mensajes.",
+        "Hola Sofi! ¿En qué te ayudo? Puedo buscar candidatos, resumir pipelines, generar queries booleanas o redactar mensajes.",
     },
   ]);
   const [typing, setTyping] = useState(false);
@@ -90,6 +99,25 @@ export function AsistentePanel() {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 99999;
   }, [messages, typing]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      runAutoDemo() {
+        setInput("");
+        let i = 0;
+        const typeInterval = setInterval(() => {
+          i++;
+          setInput(AUTO_DEMO_MESSAGE.slice(0, i));
+          if (i >= AUTO_DEMO_MESSAGE.length) {
+            clearInterval(typeInterval);
+            timeoutRef.current = setTimeout(() => send(AUTO_DEMO_MESSAGE), 400);
+          }
+        }, 40);
+      },
+    }),
+    [],
+  );
 
   function send(value: string) {
     const trimmed = value.trim();
@@ -176,4 +204,4 @@ export function AsistentePanel() {
       </div>
     </div>
   );
-}
+});

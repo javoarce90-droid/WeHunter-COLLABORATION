@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useDemoTab } from "../DemoTabContext";
 import type { DemoTabId } from "../DemoTabContext";
 import { DemoSidebar } from "./DemoSidebar";
@@ -13,6 +14,8 @@ import { EntrevistasPanel } from "./EntrevistasPanel";
 import { SolicitudesPanel } from "./SolicitudesPanel";
 import { NotificacionesPanel } from "./NotificacionesPanel";
 import { AsistentePanel } from "./AsistentePanel";
+import type { AsistenteAutoDemoHandle } from "./AsistentePanel";
+import { AutoTour } from "./AutoTour";
 
 const TABS: { id: DemoTabId; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -28,11 +31,14 @@ const TABS: { id: DemoTabId; label: string }[] = [
 
 export function InteractiveDemo() {
   const { activeTab, setActiveTab } = useDemoTab();
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const manualInteractionRef = useRef(0);
+  const asistenteRef = useRef<AsistenteAutoDemoHandle>(null);
 
   return (
     <div className="demo-stage" id="demo">
       <div className="demo-hint">Probala ahora — así se ve la plataforma real</div>
-      <div className="demo-frost demo-wrapper">
+      <div className="demo-frost demo-wrapper" ref={wrapperRef}>
         <div className="demo-window">
           <div className="demo-titlebar">
             <span className="tl" style={{ background: "#ff5f57" }} />
@@ -44,8 +50,12 @@ export function InteractiveDemo() {
             {TABS.map((tab) => (
               <button
                 key={tab.id}
+                data-tab={tab.id}
                 className={`demo-tab${activeTab === tab.id ? " active" : ""}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  manualInteractionRef.current = Date.now();
+                  setActiveTab(tab.id);
+                }}
               >
                 {tab.label}
               </button>
@@ -109,10 +119,15 @@ export function InteractiveDemo() {
           <div className={`demo-panel${activeTab === "asistente" ? " active" : ""}`}>
             <div className="dw">
               <DemoSidebar active={activeTab} onNavigate={setActiveTab} />
-              <AsistentePanel />
+              <AsistentePanel ref={asistenteRef} />
             </div>
           </div>
         </div>
+        <AutoTour
+          wrapperRef={wrapperRef}
+          manualInteractionRef={manualInteractionRef}
+          asistenteRef={asistenteRef}
+        />
       </div>
     </div>
   );
