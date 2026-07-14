@@ -8,8 +8,9 @@ import type { Benefit, JobArea } from "./domain/job-details";
 import { crearBusqueda } from "./domain/crear-busqueda";
 import { editarBusqueda } from "./domain/editar-busqueda";
 import { cambiarEstadoBusqueda } from "./domain/cambiar-estado-busqueda";
+import { duplicarBusqueda } from "./domain/duplicar-busqueda";
 import { insertJob, updateJobFields, updateJobStatus } from "./data/jobs.mutations";
-import { getJobStatus } from "./data/jobs.queries";
+import { getJobById, getJobStatus } from "./data/jobs.queries";
 import { getAiProvider } from "@/lib/ai";
 
 export interface JobFormState {
@@ -227,4 +228,28 @@ export async function cambiarEstadoBusquedaAction(
   );
 
   revalidatePath("/jobs");
+}
+
+/** Duplica una búsqueda: copia borrador de sus campos, sin candidatos ni pipeline. */
+export async function duplicarBusquedaAction(formData: FormData): Promise<void> {
+  const jobId = String(formData.get("jobId") ?? "");
+  if (!jobId) return;
+
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+  ]);
+
+  const result = await duplicarBusqueda(
+    { jobId },
+    {
+      userId: user?.id ?? null,
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+    },
+    { getJobById, insertJob },
+  );
+  if (!result.ok) return;
+
+  redirect(`/jobs/${result.data.jobId}/edit`);
 }

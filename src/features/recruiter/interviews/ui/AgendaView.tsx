@@ -3,7 +3,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { AgendaInterview } from "../data/interviews.queries";
-import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS } from "../schema";
+import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS, TYPE_BADGE, TYPE_LABELS } from "../schema";
 
 const timeFmt = new Intl.DateTimeFormat("es-AR", {
   hour: "2-digit",
@@ -56,6 +56,9 @@ function InterviewRow({
           >
             {interview.candidateName}
           </Link>
+          <Badge variant={TYPE_BADGE[interview.type]}>
+            {TYPE_LABELS[interview.type]}
+          </Badge>
           <Badge variant={STATUS_BADGE[interview.status]}>
             {STATUS_LABELS[interview.status]}
           </Badge>

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."interview_type" AS ENUM('screening', 'technical', 'behavioral', 'client');--> statement-breakpoint
+ALTER TABLE "interviews" ADD COLUMN "type" "interview_type" DEFAULT 'screening' NOT NULL;

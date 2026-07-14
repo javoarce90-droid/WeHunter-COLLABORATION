@@ -45,6 +45,7 @@ export const jobStatus = pgEnum("job_status", [
   "open",
   "paused",
   "closed",
+  "archived",
 ]);
 
 // Etapas del pipeline. El enum es la identidad canónica (no cambia por org).
@@ -89,6 +90,15 @@ export const interviewStatus = pgEnum("interview_status", [
   "scheduled", // agendada (futura)
   "completed", // realizada
   "cancelled", // cancelada
+]);
+
+// Tipo/propósito de una entrevista dentro del proceso (distinto de `mode`, que es la
+// modalidad presencial/remoto/telefónica).
+export const interviewType = pgEnum("interview_type", [
+  "screening", // primer filtro, con el recruiter
+  "technical", // técnica
+  "behavioral", // comportamental / cultural fit
+  "client", // con la empresa cliente
 ]);
 
 // Campos ricos de una búsqueda (paridad demo). Todos opcionales en la columna.
@@ -538,6 +548,7 @@ export const interviews = pgTable("interviews", {
     .notNull(),
   scheduledAt: timestamp("scheduled_at").notNull(),
   mode: interviewMode("mode").notNull().default("remote"),
+  type: interviewType("type").notNull().default("screening"),
   // Lugar (dirección) o link de la videollamada según la modalidad. Opcional.
   location: text("location"),
   // Notas internas de la entrevista (agenda, feedback). No visible para la empresa.

@@ -2,7 +2,7 @@ import { and, eq, asc } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { interviews, applications, candidates, jobs } from "@/db/schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
-import type { InterviewMode, InterviewStatus } from "../schema";
+import type { InterviewMode, InterviewStatus, InterviewType } from "../schema";
 
 /** Lecturas de entrevistas. Cliente RLS; filtramos siempre por organization activa. */
 
@@ -12,6 +12,7 @@ function toRow(r: {
   applicationId: string;
   scheduledAt: Date;
   mode: string;
+  type: string;
   location: string | null;
   notes: string | null;
   status: string;
@@ -25,6 +26,7 @@ function toRow(r: {
     applicationId: r.applicationId,
     scheduledAt: r.scheduledAt,
     mode: r.mode as InterviewMode,
+    type: r.type as InterviewType,
     location: r.location,
     notes: r.notes,
     status: r.status as InterviewStatus,
@@ -40,6 +42,7 @@ const columns = {
   applicationId: interviews.applicationId,
   scheduledAt: interviews.scheduledAt,
   mode: interviews.mode,
+  type: interviews.type,
   location: interviews.location,
   notes: interviews.notes,
   status: interviews.status,
@@ -151,6 +154,7 @@ export type AgendaInterview = {
   id: string;
   scheduledAt: Date;
   mode: InterviewMode;
+  type: InterviewType;
   status: InterviewStatus;
   location: string | null;
   jobId: string;
@@ -173,6 +177,7 @@ export async function listAgendaInterviews(
         id: interviews.id,
         scheduledAt: interviews.scheduledAt,
         mode: interviews.mode,
+        type: interviews.type,
         status: interviews.status,
         location: interviews.location,
         jobId: jobs.id,
@@ -192,6 +197,7 @@ export async function listAgendaInterviews(
   return rows.map((r) => ({
     ...r,
     mode: r.mode as InterviewMode,
+    type: r.type as InterviewType,
     status: r.status as InterviewStatus,
   }));
 }

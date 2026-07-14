@@ -16,6 +16,7 @@ const makeApp = (overrides?: Partial<ApplicationRow>): ApplicationRow => ({
 
 const makeDeps = (app: ApplicationRow, overrides?: Partial<MoverEtapaDeps>): MoverEtapaDeps => ({
   getApplicationById: vi.fn().mockResolvedValue(app),
+  isStageActive: vi.fn().mockResolvedValue(true),
   updateApplicationStage: vi.fn().mockImplementation((_id, _fromStage, toStage) =>
     Promise.resolve({ ...app, stage: toStage }),
   ),
@@ -83,6 +84,16 @@ describe("moverEtapa", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.stage).toBe("screening");
+  });
+
+  it("rechaza mover a una etapa desactivada (mismo chequeo que respeta el selector manual)", async () => {
+    const app = makeApp({ stage: "new" });
+    const deps = makeDeps(app, { isStageActive: vi.fn().mockResolvedValue(false) });
+    const result = await moverEtapa({ applicationId: "app-1", newStage: "screening" }, ctx, deps);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/desactivada/i);
+    expect(deps.updateApplicationStage).not.toHaveBeenCalled();
   });
 
   it("rechaza si el rol es consultant", async () => {

@@ -14,6 +14,7 @@ const sampleRow: InterviewRow = {
   applicationId: "app-1",
   scheduledAt: futureDate,
   mode: "remote",
+  type: "screening",
   location: null,
   notes: null,
   status: "scheduled",
@@ -40,6 +41,7 @@ const input = {
   applicationId: "app-1",
   scheduledAt: futureDate,
   mode: "remote" as const,
+  type: "technical" as const,
   location: "https://meet.example.com/abc",
   notes: "Entrevista técnica con el lead.",
 };

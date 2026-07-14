@@ -26,6 +26,16 @@ describe("isValidTransition", () => {
     expect(isValidTransition("draft", "paused")).toBe(false);
     expect(isValidTransition("closed", "open")).toBe(false);
   });
+  it("permite archivar desde cualquier estado no terminal", () => {
+    expect(isValidTransition("draft", "archived")).toBe(true);
+    expect(isValidTransition("open", "archived")).toBe(true);
+    expect(isValidTransition("paused", "archived")).toBe(true);
+    expect(isValidTransition("closed", "archived")).toBe(true);
+  });
+  it("rechaza cualquier transición desde archived (terminal, sin desarchivar)", () => {
+    expect(isValidTransition("archived", "draft")).toBe(false);
+    expect(isValidTransition("archived", "open")).toBe(false);
+  });
 });
 
 describe("cambiarEstadoBusqueda", () => {
@@ -64,6 +74,20 @@ describe("cambiarEstadoBusqueda", () => {
     const d = deps("open");
     const res = await cambiarEstadoBusqueda({ jobId: "j1", nuevoEstado: "open" }, ctx, d);
     expect(res.ok).toBe(true);
+    expect(d.updateJobStatus).not.toHaveBeenCalled();
+  });
+
+  it("archiva una búsqueda abierta", async () => {
+    const d = deps("open");
+    const res = await cambiarEstadoBusqueda({ jobId: "j1", nuevoEstado: "archived" }, ctx, d);
+    expect(res).toEqual({ ok: true, data: { jobId: "j1", estado: "archived" } });
+    expect(d.updateJobStatus).toHaveBeenCalledWith("j1", "org-1", "archived");
+  });
+
+  it("rechaza cualquier transición desde una búsqueda archivada", async () => {
+    const d = deps("archived");
+    const res = await cambiarEstadoBusqueda({ jobId: "j1", nuevoEstado: "open" }, ctx, d);
+    expect(res.ok).toBe(false);
     expect(d.updateJobStatus).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { pipelineStages } from "@/db/schema";
 import { APPLICATION_STAGES, STAGE_LABELS, type ApplicationStage } from "../../applications/schema";
@@ -32,4 +32,28 @@ export async function getPipelineStageConfigs(
       slaDays: override?.slaDays ?? null,
     };
   });
+}
+
+/** Si una etapa puntual está activa para la org. Usado como autorización primaria antes de
+ *  mover un candidato a esa etapa (moverEtapa) — no trae el resto de la config, que no hace falta. */
+export async function isStageActive(
+  organizationId: string,
+  stageKey: ApplicationStage,
+): Promise<boolean> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ isActive: pipelineStages.isActive })
+        .from(pipelineStages)
+        .where(
+          and(
+            eq(pipelineStages.organizationId, organizationId),
+            eq(pipelineStages.stageKey, stageKey),
+          ),
+        )
+        .limit(1),
+    "db.pipeline-stages.is-active",
+  );
+  return rows[0]?.isActive ?? DEFAULT_STAGE_CONFIGS.find((d) => d.stageKey === stageKey)!.isActive;
 }

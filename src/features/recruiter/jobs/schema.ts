@@ -128,6 +128,6 @@ export const jobInputSchema = z.object({
   benefits: benefitsField,
 });
 
-export const jobStatusSchema = z.enum(["draft", "open", "paused", "closed"]);
+export const jobStatusSchema = z.enum(["draft", "open", "paused", "closed", "archived"]);
 
 export type JobInput = z.infer<typeof jobInputSchema>;

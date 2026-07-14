@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 import Link from "next/link";
 import type { CandidateFormState } from "../actions";
+import { verificarEmailCandidatoAction } from "../actions";
 import type { CandidateSource } from "../domain/candidate-details";
+import type { VerificarCandidatoPorEmailResult } from "../domain/verificar-candidato-por-email";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,14 +49,69 @@ export function CandidateForm({
   defaults,
 }: CandidateFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
+  const confirmDuplicateRef = useRef<HTMLInputElement>(null);
+  const linkProfileRef = useRef<HTMLInputElement>(null);
+  const skipProfileLinkRef = useRef<HTMLInputElement>(null);
+
+  // Chequeo en vivo al salir del campo email (antes de completar el resto y enviar): mismo
+  // aviso que daría el submit, pero apenas se necesita para no hacer tipear todo de nuevo.
+  const [liveCheck, setLiveCheck] = useState<VerificarCandidatoPorEmailResult>(
+    {},
+  );
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const lastCheckedEmail = useRef("");
+
+  async function onEmailBlur(e: React.FocusEvent<HTMLInputElement>) {
+    if (candidateId) return; // al editar no hace falta (email opcional, sin alta nueva)
+    const email = e.currentTarget.value.trim();
+    if (!email || email === lastCheckedEmail.current) return;
+    lastCheckedEmail.current = email;
+    setCheckingEmail(true);
+    const result = await verificarEmailCandidatoAction(email);
+    setCheckingEmail(false);
+    setLiveCheck(result);
+  }
+
+  // Los 3 flags son inputs hidden no controlados: se escribe el valor directo en el DOM
+  // (no vía setState) porque requestSubmit() serializa el form de forma síncrona — un
+  // setState recién se refleja en el DOM después de este handler, tarde para el submit.
+  function resubmitWith(ref: React.RefObject<HTMLInputElement | null>) {
+    if (ref.current) ref.current.value = "true";
+    setLiveCheck({});
+    formRef.current?.requestSubmit();
+  }
+
+  const shownDuplicate = state.duplicate ?? liveCheck.duplicate;
+  const shownProfileMatch = shownDuplicate
+    ? undefined
+    : (state.profileMatch ?? liveCheck.profileMatch);
 
   return (
     <Card>
       <CardContent>
-        <form action={formAction} className="flex flex-col gap-4">
+        <form ref={formRef} action={formAction} className="flex flex-col gap-4">
           {candidateId && (
             <input type="hidden" name="candidateId" value={candidateId} />
           )}
+          <input
+            ref={confirmDuplicateRef}
+            type="hidden"
+            name="confirmDuplicate"
+            defaultValue=""
+          />
+          <input
+            ref={linkProfileRef}
+            type="hidden"
+            name="linkProfile"
+            defaultValue=""
+          />
+          <input
+            ref={skipProfileLinkRef}
+            type="hidden"
+            name="skipProfileLink"
+            defaultValue=""
+          />
 
           <Input
             label="Nombre completo"
@@ -68,11 +125,17 @@ export function CandidateForm({
 
           <div className="grid gap-4 sm:grid-cols-3">
             <Input
-              label="Email (opcional)"
+              label={candidateId ? "Email (opcional)" : "Email"}
               name="email"
               type="email"
               placeholder="ada@ejemplo.com"
               defaultValue={defaults?.email ?? ""}
+              required={!candidateId}
+              onBlur={onEmailBlur}
+              onChange={() => {
+                lastCheckedEmail.current = "";
+                setLiveCheck({});
+              }}
             />
             <Input
               label="Teléfono (opcional)"
@@ -89,6 +152,55 @@ export function CandidateForm({
               defaultValue={defaults?.location ?? ""}
             />
           </div>
+
+          {checkingEmail && !shownDuplicate && !shownProfileMatch && (
+            <p className="-mt-2 text-xs text-muted">Revisando si ya existe…</p>
+          )}
+
+          {shownDuplicate ? (
+            <div className="rounded-[var(--radius)] border border-warning/40 bg-[#FEF3C7] px-3 py-2.5 text-xs text-[#92400E]">
+              <p>
+                Ya existe un candidato con ese{" "}
+                {shownDuplicate.matchedBy === "email" ? "email" : "LinkedIn"}:{" "}
+                <strong>{shownDuplicate.fullName}</strong>.
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <Link
+                  href={`/candidates/${shownDuplicate.id}`}
+                  className="font-semibold underline"
+                >
+                  Ver candidato existente
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => resubmitWith(confirmDuplicateRef)}
+                  className="font-semibold underline"
+                >
+                  Es otra persona, crear igual
+                </button>
+              </div>
+            </div>
+          ) : shownProfileMatch ? (
+            <div className="rounded-[var(--radius)] border border-warning/40 bg-[#FEF3C7] px-3 py-2.5 text-xs text-[#92400E]">
+              <p>Ya existe una cuenta de WeHunter registrada con este email.</p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => resubmitWith(linkProfileRef)}
+                  className="font-semibold underline"
+                >
+                  Vincular esa cuenta
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resubmitWith(skipProfileLinkRef)}
+                  className="font-semibold underline"
+                >
+                  No vincular, crear igual
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <Input
             label="Titular / puesto actual (opcional)"
@@ -107,11 +219,19 @@ export function CandidateForm({
               defaultValue={defaults?.linkedinUrl ?? ""}
             />
             <label className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-muted">Fuente (opcional)</span>
-              <select name="source" defaultValue={defaults?.source ?? ""} className={selectClass}>
+              <span className="text-xs font-semibold text-muted">
+                Fuente (opcional)
+              </span>
+              <select
+                name="source"
+                defaultValue={defaults?.source ?? ""}
+                className={selectClass}
+              >
                 <option value="">Sin especificar</option>
                 {Object.entries(CANDIDATE_SOURCE_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
                 ))}
               </select>
             </label>
@@ -126,7 +246,9 @@ export function CandidateForm({
           />
 
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-semibold text-muted">Resumen / experiencia (opcional)</span>
+            <span className="text-xs font-semibold text-muted">
+              Resumen / experiencia (opcional)
+            </span>
             <textarea
               name="summary"
               rows={4}
@@ -138,7 +260,8 @@ export function CandidateForm({
 
           <div className="flex flex-col gap-1">
             <label htmlFor="cv" className="text-xs font-semibold text-muted">
-              CV (PDF o Word, hasta 5 MB) {defaults?.hasCv && "— opcional, reemplaza el actual"}
+              CV (PDF o Word, hasta 5 MB){" "}
+              {defaults?.hasCv && "— opcional, reemplaza el actual"}
             </label>
             <input
               id="cv"
@@ -149,18 +272,28 @@ export function CandidateForm({
             />
             {defaults?.hasCv && (
               <p className="text-xs text-muted">
-                Ya hay un CV cargado. Subí uno nuevo solo si querés reemplazarlo.
+                Ya hay un CV cargado. Subí uno nuevo solo si querés
+                reemplazarlo.
               </p>
             )}
           </div>
 
-          {state.error && <p className="text-xs text-danger">{state.error}</p>}
+          {state.error && !shownDuplicate && !shownProfileMatch && (
+            <p className="text-xs text-danger">{state.error}</p>
+          )}
 
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={pending}>
-              {pending ? "Guardando…" : submitLabel}
+            <Button type="submit" disabled={pending || checkingEmail}>
+              {pending
+                ? "Guardando…"
+                : checkingEmail
+                  ? "Revisando…"
+                  : submitLabel}
             </Button>
-            <Link href={cancelHref} className="text-sm font-semibold text-muted">
+            <Link
+              href={cancelHref}
+              className="text-sm font-semibold text-muted"
+            >
               Cancelar
             </Link>
           </div>

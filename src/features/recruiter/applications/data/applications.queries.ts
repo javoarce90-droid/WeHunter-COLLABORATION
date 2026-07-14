@@ -333,6 +333,26 @@ export async function getJobStageCounts(
   return counts;
 }
 
+/** Cuántos candidatos (de cualquier búsqueda de la org) están hoy en una etapa puntual.
+ *  Usado para bloquear la desactivación de una etapa que todavía tiene gente adentro. */
+export async function countApplicationsInStage(
+  organizationId: string,
+  stage: ApplicationStage,
+): Promise<number> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(applications)
+        .where(
+          and(eq(applications.organizationId, organizationId), eq(applications.stage, stage)),
+        ),
+    "db.applications.count-in-stage",
+  );
+  return rows[0]?.n ?? 0;
+}
+
 /**
  * Para cada postulación del job, retorna cuándo entró a su etapa actual.
  * Se usa para calcular el SLA risk en las cards del pipeline.

@@ -72,6 +72,16 @@ describe("postularCandidato", () => {
     expect(result.error).toMatch(/cerrada/i);
   });
 
+  it("rechaza si el job está archivado", async () => {
+    const deps = makeDeps({
+      getJobById: vi.fn().mockResolvedValue({ id: "job-1", status: "archived" }),
+    });
+    const result = await postularCandidato(input, ctx, deps);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/archivada/i);
+  });
+
   it("rechaza si el job no existe", async () => {
     const deps = makeDeps({
       getJobById: vi.fn().mockResolvedValue(null),

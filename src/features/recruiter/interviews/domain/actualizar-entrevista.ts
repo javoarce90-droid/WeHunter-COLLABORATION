@@ -1,4 +1,4 @@
-import type { InterviewMode, InterviewStatus } from "../schema";
+import type { InterviewMode, InterviewStatus, InterviewType } from "../schema";
 import type { InterviewRow } from "./agendar-entrevista";
 
 // ---- Tipos del caso de uso ----
@@ -7,6 +7,7 @@ export type ActualizarEntrevistaInput = {
   interviewId: string;
   scheduledAt: Date;
   mode: InterviewMode;
+  type: InterviewType;
   status: InterviewStatus;
   location?: string;
   notes?: string;
@@ -29,6 +30,7 @@ export type ActualizarEntrevistaDeps = {
     data: {
       scheduledAt: Date;
       mode: InterviewMode;
+      type: InterviewType;
       status: InterviewStatus;
       location: string | null;
       notes: string | null;
@@ -62,6 +64,7 @@ export async function actualizarEntrevista(
   const updated = await deps.updateInterview(input.interviewId, {
     scheduledAt: input.scheduledAt,
     mode: input.mode,
+    type: input.type,
     status: input.status,
     location: normalize(input.location),
     notes: normalize(input.notes),

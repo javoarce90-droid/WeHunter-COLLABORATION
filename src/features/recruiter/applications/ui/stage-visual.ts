@@ -17,6 +17,20 @@ export function isTerminal(stage: ApplicationStage): boolean {
   return isClosingStage(stage);
 }
 
+export type SlaStatus = { status: "over" | "warn"; days: number };
+
+/** SLA de una card: null = dentro de plazo (sin badge), "warn" = 75%+ consumido, "over" = vencido. */
+export function getSlaStatus(
+  enteredStageAt: Date | undefined,
+  slaDays: number | null | undefined,
+): SlaStatus | null {
+  if (!slaDays || !enteredStageAt) return null;
+  const days = Math.floor((Date.now() - enteredStageAt.getTime()) / 86400000);
+  if (days >= slaDays) return { status: "over", days };
+  if (days >= Math.floor(slaDays * 0.75)) return { status: "warn", days };
+  return null;
+}
+
 /** "hace 3 d", "hace 2 h" — relativo compacto para metadata de card. */
 export function relativeTime(date: Date): string {
   const diffMs = Date.now() - date.getTime();

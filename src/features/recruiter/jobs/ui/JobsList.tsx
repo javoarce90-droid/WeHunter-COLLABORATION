@@ -7,24 +7,32 @@ import type { JobWithStats } from "../data/jobs.queries";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { JOB_STATUS_META, relativeTime } from "./status-meta";
-import { cambiarEstadoBusquedaAction } from "../actions";
+import { cambiarEstadoBusquedaAction, duplicarBusquedaAction } from "../actions";
 import { JOB_FILTERS, FILTER_LABEL, type JobFilter } from "./job-filters";
 import { SearchInput } from "@/components/ui/search-input";
 
 type Status = Job["status"];
 
 // Acciones de transición disponibles desde cada estado (label + estado destino).
+// "Archivar" está disponible desde cualquier estado salvo `archived` (terminal, sin
+// desarchivar en esta v1).
 const STATUS_ACTIONS: Record<Status, { label: string; to: Status }[]> = {
-  draft: [{ label: "Publicar", to: "open" }],
+  draft: [
+    { label: "Publicar", to: "open" },
+    { label: "Archivar", to: "archived" },
+  ],
   open: [
     { label: "Pausar", to: "paused" },
     { label: "Cerrar", to: "closed" },
+    { label: "Archivar", to: "archived" },
   ],
   paused: [
     { label: "Reanudar", to: "open" },
     { label: "Cerrar", to: "closed" },
+    { label: "Archivar", to: "archived" },
   ],
-  closed: [],
+  closed: [{ label: "Archivar", to: "archived" }],
+  archived: [],
 };
 
 function StatusButton({ jobId, label, to }: { jobId: string; label: string; to: Status }) {
@@ -126,6 +134,12 @@ function JobRow({ job }: { job: JobWithStats }) {
         >
           Editar
         </Link>
+        <form action={duplicarBusquedaAction}>
+          <input type="hidden" name="jobId" value={job.id} />
+          <Button type="submit" variant="ghost" size="sm">
+            Duplicar
+          </Button>
+        </form>
       </div>
     </div>
   );
@@ -205,16 +219,22 @@ export function JobsList({
     return <EmptyAllState />;
   }
 
+  // "Todas" no cuenta las archivadas: archivar existe para sacarlas de la vista activa.
   const counts: Record<JobFilter, number> = {
-    all: jobs.length,
+    all: 0,
     open: 0,
     paused: 0,
     draft: 0,
     closed: 0,
+    archived: 0,
   };
-  for (const job of jobs) counts[job.status] += 1;
+  for (const job of jobs) {
+    counts[job.status] += 1;
+    if (job.status !== "archived") counts.all += 1;
+  }
 
-  const byStatus = filter === "all" ? jobs : jobs.filter((j) => j.status === filter);
+  const byStatus =
+    filter === "all" ? jobs.filter((j) => j.status !== "archived") : jobs.filter((j) => j.status === filter);
   const q = query.trim().toLowerCase();
   const visible = q
     ? byStatus.filter((j) => j.title.toLowerCase().includes(q))

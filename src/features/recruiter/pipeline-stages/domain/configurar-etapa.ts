@@ -17,6 +17,10 @@ export type ConfigurarEtapaDeps = {
     stageKey: ApplicationStage,
     patch: StageConfigPatch,
   ) => Promise<void>;
+  countCandidatesInStage: (
+    organizationId: string,
+    stageKey: ApplicationStage,
+  ) => Promise<number>;
 };
 
 export async function configurarEtapa(
@@ -33,6 +37,18 @@ export async function configurarEtapa(
       ok: false,
       error: `La etapa "${input.stageKey}" no se puede desactivar.`,
     };
+  }
+
+  // No se puede desactivar (ni ocultar del Kanban) una etapa con candidatos adentro,
+  // de ninguna búsqueda de la org — primero hay que moverlos.
+  if (input.isActive === false) {
+    const n = await deps.countCandidatesInStage(ctx.organizationId, input.stageKey);
+    if (n > 0) {
+      return {
+        ok: false,
+        error: `No se puede desactivar: hay ${n} candidato${n === 1 ? "" : "s"} en esta etapa contando todas tus búsquedas (el pipeline es el mismo para toda la organización).`,
+      };
+    }
   }
 
   if (input.slaDays !== undefined && input.slaDays !== null && input.slaDays < 1) {
