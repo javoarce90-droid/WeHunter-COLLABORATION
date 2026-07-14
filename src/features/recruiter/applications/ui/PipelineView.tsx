@@ -16,14 +16,17 @@ import { useToast } from "@/lib/toast";
 import { analizarPostulacionAction, moverEtapaAction } from "../actions";
 import { STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
-import type { ApplicationWithCandidate, StageHistoryEvent } from "../data/applications.queries";
+import type {
+  ApplicationWithCandidate,
+  StageHistoryEvent,
+} from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import type { PipelineStageConfig } from "@/features/recruiter/pipeline-stages/schema";
 import { PipelineCard } from "./PipelineCard";
 import { PipelineDetailSheet } from "./PipelineDetailSheet";
-import { STAGE_DOT, isTerminal } from "./stage-visual";
+import { STAGE_DOT, isTerminal, getSlaStatus } from "./stage-visual";
 
 type Props = {
   applications: ApplicationWithCandidate[];
@@ -64,7 +67,12 @@ function PipelineColumn({
   onAnalizar,
   analyzingIds,
 }: ColumnProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: stageConf.stageKey });
+  // Etapa desactivada + con candidatos igual se muestra (ver visibleStages más abajo), pero
+  // no acepta drops: mismo criterio que ya respeta el selector manual "Cambiar etapa".
+  const { setNodeRef, isOver } = useDroppable({
+    id: stageConf.stageKey,
+    disabled: !stageConf.isActive,
+  });
 
   return (
     <section
@@ -136,6 +144,7 @@ export function PipelineView({
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [riskOnly, setRiskOnly] = useState(false);
 
   function onAnalizar(applicationId: string) {
     setAnalyzingIds((s) => new Set(s).add(applicationId));
@@ -146,7 +155,11 @@ export function PipelineView({
         next.delete(applicationId);
         return next;
       });
-      if (!res.ok) toast({ message: res.error ?? "No se pudo analizar.", variant: "danger" });
+      if (!res.ok)
+        toast({
+          message: res.error ?? "No se pudo analizar.",
+          variant: "danger",
+        });
       else toast({ message: "Candidato analizado con IA", variant: "success" });
     });
   }
@@ -226,61 +239,113 @@ export function PipelineView({
     (grouped[app.stage] ??= []).push(app);
   }
 
-  // Mostrar etapas activas + cualquier etapa con candidatos (aunque esté inactiva)
-  const visibleStages = stageConfig.filter(
-    (sc) => sc.isActive || (grouped[sc.stageKey]?.length ?? 0) > 0,
-  );
+  // "En riesgo" = SLA vencido o cerca de vencer en la etapa donde está hoy (ver getSlaStatus).
+  const slaByStage = new Map(stageConfig.map((s) => [s.stageKey, s.slaDays]));
+  const isAtRisk = (app: ApplicationWithCandidate) =>
+    getSlaStatus(stageEntryTimes[app.id], slaByStage.get(app.stage)) !== null;
+  const atRiskCount = optimisticApps.filter(isAtRisk).length;
 
-  const activeStageKeys = stageConfig.filter((s) => s.isActive).map((s) => s.stageKey);
-  const draggingApp = draggingId ? optimisticApps.find((a) => a.id === draggingId) : null;
+  // Mostrar etapas activas + cualquier etapa con candidatos (aunque esté inactiva). Con el
+  // filtro "en riesgo" activo, además se ocultan las columnas sin ningún candidato en riesgo.
+  const visibleStages = stageConfig
+    .filter((sc) => sc.isActive || (grouped[sc.stageKey]?.length ?? 0) > 0)
+    .filter((sc) => !riskOnly || (grouped[sc.stageKey] ?? []).some(isAtRisk));
+
+  const activeStageKeys = stageConfig
+    .filter((s) => s.isActive)
+    .map((s) => s.stageKey);
+  const draggingApp = draggingId
+    ? optimisticApps.find((a) => a.id === draggingId)
+    : null;
   const selected = optimisticApps.find((a) => a.id === selectedId) ?? null;
 
   return (
     <>
-      <DndContext
-        id="pipeline-dnd"
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <div className="flex gap-3 overflow-x-auto pb-4">
-          {visibleStages.map((stageConf) => (
-            <PipelineColumn
-              key={stageConf.stageKey}
-              stageConf={stageConf}
-              cards={grouped[stageConf.stageKey] ?? []}
-              interviewsByApplication={interviewsByApplication}
-              notesByApplication={notesByApplication}
-              stageEntryTimes={stageEntryTimes}
-              onMoveStage={onMoveStage}
-              onOpen={setSelectedId}
-              onAnalizar={onAnalizar}
-              analyzingIds={analyzingIds}
-            />
-          ))}
-        </div>
+      <div className="mb-3 flex items-center justify-end">
+        <button
+          type="button"
+          aria-pressed={riskOnly}
+          onClick={() => setRiskOnly((v) => !v)}
+          className={[
+            "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-3 py-1.5 text-xs font-semibold transition-colors",
+            riskOnly
+              ? "border-transparent bg-[#FEF3C7] text-[#92400E]"
+              : "border-border bg-surface text-muted hover:text-text",
+          ].join(" ")}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="currentColor"
+            aria-hidden
+          >
+            <path d="M6 0.5 11.5 11h-11L6 .5Zm-.6 4v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
+          </svg>
+          Solo en riesgo
+          <span className="tabular-nums">({atRiskCount})</span>
+        </button>
+      </div>
 
-        <DragOverlay>
-          {draggingApp ? (
-            <PipelineCard
-              application={draggingApp}
-              interviews={interviewsByApplication[draggingApp.id] ?? []}
-              noteCount={notesByApplication[draggingApp.id]?.length ?? 0}
-              onMoveStage={noop}
-              onOpen={noop}
-              isDragOverlay
-            />
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+      {riskOnly && atRiskCount === 0 ? (
+        <EmptyState
+          title="Ningún candidato en riesgo"
+          description="Nadie está cerca de vencer su SLA en la etapa donde está hoy."
+        />
+      ) : (
+        <DndContext
+          id="pipeline-dnd"
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <div className="flex gap-3 overflow-x-auto pb-4">
+            {visibleStages.map((stageConf) => (
+              <PipelineColumn
+                key={stageConf.stageKey}
+                stageConf={stageConf}
+                cards={
+                  riskOnly
+                    ? (grouped[stageConf.stageKey] ?? []).filter(isAtRisk)
+                    : (grouped[stageConf.stageKey] ?? [])
+                }
+                interviewsByApplication={interviewsByApplication}
+                notesByApplication={notesByApplication}
+                stageEntryTimes={stageEntryTimes}
+                onMoveStage={onMoveStage}
+                onOpen={setSelectedId}
+                onAnalizar={onAnalizar}
+                analyzingIds={analyzingIds}
+              />
+            ))}
+          </div>
+
+          <DragOverlay>
+            {draggingApp ? (
+              <PipelineCard
+                application={draggingApp}
+                interviews={interviewsByApplication[draggingApp.id] ?? []}
+                noteCount={notesByApplication[draggingApp.id]?.length ?? 0}
+                onMoveStage={noop}
+                onOpen={noop}
+                isDragOverlay
+              />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       <PipelineDetailSheet
         application={selected}
-        interviews={selected ? interviewsByApplication[selected.id] ?? [] : []}
+        interviews={
+          selected ? (interviewsByApplication[selected.id] ?? []) : []
+        }
         teamMembers={teamMembers}
-        notes={selected ? notesByApplication[selected.id] ?? [] : []}
-        stageEvents={selected ? stageEventsByApplication[selected.id] ?? [] : []}
+        notes={selected ? (notesByApplication[selected.id] ?? []) : []}
+        stageEvents={
+          selected ? (stageEventsByApplication[selected.id] ?? []) : []
+        }
         onMoveStage={onMoveStage}
         onClose={() => setSelectedId(null)}
         activeStageKeys={activeStageKeys}

@@ -3,11 +3,9 @@ import type { ReactNode } from "react";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { getOwnProfile, getOrganization } from "@/features/recruiter/settings/data/settings.queries";
 import { getCareerSiteCoverPublicUrl } from "@/features/recruiter/settings/data/settings.storage";
-import { listMembers, listPendingInvitations } from "@/features/recruiter/team/data/team.queries";
 import { ProfileSection } from "@/features/recruiter/settings/ui/ProfileSection";
 import { PasswordSection } from "@/features/recruiter/settings/ui/PasswordSection";
 import { WorkspaceSection } from "@/features/recruiter/settings/ui/WorkspaceSection";
-import { TeamSection } from "@/features/recruiter/team/ui/TeamSection";
 import { OnboardingTourReplayButton } from "@/features/recruiter/onboarding-tour/ui/OnboardingTourReplayButton";
 import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
 import { isGoogleCalendarConfigured } from "@/features/recruiter/google-calendar/data/oauth-client";
@@ -48,11 +46,9 @@ export default async function SettingsPage() {
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!user || !membership) notFound();
 
-  const [profile, org, members, invitations, googleConnection] = await Promise.all([
+  const [profile, org, googleConnection] = await Promise.all([
     getOwnProfile(),
     getOrganization(membership.organizationId),
-    listMembers(membership.organizationId),
-    listPendingInvitations(membership.organizationId),
     getConnectionByProfile(user.id, membership.organizationId),
   ]);
   const coverUrl = org?.careerSiteCoverUrl ? getCareerSiteCoverPublicUrl(org.careerSiteCoverUrl) : null;
@@ -64,7 +60,7 @@ export default async function SettingsPage() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         <h1 className="font-display text-xl font-bold text-text">Configuración</h1>
-        <p className="text-sm text-muted">Tu perfil, tu equipo y las preferencias del workspace.</p>
+        <p className="text-sm text-muted">Tu perfil y las preferencias del workspace.</p>
       </div>
 
       <Section title="Mi perfil">
@@ -87,18 +83,6 @@ export default async function SettingsPage() {
           <WorkspaceSection org={org} hasLogo={!!org.logoUrl} coverUrl={coverUrl} canEdit={canEditWorkspace} />
         </Section>
       )}
-
-      <Section
-        title="Mi equipo"
-        description="Invitá miembros, asigná roles y activá o desactivá accesos."
-      >
-        <TeamSection
-          members={members}
-          invitations={invitations}
-          currentRole={membership.role as OrgRole}
-          currentUserId={user.id}
-        />
-      </Section>
 
       <Section
         title="Onboarding"

@@ -9,16 +9,20 @@ import type { Job } from "@/db/schema";
  *   draft ──► open ──► paused ──► open
  *               └──► closed ◄──┘
  *
- * `closed` es terminal. Las transiciones inválidas se rechazan acá (regla de negocio).
+ * `closed` es terminal. Cualquier estado (salvo `archived`) puede archivarse: a
+ * diferencia de `closed`, archivar no es "perdida" sino sacarla de las listas activas.
+ * `archived` es terminal — sin desarchivar en esta v1. Las transiciones inválidas se
+ * rechazan acá (regla de negocio).
  */
 
 export type JobStatus = Job["status"];
 
 const TRANSITIONS: Record<JobStatus, JobStatus[]> = {
-  draft: ["open"],
-  open: ["paused", "closed"],
-  paused: ["open", "closed"],
-  closed: [],
+  draft: ["open", "archived"],
+  open: ["paused", "closed", "archived"],
+  paused: ["open", "closed", "archived"],
+  closed: ["archived"],
+  archived: [],
 };
 
 export function isValidTransition(from: JobStatus, to: JobStatus): boolean {

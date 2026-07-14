@@ -20,11 +20,32 @@ export const STATUS_LABELS: Record<InterviewStatus, string> = {
   cancelled: "Cancelada",
 };
 
+/** Tipo/propósito de la entrevista (espeja el enum `interview_type` del schema Drizzle).
+ *  Distinto de `mode` (modalidad presencial/remota/telefónica). */
+export const INTERVIEW_TYPES = ["screening", "technical", "behavioral", "client"] as const;
+export type InterviewType = (typeof INTERVIEW_TYPES)[number];
+
+export const TYPE_LABELS: Record<InterviewType, string> = {
+  screening: "Screening",
+  technical: "Técnica",
+  behavioral: "Comportamental",
+  client: "Con cliente",
+};
+
 /** Variante de Badge por estado (vocabulario del design system, ver DESIGN.md). */
 export const STATUS_BADGE: Record<InterviewStatus, "blue" | "success" | "muted"> = {
   scheduled: "blue",
   completed: "success",
   cancelled: "muted",
+};
+
+/** Variante de Badge por tipo — eco de los colores que ya usan las etapas del pipeline
+ *  (screening/interview_tech/interview_client en `Badge`), para no inventar un código nuevo. */
+export const TYPE_BADGE: Record<InterviewType, "blue" | "warning" | "muted" | "primary"> = {
+  screening: "blue",
+  technical: "warning",
+  behavioral: "muted",
+  client: "primary",
 };
 
 export const LOCATION_MAX_LENGTH = 500;
@@ -38,6 +59,9 @@ const interviewFields = {
   }),
   mode: z.enum(INTERVIEW_MODES, {
     errorMap: () => ({ message: "Modalidad inválida." }),
+  }),
+  type: z.enum(INTERVIEW_TYPES, {
+    errorMap: () => ({ message: "Tipo de entrevista inválido." }),
   }),
   location: z
     .string()

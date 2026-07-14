@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { candidateInputSchema, CV_ALLOWED_TYPES, CV_EXT_BY_TYPE } from "./schema";
+import {
+  candidateInputSchema,
+  candidateCreateInputSchema,
+  CV_ALLOWED_TYPES,
+  CV_EXT_BY_TYPE,
+} from "./schema";
 
 describe("candidateInputSchema.email", () => {
   it("acepta el campo ausente (no se rompe con null/undefined)", () => {
@@ -39,6 +44,28 @@ describe("candidateInputSchema.phone", () => {
   it("recorta espacios de un teléfono real", () => {
     const r = candidateInputSchema.safeParse({ fullName: "Ada", phone: "  +54 9 351 555-1234  " });
     expect(r.success && r.data.phone).toBe("+54 9 351 555-1234");
+  });
+});
+
+describe("candidateCreateInputSchema.email (obligatorio al cargar, a diferencia de editar)", () => {
+  it("rechaza el campo ausente", () => {
+    const r = candidateCreateInputSchema.safeParse({ fullName: "Ada" });
+    expect(r.success).toBe(false);
+  });
+
+  it("rechaza string vacío o solo espacios", () => {
+    const r = candidateCreateInputSchema.safeParse({ fullName: "Ada", email: "   " });
+    expect(r.success).toBe(false);
+  });
+
+  it("rechaza un email malformado", () => {
+    const r = candidateCreateInputSchema.safeParse({ fullName: "Ada", email: "no-es-email" });
+    expect(r.success).toBe(false);
+  });
+
+  it("acepta y normaliza un email real", () => {
+    const r = candidateCreateInputSchema.safeParse({ fullName: "Ada", email: " ADA@X.COM " });
+    expect(r.success && r.data.email).toBe("ada@x.com");
   });
 });
 

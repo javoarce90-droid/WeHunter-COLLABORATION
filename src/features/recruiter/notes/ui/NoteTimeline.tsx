@@ -5,6 +5,7 @@ import { agregarNotaAction, type NoteActionState } from "../actions";
 import { NOTE_MAX_LENGTH } from "../schema";
 import type { TimelineNote } from "../data/notes.queries";
 import { NoteList } from "./NoteList";
+import { NotesPrivacyBanner } from "./NotesPrivacyBanner";
 
 type Props = {
   applicationId: string;
@@ -29,6 +30,7 @@ export function NoteTimeline({ applicationId, jobId, notes }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
+      <NotesPrivacyBanner />
       {notes.length > 0 && <NoteList notes={notes} />}
 
       <form ref={formRef} action={dispatch} className="flex flex-col gap-1.5">

@@ -19,6 +19,7 @@ export type MoverEtapaDeps = {
     applicationId: string,
     organizationId: string,
   ) => Promise<ApplicationRow | null>;
+  isStageActive: (organizationId: string, stage: ApplicationStage) => Promise<boolean>;
   updateApplicationStage: (
     applicationId: string,
     fromStage: ApplicationStage,
@@ -51,6 +52,16 @@ export async function moverEtapa(
     return {
       ok: false,
       error: `No se puede mover un candidato que ya está en etapa "${STAGE_LABELS[application.stage]}".`,
+    };
+  }
+
+  // Misma regla que ya aplica el selector manual: no se mueve a una etapa desactivada
+  // (antes solo la UI del selector la respetaba; el drag&drop del Kanban no).
+  const active = await deps.isStageActive(ctx.organizationId, input.newStage);
+  if (!active) {
+    return {
+      ok: false,
+      error: `La etapa "${STAGE_LABELS[input.newStage]}" está desactivada.`,
     };
   }
 

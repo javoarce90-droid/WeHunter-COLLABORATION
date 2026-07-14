@@ -47,10 +47,10 @@ function MiniSidebar({
       )}
       <div style={{ marginTop: "auto", display: "flex", gap: 7, alignItems: "center", padding: "10px 8px 4px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
         <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#6d28d9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff" }}>
-          Y
+          S
         </div>
         <div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#fff" }}>Yas</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: "#fff" }}>Sofi</div>
           <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Admin</div>
         </div>
       </div>

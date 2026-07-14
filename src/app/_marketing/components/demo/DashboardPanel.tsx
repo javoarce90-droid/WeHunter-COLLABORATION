@@ -11,7 +11,7 @@ export function DashboardPanel({
     <div className="dw-main">
       <div style={{ fontSize: 12, color: "#aaa", marginBottom: 2 }}>Inicio</div>
       <div style={{ fontSize: 14, fontWeight: 700, color: "#111", marginBottom: 14 }}>
-        Buenas tardes, Yas 👋
+        Buenas tardes, Sofi 👋
       </div>
       <div
         style={{

@@ -27,14 +27,15 @@ export async function insertCandidate(
     fullName: string;
     email: string | null;
     cvUrl: string | null;
+    profileId?: string | null;
   } & CandidateDetails,
 ): Promise<{ candidateId: string }> {
   const db = await getDb();
-  const { organizationId, fullName, email, cvUrl, ...details } = args;
+  const { organizationId, fullName, email, cvUrl, profileId, ...details } = args;
   const rows = await db.rls((tx) =>
     tx
       .insert(candidates)
-      .values({ organizationId, fullName, email, cvUrl, ...details })
+      .values({ organizationId, fullName, email, cvUrl, profileId: profileId ?? null, ...details })
       .returning({ id: candidates.id }),
     "db.candidates.insert",
   );

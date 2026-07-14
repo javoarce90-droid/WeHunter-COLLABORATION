@@ -9,8 +9,10 @@ import {
 import {
   INTERVIEW_MODES,
   INTERVIEW_STATUSES,
+  INTERVIEW_TYPES,
   MODE_LABELS,
   STATUS_LABELS,
+  TYPE_LABELS,
   LOCATION_MAX_LENGTH,
   INTERVIEW_NOTES_MAX_LENGTH,
 } from "../schema";
@@ -83,20 +85,37 @@ export function InterviewForm({ applicationId, jobId, interview, teamMembers, on
         />
       </label>
 
-      <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
-        Modalidad
-        <select
-          name="mode"
-          defaultValue={interview?.mode ?? "remote"}
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
-        >
-          {INTERVIEW_MODES.map((m) => (
-            <option key={m} value={m}>
-              {MODE_LABELS[m]}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
+          Modalidad
+          <select
+            name="mode"
+            defaultValue={interview?.mode ?? "remote"}
+            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+          >
+            {INTERVIEW_MODES.map((m) => (
+              <option key={m} value={m}>
+                {MODE_LABELS[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
+          Tipo
+          <select
+            name="type"
+            defaultValue={interview?.type ?? "screening"}
+            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+          >
+            {INTERVIEW_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       {isEdit && (
         <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">

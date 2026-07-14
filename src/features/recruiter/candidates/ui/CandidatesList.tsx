@@ -20,6 +20,7 @@ import { CANDIDATE_SOURCE_LABELS } from "./source-meta";
 import { TALENT_STATE_LABELS, TALENT_STATE_BADGE, TALENT_STATE_ORDER } from "./talent-meta";
 import type { CandidateSource } from "../domain/candidate-details";
 import type { TalentState } from "../domain/cambiar-estado-talento";
+import { normalizeEmailKey, normalizeLinkedinKey } from "../domain/duplicate-keys";
 
 type JobOption = { id: string; title: string };
 type FilterKey = "all" | TalentState | "duplicates";
@@ -37,8 +38,10 @@ function sourceLabel(source: string | null): string {
 /** Claves de identidad para detectar duplicados: email y LinkedIn normalizados. */
 function dupKeys(c: Candidate): string[] {
   const keys: string[] = [];
-  if (c.email) keys.push("e:" + c.email.trim().toLowerCase());
-  if (c.linkedinUrl) keys.push("l:" + c.linkedinUrl.trim().toLowerCase().replace(/\/+$/, ""));
+  const email = normalizeEmailKey(c.email);
+  const linkedin = normalizeLinkedinKey(c.linkedinUrl);
+  if (email) keys.push("e:" + email);
+  if (linkedin) keys.push("l:" + linkedin);
   return keys;
 }
 

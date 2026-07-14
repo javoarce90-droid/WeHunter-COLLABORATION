@@ -3,8 +3,9 @@
  * tanto la page (server) como JobsList (client) sin cruzar el límite server/cliente.
  */
 
-// "all" + cada estado. Fuente de verdad del query param `?status=`.
-export const JOB_FILTERS = ["all", "open", "paused", "draft", "closed"] as const;
+// "all" + cada estado. Fuente de verdad del query param `?status=`. "all" excluye
+// `archived`: archivar existe justamente para sacar la búsqueda de las listas activas.
+export const JOB_FILTERS = ["all", "open", "paused", "draft", "closed", "archived"] as const;
 export type JobFilter = (typeof JOB_FILTERS)[number];
 
 export function isJobFilter(value: string | undefined): value is JobFilter {
@@ -17,4 +18,5 @@ export const FILTER_LABEL: Record<JobFilter, string> = {
   paused: "Pausadas",
   draft: "Borradores",
   closed: "Cerradas",
+  archived: "Archivadas",
 };

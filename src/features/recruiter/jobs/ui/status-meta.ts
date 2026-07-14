@@ -13,6 +13,7 @@ export const JOB_STATUS_META: Record<
   open: { label: "Abierta", variant: "success" },
   paused: { label: "Pausada", variant: "warning" },
   closed: { label: "Cerrada", variant: "danger" },
+  archived: { label: "Archivada", variant: "muted" },
 };
 
 // Tiempo relativo en es-AR. Usado en Server Components → se renderiza una sola vez.

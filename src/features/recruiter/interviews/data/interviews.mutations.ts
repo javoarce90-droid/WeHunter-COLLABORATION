@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { interviews } from "@/db/schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
-import type { InterviewMode, InterviewStatus } from "../schema";
+import type { InterviewMode, InterviewStatus, InterviewType } from "../schema";
 
 /** Escrituras de entrevistas. Cliente RLS; RLS garantiza el aislamiento por tenant. */
 
@@ -12,6 +12,7 @@ const returning = {
   applicationId: interviews.applicationId,
   scheduledAt: interviews.scheduledAt,
   mode: interviews.mode,
+  type: interviews.type,
   location: interviews.location,
   notes: interviews.notes,
   status: interviews.status,
@@ -26,6 +27,7 @@ function toRow(r: {
   applicationId: string;
   scheduledAt: Date;
   mode: string;
+  type: string;
   location: string | null;
   notes: string | null;
   status: string;
@@ -39,6 +41,7 @@ function toRow(r: {
     applicationId: r.applicationId,
     scheduledAt: r.scheduledAt,
     mode: r.mode as InterviewMode,
+    type: r.type as InterviewType,
     location: r.location,
     notes: r.notes,
     status: r.status as InterviewStatus,
@@ -53,6 +56,7 @@ export async function insertInterview(data: {
   applicationId: string;
   scheduledAt: Date;
   mode: InterviewMode;
+  type: InterviewType;
   location: string | null;
   notes: string | null;
   participantEmails: string[];
@@ -71,6 +75,7 @@ export async function updateInterview(
   data: {
     scheduledAt: Date;
     mode: InterviewMode;
+    type: InterviewType;
     status: InterviewStatus;
     location: string | null;
     notes: string | null;

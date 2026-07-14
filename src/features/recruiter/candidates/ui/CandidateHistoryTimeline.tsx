@@ -7,6 +7,7 @@ import type {
 } from "@/features/recruiter/applications/data/applications.queries";
 import { StageHistoryTimeline } from "@/features/recruiter/applications/ui/StageHistoryTimeline";
 import { NoteList } from "@/features/recruiter/notes/ui/NoteList";
+import { NotesPrivacyBanner } from "@/features/recruiter/notes/ui/NotesPrivacyBanner";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 
 type Props = {
@@ -33,6 +34,7 @@ export function CandidateHistoryTimeline({
 }: Props) {
   return (
     <div className="flex flex-col gap-5">
+      <NotesPrivacyBanner />
       {applications.map((app) => (
         <section
           key={app.id}
