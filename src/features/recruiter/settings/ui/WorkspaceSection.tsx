@@ -2,7 +2,6 @@
 
 import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { editarWorkspaceAction } from "../actions";
 import type { OrgSettings } from "../data/settings.queries";
 
@@ -30,6 +29,7 @@ export function WorkspaceSection({
   const branding = org.branding;
   const [primaryColor, setPrimaryColor] = useState(branding?.primaryColor ?? "");
   const [accentColor, setAccentColor] = useState(branding?.accentColor ?? "");
+  const [slug, setSlug] = useState(org.slug);
 
   if (!canEdit) {
     return (
@@ -89,6 +89,23 @@ export function WorkspaceSection({
       <p className="mt-2 border-t border-border pt-4 text-xs font-semibold uppercase tracking-wide text-label">
         Career Site
       </p>
+
+      <div className="flex flex-col gap-1.5 max-w-md">
+        <label className="text-xs font-semibold text-muted">Dirección del Career Site</label>
+        <div className="flex items-center overflow-hidden rounded-[var(--radius)] border border-border bg-surface focus-within:border-primary focus-within:ring-2 focus-within:ring-[var(--focus-ring)]">
+          <span className="shrink-0 border-r border-border bg-primary-light px-3 py-2 text-sm text-muted">
+            /careers/
+          </span>
+          <input
+            name="slug"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value.toLowerCase())}
+            required
+            className="w-full bg-transparent px-3 py-2 text-sm text-text outline-none"
+          />
+        </div>
+        <span className="text-xs text-muted">Minúsculas, números y guiones. Cambiarlo rompe los links ya compartidos.</span>
+      </div>
 
       <div className="flex items-center gap-4">
         {coverPreview ? (
@@ -225,12 +242,7 @@ export function WorkspaceSection({
       </div>
 
       <div className="flex items-center justify-between gap-4 rounded-[var(--radius)] border border-border px-3 py-2.5">
-        <Checkbox
-          name="careerSiteEnabled"
-          value="true"
-          defaultChecked={org.careerSiteEnabled}
-          label="Publicar el Career Site"
-        />
+        <span className="text-sm text-text">El Career Site está siempre publicado.</span>
         <a
           href={`/careers/${org.slug}`}
           target="_blank"

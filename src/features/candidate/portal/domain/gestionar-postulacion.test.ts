@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { retirarPostulacion, toStepperStage, puedeRetirarPostulacion } from "./gestionar-postulacion";
+import {
+  retirarPostulacion,
+  toStepperStage,
+  puedeRetirarPostulacion,
+  debeNotificarCandidato,
+} from "./gestionar-postulacion";
 
 describe("retirarPostulacion", () => {
   it("rechaza si no hay usuario autenticado", async () => {
@@ -41,6 +46,21 @@ describe("toStepperStage", () => {
     expect(toStepperStage("new")).toBe("new");
     expect(toStepperStage("hired")).toBe("hired");
     expect(toStepperStage("rejected")).toBe("rejected");
+  });
+});
+
+describe("debeNotificarCandidato", () => {
+  it("no notifica entre sub-etapas de entrevista (mismo estado visible)", () => {
+    expect(debeNotificarCandidato("interview_hr", "interview_tech")).toBe(false);
+    expect(debeNotificarCandidato("interview_tech", "interview_client")).toBe(false);
+  });
+
+  it("notifica cuando cambia el estado visible", () => {
+    expect(debeNotificarCandidato("new", "screening")).toBe(true);
+    expect(debeNotificarCandidato("screening", "interview_hr")).toBe(true);
+    expect(debeNotificarCandidato("interview_client", "offer")).toBe(true);
+    expect(debeNotificarCandidato("offer", "hired")).toBe(true);
+    expect(debeNotificarCandidato("interview_tech", "rejected")).toBe(true);
   });
 });
 

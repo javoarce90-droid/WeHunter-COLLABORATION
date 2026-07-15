@@ -1,4 +1,5 @@
 import { getNotifications } from "../data/notifications.queries";
+import { marcarLeidasAction } from "../actions";
 import { NotificationBell } from "./NotificationBell";
 
 /**
@@ -7,7 +8,7 @@ import { NotificationBell } from "./NotificationBell";
  */
 export async function NotificationBellLoader({ organizationId }: { organizationId: string }) {
   const { items, unread } = await getNotifications(organizationId);
-  return <NotificationBell items={items} unread={unread} />;
+  return <NotificationBell items={items} unread={unread} onMarkRead={marcarLeidasAction} />;
 }
 
 /** Fallback mientras carga: la campana sin contador (no salta el layout). */

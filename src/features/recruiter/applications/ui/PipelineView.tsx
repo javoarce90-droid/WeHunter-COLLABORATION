@@ -24,6 +24,7 @@ import type { InterviewRow } from "@/features/recruiter/interviews/domain/agenda
 import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import type { PipelineStageConfig } from "@/features/recruiter/pipeline-stages/schema";
+import type { ScreeningAnswerRow } from "@/features/recruiter/screening/data/screening.queries";
 import { PipelineCard } from "./PipelineCard";
 import { PipelineDetailSheet } from "./PipelineDetailSheet";
 import { STAGE_DOT, isTerminal, getSlaStatus } from "./stage-visual";
@@ -34,6 +35,7 @@ type Props = {
   teamMembers: TeamMemberOption[];
   notesByApplication: Record<string, TimelineNote[]>;
   stageEventsByApplication: Record<string, StageHistoryEvent[]>;
+  screeningAnswersByApplication: Record<string, ScreeningAnswerRow[]>;
   stageConfig: PipelineStageConfig[];
   stageEntryTimes: Record<string, Date>;
 };
@@ -136,6 +138,7 @@ export function PipelineView({
   teamMembers,
   notesByApplication,
   stageEventsByApplication,
+  screeningAnswersByApplication,
   stageConfig,
   stageEntryTimes,
 }: Props) {
@@ -345,6 +348,9 @@ export function PipelineView({
         notes={selected ? (notesByApplication[selected.id] ?? []) : []}
         stageEvents={
           selected ? (stageEventsByApplication[selected.id] ?? []) : []
+        }
+        screeningAnswers={
+          selected ? (screeningAnswersByApplication[selected.id] ?? []) : []
         }
         onMoveStage={onMoveStage}
         onClose={() => setSelectedId(null)}

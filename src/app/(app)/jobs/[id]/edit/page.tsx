@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { listClientsForSelect } from "@/features/recruiter/clients/data/clients.queries";
+import { listScreeningQuestionsByJob } from "@/features/recruiter/screening/data/screening.queries";
 import { JobForm } from "@/features/recruiter/jobs/ui/JobForm";
 import { editarBusquedaAction } from "@/features/recruiter/jobs/actions";
 
@@ -14,9 +15,10 @@ export default async function EditJobPage({
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [job, clients] = await Promise.all([
+  const [job, clients, screeningQuestions] = await Promise.all([
     getJobById(id, membership.organizationId),
     listClientsForSelect(membership.organizationId),
+    listScreeningQuestionsByJob(id, membership.organizationId),
   ]);
   if (!job) notFound();
 
@@ -49,6 +51,7 @@ export default async function EditJobPage({
           requirements: job.requirements,
           responsibilities: job.responsibilities,
           benefits: job.benefits,
+          screeningQuestions: screeningQuestions.map((q) => ({ ...q, options: q.options ?? undefined })),
         }}
       />
     </div>

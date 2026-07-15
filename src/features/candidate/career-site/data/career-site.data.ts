@@ -100,6 +100,14 @@ export const getCareerSite = cache(async (slug: string): Promise<CareerSite | nu
   return { ...org, jobs: raw.jobs };
 });
 
+export type CareerSiteScreeningQuestion = {
+  id: string;
+  type: "yes_no" | "text" | "number" | "multiple_choice";
+  label: string;
+  options: string[] | null;
+  required: boolean;
+};
+
 export type CareerSiteJobDetail = {
   id: string;
   title: string;
@@ -117,6 +125,7 @@ export type CareerSiteJobDetail = {
   requirements: string | null;
   responsibilities: string | null;
   benefits: { name: string; description: string }[] | null;
+  screeningQuestions: CareerSiteScreeningQuestion[];
   createdAt: string;
 };
 

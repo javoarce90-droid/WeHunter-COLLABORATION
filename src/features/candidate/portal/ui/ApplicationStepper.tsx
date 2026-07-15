@@ -1,6 +1,7 @@
 "use client";
 
 import { FileText, Search, Video, Award, PartyPopper, XCircle, Check } from "lucide-react";
+import { ESTADO_VISIBLE_LABELS } from "../domain/gestionar-postulacion";
 
 export type ApplicationStage = "new" | "screening" | "interview" | "offer" | "hired" | "rejected";
 
@@ -18,31 +19,31 @@ interface Step {
 const STEPS: Step[] = [
   {
     key: "new",
-    label: "Postulado",
+    label: ESTADO_VISIBLE_LABELS.new,
     description: "Tu postulación y CV fueron enviados al equipo de selección.",
     icon: FileText,
   },
   {
     key: "screening",
-    label: "En revisión",
+    label: ESTADO_VISIBLE_LABELS.screening,
     description: "Un reclutador está analizando tu perfil y experiencia.",
     icon: Search,
   },
   {
     key: "interview",
-    label: "Entrevista",
+    label: ESTADO_VISIBLE_LABELS.interview,
     description: "Fuiste preseleccionado para una entrevista técnica o de RRHH.",
     icon: Video,
   },
   {
     key: "offer",
-    label: "Propuesta",
+    label: ESTADO_VISIBLE_LABELS.offer,
     description: "El equipo extendió una oferta formal para que te unas.",
     icon: Award,
   },
   {
     key: "hired",
-    label: "Contratado",
+    label: ESTADO_VISIBLE_LABELS.hired,
     description: "¡Felicidades! Completaste con éxito el proceso de contratación.",
     icon: PartyPopper,
   },

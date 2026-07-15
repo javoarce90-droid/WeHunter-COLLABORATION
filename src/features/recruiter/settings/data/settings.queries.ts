@@ -46,7 +46,6 @@ export interface OrgSettings {
   name: string;
   slug: string;
   logoUrl: string | null;
-  careerSiteEnabled: boolean;
   careerSiteCoverUrl: string | null;
   branding: CareerSiteBranding | null;
 }
@@ -62,7 +61,6 @@ export async function getOrganization(organizationId: string): Promise<OrgSettin
           name: organizations.name,
           slug: organizations.slug,
           logoUrl: organizations.logoUrl,
-          careerSiteEnabled: organizations.careerSiteEnabled,
           careerSiteCoverUrl: organizations.careerSiteCoverUrl,
           careerSiteSettings: organizations.careerSiteSettings,
         })
@@ -78,7 +76,6 @@ export async function getOrganization(organizationId: string): Promise<OrgSettin
     name: row.name,
     slug: row.slug,
     logoUrl: row.logoUrl,
-    careerSiteEnabled: row.careerSiteEnabled,
     careerSiteCoverUrl: row.careerSiteCoverUrl,
     branding: (row.careerSiteSettings as CareerSiteBranding | null) ?? null,
   };

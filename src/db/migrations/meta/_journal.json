@@ -344,6 +344,41 @@
       "when": 1784060882829,
       "tag": "0048_big_rafael_vega",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1784121642781,
+      "tag": "0049_backfill_career_site_always_enabled",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1784124457557,
+      "tag": "0050_careless_fantastic_four",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1784127132308,
+      "tag": "0051_plain_falcon",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1784127157150,
+      "tag": "0052_career_site_screening_questions",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1784131949249,
+      "tag": "0053_condemned_zaladane",
+      "breakpoints": true
     }
   ]
 }

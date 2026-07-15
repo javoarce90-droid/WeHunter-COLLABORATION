@@ -13,6 +13,7 @@ import {
   loadThreadAction,
   crearTemplateAction,
   eliminarTemplateAction,
+  sincronizarGmailAction,
 } from "../actions";
 import type { ThreadListRow, MessageRow, ThreadHeader, TemplateRow } from "../data/messaging.queries";
 
@@ -67,8 +68,9 @@ export function Inbox({ threads, candidates, templates }: Props) {
 
       {/* Honestidad: el envío todavía no se entrega de verdad (sin Gmail/WhatsApp real). */}
       <p className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-xs text-muted">
-        Modo borrador: los mensajes se registran en el historial. El envío real por Gmail/WhatsApp
-        se conecta más adelante.
+        Modo borrador: lo que escribís acá se registra en el historial, pero todavía no sale de
+        verdad por Gmail ni WhatsApp. Los hilos de email sí podés traerlos reales con
+        &quot;Sincronizar con Gmail&quot;, uno por candidato.
       </p>
 
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
@@ -159,6 +161,7 @@ function Conversation({
   const toast = useToast();
   const [body, setBody] = useState("");
   const [sending, startSend] = useTransition();
+  const [syncing, startSync] = useTransition();
   const { header, messages } = conversation;
   const channelTemplates = templates.filter((t) => t.channel === header.channel);
 
@@ -175,6 +178,21 @@ function Conversation({
     });
   }
 
+  function sync() {
+    startSync(async () => {
+      const res = await sincronizarGmailAction(header.candidateId);
+      if (!res.ok) {
+        toast({ message: res.error ?? "No se pudo sincronizar con Gmail.", variant: "danger" });
+        return;
+      }
+      toast({
+        message: res.synced ? `${res.synced} mensaje${res.synced === 1 ? "" : "s"} nuevo${res.synced === 1 ? "" : "s"} de Gmail.` : "Ya estaba al día.",
+        variant: "success",
+      });
+      onSent();
+    });
+  }
+
   return (
     <>
       <header className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -187,9 +205,16 @@ function Conversation({
             )}
           </div>
         </div>
-        <Badge variant={header.channel === "whatsapp" ? "success" : "blue"}>
-          {CHANNEL_LABELS[header.channel]}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {header.channel === "email" && header.candidateEmail && (
+            <Button variant="secondary" size="sm" onClick={sync} disabled={syncing}>
+              {syncing ? "Sincronizando…" : "Sincronizar con Gmail"}
+            </Button>
+          )}
+          <Badge variant={header.channel === "whatsapp" ? "success" : "blue"}>
+            {CHANNEL_LABELS[header.channel]}
+          </Badge>
+        </div>
       </header>
 
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-4">

@@ -57,6 +57,33 @@ const benefitsField = z.preprocess((v) => {
 const markdownField = (max: number) =>
   z.preprocess(emptyToUndef, z.string().trim().max(max).optional());
 
+// El form manda las preguntas de screening como JSON en un hidden input (mismo patrón que
+// `benefits`). Label vacío se acepta acá (default "") — el dominio descarta esas filas en
+// silencio, igual que un beneficio sin cargar; no queremos que una fila en blanco tire abajo
+// el guardado de toda la búsqueda.
+export const screeningQuestionTypeSchema = z.enum(["yes_no", "text", "number", "multiple_choice"]);
+
+const screeningQuestionsField = z.preprocess((v) => {
+  if (typeof v !== "string" || v.trim() === "") return undefined;
+  try {
+    const parsed = JSON.parse(v);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}, z
+  .array(
+    z.object({
+      id: z.string().uuid().optional(),
+      type: screeningQuestionTypeSchema,
+      label: z.string().trim().max(200).default(""),
+      options: z.array(z.string().trim().max(120)).max(10).optional(),
+      required: z.boolean().default(true),
+    }),
+  )
+  .max(20)
+  .optional());
+
 export const jobModalitySchema = z.enum(["onsite", "remote", "hybrid"]);
 export const jobSenioritySchema = z.enum(["junior", "semisenior", "senior", "lead"]);
 export const jobPrioritySchema = z.enum(["low", "medium", "high"]);
@@ -126,6 +153,7 @@ export const jobInputSchema = z.object({
   requirements: markdownField(5000),
   responsibilities: markdownField(5000),
   benefits: benefitsField,
+  screeningQuestions: screeningQuestionsField,
 });
 
 export const jobStatusSchema = z.enum(["draft", "open", "paused", "closed", "archived"]);

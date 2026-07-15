@@ -1,3 +1,5 @@
+export type ScreeningAnswerInput = { questionId: string; value: string };
+
 export type PostularDesdeCareerSiteInput = {
   jobId: string;
   fullName: string;
@@ -6,12 +8,15 @@ export type PostularDesdeCareerSiteInput = {
   coverNote?: string;
   /** Ni el CV ni el teléfono son obligatorios para postularse. */
   cvPath?: string;
+  screeningAnswers?: ScreeningAnswerInput[];
 };
 
 export type PostularDesdeCareerSiteDeps = {
   // Invoca la función SECURITY DEFINER apply_to_career_site_job, que valida job abierto +
-  // Career Site habilitado, enlaza o crea el candidato (por email, "enlazar no duplicar") y
-  // crea la postulación. Devuelve null si rechazó (ya postulado, búsqueda no disponible).
+  // Career Site habilitado, enlaza o crea el candidato (por email, "enlazar no duplicar"),
+  // valida que las preguntas de screening obligatorias tengan respuesta, y crea la
+  // postulación + sus respuestas. Devuelve null si rechazó (ya postulado, búsqueda no
+  // disponible, faltan respuestas obligatorias).
   applyToJob: (args: {
     jobId: string;
     fullName: string;
@@ -19,6 +24,7 @@ export type PostularDesdeCareerSiteDeps = {
     phone: string | null;
     coverNote: string | null;
     cvPath: string | null;
+    screeningAnswers: ScreeningAnswerInput[];
   }) => Promise<{ applicationId: string; candidateId: string } | null>;
 };
 
@@ -44,6 +50,7 @@ export async function postularDesdeCareerSite(
     phone: input.phone?.trim() || null,
     coverNote: input.coverNote?.trim() || null,
     cvPath: input.cvPath?.trim() || null,
+    screeningAnswers: (input.screeningAnswers ?? []).filter((a) => a.value.trim()),
   });
 
   if (!result) {

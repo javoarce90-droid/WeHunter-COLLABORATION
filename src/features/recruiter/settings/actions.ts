@@ -108,7 +108,7 @@ export async function editarWorkspaceAction(
 ): Promise<ActionState> {
   const parsed = workspaceInputSchema.safeParse({
     name: formData.get("name"),
-    careerSiteEnabled: formData.get("careerSiteEnabled"),
+    slug: formData.get("slug"),
     description: formData.get("description"),
     primaryColor: formData.get("primaryColor"),
     accentColor: formData.get("accentColor"),
@@ -147,7 +147,7 @@ export async function editarWorkspaceAction(
   const result = await editarWorkspace(
     {
       name: rest.name,
-      careerSiteEnabled: rest.careerSiteEnabled,
+      slug: rest.slug,
       branding: {
         description: rest.description,
         primaryColor: rest.primaryColor,

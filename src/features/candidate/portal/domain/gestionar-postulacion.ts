@@ -32,15 +32,34 @@ export interface PortalApplication {
   benefits: Benefit[] | null;
 }
 
-/** ApplicationStepper (UI de Ale) solo distingue 5 pasos visuales; las 3 sub-etapas reales de
- * entrevista se agrupan en un único paso "interview". */
-export function toStepperStage(
-  stage: ApplicationStage,
-): "new" | "screening" | "interview" | "offer" | "hired" | "rejected" {
+export type EstadoVisibleCandidato = "new" | "screening" | "interview" | "offer" | "hired" | "rejected";
+
+/** Estado del proceso simplificado que ve el candidato (stepper, badges, filtros y
+ * notificaciones): las 3 sub-etapas reales de entrevista se agrupan en un único paso
+ * "interview" — al candidato no le mostramos el detalle interno de con quién entrevista. */
+export function toStepperStage(stage: ApplicationStage): EstadoVisibleCandidato {
   if (stage === "interview_hr" || stage === "interview_tech" || stage === "interview_client") {
     return "interview";
   }
   return stage;
+}
+
+/** Única fuente de verdad del texto de cada estado visible — la usan el badge de "Mis
+ * postulaciones", el ApplicationStepper y el título de las notificaciones al candidato. */
+export const ESTADO_VISIBLE_LABELS: Record<EstadoVisibleCandidato, string> = {
+  new: "Postulado",
+  screening: "En revisión",
+  interview: "Entrevista",
+  offer: "Propuesta",
+  hired: "Contratado",
+  rejected: "Finalizado",
+};
+
+/** Regla de negocio: al candidato solo le avisamos cuando cambia su estado VISIBLE, no en
+ * transiciones internas que caen dentro del mismo paso (ej. Entrev. RH → Entrev. Técnica
+ * son ambas "Entrevista" para el candidato — no son novedad para él). */
+export function debeNotificarCandidato(fromStage: ApplicationStage, toStage: ApplicationStage): boolean {
+  return toStepperStage(fromStage) !== toStepperStage(toStage);
 }
 
 /** El candidato solo puede autogestionar el retiro mientras la postulación sigue en una

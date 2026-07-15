@@ -35,21 +35,39 @@ export interface CareerSiteBranding {
 
 export interface OrgPatch {
   name?: string;
+  slug?: string;
   logoUrl?: string | null;
-  careerSiteEnabled?: boolean;
   careerSiteCoverUrl?: string;
   careerSiteSettings?: CareerSiteBranding;
+}
+
+/** El slug pedido ya lo usa otro workspace (choque contra organizations_slug_idx). */
+export class SlugTakenError extends Error {
+  constructor() {
+    super("Ese slug ya está en uso por otro workspace.");
+    this.name = "SlugTakenError";
+  }
+}
+
+function isSlugUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; constraint_name?: string } | null;
+  return e?.code === "23505" && e?.constraint_name === "organizations_slug_idx";
 }
 
 /** Actualiza el workspace. RLS: org_admin_can_update solo deja al owner/admin de esa org. */
 export async function updateOrganization(organizationId: string, patch: OrgPatch): Promise<void> {
   const db = await getDb();
-  await db.rls(
-    (tx) =>
-      tx
-        .update(organizations)
-        .set({ ...patch, updatedAt: new Date() })
-        .where(eq(organizations.id, organizationId)),
-    "db.settings.update-organization",
-  );
+  try {
+    await db.rls(
+      (tx) =>
+        tx
+          .update(organizations)
+          .set({ ...patch, updatedAt: new Date() })
+          .where(eq(organizations.id, organizationId)),
+      "db.settings.update-organization",
+    );
+  } catch (err) {
+    if (isSlugUniqueViolation(err)) throw new SlugTakenError();
+    throw err;
+  }
 }

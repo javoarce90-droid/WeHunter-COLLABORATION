@@ -37,6 +37,7 @@ export async function postularAction(
     email: formData.get("email"),
     phone: formData.get("phone"),
     coverNote: formData.get("coverNote"),
+    screeningAnswers: formData.get("screeningAnswers"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -76,6 +77,7 @@ export async function postularAction(
       phone: parsed.data.phone,
       coverNote: parsed.data.coverNote,
       cvPath,
+      screeningAnswers: parsed.data.screeningAnswers,
     },
     { applyToJob: applyToJobRpc },
   );
