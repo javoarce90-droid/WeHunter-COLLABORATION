@@ -53,6 +53,23 @@ describe("postularDesdeCareerSite", () => {
     );
   });
 
+  it("filtra respuestas de screening vacías antes de mandarlas", async () => {
+    const deps = makeDeps();
+    await postularDesdeCareerSite(
+      {
+        ...input,
+        screeningAnswers: [
+          { questionId: "q-1", value: "Sí" },
+          { questionId: "q-2", value: "   " },
+        ],
+      },
+      deps,
+    );
+    expect(deps.applyToJob).toHaveBeenCalledWith(
+      expect.objectContaining({ screeningAnswers: [{ questionId: "q-1", value: "Sí" }] }),
+    );
+  });
+
   it("propaga el rechazo de la función definer (ya postulado / búsqueda no disponible)", async () => {
     const deps = makeDeps({ applyToJob: vi.fn().mockResolvedValue(null) });
     const result = await postularDesdeCareerSite(input, deps);

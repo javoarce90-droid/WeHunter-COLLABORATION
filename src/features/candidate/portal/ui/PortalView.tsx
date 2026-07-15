@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { type Job } from "../data/mock-jobs";
 import { JobCard } from "./JobCard";
@@ -22,12 +22,14 @@ interface PortalViewProps {
     linkedinUrl: string;
     cvUrl: string | null;
   };
+  notificationBell?: ReactNode;
 }
 
 export function PortalView({
   initialJobs,
   appliedJobIds,
   candidate,
+  notificationBell,
 }: PortalViewProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -104,6 +106,8 @@ export function PortalView({
             </Link>
 
             <span className="h-4 w-px bg-white/20" />
+
+            {notificationBell}
 
             <form action={candidateLogoutAction}>
               <button

@@ -13,9 +13,12 @@ import { puntuarPostulaciones } from "./domain/puntuar-postulaciones";
 import {
   getJobForPipeline,
   getApplicationById,
+  getApplicationForMove,
   findExistingApplication,
   listApplicationsForScoring,
 } from "./data/applications.queries";
+import { debeNotificarCandidato, toStepperStage, ESTADO_VISIBLE_LABELS } from "@/features/candidate/portal/domain/gestionar-postulacion";
+import { notifyProfile } from "../notifications/data/notifications.mutations";
 import {
   insertApplication,
   updateApplicationStage,
@@ -223,6 +226,11 @@ export async function moverEtapaAction(
     return { error: "No autorizado." };
   }
 
+  const application = await getApplicationForMove(parsed.data.applicationId, membership.organizationId);
+  if (!application) {
+    return { error: "Postulación no encontrada." };
+  }
+
   const result = await moverEtapa(
     parsed.data,
     {
@@ -231,8 +239,7 @@ export async function moverEtapaAction(
       role: membership.role,
     },
     {
-      getApplicationById: (applicationId, organizationId) =>
-        getApplicationById(applicationId, organizationId),
+      getApplicationById: async () => application,
       isStageActive,
       updateApplicationStage,
     },
@@ -240,6 +247,20 @@ export async function moverEtapaAction(
 
   if (!result.ok) {
     return { error: result.error };
+  }
+
+  if (application.candidateProfileId && debeNotificarCandidato(application.stage, result.data.stage)) {
+    // Aviso al candidato: efecto secundario no crítico, no debe hacer fallar un cambio de
+    // etapa que ya se persistió (mismo criterio que enviarMensaje en rechazarVariosAction).
+    try {
+      await notifyProfile(membership.organizationId, application.candidateProfileId, {
+        type: "candidate_status",
+        title: `Tu postulación a "${application.jobTitle}" pasó a "${ESTADO_VISIBLE_LABELS[toStepperStage(result.data.stage)]}"`,
+        link: "/portal/mis-postulaciones",
+      });
+    } catch {
+      // no-op: el cambio de etapa ya se aplicó, un fallo al notificar no debe revertirlo.
+    }
   }
 
   revalidatePath(`/jobs/${result.data.jobId}/pipeline`);

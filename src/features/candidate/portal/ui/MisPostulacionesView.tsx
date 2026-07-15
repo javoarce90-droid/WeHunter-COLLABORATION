@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ApplicationStepper } from "./ApplicationStepper";
 import {
   toStepperStage,
   puedeRetirarPostulacion,
+  ESTADO_VISIBLE_LABELS,
   type PortalApplication,
 } from "../domain/gestionar-postulacion";
 import { retirarPostulacionAction } from "../actions";
@@ -32,18 +33,6 @@ import {
 } from "@/features/recruiter/jobs/ui/field-meta";
 import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
 
-const STAGE_LABEL: Record<PortalApplication["stage"], string> = {
-  new: "Postulado",
-  screening: "En revisión",
-  interview: "Entrevista",
-  interview_hr: "Entrevista",
-  interview_tech: "Entrevista",
-  interview_client: "Entrevista",
-  offer: "Propuesta",
-  hired: "Contratado",
-  rejected: "Finalizado",
-};
-
 type StageFilter = "all" | ReturnType<typeof toStepperStage>;
 
 const STAGE_FILTERS: StageFilter[] = [
@@ -58,20 +47,17 @@ const STAGE_FILTERS: StageFilter[] = [
 
 const FILTER_LABEL: Record<StageFilter, string> = {
   all: "Todas",
-  new: "Postulado",
-  screening: "En revisión",
-  interview: "Entrevista",
-  offer: "Propuesta",
-  hired: "Contratado",
-  rejected: "Finalizado",
+  ...ESTADO_VISIBLE_LABELS,
 };
 
 interface MisPostulacionesViewProps {
   initialApplications: PortalApplication[];
+  notificationBell?: ReactNode;
 }
 
 export function MisPostulacionesView({
   initialApplications,
+  notificationBell,
 }: MisPostulacionesViewProps) {
   const router = useRouter();
   const [applications, setApplications] = useState(initialApplications);
@@ -233,6 +219,8 @@ export function MisPostulacionesView({
 
             <span className="h-4 w-px bg-white/20" />
 
+            {notificationBell}
+
             <form action={candidateLogoutAction}>
               <button
                 type="submit"
@@ -337,7 +325,7 @@ export function MisPostulacionesView({
                       variant={toStepperStage(app.stage)}
                       className="text-[10px] whitespace-nowrap w-fit"
                     >
-                      {STAGE_LABEL[app.stage]}
+                      {ESTADO_VISIBLE_LABELS[toStepperStage(app.stage)]}
                     </Badge>
                   </div>
                 ))}
@@ -487,7 +475,7 @@ export function MisPostulacionesView({
                         {canWithdraw
                           ? "Esta acción removerá tu postulación de forma permanente."
                           : "Ya no podés retirarte: el proceso avanzó a la etapa de " +
-                            STAGE_LABEL[selectedApp.stage].toLowerCase() +
+                            ESTADO_VISIBLE_LABELS[toStepperStage(selectedApp.stage)].toLowerCase() +
                             "."}
                       </span>
                     </div>

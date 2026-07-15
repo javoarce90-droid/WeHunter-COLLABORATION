@@ -12,6 +12,8 @@ import { duplicarBusqueda } from "./domain/duplicar-busqueda";
 import { insertJob, updateJobFields, updateJobStatus } from "./data/jobs.mutations";
 import { getJobById, getJobStatus } from "./data/jobs.queries";
 import { getAiProvider } from "@/lib/ai";
+import { definirPreguntasScreening } from "@/features/recruiter/screening/domain/definir-preguntas-screening";
+import { syncScreeningQuestions } from "@/features/recruiter/screening/data/screening.mutations";
 
 export interface JobFormState {
   error?: string;
@@ -86,6 +88,7 @@ function parseJobForm(formData: FormData) {
     requirements: formData.get("requirements"),
     responsibilities: formData.get("responsibilities"),
     benefits: formData.get("benefits"),
+    screeningQuestions: formData.get("screeningQuestions"),
   });
 }
 
@@ -114,6 +117,15 @@ export async function crearBusquedaAction(
   );
   if (!result.ok) {
     return { error: result.error };
+  }
+
+  if (parsed.data.screeningQuestions) {
+    await definirPreguntasScreening(
+      result.data.jobId,
+      parsed.data.screeningQuestions,
+      { organizationId: membership?.organizationId ?? null, role: membership?.role ?? null },
+      { getJob: getJobById, syncQuestions: syncScreeningQuestions },
+    );
   }
 
   // Caés en el aviso de la búsqueda recién creada: revisás/editás el contenido y desde ahí
@@ -204,6 +216,15 @@ export async function editarBusquedaAction(
   );
   if (!result.ok) {
     return { error: result.error };
+  }
+
+  if (parsed.data.screeningQuestions) {
+    await definirPreguntasScreening(
+      jobId,
+      parsed.data.screeningQuestions,
+      { organizationId: membership?.organizationId ?? null, role: membership?.role ?? null },
+      { getJob: getJobById, syncQuestions: syncScreeningQuestions },
+    );
   }
 
   redirect("/jobs");

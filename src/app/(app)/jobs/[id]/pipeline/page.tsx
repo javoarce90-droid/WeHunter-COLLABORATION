@@ -11,6 +11,10 @@ import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interv
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import { getPipelineStageConfigs } from "@/features/recruiter/pipeline-stages/data/pipeline-stages.queries";
+import {
+  listScreeningAnswersByJob,
+  type ScreeningAnswerRow,
+} from "@/features/recruiter/screening/data/screening.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import { PipelineView } from "@/features/recruiter/applications/ui/PipelineView";
 import { AgregarCandidatos } from "@/features/recruiter/applications/ui/AgregarCandidatos";
@@ -26,7 +30,7 @@ export default async function PipelinePage({ params }: Props) {
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [applications, candidates, interviews, notes, stageConfig, stageEvents, members] =
+  const [applications, candidates, interviews, notes, stageConfig, stageEvents, members, screeningAnswers] =
     await Promise.all([
       listApplicationsByJob(jobId, membership.organizationId),
       listCandidates(membership.organizationId),
@@ -35,6 +39,7 @@ export default async function PipelinePage({ params }: Props) {
       getPipelineStageConfigs(membership.organizationId),
       listStageEventsByJob(jobId, membership.organizationId),
       listMembers(membership.organizationId),
+      listScreeningAnswersByJob(jobId, membership.organizationId),
     ]);
   const teamMembers = members
     .filter((m) => m.status === "active")
@@ -73,6 +78,13 @@ export default async function PipelinePage({ params }: Props) {
     },
     {},
   );
+  const screeningAnswersByApplication = screeningAnswers.reduce<Record<string, ScreeningAnswerRow[]>>(
+    (acc, a) => {
+      (acc[a.applicationId] ??= []).push(a);
+      return acc;
+    },
+    {},
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -93,6 +105,7 @@ export default async function PipelinePage({ params }: Props) {
         teamMembers={teamMembers}
         notesByApplication={notesByApplication}
         stageEventsByApplication={stageEventsByApplication}
+        screeningAnswersByApplication={screeningAnswersByApplication}
         stageConfig={stageConfig}
         stageEntryTimes={stageEntryTimes}
       />

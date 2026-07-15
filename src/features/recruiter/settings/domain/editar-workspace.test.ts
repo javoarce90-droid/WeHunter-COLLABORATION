@@ -1,13 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { editarWorkspace } from "./editar-workspace";
 import type { WorkspaceContext, EditarWorkspaceDeps } from "./editar-workspace";
+import { SlugTakenError } from "../data/settings.mutations";
 
 const owner: WorkspaceContext = { organizationId: "org-1", role: "owner" };
 const deps = (): EditarWorkspaceDeps => ({ updateOrganization: vi.fn().mockResolvedValue(undefined) });
-const base = { name: "Acme", careerSiteEnabled: true, branding: {} };
+const base = { name: "Acme", slug: "acme", branding: {} };
 
 describe("editarWorkspace", () => {
-  it("el owner edita nombre y branding del Career Site", async () => {
+  it("el owner edita nombre, slug y branding del Career Site", async () => {
     const d = deps();
     const r = await editarWorkspace(
       { ...base, branding: { description: "Somos una consultora", primaryColor: "#6D28D9" } },
@@ -17,9 +18,32 @@ describe("editarWorkspace", () => {
     expect(r.ok).toBe(true);
     expect(d.updateOrganization).toHaveBeenCalledWith("org-1", {
       name: "Acme",
-      careerSiteEnabled: true,
+      slug: "acme",
       careerSiteSettings: { description: "Somos una consultora", primaryColor: "#6D28D9" },
     });
+  });
+
+  it("normaliza el slug a minúsculas", async () => {
+    const d = deps();
+    await editarWorkspace({ ...base, slug: "ACME" }, owner, d);
+    expect(d.updateOrganization).toHaveBeenCalledWith(
+      "org-1",
+      expect.objectContaining({ slug: "acme" }),
+    );
+  });
+
+  it("rechaza slug vacío", async () => {
+    const d = deps();
+    const r = await editarWorkspace({ ...base, slug: "   " }, owner, d);
+    expect(r.ok).toBe(false);
+    expect(d.updateOrganization).not.toHaveBeenCalled();
+  });
+
+  it("informa cuando el slug ya está en uso por otro workspace", async () => {
+    const d: EditarWorkspaceDeps = { updateOrganization: vi.fn().mockRejectedValue(new SlugTakenError()) };
+    const r = await editarWorkspace(base, owner, d);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/ya está en uso/);
   });
 
   it("un admin también puede editar", async () => {
@@ -47,7 +71,7 @@ describe("editarWorkspace", () => {
     await editarWorkspace({ ...base, logoPath: "org-1/logo.png" }, owner, d);
     expect(d.updateOrganization).toHaveBeenCalledWith("org-1", {
       name: "Acme",
-      careerSiteEnabled: true,
+      slug: "acme",
       careerSiteSettings: {},
       logoUrl: "org-1/logo.png",
     });
@@ -58,19 +82,9 @@ describe("editarWorkspace", () => {
     await editarWorkspace({ ...base, coverPath: "org-1/cover.png" }, owner, d);
     expect(d.updateOrganization).toHaveBeenCalledWith("org-1", {
       name: "Acme",
-      careerSiteEnabled: true,
+      slug: "acme",
       careerSiteSettings: {},
       careerSiteCoverUrl: "org-1/cover.png",
-    });
-  });
-
-  it("puede despublicar el Career Site", async () => {
-    const d = deps();
-    await editarWorkspace({ ...base, careerSiteEnabled: false }, owner, d);
-    expect(d.updateOrganization).toHaveBeenCalledWith("org-1", {
-      name: "Acme",
-      careerSiteEnabled: false,
-      careerSiteSettings: {},
     });
   });
 });

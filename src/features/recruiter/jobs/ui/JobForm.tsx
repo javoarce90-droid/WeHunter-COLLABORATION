@@ -14,8 +14,13 @@ import type {
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { JobMarkdown } from "./markdown";
+import type {
+  ScreeningQuestionInput,
+  ScreeningQuestionType,
+} from "@/features/recruiter/screening/domain/definir-preguntas-screening";
 import {
   MODALITY_LABELS,
   SENIORITY_LABELS,
@@ -48,6 +53,7 @@ interface JobDefaults {
   requirements?: string | null;
   responsibilities?: string | null;
   benefits?: Benefit[] | null;
+  screeningQuestions?: ScreeningQuestionInput[] | null;
 }
 
 interface JobFormProps {
@@ -100,6 +106,13 @@ const REMOVE_ICON = (
   </svg>
 );
 
+const QUESTION_TYPE_LABELS: Record<ScreeningQuestionType, string> = {
+  yes_no: "Sí / No",
+  text: "Texto libre",
+  number: "Numérica",
+  multiple_choice: "Opción múltiple",
+};
+
 const initialState: JobFormState = {};
 
 export function JobForm({
@@ -140,6 +153,55 @@ export function JobForm({
   // Serializamos beneficios (lista dinámica) a un hidden input para que viajen en el FormData.
   const benefitsPayload = JSON.stringify(
     benefits.filter((b) => b.name.trim() || b.description.trim()),
+  );
+
+  const [screeningQuestions, setScreeningQuestions] = useState<ScreeningQuestionInput[]>(
+    defaults?.screeningQuestions ?? [],
+  );
+
+  function updateQuestion(i: number, patch: Partial<ScreeningQuestionInput>) {
+    setScreeningQuestions((qs) => qs.map((q, idx) => (idx === i ? { ...q, ...patch } : q)));
+  }
+  function addQuestion() {
+    setScreeningQuestions((qs) => [
+      ...qs,
+      { type: "yes_no", label: "", required: true },
+    ]);
+  }
+  function removeQuestion(i: number) {
+    setScreeningQuestions((qs) => qs.filter((_, idx) => idx !== i));
+  }
+  function changeQuestionType(i: number, type: ScreeningQuestionType) {
+    updateQuestion(i, {
+      type,
+      options: type === "multiple_choice" ? ["", ""] : undefined,
+    });
+  }
+  function updateOption(qi: number, oi: number, value: string) {
+    setScreeningQuestions((qs) =>
+      qs.map((q, idx) =>
+        idx === qi ? { ...q, options: (q.options ?? []).map((o, i) => (i === oi ? value : o)) } : q,
+      ),
+    );
+  }
+  function addOption(qi: number) {
+    setScreeningQuestions((qs) =>
+      qs.map((q, idx) => (idx === qi ? { ...q, options: [...(q.options ?? []), ""] } : q)),
+    );
+  }
+  // No se puede bajar de 2 opciones: es el mínimo para que la pregunta tenga sentido.
+  function removeOption(qi: number, oi: number) {
+    setScreeningQuestions((qs) =>
+      qs.map((q, idx) =>
+        idx === qi && (q.options?.length ?? 0) > 2
+          ? { ...q, options: (q.options ?? []).filter((_, i) => i !== oi) }
+          : q,
+      ),
+    );
+  }
+
+  const screeningQuestionsPayload = JSON.stringify(
+    screeningQuestions.filter((q) => q.label.trim()),
   );
 
   return (
@@ -345,6 +407,94 @@ export function JobForm({
                 </div>
               )}
               <input type="hidden" name="benefits" value={benefitsPayload} />
+            </div>
+          </Section>
+
+          <Section
+            title="Preguntas de screening"
+            hint="El candidato las responde al postularse. Las obligatorias bloquean el envío si quedan sin responder."
+          >
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted">Lista de preguntas</span>
+                <Button type="button" variant="ghost" size="sm" onClick={addQuestion}>
+                  + Agregar pregunta
+                </Button>
+              </div>
+              {screeningQuestions.length === 0 ? (
+                <p className="text-xs text-muted">Todavía no agregaste preguntas de screening.</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {screeningQuestions.map((q, i) => (
+                    <div key={i} className="flex flex-col gap-2 rounded-[var(--radius)] border border-border p-3">
+                      <div className="grid gap-2 sm:grid-cols-[2fr_1fr_auto]">
+                        <Input
+                          aria-label={`Pregunta ${i + 1}`}
+                          value={q.label}
+                          onChange={(e) => updateQuestion(i, { label: e.target.value })}
+                          placeholder="Ej: ¿Tenés disponibilidad para viajar?"
+                          maxLength={200}
+                        />
+                        <select
+                          aria-label={`Tipo de la pregunta ${i + 1}`}
+                          value={q.type}
+                          onChange={(e) => changeQuestionType(i, e.target.value as ScreeningQuestionType)}
+                          className={selectClass}
+                        >
+                          {Object.entries(QUESTION_TYPE_LABELS).map(([v, l]) => (
+                            <option key={v} value={v}>{l}</option>
+                          ))}
+                        </select>
+                        <IconButton
+                          aria-label={`Quitar pregunta ${i + 1}${q.label ? `: ${q.label}` : ""}`}
+                          variant="surface"
+                          onClick={() => removeQuestion(i)}
+                          className="hover:border-danger hover:text-danger"
+                        >
+                          {REMOVE_ICON}
+                        </IconButton>
+                      </div>
+
+                      {q.type === "multiple_choice" && (
+                        <div className="flex flex-col gap-1.5 pl-1">
+                          {(q.options ?? []).map((opt, oi) => (
+                            <div key={oi} className="flex items-center gap-2">
+                              <Input
+                                aria-label={`Opción ${oi + 1} de la pregunta ${i + 1}`}
+                                value={opt}
+                                onChange={(e) => updateOption(i, oi, e.target.value)}
+                                placeholder={`Opción ${oi + 1}`}
+                                maxLength={120}
+                                className="max-w-xs"
+                              />
+                              {(q.options?.length ?? 0) > 2 && (
+                                <IconButton
+                                  aria-label={`Quitar opción ${oi + 1}`}
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeOption(i, oi)}
+                                >
+                                  {REMOVE_ICON}
+                                </IconButton>
+                              )}
+                            </div>
+                          ))}
+                          <Button type="button" variant="ghost" size="sm" className="w-fit" onClick={() => addOption(i)}>
+                            + Agregar opción
+                          </Button>
+                        </div>
+                      )}
+
+                      <Checkbox
+                        checked={q.required}
+                        onChange={(e) => updateQuestion(i, { required: e.target.checked })}
+                        label="Obligatoria"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input type="hidden" name="screeningQuestions" value={screeningQuestionsPayload} />
             </div>
           </Section>
 

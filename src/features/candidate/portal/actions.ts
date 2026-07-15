@@ -67,6 +67,9 @@ export async function postularEnPortalAction(
       phone: typeof phone === "string" ? phone : undefined,
       coverNote: typeof linkedinUrl === "string" && linkedinUrl ? `LinkedIn: ${linkedinUrl}` : undefined,
       cvPath,
+      // La postulación rápida del portal (ApplicationModal) todavía no renderiza las preguntas
+      // de screening de la búsqueda — eso vive hoy solo en el flujo del Career Site (ApplyForm).
+      screeningAnswers: [],
     },
     { applyToJob: applyToJobRpc },
   );

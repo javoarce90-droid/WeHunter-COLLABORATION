@@ -7,6 +7,7 @@ import { ExperienceSection } from "@/features/candidate/profile/ui/ExperienceSec
 import { EducationSection } from "@/features/candidate/profile/ui/EducationSection";
 import { CertificationsSection } from "@/features/candidate/profile/ui/CertificationsSection";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
+import { DeleteAccountSection } from "@/features/candidate/account-deletion/ui/DeleteAccountSection";
 import { Avatar } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { WehunterLogo } from "@/components/ui/wehunter-logo";
@@ -135,6 +136,8 @@ export default async function CandidateProfilePage() {
             <CertificationsSection certifications={resume.certifications} />
           </div>
         </div>
+
+        <DeleteAccountSection />
       </main>
     </div>
   );

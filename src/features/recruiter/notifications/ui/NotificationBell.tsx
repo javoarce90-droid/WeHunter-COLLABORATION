@@ -4,13 +4,13 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { Menu } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
-import { marcarLeidasAction } from "../actions";
 import type { NotificationRow } from "../data/notifications.queries";
 
 const TYPE_DOT: Record<NotificationRow["type"], string> = {
   hire: "var(--success)",
   team: "var(--primary)",
   system: "var(--muted)",
+  candidate_status: "var(--primary)",
 };
 
 function relative(date: Date): string {
@@ -26,15 +26,20 @@ function relative(date: Date): string {
 export function NotificationBell({
   items,
   unread,
+  onMarkRead,
+  triggerClassName,
 }: {
   items: NotificationRow[];
   unread: number;
+  onMarkRead: () => Promise<unknown>;
+  /** Override de color del trigger — el default (`text-muted`) asume un header claro. */
+  triggerClassName?: string;
 }) {
   const [, start] = useTransition();
 
   function marcarLeidas() {
     start(async () => {
-      await marcarLeidasAction();
+      await onMarkRead();
     });
   }
 
@@ -42,7 +47,11 @@ export function NotificationBell({
     <Menu
       align="end"
       trigger={
-        <IconButton aria-label={`Notificaciones${unread > 0 ? `, ${unread} sin leer` : ""}`} variant="ghost">
+        <IconButton
+          aria-label={`Notificaciones${unread > 0 ? `, ${unread} sin leer` : ""}`}
+          variant="ghost"
+          className={triggerClassName}
+        >
           <span className="relative inline-flex">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />

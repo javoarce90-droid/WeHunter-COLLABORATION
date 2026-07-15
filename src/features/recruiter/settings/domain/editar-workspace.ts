@@ -1,4 +1,4 @@
-import type { OrgPatch, CareerSiteBranding } from "../data/settings.mutations";
+import { SlugTakenError, type OrgPatch, type CareerSiteBranding } from "../data/settings.mutations";
 
 export type OrgRole = "owner" | "admin" | "recruiter" | "consultant";
 
@@ -9,7 +9,7 @@ function canEditWorkspace(role: OrgRole): boolean {
 
 export type EditarWorkspaceInput = {
   name: string;
-  careerSiteEnabled: boolean;
+  slug: string;
   branding: CareerSiteBranding;
   logoPath?: string | null; // path ya subido a Storage; null = sin cambio gestionado aparte
   coverPath?: string | null; // idem, portada del Career Site
@@ -22,8 +22,9 @@ export type EditarWorkspaceDeps = {
 };
 
 /**
- * Caso de uso: editar el workspace y su Career Site (nombre, logo, portada, publicación y
- * branding). Es una única config: el Career Site es la cara pública de ese mismo workspace.
+ * Caso de uso: editar el workspace y su Career Site (nombre, slug, logo, portada y branding).
+ * Es una única config: el Career Site es la cara pública de ese mismo workspace, y es
+ * obligatorio para todo workspace (no se puede despublicar).
  * Autorización primaria acá (owner/admin) + RLS de respaldo (org_admin_can_update).
  */
 export async function editarWorkspace(
@@ -40,15 +41,27 @@ export async function editarWorkspace(
     return { ok: false, error: "El nombre del workspace es obligatorio." };
   }
 
+  const slug = input.slug.trim().toLowerCase();
+  if (slug.length === 0) {
+    return { ok: false, error: "El slug del Career Site es obligatorio." };
+  }
+
   const patch: OrgPatch = {
     name,
-    careerSiteEnabled: input.careerSiteEnabled,
+    slug,
     careerSiteSettings: input.branding,
   };
   // Logo y portada: solo se tocan si vino un path nuevo (la subida se resuelve en la action).
   if (input.logoPath) patch.logoUrl = input.logoPath;
   if (input.coverPath) patch.careerSiteCoverUrl = input.coverPath;
 
-  await deps.updateOrganization(ctx.organizationId, patch);
+  try {
+    await deps.updateOrganization(ctx.organizationId, patch);
+  } catch (e) {
+    if (e instanceof SlugTakenError) {
+      return { ok: false, error: "Ese slug ya está en uso por otro workspace. Probá con otro." };
+    }
+    throw e;
+  }
   return { ok: true };
 }

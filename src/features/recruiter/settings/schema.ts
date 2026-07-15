@@ -23,9 +23,17 @@ const colorField = () =>
 const urlField = () =>
   z.preprocess(emptyToUndef, z.string().trim().url("URL inválida.").max(300).optional());
 
+const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
 export const workspaceInputSchema = z.object({
   name: z.string().trim().min(1, "El nombre del workspace es obligatorio.").max(120),
-  careerSiteEnabled: z.preprocess((v) => v === "true" || v === "on", z.boolean()),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(3, "El slug debe tener al menos 3 caracteres.")
+    .max(60)
+    .regex(SLUG_RE, "Usá solo minúsculas, números y guiones (ej: mi-empresa)."),
   description: z.preprocess(
     emptyToUndef,
     z.string().trim().max(1000, "La descripción no puede superar los 1000 caracteres.").optional(),

@@ -71,6 +71,14 @@ export const rejectionReason = pgEnum("rejection_reason", [
   "otro",
 ]);
 
+// Tipo de pregunta de screening (§6 backlog). Fijo, no configurable por org.
+export const screeningQuestionType = pgEnum("screening_question_type", [
+  "yes_no",
+  "text",
+  "number",
+  "multiple_choice",
+]);
+
 // Decisión de la empresa sobre un candidato compartido en un shortlist.
 export const feedbackDecision = pgEnum("feedback_decision", [
   "approved",
@@ -135,6 +143,13 @@ export const jobArea = pgEnum("job_area", [
   "otro",
 ]);
 
+// Solicitud de búsqueda (Hiring Request, §17 backlog). Pendiente → aprobada (genera un `job`
+// vinculado, no lo reemplaza) / rechazada.
+export const requisitionStatus = pgEnum("requisition_status", ["pending", "approved", "rejected"]);
+
+// Motivo de la solicitud: crear un puesto nuevo, o cubrir uno que quedó vacante.
+export const requisitionReason = pgEnum("requisition_reason", ["new_position", "backfill"]);
+
 // De dónde salió el candidato. Trazabilidad de fuente del pool.
 export const candidateSource = pgEnum("candidate_source", [
   "manual",
@@ -189,8 +204,9 @@ export const invitationStatus = pgEnum("invitation_status", [
   "revoked",
 ]);
 
-// Tipo de notificación (para iconografía/agrupación).
-export const notificationType = pgEnum("notification_type", ["hire", "team", "system"]);
+// Tipo de notificación (para iconografía/agrupación). "candidate_status" = notificación al
+// candidato por un cambio en el estado visible de su postulación (no requiere membership).
+export const notificationType = pgEnum("notification_type", ["hire", "team", "system", "candidate_status"]);
 
 // ---- Tenancy ----
 
@@ -291,7 +307,9 @@ export const invitations = pgTable("invitations", {
   tokenIdx: uniqueIndex("invitations_token_idx").on(t.token),
 }));
 
-// Notificación dirigida a un miembro de la org (campana + inbox).
+// Notificación dirigida a un miembro de la org, o a un candidato con postulaciones en esa
+// org (campana + inbox). RLS: el destinatario ve/marca solo las suyas (profile_id = auth.uid()),
+// sin importar si tiene membership — así llegan también a candidatos.
 export const notifications = pgTable("notifications", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -327,6 +345,29 @@ export const clients = pgTable("clients", {
   ...timestamps,
 }, (t) => ({
   orgIdx: index("clients_org_idx").on(t.organizationId),
+}));
+
+// Link de acceso por token para que un Cliente (sin cuenta) pida búsquedas y vea el estado de
+// sus solicitudes — camino "Cliente" del Hiring Request (§17 backlog). Mismo patrón que
+// `shortlist_shares`, pero atado al `client` (persiste entre solicitudes) en vez de a un
+// shortlist puntual: acá no hay nada que compartir todavía cuando se genera el link.
+export const clientShares = pgTable("client_shares", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  clientId: uuid("client_id")
+    .references(() => clients.id, { onDelete: "cascade" })
+    .notNull(),
+  token: text("token").notNull(),
+  expiresAt: timestamp("expires_at"), // null = sin vencimiento
+  revokedAt: timestamp("revoked_at"), // null = activo
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("client_shares_org_idx").on(t.organizationId),
+  clientIdx: index("client_shares_client_idx").on(t.clientId),
+  tokenIdx: uniqueIndex("client_shares_token_idx").on(t.token),
 }));
 
 // Búsqueda / aviso.
@@ -371,6 +412,51 @@ export const jobs = pgTable("jobs", {
 }, (t) => ({
   orgIdx: index("jobs_org_idx").on(t.organizationId),
   clientIdx: index("jobs_client_idx").on(t.clientId),
+}));
+
+// Solicitud de búsqueda (Hiring Request, §17 backlog). La pide un Cliente externo (camino
+// Consultora/Freelance, sin cuenta, por `client_shares`) o un Hiring Manager interno (camino
+// Empresa/Enterprise, con cuenta — todavía no construido, `createdByProfileId` es forward
+// para cuando se arranque esa mitad). Exactamente uno de los dos debe estar seteado.
+// Aprobada → genera un `job` vinculado (no lo reemplaza, son entidades distintas).
+export const requisitions = pgTable("requisitions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  createdByProfileId: uuid("created_by_profile_id").references(() => profiles.id),
+  status: requisitionStatus("status").notNull().default("pending"),
+  reason: requisitionReason("reason").notNull(),
+  budget: text("budget"), // texto libre (sin moneda estructurada, v1)
+  estimatedStartDate: date("estimated_start_date"),
+  // Mismos campos ricos de JD que `jobs` (ver arriba) — se copian a `jobs` recién al aprobar.
+  title: text("title").notNull(),
+  position: text("position"),
+  jobArea: jobArea("job_area"),
+  location: text("location"),
+  modality: jobModality("modality"),
+  seniority: jobSeniority("seniority"),
+  employmentType: employmentType("employment_type"),
+  skills: text("skills").array(),
+  objectives: text("objectives"),
+  requirements: text("requirements"),
+  responsibilities: text("responsibilities"),
+  benefits: jsonb("benefits").$type<{ name: string; description: string }[]>(),
+  // Comentario del recruiter al aprobar/rechazar (ej. motivo de rechazo). Visible para quien pidió.
+  reviewNote: text("review_note"),
+  reviewedBy: uuid("reviewed_by").references(() => profiles.id),
+  reviewedAt: timestamp("reviewed_at"),
+  jobId: uuid("job_id").references(() => jobs.id, { onDelete: "set null" }),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("requisitions_org_idx").on(t.organizationId),
+  clientIdx: index("requisitions_client_idx").on(t.clientId),
+  statusIdx: index("requisitions_status_idx").on(t.organizationId, t.status),
+  sourceCheck: check(
+    "requisitions_source_check",
+    sql`(${t.clientId} is not null) <> (${t.createdByProfileId} is not null)`,
+  ),
 }));
 
 // Candidato en el pool del reclutador.
@@ -533,6 +619,52 @@ export const applications = pgTable("applications", {
   uniqueJobCandidate: uniqueIndex("applications_job_candidate_unique").on(
     t.jobId,
     t.candidateId,
+  ),
+}));
+
+// Pregunta de screening definida por el recruiter para una búsqueda puntual (§6 backlog).
+// `options` solo aplica a type = 'multiple_choice'. `position` = orden de presentación al
+// candidato (orden de carga en el form, sin drag&drop todavía — mismo criterio que `benefits`).
+export const screeningQuestions = pgTable("screening_questions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id")
+    .references(() => jobs.id, { onDelete: "cascade" })
+    .notNull(),
+  type: screeningQuestionType("type").notNull(),
+  label: text("label").notNull(),
+  options: text("options").array(),
+  required: boolean("required").notNull().default(true),
+  position: integer("position").notNull().default(0),
+  ...timestamps,
+}, (t) => ({
+  jobIdx: index("screening_questions_job_idx").on(t.jobId, t.position),
+}));
+
+// Respuesta del candidato a una pregunta de screening, al postularse. `value` guarda el
+// texto tal cual se muestra al recruiter (sí/no ya resuelto a texto, número como string,
+// la opción elegida) — es dato de solo-lectura para el recruiter, no se recalcula.
+export const screeningAnswers = pgTable("screening_answers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  applicationId: uuid("application_id")
+    .references(() => applications.id, { onDelete: "cascade" })
+    .notNull(),
+  questionId: uuid("question_id")
+    .references(() => screeningQuestions.id, { onDelete: "cascade" })
+    .notNull(),
+  value: text("value").notNull(),
+  ...timestamps,
+}, (t) => ({
+  applicationIdx: index("screening_answers_application_idx").on(t.applicationId),
+  // Una respuesta por pregunta por postulación — apply_to_career_site_job inserta una vez.
+  uniqueAnswer: uniqueIndex("screening_answers_application_question_idx").on(
+    t.applicationId,
+    t.questionId,
   ),
 }));
 
@@ -731,8 +863,9 @@ export const messageThreads = pgTable("message_threads", {
   ),
 }));
 
-// Mensaje dentro de un hilo. El envío es mock (no hay Gmail/WhatsApp real todavía):
-// outbound = lo que mandó el reclutador; inbound queda para la integración real (diferida).
+// Mensaje dentro de un hilo. El envío saliente sigue siendo mock (no hay integración real de
+// envío); el canal `email` sí tiene lectura real: `externalId` (id del mensaje en Gmail) marca
+// los que vinieron del sync — permite re-sincronizar sin duplicar (§8 backlog).
 export const messages = pgTable("messages", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -743,11 +876,15 @@ export const messages = pgTable("messages", {
     .notNull(),
   direction: messageDirection("direction").notNull().default("outbound"),
   body: text("body").notNull(),
+  // null = mensaje nativo de WeHunter (mock). Con valor = vino del sync de Gmail (id real del
+  // mensaje). Postgres no exige unicidad entre NULLs, así que esto no molesta a los mocks.
+  externalId: text("external_id"),
   createdBy: uuid("created_by").references(() => profiles.id),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("messages_org_idx").on(t.organizationId),
   threadIdx: index("messages_thread_idx").on(t.threadId),
+  uniqueExternal: uniqueIndex("messages_thread_external_idx").on(t.threadId, t.externalId),
 }));
 
 // ---- Shortlists (compartir candidatos con la empresa) ----
@@ -842,14 +979,18 @@ export const shortlistFeedback = pgTable("shortlist_feedback", {
 export type Organization = typeof organizations.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
 export type Client = typeof clients.$inferSelect;
+export type ClientShare = typeof clientShares.$inferSelect;
 export type PipelineStageRow = typeof pipelineStages.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
+export type Requisition = typeof requisitions.$inferSelect;
 export type Candidate = typeof candidates.$inferSelect;
 export type CandidateWorkExperience = typeof candidateWorkExperiences.$inferSelect;
 export type CandidateEducation = typeof candidateEducation.$inferSelect;
 export type CandidateCertification = typeof candidateCertifications.$inferSelect;
 export type CandidateJobInteraction = typeof candidateJobInteractions.$inferSelect;
 export type Application = typeof applications.$inferSelect;
+export type ScreeningQuestion = typeof screeningQuestions.$inferSelect;
+export type ScreeningAnswer = typeof screeningAnswers.$inferSelect;
 export type Interview = typeof interviews.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type ApplicationEvent = typeof applicationEvents.$inferSelect;

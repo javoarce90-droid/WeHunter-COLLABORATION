@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { postularAction, type PostularActionState } from "../actions";
@@ -30,6 +30,13 @@ export function ApplyForm({
   accentColor?: string;
 }) {
   const [state, formAction, pending] = useActionState(postularAction, initialState);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const questions = job.screeningQuestions ?? [];
+  const answersPayload = JSON.stringify(
+    Object.entries(answers)
+      .filter(([, value]) => value.trim())
+      .map(([questionId, value]) => ({ questionId, value })),
+  );
 
   if (state.ok) {
     return (
@@ -77,6 +84,72 @@ export function ApplyForm({
             />
           </div>
           <span className="text-xs text-muted">PDF, DOC o DOCX · máx. 5 MB</span>
+        </div>
+      )}
+
+      {questions.length > 0 && (
+        <div className="flex flex-col gap-4 border-t border-border pt-4">
+          {questions.map((q) => (
+            <div key={q.id} className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-muted">
+                {q.label}
+                {q.required && <span className="text-danger"> *</span>}
+              </label>
+
+              {q.type === "yes_no" && (
+                <div className="flex gap-4">
+                  {["Sí", "No"].map((opt) => (
+                    <label key={opt} className="flex items-center gap-1.5 text-sm text-text">
+                      <input
+                        type="radio"
+                        name={`screening-${q.id}`}
+                        required={q.required}
+                        checked={answers[q.id] === opt}
+                        onChange={() => setAnswers((a) => ({ ...a, [q.id]: opt }))}
+                      />
+                      {opt}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {q.type === "text" && (
+                <textarea
+                  rows={2}
+                  maxLength={500}
+                  required={q.required}
+                  value={answers[q.id] ?? ""}
+                  onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
+                  className={fieldClass}
+                />
+              )}
+
+              {q.type === "number" && (
+                <input
+                  type="number"
+                  required={q.required}
+                  value={answers[q.id] ?? ""}
+                  onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
+                  className={fieldClass}
+                />
+              )}
+
+              {q.type === "multiple_choice" && (
+                <select
+                  required={q.required}
+                  value={answers[q.id] ?? ""}
+                  onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
+                  className={fieldClass}
+                >
+                  <option value="">Elegí una opción</option>
+                  {(q.options ?? []).map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          ))}
+          <input type="hidden" name="screeningAnswers" value={answersPayload} />
         </div>
       )}
 
