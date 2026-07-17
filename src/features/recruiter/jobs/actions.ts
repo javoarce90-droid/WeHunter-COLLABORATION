@@ -230,7 +230,7 @@ export async function editarBusquedaAction(
   redirect("/jobs");
 }
 
-/** Botones de estado (publicar/pausar/cerrar). Revalida la lista al terminar. */
+/** Botones de estado (publicar/pausar/cerrar). Revalida la lista y la búsqueda al terminar. */
 export async function cambiarEstadoBusquedaAction(
   formData: FormData,
 ): Promise<void> {
@@ -249,6 +249,9 @@ export async function cambiarEstadoBusquedaAction(
   );
 
   revalidatePath("/jobs");
+  // Las pantallas de la búsqueda también muestran el estado (ej. publicar desde el aviso):
+  // sin esto el botón queda mostrando la acción que ya se ejecutó.
+  revalidatePath(`/jobs/${jobId}`, "layout");
 }
 
 /** Duplica una búsqueda: copia borrador de sus campos, sin candidatos ni pipeline. */

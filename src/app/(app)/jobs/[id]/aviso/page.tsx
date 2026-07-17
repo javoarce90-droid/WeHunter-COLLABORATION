@@ -12,6 +12,7 @@ import {
   AREA_LABELS,
 } from "@/features/recruiter/jobs/ui/field-meta";
 import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
+import { PublicarAvisoControl } from "@/features/recruiter/jobs/ui/PublicarAvisoControl";
 
 function formatSalary(
   min: number | null,
@@ -73,9 +74,9 @@ export default async function JobPostingPreviewPage({
 
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-muted">Vista previa del aviso público</span>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <Link
             href={`/jobs/${job.id}/edit`}
             className="text-xs font-semibold text-primary hover:text-primary-hover"
@@ -87,6 +88,7 @@ export default async function JobPostingPreviewPage({
             poolCandidates={poolCandidates}
             redirectAfterAddTo={`/jobs/${job.id}/pipeline`}
           />
+          <PublicarAvisoControl job={job} />
         </div>
       </div>
 
