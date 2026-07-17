@@ -11,12 +11,15 @@ export type PostularDesdeCareerSiteInput = {
   screeningAnswers?: ScreeningAnswerInput[];
 };
 
+export type ApplyOutcome =
+  | { ok: true; data: { applicationId: string; candidateId: string } }
+  | { ok: false; reason: "screening"; faltantes: string }
+  | { ok: false; reason: "unavailable" };
+
 export type PostularDesdeCareerSiteDeps = {
   // Invoca la función SECURITY DEFINER apply_to_career_site_job, que valida job abierto +
   // Career Site habilitado, enlaza o crea el candidato (por email, "enlazar no duplicar"),
-  // valida que las preguntas de screening obligatorias tengan respuesta, y crea la
-  // postulación + sus respuestas. Devuelve null si rechazó (ya postulado, búsqueda no
-  // disponible, faltan respuestas obligatorias).
+  // exige respuesta en las preguntas obligatorias, y crea la postulación + sus respuestas.
   applyToJob: (args: {
     jobId: string;
     fullName: string;
@@ -25,14 +28,20 @@ export type PostularDesdeCareerSiteDeps = {
     coverNote: string | null;
     cvPath: string | null;
     screeningAnswers: ScreeningAnswerInput[];
-  }) => Promise<{ applicationId: string; candidateId: string } | null>;
+  }) => Promise<ApplyOutcome>;
 };
 
 /**
- * Caso de uso: postularse a una búsqueda desde el Career Site público.
+ * Caso de uso: postularse a una búsqueda, desde el Career Site público o desde el portal del
+ * candidato (los dos flujos pasan por acá).
+ *
  * No hay contexto de rol/organization (el postulante no es miembro de ninguna org) — la
  * autorización real vive en la función definer, igual que registrarFeedback delega en
- * submit_shortlist_feedback. Acá solo se valida forma.
+ * submit_shortlist_feedback. Acá se valida forma y se traduce el rechazo a un mensaje.
+ *
+ * Las preguntas obligatorias las exige la función definer, no este caso de uso: es el único
+ * punto por el que pasan los dos flujos y el único que tiene las preguntas reales de la
+ * búsqueda (el cliente podría mandar menos respuestas de las que hay).
  */
 export async function postularDesdeCareerSite(
   input: PostularDesdeCareerSiteInput,
@@ -53,7 +62,13 @@ export async function postularDesdeCareerSite(
     screeningAnswers: (input.screeningAnswers ?? []).filter((a) => a.value.trim()),
   });
 
-  if (!result) {
+  if (!result.ok) {
+    if (result.reason === "screening") {
+      return {
+        ok: false,
+        error: `Respondé las preguntas obligatorias antes de postularte: ${result.faltantes}.`,
+      };
+    }
     return {
       ok: false,
       error:
@@ -61,5 +76,5 @@ export async function postularDesdeCareerSite(
     };
   }
 
-  return { ok: true, data: { applicationId: result.applicationId } };
+  return { ok: true, data: { applicationId: result.data.applicationId } };
 }

@@ -3,7 +3,9 @@ import { postularDesdeCareerSite } from "./postular-desde-career-site";
 import type { PostularDesdeCareerSiteDeps } from "./postular-desde-career-site";
 
 const makeDeps = (overrides?: Partial<PostularDesdeCareerSiteDeps>): PostularDesdeCareerSiteDeps => ({
-  applyToJob: vi.fn().mockResolvedValue({ applicationId: "app-1", candidateId: "cand-1" }),
+  applyToJob: vi
+    .fn()
+    .mockResolvedValue({ ok: true, data: { applicationId: "app-1", candidateId: "cand-1" } }),
   ...overrides,
 });
 
@@ -71,10 +73,28 @@ describe("postularDesdeCareerSite", () => {
   });
 
   it("propaga el rechazo de la función definer (ya postulado / búsqueda no disponible)", async () => {
-    const deps = makeDeps({ applyToJob: vi.fn().mockResolvedValue(null) });
+    const deps = makeDeps({
+      applyToJob: vi.fn().mockResolvedValue({ ok: false, reason: "unavailable" }),
+    });
     const result = await postularDesdeCareerSite(input, deps);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatch(/no se pudo/i);
+  });
+
+  it("cuando faltan obligatorias, dice cuáles en vez del mensaje genérico", async () => {
+    const deps = makeDeps({
+      applyToJob: vi.fn().mockResolvedValue({
+        ok: false,
+        reason: "screening",
+        faltantes: "¿Tenés disponibilidad full time?, Años de experiencia",
+      }),
+    });
+    const result = await postularDesdeCareerSite(input, deps);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/obligatorias/i);
+    expect(result.error).toContain("¿Tenés disponibilidad full time?");
+    expect(result.error).not.toMatch(/ya te hayas postulado/i);
   });
 });
