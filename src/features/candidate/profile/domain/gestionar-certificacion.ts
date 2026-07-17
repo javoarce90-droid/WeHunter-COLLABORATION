@@ -1,4 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
+import { normalizeUrl } from "@/lib/url";
 import type { ResumeOwner } from "./gestionar-experiencia";
 
 export type { ResumeOwner };
@@ -18,7 +19,7 @@ export function normalizeCertificacion(input: CertificacionInput): Result<Normal
   const name = input.name.trim();
   if (!name) return err("El nombre del certificado es obligatorio.");
 
-  return ok({ name, url: input.url?.trim() || null });
+  return ok({ name, url: normalizeUrl(input.url ?? "") || null });
 }
 
 export interface AgregarCertificacionDeps {

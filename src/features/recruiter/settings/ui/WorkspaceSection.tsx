@@ -191,8 +191,9 @@ export function WorkspaceSection({
           <label className="text-xs font-semibold text-muted">Sitio web</label>
           <input
             name="website"
-            type="url"
-            placeholder="https://"
+            type="text"
+            inputMode="url"
+            placeholder="tu-empresa.com"
             defaultValue={branding?.website ?? ""}
             className={fieldClass}
           />
@@ -202,8 +203,9 @@ export function WorkspaceSection({
             <label className="text-xs font-semibold text-muted">LinkedIn</label>
             <input
               name="linkedinUrl"
-              type="url"
-              placeholder="https://linkedin.com/company/..."
+              type="text"
+            inputMode="url"
+              placeholder="linkedin.com/company/..."
               defaultValue={branding?.social?.linkedin ?? ""}
               className={fieldClass}
             />
@@ -212,8 +214,9 @@ export function WorkspaceSection({
             <label className="text-xs font-semibold text-muted">Instagram</label>
             <input
               name="instagramUrl"
-              type="url"
-              placeholder="https://instagram.com/..."
+              type="text"
+            inputMode="url"
+              placeholder="instagram.com/..."
               defaultValue={branding?.social?.instagram ?? ""}
               className={fieldClass}
             />
@@ -222,8 +225,9 @@ export function WorkspaceSection({
             <label className="text-xs font-semibold text-muted">X</label>
             <input
               name="xUrl"
-              type="url"
-              placeholder="https://x.com/..."
+              type="text"
+            inputMode="url"
+              placeholder="x.com/..."
               defaultValue={branding?.social?.x ?? ""}
               className={fieldClass}
             />
@@ -232,8 +236,9 @@ export function WorkspaceSection({
             <label className="text-xs font-semibold text-muted">Facebook</label>
             <input
               name="facebookUrl"
-              type="url"
-              placeholder="https://facebook.com/..."
+              type="text"
+            inputMode="url"
+              placeholder="facebook.com/..."
               defaultValue={branding?.social?.facebook ?? ""}
               className={fieldClass}
             />

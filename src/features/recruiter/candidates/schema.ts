@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toOptionalUrl } from "@/lib/url";
 
 /** Schemas de input de la feature de candidatos. Validación cerca de la action. */
 
@@ -41,7 +42,7 @@ export const candidateInputSchema = z.object({
   headline: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
   phone: z.preprocess(emptyToUndef, z.string().trim().max(40).optional()),
   location: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
-  linkedinUrl: z.preprocess(emptyToUndef, z.string().trim().max(300).optional()),
+  linkedinUrl: z.preprocess(toOptionalUrl, z.string().trim().max(300).optional()),
   summary: z.preprocess(emptyToUndef, z.string().trim().max(5000).optional()),
   skills: skillsField,
   source: z.preprocess(emptyToUndef, candidateSourceSchema.optional()),

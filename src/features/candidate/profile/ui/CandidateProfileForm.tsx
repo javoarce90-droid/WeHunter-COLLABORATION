@@ -164,10 +164,11 @@ export function CandidateProfileForm({
           <Input
             label="Perfil de LinkedIn"
             name="linkedinUrl"
-            type="url"
+            type="text"
+            inputMode="url"
             value={linkedinUrl}
             onChange={(e) => setLinkedinUrl(e.target.value)}
-            placeholder="https://linkedin.com/in/tu-perfil"
+            placeholder="linkedin.com/in/tu-perfil"
           />
 
           {/* Resumen */}

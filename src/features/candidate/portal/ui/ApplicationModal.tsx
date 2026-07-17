@@ -227,11 +227,12 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
             {/* LinkedIn (Opcional) */}
             <Input
               label="Perfil de LinkedIn (Opcional)"
-              type="url"
+              type="text"
+              inputMode="url"
               disabled={isSubmitting}
               value={linkedinUrl}
               onChange={(e) => setLinkedinUrl(e.target.value)}
-              placeholder="https://linkedin.com/in/tu-perfil"
+              placeholder="linkedin.com/in/tu-perfil"
             />
           </div>
 
