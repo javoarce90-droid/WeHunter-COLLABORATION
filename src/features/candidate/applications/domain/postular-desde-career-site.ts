@@ -1,3 +1,5 @@
+import { perfilListoParaPostular } from "./perfil-minimo";
+
 export type ScreeningAnswerInput = { questionId: string; value: string };
 
 export type PostularDesdeCareerSiteInput = {
@@ -5,8 +7,8 @@ export type PostularDesdeCareerSiteInput = {
   fullName: string;
   email: string;
   phone?: string;
+  location?: string;
   coverNote?: string;
-  /** Ni el CV ni el teléfono son obligatorios para postularse. */
   cvPath?: string;
   screeningAnswers?: ScreeningAnswerInput[];
 };
@@ -46,10 +48,30 @@ export type PostularDesdeCareerSiteDeps = {
 export async function postularDesdeCareerSite(
   input: PostularDesdeCareerSiteInput,
   deps: PostularDesdeCareerSiteDeps,
-): Promise<{ ok: true; data: { applicationId: string } } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; data: { applicationId: string } }
+  | { ok: false; reason: "perfil-incompleto"; faltantes: string[]; error: string }
+  | { ok: false; error: string }
+> {
   const fullName = input.fullName.trim();
   if (!fullName) {
     return { ok: false, error: "Ingresá tu nombre." };
+  }
+
+  const perfil = perfilListoParaPostular({
+    fullName,
+    email: input.email.trim(),
+    phone: input.phone?.trim() || null,
+    location: input.location?.trim() || null,
+    cvUrl: input.cvPath?.trim() || null,
+  });
+  if (!perfil.ok) {
+    return {
+      ok: false,
+      reason: "perfil-incompleto",
+      faltantes: perfil.faltantes,
+      error: `Completá estos datos de tu perfil antes de postularte: ${perfil.faltantes.join(", ")}.`,
+    };
   }
 
   const result = await deps.applyToJob({

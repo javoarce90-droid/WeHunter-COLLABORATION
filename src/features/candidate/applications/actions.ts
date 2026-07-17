@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUser, getCandidateProfile } from "@/lib/auth/session";
 import { getCareerSiteJob } from "@/features/candidate/career-site/data/career-site.data";
 import { postularInputSchema, CV_MAX_BYTES, CV_ALLOWED_TYPES } from "./schema";
 import { postularDesdeCareerSite } from "./domain/postular-desde-career-site";
@@ -59,6 +59,7 @@ export async function postularAction(
   const jobPage = await getCareerSiteJob(slug, parsed.data.jobId);
   if (!jobPage) return { error: "Esta búsqueda ya no está disponible." };
 
+  const profile = await getCandidateProfile();
   const existingCvUrl = formData.get("existingCvUrl");
   let cvPath: string | undefined;
   if (cv.file) {
@@ -67,6 +68,8 @@ export async function postularAction(
     ).path;
   } else if (typeof existingCvUrl === "string" && existingCvUrl) {
     cvPath = existingCvUrl;
+  } else if (profile?.cvUrl) {
+    cvPath = profile.cvUrl;
   }
 
   const result = await postularDesdeCareerSite(
@@ -74,7 +77,8 @@ export async function postularAction(
       jobId: parsed.data.jobId,
       fullName: parsed.data.fullName,
       email: parsed.data.email,
-      phone: parsed.data.phone,
+      phone: profile?.phone ?? parsed.data.phone,
+      location: profile?.location ?? undefined,
       coverNote: parsed.data.coverNote,
       cvPath,
       screeningAnswers: parsed.data.screeningAnswers,

@@ -7,12 +7,14 @@ interface JobCardProps {
   job: Job;
   onApply: (job: Job) => void;
   onClickCard?: () => void;
+  isApplying?: boolean;
 }
 
 export function JobCard({
   job,
   onApply,
   onClickCard,
+  isApplying = false,
 }: JobCardProps) {
   return (
     <div
@@ -106,9 +108,10 @@ export function JobCard({
             e.stopPropagation();
             onApply(job);
           }}
-          className="w-full h-10 bg-primary hover:bg-primary-hover active:scale-[0.98] text-white font-semibold text-xs rounded-[var(--radius)] transition-all shadow-sm hover:cursor-pointer flex items-center justify-center"
+          disabled={isApplying}
+          className="w-full h-10 bg-primary hover:bg-primary-hover active:scale-[0.98] text-white font-semibold text-xs rounded-[var(--radius)] transition-all shadow-sm hover:cursor-pointer flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Postularse
+          {isApplying ? "Postulando…" : "Postularse"}
         </button>
       </div>
     </div>

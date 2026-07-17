@@ -37,6 +37,25 @@ export async function updateCandidateProfile(
   );
 }
 
+export async function updateCandidateMinimumFields(
+  userId: string,
+  fields: { phone: string; location: string; cvUrl?: string },
+): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx
+        .update(profiles)
+        .set({
+          phone: fields.phone,
+          location: fields.location,
+          ...(fields.cvUrl ? { cvUrl: fields.cvUrl } : {}),
+        })
+        .where(eq(profiles.id, userId)),
+    "db.candidateProfile.updateMinimum",
+  );
+}
+
 export async function markCandidateOnboardingComplete(userId: string): Promise<void> {
   const db = await getDb();
   await db.rls(

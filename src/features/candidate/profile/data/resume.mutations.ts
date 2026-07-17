@@ -4,12 +4,17 @@ import {
   candidateWorkExperiences,
   candidateEducation,
   candidateCertifications,
+  candidateLanguages,
 } from "@/db/schema";
 import type { ResumeOwner } from "../domain/gestionar-experiencia";
 
-/** WHERE del dueño (profile_id o candidate_id) para una de las 3 tablas de currículum. */
+/** WHERE del dueño (profile_id o candidate_id) para una de las tablas de currículum. */
 function ownerFilter(
-  table: typeof candidateWorkExperiences | typeof candidateEducation | typeof candidateCertifications,
+  table:
+    | typeof candidateWorkExperiences
+    | typeof candidateEducation
+    | typeof candidateCertifications
+    | typeof candidateLanguages,
   owner: ResumeOwner,
 ) {
   return owner.kind === "profile"
@@ -175,6 +180,42 @@ export async function deleteCertification(id: string, owner: ResumeOwner): Promi
         .where(and(eq(candidateCertifications.id, id), ownerFilter(candidateCertifications, owner)))
         .returning({ id: candidateCertifications.id }),
     "db.resume.deleteCertification",
+  );
+  return rows.length > 0;
+}
+
+// ---- Idiomas ----
+
+export interface LanguageFields {
+  language: string;
+  level: string;
+}
+
+export async function insertLanguage(
+  owner: ResumeOwner,
+  data: LanguageFields,
+): Promise<{ id: string }> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .insert(candidateLanguages)
+        .values({ ...ownerColumns(owner), ...data } as typeof candidateLanguages.$inferInsert)
+        .returning({ id: candidateLanguages.id }),
+    "db.resume.insertLanguage",
+  );
+  return rows[0];
+}
+
+export async function deleteLanguage(id: string, owner: ResumeOwner): Promise<boolean> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .delete(candidateLanguages)
+        .where(and(eq(candidateLanguages.id, id), ownerFilter(candidateLanguages, owner)))
+        .returning({ id: candidateLanguages.id }),
+    "db.resume.deleteLanguage",
   );
   return rows.length > 0;
 }

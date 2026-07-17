@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { candidateProfileSchema, CV_ALLOWED_TYPES, CV_MAX_BYTES } from "./schema";
+import { candidateProfileSchema, datosMinimosSchema, CV_ALLOWED_TYPES, CV_MAX_BYTES } from "./schema";
 import { actualizarPerfil } from "./domain/actualizar-perfil";
-import { updateCandidateProfile } from "./data/profile.mutations";
+import { completarDatosMinimos } from "./domain/completar-datos-minimos";
+import { updateCandidateProfile, updateCandidateMinimumFields } from "./data/profile.mutations";
 import { uploadCandidateProfileCv } from "./data/profile.storage";
 
 export interface ProfileFormState {
@@ -68,6 +69,39 @@ export async function actualizarPerfilAction(
   }
 
   revalidatePath("/c/profile");
+  return { success: true };
+}
+
+export async function completarDatosMinimosAction(
+  _prev: ProfileFormState,
+  formData: FormData,
+): Promise<ProfileFormState> {
+  const parsed = datosMinimosSchema.safeParse({
+    phone: formData.get("phone"),
+    location: formData.get("location"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const cv = readCvFile(formData);
+  if ("error" in cv) return { error: cv.error };
+
+  const user = await getCurrentUser();
+  if (!user) return { error: "No tenés sesión activa." };
+
+  const hasExistingCv = formData.get("hasExistingCv") === "true";
+  const cvUrl = cv.file ? (await uploadCandidateProfileCv(user.id, cv.file)).path : undefined;
+
+  const result = await completarDatosMinimos(
+    { phone: parsed.data.phone, location: parsed.data.location, cvUrl, hasExistingCv },
+    { userId: user.id },
+    { updateMinimum: updateCandidateMinimumFields },
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/c/profile");
+  revalidatePath("/portal");
   return { success: true };
 }
 
