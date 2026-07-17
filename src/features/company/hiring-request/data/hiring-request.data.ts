@@ -41,6 +41,16 @@ export async function getClientPortal(token: string): Promise<ClientPortal | nul
   return rows[0]?.result ?? null;
 }
 
+/**
+ * Chequeo de vigencia del token. Reusa `get_client_portal` en vez de una función nueva: ya
+ * devuelve null exactamente cuando el token no existe, está revocado o venció. Trae de más
+ * (las solicitudes del cliente), pero son pocas y evita otra función SECURITY DEFINER que
+ * mantener con la misma lógica de validación duplicada.
+ */
+export async function clientTokenEsValido(token: string): Promise<boolean> {
+  return (await getClientPortal(token)) !== null;
+}
+
 export async function createRequisitionRpc(args: {
   token: string;
   draft: RequisitionDraft;

@@ -1,13 +1,40 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { solicitarBusquedaSchema } from "./schema";
+import { getAiProvider } from "@/lib/ai";
+import { jobAreaSchema } from "@/features/recruiter/jobs/schema";
+import { solicitarBusquedaSchema, sugerirSolicitudSchema } from "./schema";
 import { solicitarBusqueda } from "./domain/solicitar-busqueda";
-import { createRequisitionRpc } from "./data/hiring-request.data";
+import { sugerirSolicitud } from "./domain/sugerir-solicitud";
+import type { BorradorSolicitud } from "./domain/sugerir-solicitud";
+import { clientTokenEsValido, createRequisitionRpc } from "./data/hiring-request.data";
 
 export interface SolicitarBusquedaActionState {
   error?: string;
   ok?: boolean;
+}
+
+export async function sugerirSolicitudAction(input: {
+  token: string;
+  title: string;
+  brief: string;
+  modality: string | null;
+  seniority: string | null;
+  employmentType: string | null;
+}): Promise<{ ok: boolean; draft?: BorradorSolicitud; error?: string }> {
+  const parsed = sugerirSolicitudSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const result = await sugerirSolicitud(parsed.data, {
+    tokenEsValido: clientTokenEsValido,
+    generarBorrador: (args) => getAiProvider().draftJobOffer(args),
+    esAreaValida: (area) => jobAreaSchema.safeParse(area).success,
+  });
+
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, draft: result.data };
 }
 
 export async function solicitarBusquedaAction(

@@ -24,6 +24,23 @@ const skillsField = z.preprocess((v) => {
 const markdownField = (max: number) =>
   z.preprocess(emptyToUndef, z.string().trim().max(max).optional());
 
+export const sugerirSolicitudSchema = z.object({
+  token: z.string().min(1, "Enlace inválido."),
+  title: z
+    .string()
+    .trim()
+    .min(3, "Cargá el título de la búsqueda primero.")
+    .max(33, "El título no puede superar los 33 caracteres."),
+  brief: z
+    .string()
+    .trim()
+    .min(1, "Contanos en una línea qué perfil necesitás.")
+    .max(500, "El detalle no puede superar los 500 caracteres."),
+  modality: z.preprocess(emptyToUndef, jobModalitySchema.optional()),
+  seniority: z.preprocess(emptyToUndef, jobSenioritySchema.optional()),
+  employmentType: z.preprocess(emptyToUndef, employmentTypeSchema.optional()),
+});
+
 export const solicitarBusquedaSchema = z.object({
   token: z.string().min(1, "Enlace inválido."),
   reason: z.enum(REQUISITION_REASONS, {
