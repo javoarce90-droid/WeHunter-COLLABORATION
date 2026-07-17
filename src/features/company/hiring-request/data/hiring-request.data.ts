@@ -1,0 +1,58 @@
+import { sql } from "drizzle-orm";
+import { admin } from "@/db/client";
+import type { RequisitionDraft, RequisitionReason } from "../domain/solicitar-busqueda";
+
+/**
+ * Acceso del actor CLIENTE (sin cuenta) a su portal de solicitudes.
+ *
+ * Toda la autorización vive en las funciones SECURITY DEFINER de Postgres
+ * (`get_client_portal`, `create_client_requisition`), que validan el token y derivan de él
+ * la organización y el cliente. Acá invocamos esas funciones con el cliente `admin` SOLO
+ * para poder ejecutarlas sin un usuario autenticado; el admin no arma queries crudas sobre
+ * las tablas. Ver migración 0055 y .claude/rules/database.md.
+ */
+
+export type RequisitionStatus = "pending" | "approved" | "rejected";
+
+export type ClientRequisition = {
+  id: string;
+  title: string;
+  position: string | null;
+  status: RequisitionStatus;
+  reason: RequisitionReason;
+  location: string | null;
+  seniority: string | null;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+};
+
+export type ClientPortal = {
+  shareId: string;
+  clientName: string;
+  organizationName: string;
+  requisitions: ClientRequisition[];
+};
+
+export async function getClientPortal(token: string): Promise<ClientPortal | null> {
+  const rows = await admin.execute<{ result: ClientPortal | null }>(
+    sql`select get_client_portal(${token}) as result`,
+  );
+  return rows[0]?.result ?? null;
+}
+
+export async function createRequisitionRpc(args: {
+  token: string;
+  draft: RequisitionDraft;
+}): Promise<{ requisitionId: string } | null> {
+  try {
+    const rows = await admin.execute<{ id: string | null }>(
+      sql`select create_client_requisition(${args.token}, ${JSON.stringify(args.draft)}::json) as id`,
+    );
+    const id = rows[0]?.id;
+    return id ? { requisitionId: id } : null;
+  } catch {
+    // La función lanza excepción si el token es inválido/vencido o el payload no castea.
+    return null;
+  }
+}

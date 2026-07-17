@@ -386,6 +386,13 @@
       "when": 1784135082540,
       "tag": "0054_bumpy_jane_foster",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1784480682540,
+      "tag": "0055_hiring_request_client_functions",
+      "breakpoints": true
     }
   ]
 }

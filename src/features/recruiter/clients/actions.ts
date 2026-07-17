@@ -1,11 +1,25 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
-import { clientInputSchema } from "./schema";
+import {
+  clientInputSchema,
+  generarClientShareSchema,
+  revocarClientShareSchema,
+} from "./schema";
 import { crearCliente } from "./domain/crear-cliente";
 import { editarCliente } from "./domain/editar-cliente";
+import { generarClientShare } from "./domain/generar-client-share";
+import { revocarClientShare } from "./domain/revocar-client-share";
 import { insertClient, updateClientFields } from "./data/clients.mutations";
+import { getClientById } from "./data/clients.queries";
+import {
+  createClientShare,
+  generateClientShareToken,
+  getClientShareById,
+  revokeClientShare,
+} from "./data/client-shares.data";
 
 export interface ClientFormState {
   error?: string;
@@ -71,4 +85,65 @@ export async function editarClienteAction(
   if (!result.ok) return { error: result.error };
 
   redirect(`/clients/${clientId}`);
+}
+
+export interface ClientShareState {
+  error?: string;
+  shareToken?: string;
+}
+
+export async function generarClientShareAction(
+  _prev: ClientShareState,
+  formData: FormData,
+): Promise<ClientShareState> {
+  const parsed = generarClientShareSchema.safeParse({
+    clientId: formData.get("clientId"),
+    expiresInDays: formData.get("expiresInDays"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+
+  const result = await generarClientShare(
+    parsed.data,
+    {
+      userId: user?.id ?? null,
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+    },
+    { getClientById, generateToken: generateClientShareToken, createClientShare },
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/clients/${parsed.data.clientId}`);
+  return { shareToken: result.data.token };
+}
+
+export async function revocarClientShareAction(
+  _prev: ClientShareState,
+  formData: FormData,
+): Promise<ClientShareState> {
+  const parsed = revocarClientShareSchema.safeParse({
+    shareId: formData.get("shareId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const membership = await getActiveMembership();
+  const result = await revocarClientShare(
+    parsed.data,
+    {
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+    },
+    { getClientShareById, revokeClientShare },
+  );
+  if (!result.ok) return { error: result.error };
+
+  const clientId = String(formData.get("clientId") ?? "");
+  if (clientId) revalidatePath(`/clients/${clientId}`);
+  return {};
 }

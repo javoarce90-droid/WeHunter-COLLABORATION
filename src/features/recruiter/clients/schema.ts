@@ -33,3 +33,16 @@ export const clientInputSchema = z.object({
 });
 
 export type ClientInput = z.infer<typeof clientInputSchema>;
+
+export const generarClientShareSchema = z.object({
+  clientId: z.string().uuid("ID de cliente inválido."),
+  // "" o ausente → sin vencimiento. Número → días.
+  expiresInDays: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() !== "" ? Number(v) : null),
+    z.number().int().positive("El vencimiento debe ser de al menos un día.").nullable(),
+  ),
+});
+
+export const revocarClientShareSchema = z.object({
+  shareId: z.string().uuid("ID de enlace inválido."),
+});
