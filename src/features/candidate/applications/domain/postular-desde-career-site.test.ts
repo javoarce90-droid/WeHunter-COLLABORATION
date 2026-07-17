@@ -14,6 +14,7 @@ const input = {
   fullName: "Juana Pérez",
   email: "juana@example.com",
   phone: "+54 9 11 1234-5678",
+  location: "CABA, Argentina",
   coverNote: "Me interesa mucho la posición.",
   cvPath: "org-1/pending-user-1-uuid.pdf",
 };
@@ -35,24 +36,23 @@ describe("postularDesdeCareerSite", () => {
     expect(deps.applyToJob).not.toHaveBeenCalled();
   });
 
-  it("normaliza teléfono y nota vacíos a null", async () => {
-    const deps = makeDeps();
-    await postularDesdeCareerSite({ ...input, phone: "  ", coverNote: "  " }, deps);
-    expect(deps.applyToJob).toHaveBeenCalledWith(
-      expect.objectContaining({ phone: null, coverNote: null }),
-    );
-  });
-
-  it("permite postularse sin CV ni teléfono (no son obligatorios)", async () => {
+  it("bloquea la postulación si faltan datos mínimos del perfil (ubicación y CV)", async () => {
     const deps = makeDeps();
     const result = await postularDesdeCareerSite(
-      { jobId: input.jobId, fullName: input.fullName, email: input.email },
+      { jobId: input.jobId, fullName: input.fullName, email: input.email, phone: input.phone },
       deps,
     );
-    expect(result.ok).toBe(true);
-    expect(deps.applyToJob).toHaveBeenCalledWith(
-      expect.objectContaining({ phone: null, cvPath: null }),
-    );
+    expect(result.ok).toBe(false);
+    if (result.ok || !("reason" in result)) throw new Error("esperaba perfil-incompleto");
+    expect(result.reason).toBe("perfil-incompleto");
+    expect(result.faltantes).toEqual(["ubicación", "CV"]);
+    expect(deps.applyToJob).not.toHaveBeenCalled();
+  });
+
+  it("normaliza nota vacía a null", async () => {
+    const deps = makeDeps();
+    await postularDesdeCareerSite({ ...input, coverNote: "  " }, deps);
+    expect(deps.applyToJob).toHaveBeenCalledWith(expect.objectContaining({ coverNote: null }));
   });
 
   it("filtra respuestas de screening vacías antes de mandarlas", async () => {

@@ -8,6 +8,11 @@ export const CV_ALLOWED_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
+export const datosMinimosSchema = z.object({
+  phone: z.string().trim().min(1, "Ingresá tu teléfono."),
+  location: z.string().trim().min(1, "Ingresá tu ubicación."),
+});
+
 export const candidateProfileSchema = z.object({
   fullName: z.string().min(2, "El nombre completo debe tener al menos 2 caracteres"),
   headline: z.string().trim().optional(),

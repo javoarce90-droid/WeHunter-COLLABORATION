@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUser, getCandidateProfile } from "@/lib/auth/session";
 import { withdrawApplicationRpc } from "./data/applications.mutations";
 import { retirarPostulacion } from "./domain/gestionar-postulacion";
 import { postularDesdeCareerSite } from "@/features/candidate/applications/domain/postular-desde-career-site";
@@ -53,12 +53,15 @@ export async function postularEnPortalAction(
   const cv = readCv(formData.get("cv"));
   if ("error" in cv) return { error: cv.error };
 
+  const profile = await getCandidateProfile();
   const existingCvUrl = formData.get("existingCvUrl");
   let cvPath: string | undefined;
   if (cv.file) {
     cvPath = (await uploadCareerSiteApplicationCv(organizationId, user.id, cv.file)).path;
   } else if (typeof existingCvUrl === "string" && existingCvUrl) {
     cvPath = existingCvUrl;
+  } else if (profile?.cvUrl) {
+    cvPath = profile.cvUrl;
   }
 
   const answers = screeningAnswersField.safeParse(formData.get("screeningAnswers"));
@@ -71,7 +74,8 @@ export async function postularEnPortalAction(
       jobId,
       fullName,
       email,
-      phone: typeof phone === "string" ? phone : undefined,
+      phone: profile?.phone ?? (typeof phone === "string" ? phone : undefined),
+      location: profile?.location ?? undefined,
       coverNote: typeof linkedinUrl === "string" && linkedinUrl ? `LinkedIn: ${linkedinUrl}` : undefined,
       cvPath,
       screeningAnswers: answers.data,

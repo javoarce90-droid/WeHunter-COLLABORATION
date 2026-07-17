@@ -6,6 +6,7 @@ import { type Job } from "../data/mock-jobs";
 import { JobCard } from "./JobCard";
 import { ApplicationModal } from "./ApplicationModal";
 import { JobDetailsModal } from "./JobDetailsModal";
+import { enviarPostulacionPortal } from "./enviar-postulacion";
 import { filtrarEmpleos } from "../domain/filtrar-empleos";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,11 +16,12 @@ import Link from "next/link";
 interface PortalViewProps {
   initialJobs: Job[];
   appliedJobIds: string[];
+  profileGate: { ok: boolean; faltantes: string[] };
   candidate: {
     fullName: string;
     email: string;
     phone: string;
-    linkedinUrl: string;
+    location: string;
     cvUrl: string | null;
   };
   notificationBell?: ReactNode;
@@ -28,6 +30,7 @@ interface PortalViewProps {
 export function PortalView({
   initialJobs,
   appliedJobIds,
+  profileGate,
   candidate,
   notificationBell,
 }: PortalViewProps) {
@@ -39,6 +42,7 @@ export function PortalView({
 
   const [activeApplyJob, setActiveApplyJob] = useState<Job | null>(null);
   const [selectedJobForDetails, setSelectedJobForDetails] = useState<Job | null>(null);
+  const [applyingJobId, setApplyingJobId] = useState<string | null>(null);
 
   const [toastMessage, setToastMessage] = useState("");
   const showToast = (msg: string) => {
@@ -46,12 +50,33 @@ export function PortalView({
     setTimeout(() => setToastMessage(""), 3000);
   };
 
-  const handleApplySuccess = () => {
-    if (!activeApplyJob) return;
-    setApplied([...applied, activeApplyJob.id]);
-    showToast(`¡Te postulaste con éxito a ${activeApplyJob.title}!`);
+  const onApplied = (job: Job) => {
+    setApplied((prev) => [...prev, job.id]);
+    showToast(`¡Te postulaste con éxito a ${job.title}!`);
     setActiveApplyJob(null);
+    setApplyingJobId(null);
     router.refresh();
+  };
+
+  const startApply = (job: Job) => {
+    const hasScreening = (job.screeningQuestions?.length ?? 0) > 0;
+    const needsMinData = !profileGate.ok;
+    if (needsMinData || hasScreening) {
+      setActiveApplyJob(job);
+      return;
+    }
+    void applyDirect(job);
+  };
+
+  const applyDirect = async (job: Job) => {
+    setApplyingJobId(job.id);
+    const result = await enviarPostulacionPortal(job, candidate, {});
+    if (!result.ok) {
+      setApplyingJobId(null);
+      showToast(result.error ?? "No se pudo enviar la postulación.");
+      return;
+    }
+    onApplied(job);
   };
 
   const filteredJobs = filtrarEmpleos({
@@ -177,8 +202,9 @@ export function PortalView({
               <JobCard
                 key={job.id}
                 job={job}
-                onApply={(j) => setActiveApplyJob(j)}
+                onApply={(j) => startApply(j)}
                 onClickCard={() => setSelectedJobForDetails(job)}
+                isApplying={applyingJobId === job.id}
               />
             ))}
           </div>
@@ -201,8 +227,9 @@ export function PortalView({
         <ApplicationModal
           job={activeApplyJob}
           candidate={candidate}
+          needsMinData={!profileGate.ok}
           onClose={() => setActiveApplyJob(null)}
-          onSuccess={handleApplySuccess}
+          onSuccess={() => onApplied(activeApplyJob)}
         />
       )}
 
@@ -215,7 +242,7 @@ export function PortalView({
           onApply={() => {
             const jobToApply = selectedJobForDetails;
             setSelectedJobForDetails(null);
-            setActiveApplyJob(jobToApply);
+            startApply(jobToApply);
           }}
         />
       )}

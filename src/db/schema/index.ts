@@ -208,6 +208,8 @@ export const invitationStatus = pgEnum("invitation_status", [
 // candidato por un cambio en el estado visible de su postulación (no requiere membership).
 export const notificationType = pgEnum("notification_type", ["hire", "team", "system", "candidate_status"]);
 
+export const languageLevel = pgEnum("language_level", ["basico", "intermedio", "avanzado", "nativo"]);
+
 // ---- Tenancy ----
 
 // El tenant. Todo dato de dominio cuelga de acá.
@@ -558,6 +560,22 @@ export const candidateCertifications = pgTable("candidate_certifications", {
   candidateIdx: index("candidate_certifications_candidate_idx").on(t.candidateId),
   ownerCheck: check(
     "candidate_certifications_owner_check",
+    sql`(${t.profileId} is not null) <> (${t.candidateId} is not null)`,
+  ),
+}));
+
+export const candidateLanguages = pgTable("candidate_languages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  profileId: uuid("profile_id").references(() => profiles.id, { onDelete: "cascade" }),
+  candidateId: uuid("candidate_id").references(() => candidates.id, { onDelete: "cascade" }),
+  language: text("language").notNull(),
+  level: languageLevel("level").notNull(),
+  ...timestamps,
+}, (t) => ({
+  profileIdx: index("candidate_languages_profile_idx").on(t.profileId),
+  candidateIdx: index("candidate_languages_candidate_idx").on(t.candidateId),
+  ownerCheck: check(
+    "candidate_languages_owner_check",
     sql`(${t.profileId} is not null) <> (${t.candidateId} is not null)`,
   ),
 }));
@@ -987,6 +1005,8 @@ export type Candidate = typeof candidates.$inferSelect;
 export type CandidateWorkExperience = typeof candidateWorkExperiences.$inferSelect;
 export type CandidateEducation = typeof candidateEducation.$inferSelect;
 export type CandidateCertification = typeof candidateCertifications.$inferSelect;
+export type CandidateLanguage = typeof candidateLanguages.$inferSelect;
+export type LanguageLevel = (typeof languageLevel.enumValues)[number];
 export type CandidateJobInteraction = typeof candidateJobInteractions.$inferSelect;
 export type Application = typeof applications.$inferSelect;
 export type ScreeningQuestion = typeof screeningQuestions.$inferSelect;
