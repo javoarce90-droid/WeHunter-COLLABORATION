@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import {
   getClientById,
   listJobsByClient,
 } from "@/features/recruiter/clients/data/clients.queries";
+import { listSharesByClient } from "@/features/recruiter/clients/data/client-shares.data";
+import { ClientShareControls } from "@/features/recruiter/clients/ui/ClientShareControls";
 import { JOB_STATUS_META } from "@/features/recruiter/jobs/ui/status-meta";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,9 +23,17 @@ export default async function ClientDetailPage({
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [client, jobs] = await Promise.all([
+  // URL base resuelta en el server (host de la request) y pasada como prop. Así el enlace
+  // del portal se renderiza idéntico en server y cliente -> sin mismatch de hidratación.
+  const reqHeaders = await headers();
+  const host = reqHeaders.get("host") ?? "";
+  const proto = reqHeaders.get("x-forwarded-proto") ?? "http";
+  const appUrl = host ? `${proto}://${host}` : "";
+
+  const [client, jobs, shares] = await Promise.all([
     getClientById(id, membership.organizationId),
     listJobsByClient(id, membership.organizationId),
+    listSharesByClient(id, membership.organizationId),
   ]);
   if (!client) notFound();
 
@@ -66,6 +77,8 @@ export default async function ClientDetailPage({
           <p className="whitespace-pre-wrap text-sm text-text">{client.notes}</p>
         </section>
       )}
+
+      <ClientShareControls clientId={client.id} shares={shares} appUrl={appUrl} />
 
       <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
         <div className="border-b border-border px-5 py-3.5">
