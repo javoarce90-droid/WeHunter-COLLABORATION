@@ -5,7 +5,7 @@ import { CV_MAX_BYTES, CV_ALLOWED_TYPES } from "@/features/recruiter/candidates/
 
 // El form manda las respuestas de screening como JSON en un hidden input (mismo patrón que
 // las preguntas del lado recruiter, ver jobs/schema.ts).
-const screeningAnswersField = z.preprocess((v) => {
+export const screeningAnswersField = z.preprocess((v) => {
   if (typeof v !== "string" || v.trim() === "") return undefined;
   try {
     const parsed = JSON.parse(v);

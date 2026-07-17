@@ -9,6 +9,7 @@ import type {
 } from "@/features/recruiter/jobs/domain/job-details";
 import { formatSalary, toDescription, toWorkplaceType } from "./job-formatting";
 import type { Job } from "./mock-jobs";
+import type { ScreeningQuestion } from "@/features/candidate/applications/domain/screening";
 
 type RawPortalJob = {
   id: string;
@@ -27,6 +28,7 @@ type RawPortalJob = {
   requirements: string | null;
   responsibilities: string | null;
   benefits: Benefit[] | null;
+  screeningQuestions: ScreeningQuestion[];
   organization: { organizationId: string; name: string; slug: string; logoUrl: string | null };
 };
 
@@ -50,6 +52,7 @@ function toJob(raw: RawPortalJob): Job {
     requirements: raw.requirements,
     responsibilities: raw.responsibilities,
     benefits: raw.benefits,
+    screeningQuestions: raw.screeningQuestions ?? [],
   };
 }
 

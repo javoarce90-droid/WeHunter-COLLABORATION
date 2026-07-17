@@ -93,7 +93,7 @@ export function ProfileSection({
           <input name="location" defaultValue={profile?.location ?? ""} className={fieldClass} placeholder="Ciudad, país" />
         </Field>
         <Field label="LinkedIn">
-          <input name="linkedinUrl" defaultValue={profile?.linkedinUrl ?? ""} className={fieldClass} placeholder="https://linkedin.com/in/…" />
+          <input name="linkedinUrl" inputMode="url" defaultValue={profile?.linkedinUrl ?? ""} className={fieldClass} placeholder="linkedin.com/in/…" />
         </Field>
       </div>
 

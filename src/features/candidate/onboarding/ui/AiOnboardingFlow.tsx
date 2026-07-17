@@ -101,10 +101,11 @@ export function AiOnboardingFlow({ fullName, email }: AiOnboardingFlowProps) {
           <Input
             label="URL de tu perfil de LinkedIn"
             name="linkedinUrl"
-            type="url"
+            type="text"
+            inputMode="url"
             value={linkedinUrl}
             onChange={(e) => setLinkedinUrl(e.target.value)}
-            placeholder="https://www.linkedin.com/in/tu-perfil"
+            placeholder="linkedin.com/in/tu-perfil"
           />
 
           <div className="flex flex-col gap-2">

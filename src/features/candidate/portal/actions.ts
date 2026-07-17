@@ -7,7 +7,11 @@ import { retirarPostulacion } from "./domain/gestionar-postulacion";
 import { postularDesdeCareerSite } from "@/features/candidate/applications/domain/postular-desde-career-site";
 import { applyToJobRpc } from "@/features/candidate/applications/data/apply.data";
 import { uploadCareerSiteApplicationCv } from "@/features/candidate/applications/data/apply.storage";
-import { CV_MAX_BYTES, CV_ALLOWED_TYPES } from "@/features/candidate/applications/schema";
+import {
+  CV_MAX_BYTES,
+  CV_ALLOWED_TYPES,
+  screeningAnswersField,
+} from "@/features/candidate/applications/schema";
 
 export interface PortalApplyState {
   error?: string;
@@ -57,6 +61,9 @@ export async function postularEnPortalAction(
     cvPath = existingCvUrl;
   }
 
+  const answers = screeningAnswersField.safeParse(formData.get("screeningAnswers"));
+  if (!answers.success) return { error: "Respuestas de screening inválidas." };
+
   const phone = formData.get("phone");
   const linkedinUrl = formData.get("linkedinUrl");
   const result = await postularDesdeCareerSite(
@@ -67,9 +74,7 @@ export async function postularEnPortalAction(
       phone: typeof phone === "string" ? phone : undefined,
       coverNote: typeof linkedinUrl === "string" && linkedinUrl ? `LinkedIn: ${linkedinUrl}` : undefined,
       cvPath,
-      // La postulación rápida del portal (ApplicationModal) todavía no renderiza las preguntas
-      // de screening de la búsqueda — eso vive hoy solo en el flujo del Career Site (ApplyForm).
-      screeningAnswers: [],
+      screeningAnswers: answers.data,
     },
     { applyToJob: applyToJobRpc },
   );

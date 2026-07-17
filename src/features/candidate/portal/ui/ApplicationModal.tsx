@@ -6,6 +6,11 @@ import { postularEnPortalAction, type PortalApplyState } from "../actions";
 import { CloudUpload, FileCheck, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ScreeningQuestionFields } from "@/features/candidate/applications/ui/ScreeningQuestionFields";
+import { obligatoriasSinResponder } from "@/features/candidate/applications/domain/screening";
+
+const fieldClass =
+  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
 
 interface ApplicationModalProps {
   job: Job;
@@ -31,6 +36,12 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
   const [isDragActive, setIsDragActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  const questions = job.screeningQuestions ?? [];
+  const hasScreening = questions.length > 0;
+  const [step, setStep] = useState<"perfil" | "screening">("perfil");
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const faltantes = obligatoriasSinResponder(questions, answers);
 
   // Bloquear scroll del body mientras el modal está abierto
   useEffect(() => {
@@ -85,14 +96,23 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
     }
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+  // Paso 1: valida los datos del perfil. Si la búsqueda tiene screening, avanza al paso 2 en
+  // vez de enviar; si no, envía directo.
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!fullName.trim() || !email.trim()) {
       setError("Por favor completá todos los campos obligatorios.");
       return;
     }
+    setError("");
+    if (hasScreening) {
+      setStep("screening");
+      return;
+    }
+    void enviar();
+  };
 
+  const enviar = async () => {
     setIsSubmitting(true);
     setError("");
 
@@ -108,11 +128,24 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
     } else if (candidate.cvUrl) {
       formData.set("existingCvUrl", candidate.cvUrl);
     }
+    if (hasScreening) {
+      formData.set(
+        "screeningAnswers",
+        JSON.stringify(
+          Object.entries(answers)
+            .filter(([, value]) => value.trim())
+            .map(([questionId, value]) => ({ questionId, value })),
+        ),
+      );
+    }
 
     const result: PortalApplyState = await postularEnPortalAction({}, formData);
     setIsSubmitting(false);
 
     if (!result.ok) {
+      // Un rechazo de screening viene del servidor (defensa real); mandamos al paso 2 para
+      // que el candidato vea qué le falta.
+      if (hasScreening) setStep("screening");
       setError(result.error ?? "No se pudo enviar la postulación.");
       return;
     }
@@ -126,7 +159,11 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
         {/* Header */}
         <div className="px-6 py-5 border-b border-border/40 flex justify-between items-start bg-muted/10">
           <div className="flex flex-col gap-1 pr-4">
-            <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Postulación</span>
+            <span className="text-[10px] font-bold text-primary uppercase tracking-wider">
+              {hasScreening
+                ? `Postulación · Paso ${step === "perfil" ? "1" : "2"} de 2`
+                : "Postulación"}
+            </span>
             <h2 className="text-lg font-bold font-display text-text leading-tight">
               {job.title}
             </h2>
@@ -150,6 +187,8 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
             </div>
           )}
 
+          {step === "perfil" && (
+          <>
           <div className="space-y-4">
             {/* Name input */}
             <Input
@@ -188,11 +227,12 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
             {/* LinkedIn (Opcional) */}
             <Input
               label="Perfil de LinkedIn (Opcional)"
-              type="url"
+              type="text"
+              inputMode="url"
               disabled={isSubmitting}
               value={linkedinUrl}
               onChange={(e) => setLinkedinUrl(e.target.value)}
-              placeholder="https://linkedin.com/in/tu-perfil"
+              placeholder="linkedin.com/in/tu-perfil"
             />
           </div>
 
@@ -263,32 +303,67 @@ export function ApplicationModal({ job, candidate, onClose, onSuccess }: Applica
               Se compartirá con <strong className="text-text">{job.company}</strong> la información que cargaste en Mi Perfil.
             </p>
           </div>
+          </>
+          )}
+
+          {step === "screening" && (
+            <div className="flex flex-col gap-4">
+              <p className="text-xs text-muted">
+                {job.company} pide responder estas preguntas para esta búsqueda. Las marcadas
+                con <span className="text-danger">*</span> son obligatorias.
+              </p>
+              <ScreeningQuestionFields
+                questions={questions}
+                answers={answers}
+                onChange={(id, value) => setAnswers((a) => ({ ...a, [id]: value }))}
+                disabled={isSubmitting}
+                fieldClass={fieldClass}
+              />
+            </div>
+          )}
 
           {/* Actions Footer */}
           <div className="flex gap-3 justify-end pt-5 mt-2">
             <Button
               type="button"
               variant="secondary"
-              onClick={onClose}
+              onClick={step === "screening" ? () => setStep("perfil") : onClose}
               disabled={isSubmitting}
             >
-              Cancelar
+              {step === "screening" ? "Volver" : "Cancelar"}
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={isSubmitting}
-              className="min-w-[180px]"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Procesando...
-                </>
-              ) : (
-                "Enviar Postulación"
-              )}
-            </Button>
+
+            {step === "perfil" ? (
+              <Button type="submit" variant="primary" disabled={isSubmitting} className="min-w-[180px]">
+                {hasScreening ? (
+                  "Continuar"
+                ) : isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  "Enviar Postulación"
+                )}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => void enviar()}
+                disabled={isSubmitting || faltantes.length > 0}
+                className="min-w-[180px]"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  "Enviar Postulación"
+                )}
+              </Button>
+            )}
           </div>
         </form>
       </div>

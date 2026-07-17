@@ -215,7 +215,8 @@ export function CandidateForm({
               label="LinkedIn (opcional)"
               name="linkedinUrl"
               type="text"
-              placeholder="https://linkedin.com/in/…"
+              inputMode="url"
+              placeholder="linkedin.com/in/…"
               defaultValue={defaults?.linkedinUrl ?? ""}
             />
             <label className="flex flex-col gap-1">

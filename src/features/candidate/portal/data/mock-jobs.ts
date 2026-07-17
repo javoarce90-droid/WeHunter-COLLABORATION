@@ -1,4 +1,5 @@
 import type { JobArea, JobSeniority, EmploymentType, Benefit } from "@/features/recruiter/jobs/domain/job-details";
+import type { ScreeningQuestion } from "@/features/candidate/applications/domain/screening";
 
 /** Shape que consume la UI del portal (JobCard, filtrar-empleos, etc). Ensamblado desde
  * datos reales en portal.queries.ts (ver getPortalJobs) — el nombre del archivo quedó de
@@ -24,4 +25,6 @@ export interface Job {
   requirements: string | null;
   responsibilities: string | null;
   benefits: Benefit[] | null;
+  /** Preguntas que el candidato responde al postularse (ApplicationModal). Vacío si no hay. */
+  screeningQuestions: ScreeningQuestion[];
 }
