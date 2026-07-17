@@ -2,56 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { Job } from "@/db/schema";
 import type { JobWithStats } from "../data/jobs.queries";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { JOB_STATUS_META, relativeTime } from "./status-meta";
-import { cambiarEstadoBusquedaAction, duplicarBusquedaAction } from "../actions";
+import { STATUS_ACTIONS, StatusButton } from "./status-actions";
+import { duplicarBusquedaAction } from "../actions";
 import { JOB_FILTERS, FILTER_LABEL, type JobFilter } from "./job-filters";
 import { SearchInput } from "@/components/ui/search-input";
-
-type Status = Job["status"];
-
-// Acciones de transición disponibles desde cada estado (label + estado destino).
-// "Archivar" está disponible desde cualquier estado salvo `archived` (terminal, sin
-// desarchivar en esta v1).
-const STATUS_ACTIONS: Record<Status, { label: string; to: Status }[]> = {
-  draft: [
-    { label: "Publicar", to: "open" },
-    { label: "Archivar", to: "archived" },
-  ],
-  open: [
-    { label: "Pausar", to: "paused" },
-    { label: "Cerrar", to: "closed" },
-    { label: "Archivar", to: "archived" },
-  ],
-  paused: [
-    { label: "Reanudar", to: "open" },
-    { label: "Cerrar", to: "closed" },
-    { label: "Archivar", to: "archived" },
-  ],
-  closed: [{ label: "Archivar", to: "archived" }],
-  archived: [],
-};
-
-function StatusButton({ jobId, label, to }: { jobId: string; label: string; to: Status }) {
-  const isClosing = to === "closed";
-  return (
-    <form action={cambiarEstadoBusquedaAction}>
-      <input type="hidden" name="jobId" value={jobId} />
-      <input type="hidden" name="nuevoEstado" value={to} />
-      <Button
-        type="submit"
-        variant="ghost"
-        size="sm"
-        className={isClosing ? "hover:border-danger hover:text-danger" : undefined}
-      >
-        {label}
-      </Button>
-    </form>
-  );
-}
 
 function FilterTabs({
   counts,
