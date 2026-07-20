@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState, useTransition } from "react";
 import { AiButton, SparkleIcon } from "@/components/ui/ai";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, fieldClasses } from "@/components/ui/input";
 import {
   AREA_LABELS,
   MODALITY_LABELS,
@@ -14,8 +14,8 @@ import { solicitarBusquedaAction, sugerirSolicitudAction } from "../actions";
 import type { SolicitarBusquedaActionState } from "../actions";
 import type { BorradorSolicitud } from "../domain/sugerir-solicitud";
 
-const selectClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[rgba(123,47,219,0.2)]";
+// Base de campo compartida (bg-bg, foco, error) — reusa el primitivo en vez de duplicar clases.
+const selectClass = fieldClasses();
 const textareaClass = `${selectClass} min-h-24 resize-y`;
 const labelClass = "text-xs font-semibold text-muted";
 

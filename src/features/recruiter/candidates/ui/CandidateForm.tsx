@@ -7,7 +7,7 @@ import { verificarEmailCandidatoAction } from "../actions";
 import type { CandidateSource } from "../domain/candidate-details";
 import type { VerificarCandidatoPorEmailResult } from "../domain/verificar-candidato-por-email";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, fieldClasses } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { CANDIDATE_SOURCE_LABELS } from "./source-meta";
 
@@ -36,8 +36,8 @@ interface CandidateFormProps {
   };
 }
 
-const selectClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+// Base de campo compartida (bg-bg, foco, error) — reusa el primitivo en vez de duplicar clases.
+const selectClass = fieldClasses();
 
 const initialState: CandidateFormState = {};
 
