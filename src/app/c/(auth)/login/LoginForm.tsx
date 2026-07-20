@@ -44,7 +44,7 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
           )}
           <div className="mt-2 flex items-center justify-between gap-3">
             <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-text">
-              <Checkbox name="remember" />
+              <Checkbox name="remember" defaultChecked />
               Recordar mi cuenta
             </label>
             <Link
