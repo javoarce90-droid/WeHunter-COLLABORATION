@@ -1,5 +1,6 @@
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import type { CandidateSource } from "@/features/recruiter/candidates/domain/candidate-details";
+import { SectionCard } from "@/components/ui/section-card";
 import type { JobPerformance } from "../domain/job-performance";
 
 function sourceLabel(source: string): string {
@@ -17,15 +18,15 @@ export function SourceBreakdown({
   const max = Math.max(1, ...breakdown.map((s) => s.count));
 
   return (
-    <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-text">Origen de candidatos</h2>
+    <SectionCard
+      title="Origen de candidatos"
+      action={
         <span className="text-xs text-muted">
           <span className="font-semibold text-text tabular-nums">{total}</span> candidato
           {total !== 1 ? "s" : ""}
         </span>
-      </div>
-
+      }
+    >
       {total === 0 ? (
         <p className="py-6 text-center text-sm text-muted">
           Todavía no hay candidatos postulados a esta búsqueda.
@@ -58,6 +59,6 @@ export function SourceBreakdown({
           })}
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { AiButton, SparkleIcon } from "@/components/ui/ai";
+import { SectionCard } from "@/components/ui/section-card";
 import { useToast } from "@/lib/toast";
 import { generarInsightsAction } from "../actions";
 
@@ -23,18 +24,21 @@ export function ReportInsights({ jobId }: { jobId: string }) {
   }
 
   return (
-    <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-sm font-bold text-text">
+    <SectionCard
+      title={
+        <>
           <span className="text-primary">
             <SparkleIcon size={14} />
           </span>
           Insights de IA
-        </h2>
+        </>
+      }
+      action={
         <AiButton type="button" onClick={generar} loading={pending}>
           {text ? "Regenerar" : "Generar"}
         </AiButton>
-      </div>
+      }
+    >
       {text ? (
         <p className="text-sm leading-relaxed text-text">{text}</p>
       ) : (
@@ -42,6 +46,6 @@ export function ReportInsights({ jobId }: { jobId: string }) {
           Generá un resumen del rendimiento de esta búsqueda con sugerencias accionables.
         </p>
       )}
-    </section>
+    </SectionCard>
   );
 }
