@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
+import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/lib/toast";
@@ -178,31 +179,23 @@ export function CandidatesList({ candidates, jobs }: Props) {
       </div>
 
       {/* Filter chips por estado operativo + duplicados */}
-      <div className="flex flex-wrap gap-1.5">
+      <FilterChipGroup label="Filtrar candidatos por estado">
         {CHIPS.map((chip) => {
-          const active = filter === chip.key;
           const n = counts[chip.key];
           const isDup = chip.key === "duplicates";
           return (
-            <button
+            <FilterChip
               key={chip.key}
-              type="button"
               onClick={() => setFilter(chip.key)}
-              className={[
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
-                active
-                  ? "border-primary bg-primary-light text-primary-hover"
-                  : "border-border text-muted hover:text-text",
-                isDup && n > 0 && !active ? "text-danger" : "",
-              ].join(" ")}
-              aria-pressed={active}
+              active={filter === chip.key}
+              count={n}
+              tone={isDup && n > 0 ? "danger" : undefined}
             >
               {chip.label}
-              <span className="tabular-nums opacity-70">{n}</span>
-            </button>
+            </FilterChip>
           );
         })}
-      </div>
+      </FilterChipGroup>
 
       {/* Barra de selección (bulk postular) */}
       {selected.size > 0 && (

@@ -15,7 +15,7 @@ export function RegisterForm() {
 
   return (
     <>
-      <AccountTypeTabs />
+      {!state.message && <AccountTypeTabs />}
       <Card>
         <CardContent className="flex flex-col gap-4">
           {state.message ? (

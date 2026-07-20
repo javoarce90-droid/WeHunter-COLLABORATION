@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { login, type AuthFormState } from "../actions";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -34,6 +35,18 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
           {state.error && (
             <p className="text-xs text-danger">{state.error}</p>
           )}
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-text">
+              <Checkbox name="remember" />
+              Recordar mi cuenta
+            </label>
+            <Link
+              href="/forgot-password"
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
           <Button type="submit" disabled={pending}>
             {pending ? "Ingresando…" : "Ingresar"}
           </Button>

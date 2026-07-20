@@ -1,5 +1,5 @@
 import type { Job } from "@/db/schema";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { cambiarEstadoBusquedaAction } from "../actions";
 
 /**
@@ -48,8 +48,7 @@ export function StatusButton({
     <form action={cambiarEstadoBusquedaAction}>
       <input type="hidden" name="jobId" value={jobId} />
       <input type="hidden" name="nuevoEstado" value={to} />
-      <Button
-        type="submit"
+      <SubmitButton
         variant={variant}
         size="sm"
         className={
@@ -59,7 +58,7 @@ export function StatusButton({
         }
       >
         {label}
-      </Button>
+      </SubmitButton>
     </form>
   );
 }

@@ -118,7 +118,7 @@ export function AgregarCandidatos({
 
   return (
     <>
-      <Button type="button" onClick={() => setOpen(true)}>
+      <Button type="button" size="sm" onClick={() => setOpen(true)}>
         + Agregar candidatos
       </Button>
 
@@ -205,11 +205,10 @@ export function AgregarCandidatos({
                 <Button
                   type="button"
                   onClick={postularSeleccionados}
-                  disabled={selected.size === 0 || poolPending}
+                  loading={poolPending}
+                  disabled={selected.size === 0}
                 >
-                  {poolPending
-                    ? "Postulando…"
-                    : `Postular${selected.size > 0 ? ` (${selected.size})` : ""}`}
+                  {`Postular${selected.size > 0 ? ` (${selected.size})` : ""}`}
                 </Button>
               </div>
             </div>
@@ -436,12 +435,8 @@ function NuevoCandidatoForm({
         >
           Cancelar
         </button>
-        <Button type="submit" disabled={formPending || checkingEmail}>
-          {formPending
-            ? "Creando…"
-            : checkingEmail
-              ? "Revisando…"
-              : "Crear y postular"}
+        <Button type="submit" loading={formPending} disabled={checkingEmail}>
+          Crear y postular
         </Button>
       </div>
     </form>
