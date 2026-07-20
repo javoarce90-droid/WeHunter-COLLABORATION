@@ -10,6 +10,8 @@ interface SectionCardProps {
   className?: string;
   /** Clases extra sobre el cuerpo (ej. "flex flex-col gap-4"). */
   bodyClassName?: string;
+  /** Cuerpo sin padding: para listas/tablas edge-to-edge que traen su propio padding por fila. */
+  flush?: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ export function SectionCard({
   children,
   className = "",
   bodyClassName = "",
+  flush = false,
 }: SectionCardProps) {
   return (
     <section
@@ -35,7 +38,9 @@ export function SectionCard({
         <h2 className="flex items-center gap-1.5 text-sm font-bold text-text">{title}</h2>
         {action}
       </div>
-      <div className={["px-5 py-4", bodyClassName].join(" ")}>{children}</div>
+      <div className={[flush ? "" : "px-5 py-4", bodyClassName].filter(Boolean).join(" ")}>
+        {children}
+      </div>
     </section>
   );
 }
