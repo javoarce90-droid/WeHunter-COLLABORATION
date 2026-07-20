@@ -8,7 +8,7 @@ import { generarInsightsAction } from "../actions";
 /** Panel ✦ de insights de IA (mock) sobre el rendimiento de la búsqueda. Genera bajo demanda. */
 export function ReportInsights({ jobId }: { jobId: string }) {
   const toast = useToast();
-  const [, start] = useTransition();
+  const [pending, start] = useTransition();
   const [text, setText] = useState<string | null>(null);
 
   function generar() {
@@ -31,7 +31,7 @@ export function ReportInsights({ jobId }: { jobId: string }) {
           </span>
           Insights de IA
         </h2>
-        <AiButton type="button" onClick={generar}>
+        <AiButton type="button" onClick={generar} loading={pending}>
           {text ? "Regenerar" : "Generar"}
         </AiButton>
       </div>

@@ -42,7 +42,7 @@ export function SourceBreakdown({
                 </span>
                 <div className="h-6 flex-1 overflow-hidden rounded-md bg-bg">
                   <div
-                    className="flex h-full items-center justify-end rounded-md bg-primary/80 px-2"
+                    className="flex h-full items-center justify-end rounded-md bg-primary px-2"
                     style={{ width: `${Math.max(pct, 6)}%` }}
                   >
                     <span className="text-[11px] font-bold text-white tabular-nums">

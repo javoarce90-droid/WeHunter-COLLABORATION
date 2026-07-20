@@ -13,7 +13,7 @@ import type {
 } from "../domain/job-details";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { Input } from "@/components/ui/input";
+import { Input, fieldClasses } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { JobMarkdown } from "./markdown";
@@ -66,8 +66,9 @@ interface JobFormProps {
   cancelLabel?: string;
 }
 
-export const selectClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+/** Base de campo compartida (bg-bg, foco, error). Reusa el primitivo para no duplicar clases.
+ *  Sigue exportado porque JobAiCreateForm lo usa con selects/textarea propios. */
+export const selectClass = fieldClasses();
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -513,10 +514,13 @@ export function JobForm({
           {state.error && <p className="text-xs text-danger">{state.error}</p>}
 
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={pending}>
-              {pending ? "Guardando…" : submitLabel}
+            <Button type="submit" loading={pending}>
+              {submitLabel}
             </Button>
-            <Link href={cancelHref} className="text-sm font-semibold text-muted">
+            <Link
+              href={cancelHref}
+              className="rounded text-sm font-semibold text-muted outline-none transition-colors hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface"
+            >
               {cancelLabel}
             </Link>
           </div>

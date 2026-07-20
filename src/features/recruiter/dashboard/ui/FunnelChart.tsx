@@ -1,5 +1,5 @@
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
-import { STAGE_DOT } from "@/features/recruiter/applications/ui/stage-visual";
+import { STAGE_DOT, readableTextOn } from "@/features/recruiter/applications/ui/stage-visual";
 import type { DashboardKpis } from "../domain/obtener-kpis";
 
 /**
@@ -44,7 +44,10 @@ export function FunnelChart({ funnel }: { funnel: DashboardKpis["funnel"] }) {
                     }}
                   >
                     {f.count > 0 && (
-                      <span className="text-[11px] font-bold text-white tabular-nums">
+                      <span
+                        className="text-[11px] font-bold tabular-nums"
+                        style={{ color: readableTextOn(STAGE_DOT[f.stage]) }}
+                      >
                         {f.count}
                       </span>
                     )}
