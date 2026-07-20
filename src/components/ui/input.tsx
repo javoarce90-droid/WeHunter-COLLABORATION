@@ -5,6 +5,25 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
+/**
+ * Clases base compartidas por los controles de formulario (Input, Select, Textarea). Única
+ * fuente de verdad del look de campo: fondo `bg-bg` (contrasta con la card `bg-surface`),
+ * borde, foco y estado de error. Reusar esto en vez de replicar las clases a mano.
+ */
+export function fieldClasses(hasError = false): string {
+  return [
+    "w-full rounded-[var(--radius)] border bg-bg px-3 py-2.5 text-sm text-text outline-none transition-colors",
+    "focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]",
+    hasError
+      ? "border-danger focus:border-danger focus:ring-[var(--focus-ring-danger)]"
+      : "border-border",
+    "disabled:cursor-not-allowed disabled:opacity-50",
+  ].join(" ");
+}
+
+/** Label compartido de los controles de formulario. */
+export const fieldLabelClass = "text-xs font-semibold text-muted";
+
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, className = "", ...props }, ref) => {
     const id = useId();
@@ -13,28 +32,17 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="flex flex-col gap-1">
         {label && (
-          <label
-            htmlFor={inputId}
-            className="text-xs font-semibold text-muted"
-          >
+          <label htmlFor={inputId} className={fieldLabelClass}>
             {label}
           </label>
         )}
         <input
           ref={ref}
           id={inputId}
-          className={[
-            "w-full rounded-[var(--radius)] border border-border bg-bg px-3 py-2.5 text-sm outline-none transition-colors",
-            "focus:border-primary focus:ring-2 focus:ring-[rgba(123,47,219,0.2)]",
-            error ? "border-danger focus:border-danger focus:ring-[rgba(220,38,38,0.2)]" : "",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
-            className,
-          ].join(" ")}
+          className={[fieldClasses(!!error), className].join(" ")}
           {...props}
         />
-        {error && (
-          <p className="text-xs text-danger">{error}</p>
-        )}
+        {error && <p className="text-xs text-danger">{error}</p>}
       </div>
     );
   },

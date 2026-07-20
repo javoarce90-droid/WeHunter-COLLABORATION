@@ -3,6 +3,8 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Input, fieldClasses, fieldLabelClass } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { AiButton } from "@/components/ui/ai";
 import { useToast } from "@/lib/toast";
 import {
@@ -26,9 +28,9 @@ type Props = {
   onSaved: () => void;
 };
 
-const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
-const labelClass = "text-xs font-semibold text-muted";
+/** Foco visible estándar para botones de texto sin fondo (gap WCAG AA de PRODUCT.md). */
+const focusRing =
+  "rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface";
 
 export function OfferDrawer({ jobId, jobTitle, applications, editing, onClose, onSaved }: Props) {
   const isNew = editing === "new";
@@ -174,102 +176,73 @@ function OfferForm({
       {isNew ? (
         <>
           <input type="hidden" name="jobId" value={jobId} />
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="applicationId" className={labelClass}>
-              Candidato finalista
-            </label>
-            <select id="applicationId" name="applicationId" required className={fieldClass}>
-              <option value="">Seleccioná un candidato…</option>
-              {applications.map((a) => (
-                <option key={a.applicationId} value={a.applicationId}>
-                  {a.candidateName}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Candidato finalista"
+            id="applicationId"
+            name="applicationId"
+            required
+            defaultValue=""
+          >
+            <option value="">Seleccioná un candidato…</option>
+            {applications.map((a) => (
+              <option key={a.applicationId} value={a.applicationId}>
+                {a.candidateName}
+              </option>
+            ))}
+          </Select>
         </>
       ) : (
         <input type="hidden" name="offerId" value={offerId ?? ""} />
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="title" className={labelClass}>
-          Puesto *
-        </label>
-        <input id="title" name="title" required defaultValue={detail?.title ?? jobTitle} className={fieldClass} />
-      </div>
+      <Input label="Puesto *" id="title" name="title" required defaultValue={detail?.title ?? jobTitle} />
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="salaryAmount" className={labelClass}>
-            Salario
-          </label>
-          <input
-            id="salaryAmount"
-            name="salaryAmount"
-            type="number"
-            min={1}
-            defaultValue={detail?.salaryAmount ?? ""}
-            className={fieldClass}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="salaryCurrency" className={labelClass}>
-            Moneda
-          </label>
-          <input
-            id="salaryCurrency"
-            name="salaryCurrency"
-            placeholder="ARS, USD…"
-            defaultValue={detail?.salaryCurrency ?? ""}
-            className={fieldClass}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="startDate" className={labelClass}>
-            Fecha de inicio
-          </label>
-          <input
-            id="startDate"
-            name="startDate"
-            type="date"
-            defaultValue={detail?.startDate ?? ""}
-            className={fieldClass}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="validUntil" className={labelClass}>
-            Válida hasta
-          </label>
-          <input
-            id="validUntil"
-            name="validUntil"
-            type="date"
-            defaultValue={detail?.validUntil ?? ""}
-            className={fieldClass}
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="benefits" className={labelClass}>
-          Beneficios
-        </label>
-        <input
-          id="benefits"
-          name="benefits"
-          placeholder="Prepaga, home office, bonus…"
-          defaultValue={detail?.benefits ?? ""}
-          className={fieldClass}
+        <Input
+          label="Salario"
+          id="salaryAmount"
+          name="salaryAmount"
+          type="number"
+          min={1}
+          defaultValue={detail?.salaryAmount ?? ""}
+        />
+        <Input
+          label="Moneda"
+          id="salaryCurrency"
+          name="salaryCurrency"
+          placeholder="ARS, USD…"
+          defaultValue={detail?.salaryCurrency ?? ""}
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-2 gap-3">
+        <Input
+          label="Fecha de inicio"
+          id="startDate"
+          name="startDate"
+          type="date"
+          defaultValue={detail?.startDate ?? ""}
+        />
+        <Input
+          label="Válida hasta"
+          id="validUntil"
+          name="validUntil"
+          type="date"
+          defaultValue={detail?.validUntil ?? ""}
+        />
+      </div>
+
+      <Input
+        label="Beneficios"
+        id="benefits"
+        name="benefits"
+        placeholder="Prepaga, home office, bonus…"
+        defaultValue={detail?.benefits ?? ""}
+      />
+
+      <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
-          <label htmlFor="body" className={labelClass}>
+          <label htmlFor="body" className={fieldLabelClass}>
             Carta de oferta
           </label>
           <div className="flex items-center gap-2">
@@ -280,7 +253,7 @@ function OfferForm({
                 applyTemplate(e.target.value);
                 e.target.selectedIndex = 0;
               }}
-              className="rounded-md border border-border bg-bg px-2 py-1 text-xs text-muted"
+              className="rounded-md border border-border bg-bg px-2 py-1 text-xs text-muted outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               <option value="">Template…</option>
               {OFFER_TEMPLATES.filter((t) => t.id !== "blank").map((t) => (
@@ -289,8 +262,8 @@ function OfferForm({
                 </option>
               ))}
             </select>
-            <AiButton type="button" onClick={generateWithAi} disabled={drafting}>
-              {drafting ? "Generando…" : "Generar"}
+            <AiButton type="button" onClick={generateWithAi} loading={drafting}>
+              Generar
             </AiButton>
           </div>
         </div>
@@ -300,18 +273,22 @@ function OfferForm({
           ref={bodyRef}
           rows={5}
           defaultValue={detail?.body ?? ""}
-          className={`${fieldClass} resize-y`}
+          className={`${fieldClasses()} resize-y`}
         />
       </div>
 
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
 
       <div className="flex items-center justify-end gap-3 pt-1">
-        <button type="button" onClick={onClose} className="text-sm font-semibold text-muted hover:text-text">
+        <button
+          type="button"
+          onClick={onClose}
+          className={`text-sm font-semibold text-muted hover:text-text ${focusRing}`}
+        >
           Cancelar
         </button>
-        <Button type="submit" disabled={isPending}>
-          {isPending ? "Guardando…" : isNew ? "Crear oferta" : "Guardar"}
+        <Button type="submit" loading={isPending}>
+          {isNew ? "Crear oferta" : "Guardar"}
         </Button>
       </div>
     </form>
