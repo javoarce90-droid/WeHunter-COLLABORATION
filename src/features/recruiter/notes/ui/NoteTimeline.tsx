@@ -41,7 +41,7 @@ export function NoteTimeline({ applicationId, jobId, notes }: Props) {
           rows={3}
           maxLength={NOTE_MAX_LENGTH}
           placeholder="Agregá una nota interna — no visible para la empresa ni el candidato."
-          className="w-full resize-none rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]"
+          className="w-full resize-none rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]"
         />
         {state.error && <p className="text-xs text-danger">{state.error}</p>}
         <div className="flex justify-end">

@@ -2,15 +2,16 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, fieldClasses } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { postularAction, type PostularActionState } from "../actions";
 import { accentStyle } from "@/features/candidate/career-site/ui/brand";
 import type { CareerSiteJobDetail } from "@/features/candidate/career-site/data/career-site.data";
 import { ScreeningQuestionFields } from "./ScreeningQuestionFields";
 import { obligatoriasSinResponder } from "../domain/screening";
 
-const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+// Base de campo compartida — la usa el wrapper del file input y ScreeningQuestionFields (prop).
+const fieldClass = fieldClasses();
 
 const initialState: PostularActionState = {};
 
@@ -68,10 +69,7 @@ export function ApplyForm({
         <Input label="Teléfono (opcional)" name="phone" type="tel" />
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-muted">Mensaje (opcional)</label>
-        <textarea name="coverNote" rows={4} maxLength={2000} className={fieldClass} />
-      </div>
+      <Textarea label="Mensaje (opcional)" name="coverNote" rows={4} maxLength={2000} />
 
       {existingCvUrl ? (
         <input type="hidden" name="existingCvUrl" value={existingCvUrl} />
@@ -112,11 +110,12 @@ export function ApplyForm({
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <Button
         type="submit"
-        disabled={pending || faltantes.length > 0}
+        loading={pending}
+        disabled={faltantes.length > 0}
         style={accentStyle(accentColor)}
         className="hover:brightness-90"
       >
-        {pending ? "Enviando…" : "Enviar postulación"}
+        Enviar postulación
       </Button>
     </form>
   );

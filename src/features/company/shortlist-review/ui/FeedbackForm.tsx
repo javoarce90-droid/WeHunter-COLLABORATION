@@ -62,7 +62,7 @@ export function FeedbackForm({
         rows={2}
         defaultValue={currentComment ?? ""}
         placeholder="Comentario (opcional). Se guarda al elegir una opción."
-        className="w-full resize-none rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-xs text-text outline-none transition-colors focus:border-primary"
+        className="w-full resize-none rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-xs text-text outline-none transition-colors focus:border-primary"
       />
 
       {state.error && <p className="text-xs text-red-600">{state.error}</p>}

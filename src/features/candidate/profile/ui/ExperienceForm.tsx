@@ -55,7 +55,7 @@ export function ExperienceForm({
           name="company"
           required
           defaultValue={experience?.company ?? ""}
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -66,7 +66,7 @@ export function ExperienceForm({
           name="position"
           required
           defaultValue={experience?.position ?? ""}
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -77,7 +77,7 @@ export function ExperienceForm({
             type="date"
             name="startDate"
             defaultValue={experience?.startDate ?? ""}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
           />
         </label>
         <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
@@ -87,7 +87,7 @@ export function ExperienceForm({
             name="endDate"
             defaultValue={experience?.endDate ?? ""}
             placeholder="Actualidad"
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
           />
         </label>
       </div>
@@ -98,7 +98,7 @@ export function ExperienceForm({
           name="description"
           rows={3}
           defaultValue={experience?.description ?? ""}
-          className="resize-none rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+          className="resize-none rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -108,7 +108,7 @@ export function ExperienceForm({
           <select
             name="employmentType"
             defaultValue={experience?.employmentType ?? ""}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
           >
             <option value="">Sin especificar</option>
             {Object.entries(EMPLOYMENT_LABELS).map(([value, label]) => (
@@ -123,7 +123,7 @@ export function ExperienceForm({
           <select
             name="modality"
             defaultValue={experience?.modality ?? ""}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
           >
             <option value="">Sin especificar</option>
             {Object.entries(MODALITY_LABELS).map(([value, label]) => (

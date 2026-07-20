@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { actualizarPerfilAction, type ProfileFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SkillsPillsInput } from "./SkillsPillsInput";
 
@@ -172,17 +173,14 @@ export function CandidateProfileForm({
           />
 
           {/* Resumen */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-muted">Resumen profesional</label>
-            <textarea
-              name="summary"
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              placeholder="Contá brevemente tu experiencia y lo que buscás"
-              rows={3}
-              className="w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
-            />
-          </div>
+          <Textarea
+            label="Resumen profesional"
+            name="summary"
+            value={summary}
+            onChange={(e) => setSummary(e.target.value)}
+            placeholder="Contá brevemente tu experiencia y lo que buscás"
+            rows={3}
+          />
 
           {/* Skills */}
           <SkillsPillsInput
@@ -276,8 +274,8 @@ export function CandidateProfileForm({
           )}
 
           {/* Botón de envío */}
-          <Button type="submit" disabled={pending} className="w-full mt-2 font-bold py-3">
-            {pending ? "Guardando cambios…" : submitLabel ?? "Guardar Perfil"}
+          <Button type="submit" loading={pending} className="w-full mt-2 font-bold py-3">
+            {submitLabel ?? "Guardar Perfil"}
           </Button>
         </form>
       </CardContent>

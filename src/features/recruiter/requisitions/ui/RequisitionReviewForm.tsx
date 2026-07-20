@@ -6,7 +6,7 @@ import { aprobarRequisitionAction, rechazarRequisitionAction } from "../actions"
 import type { RequisitionReviewState } from "../actions";
 
 const textareaClass =
-  "w-full min-h-24 resize-y rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[rgba(123,47,219,0.2)]";
+  "w-full min-h-24 resize-y rounded-[var(--radius)] border border-border bg-bg px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[rgba(123,47,219,0.2)]";
 
 /**
  * Aprobar genera la búsqueda en borrador y redirige a editarla; rechazar exige un motivo,

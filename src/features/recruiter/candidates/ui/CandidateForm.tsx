@@ -269,7 +269,7 @@ export function CandidateForm({
               name="cv"
               type="file"
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              className="w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-muted outline-none transition-colors file:mr-3 file:rounded-[var(--radius)] file:border-0 file:bg-primary-light file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-hover focus:border-primary"
+              className="w-full rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-sm text-muted outline-none transition-colors file:mr-3 file:rounded-[var(--radius)] file:border-0 file:bg-primary-light file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-primary-hover focus:border-primary"
             />
             {defaults?.hasCv && (
               <p className="text-xs text-muted">
