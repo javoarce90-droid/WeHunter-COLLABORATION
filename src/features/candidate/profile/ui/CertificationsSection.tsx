@@ -105,7 +105,7 @@ function AddForm({
           type="text"
           name="name"
           required
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
         />
       </label>
       <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
@@ -115,7 +115,7 @@ function AddForm({
           inputMode="url"
           name="url"
           placeholder="credly.com/badges/…"
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
         />
       </label>
 

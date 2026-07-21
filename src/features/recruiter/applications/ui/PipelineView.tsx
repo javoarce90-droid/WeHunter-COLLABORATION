@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition, type ReactNode } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -38,6 +38,7 @@ type Props = {
   screeningAnswersByApplication: Record<string, ScreeningAnswerRow[]>;
   stageConfig: PipelineStageConfig[];
   stageEntryTimes: Record<string, Date>;
+  actions?: ReactNode;
 };
 
 type Move = { applicationId: string; toStage: ApplicationStage };
@@ -80,7 +81,7 @@ function PipelineColumn({
     <section
       ref={setNodeRef}
       className={[
-        "flex w-[272px] shrink-0 flex-col gap-2.5 rounded-xl p-2.5 transition-colors",
+        "flex min-h-[60vh] w-[272px] shrink-0 flex-col gap-2.5 rounded-xl p-2.5 transition-colors",
         isOver ? "bg-primary/[0.06] ring-1 ring-primary/20" : "bg-text/[0.035]",
       ].join(" ")}
     >
@@ -141,6 +142,7 @@ export function PipelineView({
   screeningAnswersByApplication,
   stageConfig,
   stageEntryTimes,
+  actions,
 }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
@@ -222,20 +224,6 @@ export function PipelineView({
     setDraggingId(null);
   }
 
-  if (applications.length === 0) {
-    return (
-      <EmptyState
-        title="No hay candidatos en el pipeline"
-        description={
-          <>
-            Sumá candidatos del pool o creá uno nuevo con el botón{" "}
-            <span className="font-semibold text-text">Agregar candidatos</span>.
-          </>
-        }
-      />
-    );
-  }
-
   // Agrupar por etapa
   const grouped: Record<string, ApplicationWithCandidate[]> = {};
   for (const app of optimisticApps) {
@@ -262,35 +250,49 @@ export function PipelineView({
     : null;
   const selected = optimisticApps.find((a) => a.id === selectedId) ?? null;
 
+  const isEmpty = applications.length === 0;
+
   return (
-    <>
-      <div className="mb-3 flex items-center justify-end">
-        <button
-          type="button"
-          aria-pressed={riskOnly}
-          onClick={() => setRiskOnly((v) => !v)}
-          className={[
-            "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-3 py-1.5 text-xs font-semibold transition-colors",
-            riskOnly
-              ? "border-transparent bg-[#FEF3C7] text-[#92400E]"
-              : "border-border bg-surface text-muted hover:text-text",
-          ].join(" ")}
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="currentColor"
-            aria-hidden
-          >
-            <path d="M6 0.5 11.5 11h-11L6 .5Zm-.6 4v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
-          </svg>
-          Solo en riesgo
-          <span className="tabular-nums">({atRiskCount})</span>
-        </button>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-sm font-semibold text-text">
+          {applications.length} candidato{applications.length !== 1 ? "s" : ""} en proceso
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {!isEmpty && (
+            <button
+              type="button"
+              aria-pressed={riskOnly}
+              onClick={() => setRiskOnly((v) => !v)}
+              className={[
+                "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-3 py-1.5 text-xs font-semibold outline-none transition-[transform,color,background-color,border-color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]",
+                riskOnly
+                  ? "border-transparent bg-[#FEF3C7] text-[#92400E]"
+                  : "border-border bg-surface text-muted hover:text-text",
+              ].join(" ")}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+                <path d="M6 0.5 11.5 11h-11L6 .5Zm-.6 4v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
+              </svg>
+              Solo en riesgo
+              <span className="tabular-nums">({atRiskCount})</span>
+            </button>
+          )}
+          {actions}
+        </div>
       </div>
 
-      {riskOnly && atRiskCount === 0 ? (
+      {isEmpty ? (
+        <EmptyState
+          title="No hay candidatos en el pipeline"
+          description={
+            <>
+              Sumá candidatos del pool o creá uno nuevo con el botón{" "}
+              <span className="font-semibold text-text">Agregar candidatos</span>.
+            </>
+          }
+        />
+      ) : riskOnly && atRiskCount === 0 ? (
         <EmptyState
           title="Ningún candidato en riesgo"
           description="Nadie está cerca de vencer su SLA en la etapa donde está hoy."
@@ -303,7 +305,7 @@ export function PipelineView({
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div className="flex gap-3 overflow-x-auto pb-4">
+          <div className="flex gap-3 overflow-x-auto overflow-y-hidden pb-4">
             {visibleStages.map((stageConf) => (
               <PipelineColumn
                 key={stageConf.stageKey}
@@ -356,6 +358,6 @@ export function PipelineView({
         onClose={() => setSelectedId(null)}
         activeStageKeys={activeStageKeys}
       />
-    </>
+    </div>
   );
 }

@@ -4,14 +4,14 @@ import { useState, type DragEvent, type ChangeEvent, useEffect } from "react";
 import { type Job } from "../data/mock-jobs";
 import { enviarPostulacionPortal } from "./enviar-postulacion";
 import { completarDatosMinimosAction } from "@/features/candidate/profile/actions";
-import { CloudUpload, FileCheck, X, Loader2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { CloudUpload, FileCheck, X } from "lucide-react";
+import { Input, fieldClasses } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScreeningQuestionFields } from "@/features/candidate/applications/ui/ScreeningQuestionFields";
 import { obligatoriasSinResponder } from "@/features/candidate/applications/domain/screening";
 
-const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+// Base de campo compartida — la usa ScreeningQuestionFields (prop).
+const fieldClass = fieldClasses();
 
 interface ApplicationModalProps {
   job: Job;
@@ -160,8 +160,9 @@ export function ApplicationModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 -mr-1.5 rounded-xl hover:bg-muted/50 text-muted hover:text-text transition-colors"
+            className="p-1.5 -mr-1.5 rounded-xl text-muted outline-none transition-colors hover:bg-muted/50 hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             type="button"
+            aria-label="Cerrar"
           >
             <X className="w-5 h-5" />
           </button>
@@ -275,17 +276,8 @@ export function ApplicationModal({
                 <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
                   Cancelar
                 </Button>
-                <Button type="submit" variant="primary" disabled={isSubmitting} className="min-w-[180px]">
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : hasScreening ? (
-                    "Continuar"
-                  ) : (
-                    "Guardar y postularme"
-                  )}
+                <Button type="submit" variant="primary" loading={isSubmitting} className="min-w-[180px]">
+                  {hasScreening ? "Continuar" : "Guardar y postularme"}
                 </Button>
               </div>
             </form>
@@ -318,17 +310,11 @@ export function ApplicationModal({
                   type="button"
                   variant="primary"
                   onClick={() => void enviarPostulacion()}
-                  disabled={isSubmitting || faltantes.length > 0}
+                  loading={isSubmitting}
+                  disabled={faltantes.length > 0}
                   className="min-w-[180px]"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Procesando...
-                    </>
-                  ) : (
-                    "Enviar Postulación"
-                  )}
+                  Enviar Postulación
                 </Button>
               </div>
             </div>

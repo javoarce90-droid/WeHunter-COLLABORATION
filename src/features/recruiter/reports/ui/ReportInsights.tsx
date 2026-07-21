@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { AiButton, SparkleIcon } from "@/components/ui/ai";
+import { SectionCard } from "@/components/ui/section-card";
 import { useToast } from "@/lib/toast";
 import { generarInsightsAction } from "../actions";
 
 /** Panel ✦ de insights de IA (mock) sobre el rendimiento de la búsqueda. Genera bajo demanda. */
 export function ReportInsights({ jobId }: { jobId: string }) {
   const toast = useToast();
-  const [, start] = useTransition();
+  const [pending, start] = useTransition();
   const [text, setText] = useState<string | null>(null);
 
   function generar() {
@@ -23,18 +24,21 @@ export function ReportInsights({ jobId }: { jobId: string }) {
   }
 
   return (
-    <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 text-sm font-bold text-text">
+    <SectionCard
+      title={
+        <>
           <span className="text-primary">
             <SparkleIcon size={14} />
           </span>
           Insights de IA
-        </h2>
-        <AiButton type="button" onClick={generar}>
+        </>
+      }
+      action={
+        <AiButton type="button" onClick={generar} loading={pending}>
           {text ? "Regenerar" : "Generar"}
         </AiButton>
-      </div>
+      }
+    >
       {text ? (
         <p className="text-sm leading-relaxed text-text">{text}</p>
       ) : (
@@ -42,6 +46,6 @@ export function ReportInsights({ jobId }: { jobId: string }) {
           Generá un resumen del rendimiento de esta búsqueda con sugerencias accionables.
         </p>
       )}
-    </section>
+    </SectionCard>
   );
 }

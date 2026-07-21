@@ -87,28 +87,21 @@ export default async function PipelinePage({ params }: Props) {
   );
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted">
-          {applications.length} candidato{applications.length !== 1 ? "s" : ""} en
-          proceso
-        </p>
-        <div className="flex items-center gap-2">
+    <PipelineView
+      applications={applications}
+      interviewsByApplication={interviewsByApplication}
+      teamMembers={teamMembers}
+      notesByApplication={notesByApplication}
+      stageEventsByApplication={stageEventsByApplication}
+      screeningAnswersByApplication={screeningAnswersByApplication}
+      stageConfig={stageConfig}
+      stageEntryTimes={stageEntryTimes}
+      actions={
+        <>
           <StageSettingsButton stageConfig={stageConfig} />
           <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
-        </div>
-      </div>
-
-      <PipelineView
-        applications={applications}
-        interviewsByApplication={interviewsByApplication}
-        teamMembers={teamMembers}
-        notesByApplication={notesByApplication}
-        stageEventsByApplication={stageEventsByApplication}
-        screeningAnswersByApplication={screeningAnswersByApplication}
-        stageConfig={stageConfig}
-        stageEntryTimes={stageEntryTimes}
-      />
-    </div>
+        </>
+      }
+    />
   );
 }

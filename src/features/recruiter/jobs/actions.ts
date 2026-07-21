@@ -119,18 +119,9 @@ export async function crearBusquedaAction(
     return { error: result.error };
   }
 
-  if (parsed.data.screeningQuestions) {
-    await definirPreguntasScreening(
-      result.data.jobId,
-      parsed.data.screeningQuestions,
-      { organizationId: membership?.organizationId ?? null, role: membership?.role ?? null },
-      { getJob: getJobById, syncQuestions: syncScreeningQuestions },
-    );
-  }
-
-  // Caés en el aviso de la búsqueda recién creada: revisás/editás el contenido y desde ahí
-  // mismo sumás candidatos (del pool o nuevos) hacia el pipeline sin pasos intermedios.
-  redirect(`/jobs/${result.data.jobId}/aviso`);
+  // Paso siguiente: sumar preguntas de screening (opcional) y de ahí al aviso. El screening ya no
+  // viaja en el form de creación — se define en su propio paso visual, igual para manual e IA.
+  redirect(`/jobs/${result.data.jobId}/screening`);
 }
 
 /**
@@ -191,7 +182,8 @@ export async function crearBusquedaConIaAction(input: {
     return { error: result.error };
   }
 
-  redirect(`/jobs/${result.data.jobId}/aviso`);
+  // Igual que el manual: paso de screening antes del aviso (así el creado por IA también lo tiene).
+  redirect(`/jobs/${result.data.jobId}/screening`);
 }
 
 export async function editarBusquedaAction(

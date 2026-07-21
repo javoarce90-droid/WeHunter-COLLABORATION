@@ -1,15 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { JobWithStats } from "../data/jobs.queries";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { JOB_STATUS_META, relativeTime } from "./status-meta";
-import { STATUS_ACTIONS, StatusButton } from "./status-actions";
-import { duplicarBusquedaAction } from "../actions";
+import { STATUS_ACTIONS } from "./status-actions";
+import { cambiarEstadoBusquedaAction, duplicarBusquedaAction } from "../actions";
 import { JOB_FILTERS, FILTER_LABEL, type JobFilter } from "./job-filters";
 import { SearchInput } from "@/components/ui/search-input";
+import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
 
 function FilterTabs({
   counts,
@@ -19,49 +23,46 @@ function FilterTabs({
   active: JobFilter;
 }) {
   return (
-    <nav
-      aria-label="Filtrar búsquedas por estado"
-      className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-[var(--radius)] border border-border bg-surface p-1 shadow-[var(--shadow)]"
-    >
-      {JOB_FILTERS.map((key) => {
-        const isActive = key === active;
-        return (
-          <Link
-            key={key}
-            href={key === "all" ? "/jobs" : `/jobs?status=${key}`}
-            aria-current={isActive ? "page" : undefined}
-            className={[
-              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-              isActive
-                ? "bg-primary text-white"
-                : "text-muted hover:bg-bg hover:text-text",
-            ].join(" ")}
-          >
-            {FILTER_LABEL[key]}
-            <span
-              className={[
-                "tabular-nums",
-                isActive ? "text-white/70" : "text-muted/70",
-              ].join(" ")}
-            >
-              {counts[key]}
-            </span>
-          </Link>
-        );
-      })}
-    </nav>
+    <FilterChipGroup label="Filtrar búsquedas por estado">
+      {JOB_FILTERS.map((key) => (
+        <FilterChip
+          key={key}
+          href={key === "all" ? "/jobs" : `/jobs?status=${key}`}
+          active={key === active}
+          count={counts[key]}
+        >
+          {FILTER_LABEL[key]}
+        </FilterChip>
+      ))}
+    </FilterChipGroup>
   );
 }
 
 function JobRow({ job }: { job: JobWithStats }) {
   const meta = JOB_STATUS_META[job.status];
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+
+  function cambiarEstado(to: string) {
+    const fd = new FormData();
+    fd.set("jobId", job.id);
+    fd.set("nuevoEstado", to);
+    startTransition(() => cambiarEstadoBusquedaAction(fd));
+  }
+
+  function duplicar() {
+    const fd = new FormData();
+    fd.set("jobId", job.id);
+    startTransition(() => duplicarBusquedaAction(fd));
+  }
+
   return (
     <div className="group flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 transition-colors hover:bg-bg">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <Link
             href={`/jobs/${job.id}/pipeline`}
-            className="truncate font-semibold text-text transition-colors group-hover:text-primary"
+            className="truncate rounded-sm font-semibold text-text outline-none transition-colors group-hover:text-primary focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
           >
             {job.title}
           </Link>
@@ -77,27 +78,42 @@ function JobRow({ job }: { job: JobWithStats }) {
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
-        {STATUS_ACTIONS[job.status].map((a) => (
-          <StatusButton key={a.to} jobId={job.id} label={a.label} to={a.to} />
-        ))}
         <Link
           href={`/jobs/${job.id}/pipeline`}
-          className="rounded-[var(--radius)] bg-primary-light px-2.5 py-1.5 text-xs font-semibold text-primary-hover transition-colors hover:bg-[color-mix(in_oklab,var(--primary)_18%,white)]"
+          className="rounded-[var(--radius)] bg-primary-light px-2.5 py-1.5 text-xs font-semibold text-primary-hover outline-none transition-[transform,background-color] duration-150 hover:bg-[color-mix(in_oklab,var(--primary)_18%,white)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]"
         >
           Pipeline
         </Link>
-        <Link
-          href={`/jobs/${job.id}/edit`}
-          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        <Menu
+          align="end"
+          trigger={
+            <IconButton aria-label={`Acciones de ${job.title}`} size="sm" variant="ghost">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                <circle cx="8" cy="3" r="1.4" />
+                <circle cx="8" cy="8" r="1.4" />
+                <circle cx="8" cy="13" r="1.4" />
+              </svg>
+            </IconButton>
+          }
         >
-          Editar
-        </Link>
-        <form action={duplicarBusquedaAction}>
-          <input type="hidden" name="jobId" value={job.id} />
-          <Button type="submit" variant="ghost" size="sm">
-            Duplicar
-          </Button>
-        </form>
+          {STATUS_ACTIONS[job.status].length > 0 && (
+            <>
+              <MenuLabel>Cambiar estado</MenuLabel>
+              {STATUS_ACTIONS[job.status].map((a) => (
+                <MenuItem
+                  key={a.to}
+                  onClick={() => cambiarEstado(a.to)}
+                  destructive={a.to === "closed" || a.to === "archived"}
+                >
+                  {a.label}
+                </MenuItem>
+              ))}
+              <MenuSeparator />
+            </>
+          )}
+          <MenuItem onClick={() => router.push(`/jobs/${job.id}/edit`)}>Editar</MenuItem>
+          <MenuItem onClick={duplicar}>Duplicar</MenuItem>
+        </Menu>
       </div>
     </div>
   );
@@ -116,10 +132,7 @@ function EmptyAllState() {
         Una búsqueda es el punto de partida: definila y empezá a sumar candidatos a
         su pipeline.
       </p>
-      <Link
-        href="/jobs/new"
-        className="mt-5 inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-      >
+      <Link href="/jobs/new" className={buttonVariants({ variant: "primary", className: "mt-5" })}>
         Crear búsqueda
       </Link>
     </div>
@@ -138,7 +151,7 @@ function EmptyFilterState({ active }: { active: JobFilter }) {
       </p>
       <Link
         href="/jobs"
-        className="mt-2 inline-block text-sm font-semibold text-primary hover:text-primary-hover"
+        className="mt-2 inline-block rounded-sm text-sm font-semibold text-primary outline-none hover:text-primary-hover focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
       >
         Ver todas
       </Link>
@@ -219,7 +232,7 @@ export function JobsList({
             <button
               type="button"
               onClick={() => setQuery("")}
-              className="mt-2 text-sm font-semibold text-primary hover:text-primary-hover"
+              className="mt-2 rounded-sm text-sm font-semibold text-primary outline-none hover:text-primary-hover focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               Limpiar búsqueda
             </button>
@@ -228,7 +241,7 @@ export function JobsList({
           <EmptyFilterState active={filter} />
         )
       ) : (
-        <div className="divide-y divide-border overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
+        <div className="animate-fade-in divide-y divide-border overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
           {visible.map((job) => (
             <JobRow key={job.id} job={job} />
           ))}

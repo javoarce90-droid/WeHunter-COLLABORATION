@@ -2,6 +2,7 @@
 
 import { useState, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { X } from "lucide-react";
+import { fieldClasses } from "@/components/ui/input";
 
 interface SkillsPillsInputProps {
   /** Nombre del input hidden que se manda en el FormData (mismo criterio que el resto del form). */
@@ -67,7 +68,7 @@ export function SkillsPillsInput({ name, initialSkills = [], label, placeholder,
         onKeyDown={handleKeyDown}
         onBlur={addSkill}
         placeholder={placeholder}
-        className="w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/10"
+        className={fieldClasses()}
       />
       {helpText && <p className="text-[10px] text-muted">{helpText}</p>}
       {skills.length > 0 && (

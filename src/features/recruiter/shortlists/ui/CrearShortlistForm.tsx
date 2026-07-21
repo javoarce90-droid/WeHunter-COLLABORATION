@@ -2,6 +2,8 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { crearShortlistAction } from "../actions";
 import type { ShortlistActionState } from "../actions";
@@ -44,20 +46,15 @@ export function CrearShortlistForm({ jobId, candidates }: Props) {
         <form action={dispatch} className="flex flex-col gap-4">
           <input type="hidden" name="jobId" value={jobId} />
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="name" className="text-xs font-semibold text-muted">
-              Nombre del shortlist
-            </label>
-            <input
-              id="name"
-              name="name"
-              type="text"
-              required
-              autoFocus
-              placeholder="Ej: Finalistas para el cliente"
-              className="w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary"
-            />
-          </div>
+          <Input
+            label="Nombre del shortlist"
+            id="name"
+            name="name"
+            type="text"
+            required
+            autoFocus
+            placeholder="Ej: Finalistas para el cliente"
+          />
 
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-1 text-xs font-semibold text-muted">
@@ -66,14 +63,9 @@ export function CrearShortlistForm({ jobId, candidates }: Props) {
             {candidates.map((c) => (
               <label
                 key={c.applicationId}
-                className="flex items-center gap-2 rounded-[var(--radius)] border border-border px-3 py-2 text-sm text-text"
+                className="flex cursor-pointer items-center gap-2 rounded-[var(--radius)] border border-border px-3 py-2 text-sm text-text transition-colors hover:bg-bg"
               >
-                <input
-                  type="checkbox"
-                  name="applicationIds"
-                  value={c.applicationId}
-                  className="accent-primary"
-                />
+                <Checkbox name="applicationIds" value={c.applicationId} />
                 <span className="flex-1">{c.fullName}</span>
                 <span className="text-xs text-muted">{c.stage}</span>
               </label>
@@ -86,12 +78,12 @@ export function CrearShortlistForm({ jobId, candidates }: Props) {
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="text-sm font-semibold text-muted hover:text-text"
+              className="rounded text-sm font-semibold text-muted outline-none transition-colors hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface"
             >
               Cancelar
             </button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Creando…" : "Crear shortlist"}
+            <Button type="submit" loading={isPending}>
+              Crear shortlist
             </Button>
           </div>
         </form>

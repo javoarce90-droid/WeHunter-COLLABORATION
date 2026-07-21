@@ -5,6 +5,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FilterChip } from "@/components/ui/filter-chip";
 import { useToast } from "@/lib/toast";
 import { SENIORITY_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
 import {
@@ -16,7 +17,7 @@ import {
 import { buscarSourcingAction, importarSourcingAction } from "../actions";
 
 const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+  "w-full rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
 
 type Decision = "pending" | "in" | "out" | "imported";
 
@@ -137,20 +138,9 @@ export function SourcingView() {
             <span className="text-xs font-semibold text-muted">Plataformas</span>
             <div className="flex flex-wrap gap-1.5">
               {SOURCING_PLATFORMS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => togglePlatform(p)}
-                  aria-pressed={platforms.has(p)}
-                  className={[
-                    "rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors",
-                    platforms.has(p)
-                      ? "border-primary bg-primary-light text-primary-hover"
-                      : "border-border text-muted hover:text-text",
-                  ].join(" ")}
-                >
+                <FilterChip key={p} onClick={() => togglePlatform(p)} active={platforms.has(p)}>
                   {p}
-                </button>
+                </FilterChip>
               ))}
             </div>
           </div>

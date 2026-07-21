@@ -56,7 +56,7 @@ export function ClientShareControls({ clientId, shares, appUrl }: Props) {
         <select
           name="expiresInDays"
           defaultValue=""
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
         >
           <option value="">Sin vencimiento</option>
           <option value="30">Vence en 30 días</option>

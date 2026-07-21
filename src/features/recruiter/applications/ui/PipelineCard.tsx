@@ -88,7 +88,7 @@ export function PipelineCard({
       {...attributes}
       {...listeners}
       className={[
-        "rounded-[var(--radius)] border border-border bg-surface p-3 shadow-[var(--shadow)] outline-none transition-all hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+        "rounded-[var(--radius)] border border-border bg-surface p-3 shadow-[var(--shadow)] outline-none transition-[border-color,box-shadow,opacity] duration-150 hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
         !terminal && !isDragOverlay
           ? "touch-none cursor-grab active:cursor-grabbing"
           : "cursor-pointer",

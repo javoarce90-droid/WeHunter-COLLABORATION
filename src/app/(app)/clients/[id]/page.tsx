@@ -11,6 +11,7 @@ import { ClientShareControls } from "@/features/recruiter/clients/ui/ClientShare
 import { JOB_STATUS_META } from "@/features/recruiter/jobs/ui/status-meta";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { SectionCard } from "@/components/ui/section-card";
 import type { Job } from "@/db/schema";
 
 /** Ficha del cliente: datos de contacto + búsquedas vinculadas. */
@@ -70,20 +71,14 @@ export default async function ClientDetailPage({
       </div>
 
       {client.notes && (
-        <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-label">
-            Notas
-          </h2>
+        <SectionCard title="Notas">
           <p className="whitespace-pre-wrap text-sm text-text">{client.notes}</p>
-        </section>
+        </SectionCard>
       )}
 
       <ClientShareControls clientId={client.id} shares={shares} appUrl={appUrl} />
 
-      <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
-        <div className="border-b border-border px-5 py-3.5">
-          <h2 className="text-sm font-bold text-text">Búsquedas del cliente</h2>
-        </div>
+      <SectionCard title="Búsquedas del cliente" flush>
         {jobs.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-muted">
             Este cliente no tiene búsquedas vinculadas. Vinculá una desde el formulario de
@@ -109,7 +104,7 @@ export default async function ClientDetailPage({
             })}
           </ul>
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }

@@ -52,14 +52,14 @@ export function ShareControls({ shortlistId, jobId, shares, appUrl }: Props) {
         <select
           name="expiresInDays"
           defaultValue="7"
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
         >
           <option value="7">Vence en 7 días</option>
           <option value="30">Vence en 30 días</option>
           <option value="">Sin vencimiento</option>
         </select>
-        <Button type="submit" size="sm" variant="secondary" disabled={genPending}>
-          {genPending ? "Generando…" : "Generar enlace"}
+        <Button type="submit" size="sm" variant="secondary" loading={genPending}>
+          Generar enlace
         </Button>
         {genState.error && <span className="text-xs text-danger">{genState.error}</span>}
       </form>
@@ -81,14 +81,17 @@ export function ShareControls({ shortlistId, jobId, shares, appUrl }: Props) {
                     <button
                       type="button"
                       onClick={() => copy(share.token)}
-                      className="font-semibold text-primary hover:underline"
+                      className="rounded font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
                     >
                       {copied === share.token ? "¡Copiado!" : "Copiar"}
                     </button>
                     <form action={revokeDispatch} className="inline">
                       <input type="hidden" name="shareId" value={share.id} />
                       <input type="hidden" name="jobId" value={jobId} />
-                      <button type="submit" className="font-semibold text-danger hover:underline">
+                      <button
+                        type="submit"
+                        className="rounded font-semibold text-danger outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-danger)]"
+                      >
                         Revocar
                       </button>
                     </form>

@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SearchInput } from "@/components/ui/search-input";
 import { useToast } from "@/lib/toast";
@@ -25,6 +26,10 @@ import type { DuplicateCandidateMatch } from "@/features/recruiter/candidates/do
 import type { VerificarCandidatoPorEmailResult } from "@/features/recruiter/candidates/domain/verificar-candidato-por-email";
 
 type PoolCandidate = { id: string; fullName: string; email: string | null };
+
+/** Foco visible estándar para botones de texto sin fondo (gap WCAG AA de PRODUCT.md). */
+const focusRing =
+  "rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface";
 
 type Props = {
   jobId: string;
@@ -118,7 +123,7 @@ export function AgregarCandidatos({
 
   return (
     <>
-      <Button type="button" onClick={() => setOpen(true)}>
+      <Button type="button" size="sm" onClick={() => setOpen(true)}>
         + Agregar candidatos
       </Button>
 
@@ -144,7 +149,7 @@ export function AgregarCandidatos({
               <button
                 type="button"
                 onClick={() => setTab("nuevo")}
-                className="font-semibold text-primary hover:underline"
+                className={`font-semibold text-primary hover:underline ${focusRing}`}
               >
                 Nuevo candidato
               </button>
@@ -198,18 +203,17 @@ export function AgregarCandidatos({
                 <button
                   type="button"
                   onClick={close}
-                  className="text-sm font-semibold text-muted hover:text-text"
+                  className={`text-sm font-semibold text-muted hover:text-text ${focusRing}`}
                 >
                   Cancelar
                 </button>
                 <Button
                   type="button"
                   onClick={postularSeleccionados}
-                  disabled={selected.size === 0 || poolPending}
+                  loading={poolPending}
+                  disabled={selected.size === 0}
                 >
-                  {poolPending
-                    ? "Postulando…"
-                    : `Postular${selected.size > 0 ? ` (${selected.size})` : ""}`}
+                  {`Postular${selected.size > 0 ? ` (${selected.size})` : ""}`}
                 </Button>
               </div>
             </div>
@@ -364,14 +368,14 @@ function NuevoCandidatoForm({
               type="button"
               disabled={poolPending}
               onClick={() => onPostularExistente(shownDuplicate.id)}
-              className="font-semibold underline"
+              className="rounded font-semibold underline outline-none focus-visible:ring-2 focus-visible:ring-current"
             >
               {poolPending ? "Postulando…" : "Postular al existente"}
             </button>
             <button
               type="button"
               onClick={() => resubmitWith(confirmDuplicateRef)}
-              className="font-semibold underline"
+              className="rounded font-semibold underline outline-none focus-visible:ring-2 focus-visible:ring-current"
             >
               Es otra persona, crear igual
             </button>
@@ -384,14 +388,14 @@ function NuevoCandidatoForm({
             <button
               type="button"
               onClick={() => resubmitWith(linkProfileRef)}
-              className="font-semibold underline"
+              className="rounded font-semibold underline outline-none focus-visible:ring-2 focus-visible:ring-current"
             >
               Vincular esa cuenta
             </button>
             <button
               type="button"
               onClick={() => resubmitWith(skipProfileLinkRef)}
-              className="font-semibold underline"
+              className="rounded font-semibold underline outline-none focus-visible:ring-2 focus-visible:ring-current"
             >
               No vincular, crear igual
             </button>
@@ -405,24 +409,14 @@ function NuevoCandidatoForm({
         placeholder="React, TypeScript, Node"
       />
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="source" className="text-xs font-semibold text-muted">
-          Fuente (opcional)
-        </label>
-        <select
-          id="source"
-          name="source"
-          defaultValue=""
-          className="w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]"
-        >
-          <option value="">Sin especificar</option>
-          {Object.entries(CANDIDATE_SOURCE_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <Select label="Fuente (opcional)" id="source" name="source" defaultValue="">
+        <option value="">Sin especificar</option>
+        {Object.entries(CANDIDATE_SOURCE_LABELS).map(([value, label]) => (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        ))}
+      </Select>
 
       {state.error && !shownDuplicate && !shownProfileMatch && (
         <p className="text-xs text-danger">{state.error}</p>
@@ -432,16 +426,12 @@ function NuevoCandidatoForm({
         <button
           type="button"
           onClick={onCancel}
-          className="text-sm font-semibold text-muted hover:text-text"
+          className={`text-sm font-semibold text-muted hover:text-text ${focusRing}`}
         >
           Cancelar
         </button>
-        <Button type="submit" disabled={formPending || checkingEmail}>
-          {formPending
-            ? "Creando…"
-            : checkingEmail
-              ? "Revisando…"
-              : "Crear y postular"}
+        <Button type="submit" loading={formPending} disabled={checkingEmail}>
+          Crear y postular
         </Button>
       </div>
     </form>

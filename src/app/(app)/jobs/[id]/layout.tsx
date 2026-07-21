@@ -29,13 +29,16 @@ export default async function JobLayout({
   const meta = JOB_STATUS_META[job.status];
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
         <nav
           aria-label="Migas de pan"
           className="flex items-center gap-1.5 text-sm text-muted"
         >
-          <Link href="/jobs" className="hover:text-text">
+          <Link
+            href="/jobs"
+            className="rounded-sm outline-none hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+          >
             Búsquedas
           </Link>
           <span aria-hidden>/</span>

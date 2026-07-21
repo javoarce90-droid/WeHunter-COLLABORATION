@@ -1,8 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { REMEMBER_COOKIE } from "@/lib/supabase/remember";
 import { isRecruiterRoute } from "@/lib/auth/route-realms";
 
 /**
@@ -51,11 +53,23 @@ export async function candidateLogin(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  // Checkbox "Recordar mi cuenta": presente en el FormData solo si quedó tildado.
+  const rememberMe = formData.get("remember") != null;
+  const supabase = await createSupabaseServerClient(rememberMe);
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
     return { error: "Email o contraseña incorrectos" };
   }
+
+  // Preferencia persistida para que el proxy mantenga el mismo tipo de cookie al refrescar.
+  const cookieStore = await cookies();
+  cookieStore.set(REMEMBER_COOKIE, rememberMe ? "1" : "0", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    ...(rememberMe ? { maxAge: 60 * 60 * 24 * 400 } : {}),
+  });
 
   redirect(safeRedirect(formData.get("redirect")));
 }

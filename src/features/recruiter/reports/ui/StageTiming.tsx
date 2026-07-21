@@ -1,5 +1,6 @@
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
 import { STAGE_DOT } from "@/features/recruiter/applications/ui/stage-visual";
+import { SectionCard } from "@/components/ui/section-card";
 import type { JobPerformance } from "../domain/job-performance";
 
 function formatDays(days: number): string {
@@ -17,16 +18,14 @@ export function StageTiming({ perf }: { perf: JobPerformance }) {
   const { timeToHireDays, avgTimeInStage, trackedCount } = perf;
 
   return (
-    <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-      <div className="mb-4 flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-bold text-text">Tiempos del proceso</h2>
-        {trackedCount > 0 && (
-          <span className="text-xs text-muted">
-            {trackedCount} con historial
-          </span>
-        )}
-      </div>
-
+    <SectionCard
+      title="Tiempos del proceso"
+      action={
+        trackedCount > 0 ? (
+          <span className="text-xs text-muted">{trackedCount} con historial</span>
+        ) : undefined
+      }
+    >
       {trackedCount === 0 ? (
         <p className="py-6 text-center text-sm text-muted">
           Los tiempos se calculan a medida que movés candidatos por el pipeline. Todavía no
@@ -73,6 +72,6 @@ export function StageTiming({ perf }: { perf: JobPerformance }) {
           )}
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }

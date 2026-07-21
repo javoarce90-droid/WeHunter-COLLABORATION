@@ -21,6 +21,7 @@ import { CertificationsSection } from "@/features/candidate/profile/ui/Certifica
 import { Badge } from "@/components/ui/badge";
 import { AiScore } from "@/components/ui/ai";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SectionCard } from "@/components/ui/section-card";
 import { normalizeIfUncapitalized } from "@/lib/text";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
@@ -155,8 +156,7 @@ export default async function CandidateDetailPage({
         {/* Perfil + participación en búsquedas */}
         <aside className="order-1 flex flex-col gap-5 lg:order-2">
           {(candidate.summary || (candidate.skills?.length ?? 0) > 0) && (
-            <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-              <h2 className="mb-2 text-sm font-bold text-text">Perfil</h2>
+            <SectionCard title="Perfil">
               {candidate.summary && (
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-text/80">
                   {candidate.summary}
@@ -174,13 +174,10 @@ export default async function CandidateDetailPage({
                   ))}
                 </div>
               )}
-            </section>
+            </SectionCard>
           )}
 
-          <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
-            <div className="border-b border-border px-5 py-3.5">
-              <h2 className="text-sm font-bold text-text">Búsquedas</h2>
-            </div>
+          <SectionCard title="Búsquedas" flush>
             {apps.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-muted">
                 Todavía no participa en ninguna búsqueda. Postulalo desde el pipeline de
@@ -216,7 +213,7 @@ export default async function CandidateDetailPage({
                 ))}
               </ul>
             )}
-          </section>
+          </SectionCard>
         </aside>
       </div>
 

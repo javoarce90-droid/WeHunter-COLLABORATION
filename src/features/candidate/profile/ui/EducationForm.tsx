@@ -52,7 +52,7 @@ export function EducationForm({
           name="institution"
           required
           defaultValue={education?.institution ?? ""}
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -63,7 +63,7 @@ export function EducationForm({
           name="degree"
           required
           defaultValue={education?.degree ?? ""}
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -73,7 +73,7 @@ export function EducationForm({
           type="text"
           name="fieldOfStudy"
           defaultValue={education?.fieldOfStudy ?? ""}
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -84,7 +84,7 @@ export function EducationForm({
             type="date"
             name="startDate"
             defaultValue={education?.startDate ?? ""}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
           />
         </label>
         <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
@@ -93,7 +93,7 @@ export function EducationForm({
             type="date"
             name="endDate"
             defaultValue={education?.endDate ?? ""}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
           />
         </label>
       </div>
@@ -104,7 +104,7 @@ export function EducationForm({
           name="description"
           rows={2}
           defaultValue={education?.description ?? ""}
-          className="resize-none rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+          className="resize-none rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -115,7 +115,7 @@ export function EducationForm({
             type="text"
             name="grade"
             defaultValue={education?.grade ?? ""}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
           />
         </label>
         <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
@@ -124,7 +124,7 @@ export function EducationForm({
             type="text"
             name="activities"
             defaultValue={education?.activities ?? ""}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
           />
         </label>
       </div>

@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from "react";
+import { Spinner } from "./spinner";
 
 /** Ícono ✦ de IA (sparkle). */
 export function SparkleIcon({ size = 14 }: { size?: number }) {
@@ -16,21 +17,33 @@ export function SparkleIcon({ size = 14 }: { size?: number }) {
 export function AiButton({
   className = "",
   children,
+  loading = false,
+  disabled,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement>) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) {
   return (
     <button
       className={[
-        "inline-flex items-center justify-center gap-1.5 rounded-[var(--radius)] px-3 py-1.5 text-xs font-semibold text-white transition-opacity",
+        "relative inline-flex items-center justify-center gap-1.5 rounded-[var(--radius)] px-3 py-1.5 text-xs font-semibold text-white",
+        "outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
         // Gradiente ✦ accesible: el extremo claro se mantiene en #7C3AED (~5.6:1 con blanco),
         // no #9D6DF1 (~3.55:1, falla AA). Accesibilidad de PRODUCT.md > hex exacto de DESIGN.md.
         "bg-gradient-to-r from-primary to-[#7C3AED] hover:opacity-90 disabled:opacity-50",
         className,
       ].join(" ")}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
-      <SparkleIcon size={13} />
-      {children}
+      {loading && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <Spinner />
+        </span>
+      )}
+      <span className={loading ? "contents invisible" : "contents"}>
+        <SparkleIcon size={13} />
+        {children}
+      </span>
     </button>
   );
 }

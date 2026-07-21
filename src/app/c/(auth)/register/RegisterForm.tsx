@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { AccountTypeTabs } from "@/components/ui/account-type-tabs";
+import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
 
 const initialState: CandidateAuthFormState = {};
 
@@ -55,6 +56,7 @@ export function RegisterForm({ redirectTo }: { redirectTo: string }) {
               {pending ? "Creando cuenta…" : "Crear cuenta"}
             </Button>
           </form>
+          <SocialAuthButtons realm="candidate" />
           <p className="text-center text-xs text-muted">
             ¿Ya tenés cuenta?{" "}
             <Link href={loginHref} className="font-semibold text-primary">

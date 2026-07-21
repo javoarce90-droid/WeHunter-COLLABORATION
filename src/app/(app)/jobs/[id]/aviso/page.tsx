@@ -79,7 +79,7 @@ export default async function JobPostingPreviewPage({
         <div className="flex flex-wrap items-center gap-4">
           <Link
             href={`/jobs/${job.id}/edit`}
-            className="text-xs font-semibold text-primary hover:text-primary-hover"
+            className="rounded-sm text-xs font-semibold text-primary outline-none hover:text-primary-hover focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
           >
             Editar aviso
           </Link>
@@ -94,7 +94,7 @@ export default async function JobPostingPreviewPage({
 
       <article className="rounded-[var(--radius)] border border-border bg-surface p-8 shadow-[var(--shadow)]">
         <header className="mb-6 border-b border-border pb-5">
-          <h1 className="font-display text-2xl font-bold text-text">{job.title}</h1>
+          <h1 className="font-display text-2xl font-bold text-balance text-text">{job.title}</h1>
           {job.position && (
             <p className="mt-1 text-sm font-medium text-muted">{job.position}</p>
           )}
@@ -116,8 +116,8 @@ export default async function JobPostingPreviewPage({
           <div className="flex flex-col gap-6">
             {sections.map((s) => (
               <section key={s.title}>
-                <h2 className="mb-1.5 text-sm font-bold text-text">{s.title}</h2>
-                <div className="max-w-[70ch] text-sm leading-relaxed text-text/80">
+                <h2 className="mb-2 text-sm font-bold text-text">{s.title}</h2>
+                <div className="max-w-[70ch] text-sm leading-relaxed text-text/80 [text-wrap:pretty]">
                   <JobMarkdown text={s.body} />
                 </div>
               </section>
@@ -137,7 +137,7 @@ export default async function JobPostingPreviewPage({
             )}
           </div>
         ) : job.posting ? (
-          <div className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text">
+          <div className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text [text-wrap:pretty]">
             {job.posting}
           </div>
         ) : (
@@ -145,7 +145,7 @@ export default async function JobPostingPreviewPage({
             Esta búsqueda todavía no tiene un aviso redactado.{" "}
             <Link
               href={`/jobs/${job.id}/edit`}
-              className="font-semibold text-primary hover:text-primary-hover"
+              className="rounded-sm font-semibold text-primary outline-none hover:text-primary-hover focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
             >
               Redactá el aviso
             </Link>{" "}

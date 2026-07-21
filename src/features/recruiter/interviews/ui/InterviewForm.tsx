@@ -81,7 +81,7 @@ export function InterviewForm({ applicationId, jobId, interview, teamMembers, on
           name="scheduledAt"
           required
           defaultValue={interview ? toLocalInputValue(interview.scheduledAt) : ""}
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -91,7 +91,7 @@ export function InterviewForm({ applicationId, jobId, interview, teamMembers, on
           <select
             name="mode"
             defaultValue={interview?.mode ?? "remote"}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
           >
             {INTERVIEW_MODES.map((m) => (
               <option key={m} value={m}>
@@ -106,7 +106,7 @@ export function InterviewForm({ applicationId, jobId, interview, teamMembers, on
           <select
             name="type"
             defaultValue={interview?.type ?? "screening"}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
           >
             {INTERVIEW_TYPES.map((t) => (
               <option key={t} value={t}>
@@ -123,7 +123,7 @@ export function InterviewForm({ applicationId, jobId, interview, teamMembers, on
           <select
             name="status"
             defaultValue={interview?.status ?? "scheduled"}
-            className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
           >
             {INTERVIEW_STATUSES.map((s) => (
               <option key={s} value={s}>
@@ -142,7 +142,7 @@ export function InterviewForm({ applicationId, jobId, interview, teamMembers, on
           maxLength={LOCATION_MAX_LENGTH}
           defaultValue={interview?.location ?? ""}
           placeholder="Dirección o link de la videollamada"
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -173,7 +173,7 @@ export function InterviewForm({ applicationId, jobId, interview, teamMembers, on
           name="externalEmails"
           defaultValue={currentExternalEmails.join(", ")}
           placeholder="cliente@empresa.com, otro@ejemplo.com"
-          className="rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
         />
       </label>
 
@@ -185,7 +185,7 @@ export function InterviewForm({ applicationId, jobId, interview, teamMembers, on
           maxLength={INTERVIEW_NOTES_MAX_LENGTH}
           defaultValue={interview?.notes ?? ""}
           placeholder="Notas internas (no visible para la empresa)."
-          className="resize-none rounded-[var(--radius)] border border-border bg-surface px-2 py-1 text-xs text-text outline-none focus:border-primary"
+          className="resize-none rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
         />
       </label>
 
