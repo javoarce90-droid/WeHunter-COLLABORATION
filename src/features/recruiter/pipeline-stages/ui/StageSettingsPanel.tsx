@@ -66,8 +66,6 @@ export function StageSettingsPanel({ config, open, onClose }: Props) {
           configuración es la misma para todas tus búsquedas, no solo para esta.
         </p>
 
-        {/* "new" no se configura: dejó de ser una columna del tablero para pasar a
-            significar "todavía en la bandeja de Postulados". */}
         {optimisticConfig.filter((s) => s.stageKey !== "new").map((stage) => {
           const isTerminal = isClosingStage(stage.stageKey);
           return (

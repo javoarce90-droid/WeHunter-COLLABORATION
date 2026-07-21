@@ -568,8 +568,6 @@ export async function contactarPostuladosAction(input: {
   const job = await getJobById(jobId, org);
   if (!job) return { ok: false, error: "Búsqueda no encontrada." };
 
-  // Los candidatos del lote salen de una sola consulta; enviarMensaje ya los recibe
-  // resueltos y no vuelve a la base por cada uno.
   const destinatarios = await listCandidatesForApplications(applicationIds, org);
 
   let hechas = 0;

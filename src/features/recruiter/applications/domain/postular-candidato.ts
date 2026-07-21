@@ -76,8 +76,6 @@ export async function postularCandidato(
     return { ok: false, error: "El candidato ya está postulado a esta búsqueda." };
   }
 
-  // Sumar un candidato del pool a una búsqueda YA es la decisión de trabajarlo: entra directo
-  // al tablero, no a la bandeja de Postulados (esa es para lo que llega solo, sin decisión).
   const activeStages = (await deps.getActiveStages(ctx.organizationId)).filter(
     (s) => s !== "new" && s !== "rejected",
   );

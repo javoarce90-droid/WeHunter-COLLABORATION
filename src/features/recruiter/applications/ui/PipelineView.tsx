@@ -244,8 +244,6 @@ export function PipelineView({
 
   // Mostrar etapas activas + cualquier etapa con candidatos (aunque esté inactiva). Con el
   // filtro "en riesgo" activo, además se ocultan las columnas sin ningún candidato en riesgo.
-  // "new" nunca es columna: significa "sigue en la bandeja de Postulados", y al tablero solo
-  // llega lo que el recruiter ya decidió avanzar.
   const visibleStages = stageConfig
     .filter((sc) => sc.stageKey !== "new")
     .filter((sc) => sc.isActive || (grouped[sc.stageKey]?.length ?? 0) > 0)

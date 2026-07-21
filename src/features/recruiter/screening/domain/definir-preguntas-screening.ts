@@ -103,8 +103,6 @@ function normalizarCriterio(
   if (esperadas.length === 0) {
     return "como criterio necesita al menos una respuesta esperada.";
   }
-  // Las respuestas esperadas de una opción múltiple tienen que existir entre sus opciones:
-  // si el recruiter renombra una opción, el criterio no puede quedar apuntando a la vieja.
   if (q.type === "multiple_choice") {
     const validas = new Set(options ?? []);
     const huerfana = esperadas.find((e) => !validas.has(e));
@@ -149,8 +147,6 @@ export async function definirPreguntasScreening(
       }
     }
 
-    // Criterio de preselección: solo tiene sentido si sabemos qué respuesta esperamos. Una
-    // pregunta abierta no se puede evaluar objetivamente, así que nunca es criterio.
     const criterio = normalizarCriterio(q, options);
     if (typeof criterio === "string") {
       return err(`La pregunta "${label}": ${criterio}`);

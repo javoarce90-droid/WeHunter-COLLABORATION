@@ -48,12 +48,10 @@ function cumpleCriterio(question: CriterionQuestion, answer: string | null): boo
   if (answer == null || answer.trim() === "") return false;
 
   if (question.type === "number") {
-    // La respuesta se guarda como texto; si no es un número, el criterio no se puede verificar.
     const n = Number(answer.replace(",", ".").trim());
     if (!Number.isFinite(n)) return false;
     if (question.minValue != null && n < question.minValue) return false;
     if (question.maxValue != null && n > question.maxValue) return false;
-    // Criterio numérico sin ningún límite cargado: no hay nada que verificar.
     return question.minValue != null || question.maxValue != null;
   }
 

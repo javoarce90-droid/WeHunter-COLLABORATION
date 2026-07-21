@@ -46,8 +46,6 @@ export function ScreeningBuilder({
   function remove(i: number) {
     onChange(questions.filter((_, idx) => idx !== i));
   }
-  // Cambiar el tipo invalida cualquier criterio ya cargado: lo que se espera de un sí/no no
-  // significa nada en una numérica. Se limpia en vez de arrastrar un criterio incoherente.
   function changeType(i: number, type: ScreeningQuestionType) {
     update(i, {
       type,
@@ -63,14 +61,11 @@ export function ScreeningBuilder({
     const q = questions[i];
     update(i, {
       isCriterion,
-      // Sí/No arranca con la respuesta más habitual ya elegida; el resto queda en blanco.
       expectedValues: isCriterion && q.type === "yes_no" ? ["Sí"] : undefined,
       minValue: null,
       maxValue: null,
     });
   }
-  // Renombrar una opción arrastra el criterio que la señalaba: si no, quedaría apuntando a
-  // un texto que ya no existe y el guardado fallaría.
   function updateOption(qi: number, oi: number, value: string) {
     onChange(
       questions.map((q, idx) => {
@@ -221,7 +216,6 @@ export function ScreeningBuilder({
               <span className="text-xs text-muted">— no puede postularse sin responderla</span>
             </label>
 
-            {/* Una pregunta abierta no se puede evaluar objetivamente: no ofrece ser criterio. */}
             {q.type !== "text" && (
               <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-sm text-text">
                 <Checkbox

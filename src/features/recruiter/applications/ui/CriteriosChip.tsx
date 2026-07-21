@@ -19,8 +19,6 @@ export function CriteriosChip({ criterios }: { criterios: CriteriosEvaluados }) 
         ? "bg-[#FEE2E2] text-[#991B1B]"
         : "bg-[#FEF3C7] text-[#92400E]";
 
-  // El desglose pregunta por pregunta vive en el panel de detalle; acá alcanza el resumen
-  // (el tooltip es de una línea a propósito).
   return (
     <Tooltip label={`${cumplidos} de ${total} criterios de preselección cumplidos`}>
       <span

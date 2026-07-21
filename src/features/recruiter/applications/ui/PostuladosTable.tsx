@@ -106,8 +106,6 @@ export function PostuladosTable({
   const [message, setMessage] = useState(DEFAULT_REJECTION_MESSAGE);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "date", dir: "desc" });
 
-  // Filtros: el listado ya viene acotado del server, así que filtrar acá es instantáneo y no
-  // agrega round-trips. Si el volumen crece, esto se muda a searchParams + paginación.
   const [query, setQuery] = useState("");
   const [triageFilter, setTriageFilter] = useState<TriageFilter>("pendiente");
   const [soloCumplen, setSoloCumplen] = useState(false);
@@ -149,7 +147,6 @@ export function PostuladosTable({
       if (sort.key === "candidate") cmp = a.candidate.fullName.localeCompare(b.candidate.fullName);
       else if (sort.key === "estado") cmp = TRIAGE_ORDER[triageDe(a)] - TRIAGE_ORDER[triageDe(b)];
       else if (sort.key === "criterios") {
-        // Sin criterios evaluados va al final, sin importar la dirección.
         const ca = criteriosByApplication[a.id];
         const cb = criteriosByApplication[b.id];
         if (!ca?.total && !cb?.total) cmp = 0;
@@ -368,7 +365,6 @@ export function PostuladosTable({
         </p>
       </div>
 
-      {/* Barra de selección: las acciones masivas son las mismas que las individuales. */}
       {selected.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius)] border border-primary/30 bg-primary-light px-4 py-2.5">
           <span className="mr-1 text-sm font-semibold text-primary-hover">

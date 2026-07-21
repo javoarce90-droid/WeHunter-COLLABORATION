@@ -66,8 +66,6 @@ export async function listJobsWithStats(
           updatedAt: jobs.updatedAt,
           viewCount: jobs.viewCount,
           receivedCount: sql<number>`count(${applications.id})::int`,
-          // "Sin revisar": todavía en la bandeja y sin descartar. Sale del mismo escaneo
-          // que el total, con un filter agregado (database.md #3).
           pendingCount: sql<number>`count(${applications.id}) filter (
             where ${applications.pipelineEnteredAt} is null
               and ${applications.stage} <> 'rejected'

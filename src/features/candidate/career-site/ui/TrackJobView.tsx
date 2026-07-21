@@ -8,7 +8,8 @@ import { registrarVisitaAvisoAction } from "../actions";
  * a propósito: es la única forma de deduplicar (un Server Component no puede escribir la
  * marca de "ya lo conté"), y de paso deja afuera los prefetch y los bots sin JS.
  *
- * No renderiza nada ni bloquea la página.
+ * Si `sessionStorage` está bloqueado (modo privado estricto) la visita se cuenta igual,
+ * sin dedupe. No renderiza nada ni bloquea la página.
  */
 export function TrackJobView({ slug, jobId }: { slug: string; jobId: string }) {
   const yaContado = useRef(false);
@@ -21,9 +22,7 @@ export function TrackJobView({ slug, jobId }: { slug: string; jobId: string }) {
     try {
       if (sessionStorage.getItem(key)) return;
       sessionStorage.setItem(key, "1");
-    } catch {
-      // Storage bloqueado (modo privado estricto): se cuenta igual, sin dedupe.
-    }
+    } catch {}
     void registrarVisitaAvisoAction(slug, jobId);
   }, [slug, jobId]);
 

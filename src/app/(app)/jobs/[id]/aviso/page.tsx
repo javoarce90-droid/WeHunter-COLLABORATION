@@ -48,8 +48,6 @@ export default async function JobPostingPreviewPage({
   if (!job) notFound();
 
   // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
-  // Se miran TODAS sus postulaciones (no solo las del tablero): quien está en la bandeja ya
-  // tiene la suya y volver a agregarlo fallaría.
   const postuladosIds = new Set(candidateIdsEnLaBusqueda);
   const poolCandidates = candidates
     .filter((c) => !postuladosIds.has(c.id))

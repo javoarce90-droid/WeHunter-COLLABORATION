@@ -25,6 +25,11 @@ export type ApplicationWithCandidate = {
   };
 };
 
+/**
+ * Postulaciones del tablero: SOLO las que el recruiter decidió avanzar
+ * (`pipeline_entered_at` no nulo). Lo que sigue en la bandeja de Postulados todavía no es
+ * parte del proceso — para eso está `listPostulados`, que trae todo lo recibido.
+ */
 export async function listApplicationsByJob(
   jobId: string,
   organizationId: string,
@@ -54,8 +59,6 @@ export async function listApplicationsByJob(
         and(
           eq(applications.jobId, jobId),
           eq(applications.organizationId, organizationId),
-          // El tablero muestra SOLO lo que el recruiter decidió avanzar. Lo que sigue en la
-          // bandeja de Postulados (pipeline_entered_at null) no es parte del proceso todavía.
           isNotNull(applications.pipelineEnteredAt),
         ),
       ),

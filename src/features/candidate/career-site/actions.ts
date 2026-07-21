@@ -19,7 +19,5 @@ export async function registrarVisitaAvisoAction(slug: string, jobId: string): P
 
   try {
     await recordCareerSiteJobView(parsed.data.slug, parsed.data.jobId);
-  } catch {
-    // no-op: es una métrica, no puede afectar al visitante.
-  }
+  } catch {}
 }
