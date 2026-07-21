@@ -17,6 +17,7 @@ export async function crearOrganizationAction(
 ): Promise<OnboardingFormState> {
   const parsed = crearOrganizationSchema.safeParse({
     name: formData.get("name"),
+    workspaceType: formData.get("workspaceType"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };

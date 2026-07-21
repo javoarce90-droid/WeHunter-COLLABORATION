@@ -1,3 +1,5 @@
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 // ---- Tipos del caso de uso ----
 
 export type GuardarNotaInput = {
@@ -9,7 +11,7 @@ export type GuardarNotaInput = {
 export type GuardarNotaContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type GuardarNotaDeps = {
@@ -34,8 +36,8 @@ export async function guardarNota(
   | { ok: false; error: string }
 > {
   // Las notas son internas del equipo reclutador; consultores no pueden escribirlas
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden editar notas internas." };
+  if (!can(ctx.role, "notes.write")) {
+    return { ok: false, error: "Tu rol no permite guardar notas." };
   }
 
   const application = await deps.getApplicationById(input.applicationId, ctx.organizationId);

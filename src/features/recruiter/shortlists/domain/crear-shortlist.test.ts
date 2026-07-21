@@ -87,6 +87,6 @@ describe("crearShortlist", () => {
     const result = await crearShortlist(input, { ...ctx, role: "consultant" }, deps);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toMatch(/consultores/i);
+    expect(result.error).toMatch(/no permite/i);
   });
 });

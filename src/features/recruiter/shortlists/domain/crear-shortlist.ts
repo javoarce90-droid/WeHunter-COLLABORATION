@@ -1,3 +1,5 @@
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 export type CrearShortlistInput = {
   jobId: string;
   name: string;
@@ -8,7 +10,7 @@ export type CrearShortlistInput = {
 export type CrearShortlistContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type CrearShortlistDeps = {
@@ -39,8 +41,8 @@ export async function crearShortlist(
   | { ok: true; data: { shortlistId: string } }
   | { ok: false; error: string }
 > {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden crear shortlists." };
+  if (!can(ctx.role, "shortlists.manage")) {
+    return { ok: false, error: "Tu rol no permite gestionar shortlists." };
   }
 
   const name = input.name.trim();

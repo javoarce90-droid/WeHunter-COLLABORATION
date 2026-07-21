@@ -1,4 +1,6 @@
 import type { InterviewRow } from "./agendar-entrevista";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 // ---- Tipos del caso de uso ----
 
@@ -9,7 +11,7 @@ export type EliminarEntrevistaInput = {
 export type EliminarEntrevistaContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type EliminarEntrevistaDeps = {
@@ -27,8 +29,8 @@ export async function eliminarEntrevista(
   ctx: EliminarEntrevistaContext,
   deps: EliminarEntrevistaDeps,
 ): Promise<{ ok: true; data: { id: string } } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden eliminar entrevistas." };
+  if (!can(ctx.role, "interviews.manage")) {
+    return { ok: false, error: "Tu rol no permite eliminar entrevistas." };
   }
 
   const interview = await deps.getInterviewById(input.interviewId, ctx.organizationId);

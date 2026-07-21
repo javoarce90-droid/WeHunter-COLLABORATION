@@ -13,19 +13,17 @@ import {
   revocarInvitacionAction,
 } from "../actions";
 import { ASSIGNABLE_ROLES, type OrgRole } from "../domain/gestionar-equipo";
+import { ROLE_LABELS, ROLE_DESCRIPTIONS } from "@/lib/auth/roles";
 import type { MemberRow, InvitationRow } from "../data/team.queries";
 
-const ROLE_LABELS: Record<OrgRole, string> = {
-  owner: "Owner",
-  admin: "Admin",
-  recruiter: "Reclutador",
-  consultant: "Consultor",
-};
 const ROLE_BADGE: Record<OrgRole, "primary" | "blue" | "muted"> = {
   owner: "primary",
   admin: "blue",
   recruiter: "muted",
+  sourcer: "muted",
   consultant: "muted",
+  hiring_manager: "muted",
+  viewer: "muted",
 };
 
 const fieldClass =
@@ -101,6 +99,7 @@ export function TeamSection({
                 <option key={r} value={r}>{ROLE_LABELS[r]}</option>
               ))}
             </select>
+            <p className="max-w-xs text-xs text-muted">{ROLE_DESCRIPTIONS[role]}</p>
           </div>
           <Button onClick={invitar}>Invitar</Button>
         </div>

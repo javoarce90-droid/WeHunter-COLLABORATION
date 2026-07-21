@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { invitarMiembro, actualizarMiembro } from "./gestionar-equipo";
 import type { TeamContext, InvitarDeps, ActualizarDeps } from "./gestionar-equipo";
+import type { OrgRole } from "@/lib/auth/session";
 
 const owner: TeamContext = { userId: "u-owner", organizationId: "org-1", role: "owner" };
 
@@ -31,7 +32,7 @@ describe("invitarMiembro", () => {
 
 describe("actualizarMiembro", () => {
   const deps = (
-    target: { id: string; role: "owner" | "admin" | "recruiter" | "consultant"; profileId: string } | null,
+    target: { id: string; role: OrgRole; profileId: string } | null,
   ): ActualizarDeps => ({
     getMembership: vi.fn().mockResolvedValue(target),
     updateMembership: vi.fn().mockResolvedValue(undefined),

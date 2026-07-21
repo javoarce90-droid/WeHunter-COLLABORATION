@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { canManageRecruiting } from "@/lib/auth/roles";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import {
   normalizeCandidateDetails,
@@ -46,7 +46,7 @@ export async function editarCandidato(
   if (!ctx.organizationId || !ctx.role) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!canManageRecruiting(ctx.role)) {
+  if (!can(ctx.role, "candidates.manage")) {
     return err("No tenés permisos para editar candidatos.");
   }
 

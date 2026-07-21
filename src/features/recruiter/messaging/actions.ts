@@ -22,6 +22,7 @@ import {
   type MessageRow,
   type ThreadHeader,
 } from "./data/messaging.queries";
+import { can } from "@/lib/auth/roles";
 
 /** Carga la conversación de un hilo (header + mensajes) para el master-detail del inbox. */
 export async function loadThreadAction(
@@ -122,8 +123,8 @@ export async function crearTemplateAction(
 
   const membership = await getActiveMembership();
   if (!membership) return { error: "No autorizado." };
-  if (membership.role === "consultant") {
-    return { error: "Los consultores no pueden crear templates." };
+  if (!can(membership.role, "messaging.send")) {
+    return { error: "Tu rol no permite enviar mensajes." };
   }
 
   await insertTemplate({ organizationId: membership.organizationId, ...parsed.data });
@@ -136,8 +137,8 @@ export async function eliminarTemplateAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const membership = await getActiveMembership();
   if (!membership) return { ok: false, error: "No autorizado." };
-  if (membership.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden borrar templates." };
+  if (!can(membership.role, "messaging.send")) {
+    return { ok: false, error: "Tu rol no permite enviar mensajes." };
   }
 
   await deleteTemplate(templateId, membership.organizationId);

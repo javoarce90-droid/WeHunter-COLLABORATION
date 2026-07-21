@@ -11,6 +11,7 @@ import {
   SOURCING_PLATFORMS,
   type SourcingResult,
 } from "./domain/sourcing";
+import { can } from "@/lib/auth/roles";
 
 const querySchema = z.object({
   keywords: z.array(z.string()).max(10),
@@ -57,8 +58,8 @@ export async function importarSourcingAction(result: {
 
   const membership = await getActiveMembership();
   if (!membership) return { ok: false, error: "No autorizado." };
-  if (membership.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden importar candidatos." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { ok: false, error: "Tu rol no permite usar sourcing." };
   }
 
   await insertCandidate({

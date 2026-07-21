@@ -1,4 +1,6 @@
 import type { AiProvider } from "@/lib/ai";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 export type ScoringCandidate = {
   id: string;
@@ -15,7 +17,7 @@ export type PuntuarInput = {
 
 export type PuntuarContext = {
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type PuntuarDeps = {
@@ -32,8 +34,8 @@ export async function puntuarPostulaciones(
   ctx: PuntuarContext,
   deps: PuntuarDeps,
 ): Promise<{ ok: true; scored: number } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden analizar postulaciones." };
+  if (!can(ctx.role, "ai.use")) {
+    return { ok: false, error: "Tu rol no permite usar el análisis con IA." };
   }
 
   let scored = 0;

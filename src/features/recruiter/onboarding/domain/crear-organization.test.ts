@@ -23,7 +23,7 @@ describe("slugify", () => {
 describe("crearOrganization", () => {
   it("rechaza si no hay usuario autenticado", async () => {
     const deps = makeDeps();
-    const res = await crearOrganization({ name: "Acme" }, { userId: null }, deps);
+    const res = await crearOrganization({ name: "Acme", workspaceType: "team" }, { userId: null }, deps);
 
     expect(res.ok).toBe(false);
     expect(deps.createOrganizationWithOwner).not.toHaveBeenCalled();
@@ -31,7 +31,7 @@ describe("crearOrganization", () => {
 
   it("rechaza nombre demasiado corto", async () => {
     const deps = makeDeps();
-    const res = await crearOrganization({ name: "A" }, { userId: "u1" }, deps);
+    const res = await crearOrganization({ name: "A", workspaceType: "team" }, { userId: "u1" }, deps);
 
     expect(res.ok).toBe(false);
     expect(deps.createOrganizationWithOwner).not.toHaveBeenCalled();
@@ -39,7 +39,7 @@ describe("crearOrganization", () => {
 
   it("rechaza nombre sin caracteres alfanuméricos", async () => {
     const deps = makeDeps();
-    const res = await crearOrganization({ name: "!!!" }, { userId: "u1" }, deps);
+    const res = await crearOrganization({ name: "!!!", workspaceType: "team" }, { userId: "u1" }, deps);
 
     expect(res.ok).toBe(false);
   });
@@ -47,7 +47,7 @@ describe("crearOrganization", () => {
   it("crea la organization con el usuario como owner y devuelve su id", async () => {
     const deps = makeDeps("org-42");
     const res = await crearOrganization(
-      { name: "  Talento Global  " },
+      { name: "  Talento Global  ", workspaceType: "team" },
       { userId: "user-7" },
       deps,
     );
@@ -57,6 +57,20 @@ describe("crearOrganization", () => {
       name: "Talento Global",
       slug: "talento-global",
       ownerId: "user-7",
+      workspaceType: "team",
     });
+  });
+
+  it("propaga el tipo de workspace elegido", async () => {
+    const deps = makeDeps("org-9");
+    await crearOrganization(
+      { name: "Freelo", workspaceType: "enterprise" },
+      { userId: "user-7" },
+      deps,
+    );
+
+    expect(deps.createOrganizationWithOwner).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceType: "enterprise" }),
+    );
   });
 });

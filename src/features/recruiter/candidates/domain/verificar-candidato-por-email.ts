@@ -1,4 +1,4 @@
-import { canManageRecruiting } from "@/lib/auth/roles";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import type { DuplicateCandidateMatch } from "./duplicate-keys";
 import type { LinkableProfile } from "./profile-link";
@@ -33,7 +33,7 @@ export async function verificarCandidatoPorEmail(
   ctx: VerificarCandidatoPorEmailCtx,
   deps: VerificarCandidatoPorEmailDeps,
 ): Promise<VerificarCandidatoPorEmailResult> {
-  if (!ctx.organizationId || !ctx.role || !canManageRecruiting(ctx.role)) {
+  if (!ctx.organizationId || !ctx.role || !can(ctx.role, "candidates.manage")) {
     return {};
   }
 

@@ -1,5 +1,7 @@
 import { STAGE_LABELS, type ApplicationStage } from "../schema";
 import type { ApplicationRow } from "./postular-candidato";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 // ---- Tipos del caso de uso ----
 
@@ -18,7 +20,7 @@ export type PasarAlPipelineInput = {
 export type PasarAlPipelineContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type PasarAlPipelineDeps = {
@@ -50,8 +52,8 @@ export async function pasarAlPipeline(
   ctx: PasarAlPipelineContext,
   deps: PasarAlPipelineDeps,
 ): Promise<{ ok: true; data: ApplicationRow } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden avanzar candidatos al pipeline." };
+  if (!can(ctx.role, "pipeline.move")) {
+    return { ok: false, error: "Tu rol no permite avanzar candidatos al pipeline." };
   }
 
   const application = await deps.getApplicationById(input.applicationId, ctx.organizationId);

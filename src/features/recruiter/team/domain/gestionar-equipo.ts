@@ -1,8 +1,16 @@
-export type OrgRole = "owner" | "admin" | "recruiter" | "consultant";
+export type { OrgRole } from "@/lib/auth/session";
+import type { OrgRole } from "@/lib/auth/session";
 export type MembershipStatus = "active" | "inactive";
 
 /** Roles que se pueden invitar/asignar (el owner es único, no se asigna). */
-export const ASSIGNABLE_ROLES: OrgRole[] = ["admin", "recruiter", "consultant"];
+export const ASSIGNABLE_ROLES: OrgRole[] = [
+  "admin",
+  "recruiter",
+  "sourcer",
+  "consultant",
+  "hiring_manager",
+  "viewer",
+];
 
 function canManageTeam(role: OrgRole): boolean {
   return role === "owner" || role === "admin";

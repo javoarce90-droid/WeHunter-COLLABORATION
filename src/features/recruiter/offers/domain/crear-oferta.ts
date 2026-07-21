@@ -1,4 +1,6 @@
 import type { OfferStatus } from "../schema";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 export type OfferRow = {
   id: string;
@@ -24,7 +26,7 @@ export type CrearOfertaInput = {
 export type CrearOfertaContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type CrearOfertaDeps = {
@@ -41,8 +43,8 @@ export async function crearOferta(
   ctx: CrearOfertaContext,
   deps: CrearOfertaDeps,
 ): Promise<{ ok: true; data: OfferRow } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden generar ofertas." };
+  if (!can(ctx.role, "offers.manage")) {
+    return { ok: false, error: "Tu rol no permite gestionar ofertas." };
   }
 
   if (input.title.trim().length === 0) {

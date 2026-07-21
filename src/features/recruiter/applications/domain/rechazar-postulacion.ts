@@ -1,6 +1,8 @@
 import { isClosingStage, STAGE_LABELS } from "../schema";
 import type { RejectionReason } from "../schema";
 import type { ApplicationRow } from "./postular-candidato";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 // ---- Tipos del caso de uso ----
 
@@ -13,7 +15,7 @@ export type RechazarPostulacionInput = {
 export type RechazarPostulacionContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type RechazarPostulacionDeps = {
@@ -40,8 +42,8 @@ export async function rechazarPostulacion(
   ctx: RechazarPostulacionContext,
   deps: RechazarPostulacionDeps,
 ): Promise<{ ok: true; data: ApplicationRow } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden rechazar candidatos." };
+  if (!can(ctx.role, "pipeline.move")) {
+    return { ok: false, error: "Tu rol no permite rechazar candidatos." };
   }
 
   const application = await deps.getApplicationById(input.applicationId, ctx.organizationId);

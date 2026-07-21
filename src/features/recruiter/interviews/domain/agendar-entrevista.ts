@@ -1,4 +1,6 @@
 import type { InterviewMode, InterviewStatus, InterviewType } from "../schema";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 /** Fila de entrevista tal como la devuelve la capa de datos. Tipo compartido del dominio. */
 export type InterviewRow = {
@@ -33,7 +35,7 @@ export type AgendarEntrevistaInput = {
 export type AgendarEntrevistaContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type AgendarEntrevistaDeps = {
@@ -62,8 +64,8 @@ export async function agendarEntrevista(
   deps: AgendarEntrevistaDeps,
 ): Promise<{ ok: true; data: InterviewRow } | { ok: false; error: string }> {
   // Coordinar entrevistas es tarea del equipo reclutador, no de los consultores (solo lectura).
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden agendar entrevistas." };
+  if (!can(ctx.role, "interviews.manage")) {
+    return { ok: false, error: "Tu rol no permite agendar entrevistas." };
   }
 
   const application = await deps.getApplicationById(input.applicationId, ctx.organizationId);

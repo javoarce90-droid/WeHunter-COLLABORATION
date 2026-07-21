@@ -38,6 +38,17 @@ export const orgRole = pgEnum("org_role", [
   "admin",
   "recruiter",
   "consultant",
+  "sourcer",
+  "viewer",
+  "hiring_manager",
+]);
+
+// Cómo usa WeHunter la organización. Se elige en el onboarding; null = organizaciones
+// creadas antes de que existiera el paso.
+export const workspaceType = pgEnum("workspace_type", [
+  "freelance",
+  "team",
+  "enterprise",
 ]);
 
 export const jobStatus = pgEnum("job_status", [
@@ -219,6 +230,7 @@ export const organizations = pgTable("organizations", {
   slug: text("slug").notNull(),
   // Logo del workspace: path en el bucket privado `org-logos` (se sirve vía signed URL).
   logoUrl: text("logo_url"),
+  workspaceType: workspaceType("workspace_type"),
   // Preferencias del workspace (zona horaria, etc.). jsonb flexible para no migrar por cada opción.
   preferences: jsonb("preferences"),
   // Career Site (micrositio público de marca-empleadora): gate de autorización primario,

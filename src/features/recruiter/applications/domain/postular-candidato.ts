@@ -1,4 +1,6 @@
 import type { ApplicationStage } from "../schema";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 // ---- Tipos del caso de uso ----
 
@@ -24,7 +26,7 @@ export type PostularInput = {
 export type PostularContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type PostularDeps = {
@@ -51,8 +53,8 @@ export async function postularCandidato(
   deps: PostularDeps,
 ): Promise<{ ok: true; data: ApplicationRow } | { ok: false; error: string }> {
   // Autorización primaria: solo owner/admin/recruiter pueden postular
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden postular candidatos directamente." };
+  if (!can(ctx.role, "applications.add")) {
+    return { ok: false, error: "Tu rol no permite postular candidatos." };
   }
 
   // El job debe existir y pertenecer a la org, y estar abierto

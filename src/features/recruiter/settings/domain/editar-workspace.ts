@@ -1,6 +1,7 @@
 import { SlugTakenError, type OrgPatch, type CareerSiteBranding } from "../data/settings.mutations";
+export type { OrgRole } from "@/lib/auth/session";
+import type { OrgRole } from "@/lib/auth/session";
 
-export type OrgRole = "owner" | "admin" | "recruiter" | "consultant";
 
 /** Solo el owner o un admin pueden editar los datos del workspace. */
 function canEditWorkspace(role: OrgRole): boolean {

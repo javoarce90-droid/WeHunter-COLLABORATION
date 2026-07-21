@@ -3,6 +3,8 @@ import { rechazarPostulacion } from "./rechazar-postulacion";
 import type { RechazarPostulacionDeps } from "./rechazar-postulacion";
 import type { ApplicationRow } from "./postular-candidato";
 import type { TalentState } from "@/features/recruiter/candidates/domain/cambiar-estado-talento";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 // ---- Tipos del caso de uso ----
 
@@ -15,7 +17,7 @@ export type GuardarEnTalentPoolInput = {
 export type GuardarEnTalentPoolContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type GuardarEnTalentPoolDeps = RechazarPostulacionDeps & {
@@ -42,8 +44,8 @@ export async function guardarEnTalentPool(
   ctx: GuardarEnTalentPoolContext,
   deps: GuardarEnTalentPoolDeps,
 ): Promise<{ ok: true; data: ApplicationRow } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden gestionar el pool." };
+  if (!can(ctx.role, "pipeline.move")) {
+    return { ok: false, error: "Tu rol no permite gestionar el pool." };
   }
 
   const cerrada = await rechazarPostulacion(

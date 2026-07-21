@@ -1,5 +1,6 @@
 import { ok, err, type Result } from "@/lib/result";
 import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 /**
  * Caso de uso: agregar una nota al timeline de una postulación (tabla `notes`).
@@ -39,7 +40,7 @@ export async function agregarNota(
   if (!ctx.userId || !ctx.organizationId || !ctx.role) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (ctx.role === "consultant") {
+  if (!can(ctx.role, "notes.write")) {
     return err("Los consultores no pueden escribir notas internas.");
   }
 
