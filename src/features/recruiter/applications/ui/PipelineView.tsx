@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import {
   DndContext,
   DragOverlay,
@@ -30,7 +31,10 @@ import { PipelineDetailSheet } from "./PipelineDetailSheet";
 import { STAGE_DOT, isTerminal, getSlaStatus } from "./stage-visual";
 
 type Props = {
+  jobId: string;
   applications: ApplicationWithCandidate[];
+  /** Postulaciones que siguen en la bandeja: el tablero vacío ofrece ir a revisarlas. */
+  pendientes: number;
   interviewsByApplication: Record<string, InterviewRow[]>;
   teamMembers: TeamMemberOption[];
   notesByApplication: Record<string, TimelineNote[]>;
@@ -134,7 +138,9 @@ function PipelineColumn({
 // ── Board ────────────────────────────────────────────────────────────────────
 
 export function PipelineView({
+  jobId,
   applications,
+  pendientes,
   interviewsByApplication,
   teamMembers,
   notesByApplication,
@@ -238,12 +244,15 @@ export function PipelineView({
 
   // Mostrar etapas activas + cualquier etapa con candidatos (aunque esté inactiva). Con el
   // filtro "en riesgo" activo, además se ocultan las columnas sin ningún candidato en riesgo.
+  // "new" nunca es columna: significa "sigue en la bandeja de Postulados", y al tablero solo
+  // llega lo que el recruiter ya decidió avanzar.
   const visibleStages = stageConfig
+    .filter((sc) => sc.stageKey !== "new")
     .filter((sc) => sc.isActive || (grouped[sc.stageKey]?.length ?? 0) > 0)
     .filter((sc) => !riskOnly || (grouped[sc.stageKey] ?? []).some(isAtRisk));
 
   const activeStageKeys = stageConfig
-    .filter((s) => s.isActive)
+    .filter((s) => s.isActive && s.stageKey !== "new")
     .map((s) => s.stageKey);
   const draggingApp = draggingId
     ? optimisticApps.find((a) => a.id === draggingId)
@@ -286,10 +295,24 @@ export function PipelineView({
         <EmptyState
           title="No hay candidatos en el pipeline"
           description={
-            <>
-              Sumá candidatos del pool o creá uno nuevo con el botón{" "}
-              <span className="font-semibold text-text">Agregar candidatos</span>.
-            </>
+            pendientes > 0 ? (
+              <>
+                Hay{" "}
+                <Link
+                  href={`/jobs/${jobId}/postulados`}
+                  className="font-semibold text-primary hover:text-primary-hover"
+                >
+                  {pendientes} postulación{pendientes !== 1 ? "es" : ""} sin revisar
+                </Link>
+                . Avanzá desde ahí a quienes quieras trabajar, o sumá candidatos del pool con{" "}
+                <span className="font-semibold text-text">Agregar candidatos</span>.
+              </>
+            ) : (
+              <>
+                Sumá candidatos del pool o creá uno nuevo con el botón{" "}
+                <span className="font-semibold text-text">Agregar candidatos</span>.
+              </>
+            )
           }
         />
       ) : riskOnly && atRiskCount === 0 ? (

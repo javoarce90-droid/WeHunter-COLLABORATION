@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import {
   listApplicationsByJob,
+  listCandidateIdsByJob,
+  getJobStageCounts,
   getStageEntryTimes,
   listStageEventsByJob,
   type StageHistoryEvent,
@@ -30,8 +32,18 @@ export default async function PipelinePage({ params }: Props) {
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [applications, candidates, interviews, notes, stageConfig, stageEvents, members, screeningAnswers] =
-    await Promise.all([
+  const [
+    applications,
+    candidates,
+    interviews,
+    notes,
+    stageConfig,
+    stageEvents,
+    members,
+    screeningAnswers,
+    counts,
+    candidateIdsEnLaBusqueda,
+  ] = await Promise.all([
       listApplicationsByJob(jobId, membership.organizationId),
       listCandidates(membership.organizationId),
       listInterviewsByJob(jobId, membership.organizationId),
@@ -40,6 +52,8 @@ export default async function PipelinePage({ params }: Props) {
       listStageEventsByJob(jobId, membership.organizationId),
       listMembers(membership.organizationId),
       listScreeningAnswersByJob(jobId, membership.organizationId),
+      getJobStageCounts(jobId, membership.organizationId),
+      listCandidateIdsByJob(jobId, membership.organizationId),
     ]);
   const teamMembers = members
     .filter((m) => m.status === "active")
@@ -55,7 +69,9 @@ export default async function PipelinePage({ params }: Props) {
   }
 
   // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
-  const postuladosIds = new Set(applications.map((a) => a.candidateId));
+  // Se miran TODAS sus postulaciones (no solo las del tablero): quien está en la bandeja ya
+  // tiene la suya y volver a agregarlo fallaría.
+  const postuladosIds = new Set(candidateIdsEnLaBusqueda);
   const poolCandidates = candidates
     .filter((c) => !postuladosIds.has(c.id))
     .map((c) => ({ id: c.id, fullName: c.fullName, email: c.email }));
@@ -88,7 +104,9 @@ export default async function PipelinePage({ params }: Props) {
 
   return (
     <PipelineView
+      jobId={jobId}
       applications={applications}
+      pendientes={counts.pendientes}
       interviewsByApplication={interviewsByApplication}
       teamMembers={teamMembers}
       notesByApplication={notesByApplication}

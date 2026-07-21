@@ -14,7 +14,7 @@ import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/Interv
 import { ScreeningAnswers } from "@/features/recruiter/screening/ui/ScreeningAnswers";
 import type { ScreeningAnswerRow } from "@/features/recruiter/screening/data/screening.queries";
 import { generarGuiaEntrevistaAction } from "../actions";
-import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
+import { PIPELINE_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate, StageHistoryEvent } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
@@ -131,7 +131,7 @@ export function PipelineDetailSheet({
                 }
               >
                 <MenuLabel>Mover a</MenuLabel>
-                {(activeStageKeys ?? APPLICATION_STAGES)
+                {(activeStageKeys ?? PIPELINE_STAGES)
                   .filter((s) => s !== application.stage)
                   .map((s) => (
                     <MenuItem

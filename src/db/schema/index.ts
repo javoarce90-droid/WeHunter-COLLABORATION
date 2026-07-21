@@ -409,6 +409,10 @@ export const jobs = pgTable("jobs", {
   // Beneficios: lista de {name, description}. Solo-de-mostrar → jsonb (sin tabla hija ni
   // transacciones extra; ver decisión de performance). Se selecciona solo en el detalle.
   benefits: jsonb("benefits").$type<{ name: string; description: string }[]>(),
+  // Visitas al aviso en el Career Site público. Contador simple (no tabla de eventos): el
+  // listado solo muestra el total. Lo incrementa `record_career_site_job_view` (SECURITY
+  // DEFINER: el visitante no tiene sesión), con dedupe por cookie del lado de la app.
+  viewCount: integer("view_count").notNull().default(0),
   createdBy: uuid("created_by").references(() => profiles.id),
   ...timestamps,
 }, (t) => ({
@@ -614,6 +618,12 @@ export const applications = pgTable("applications", {
     .references(() => candidates.id, { onDelete: "cascade" })
     .notNull(),
   stage: applicationStage("stage").notNull().default("new"),
+  // Momento en que el recruiter decidió avanzar la postulación al pipeline. null = todavía
+  // está en la bandeja de Postulados, esperando decisión. Es lo que separa las dos pantallas:
+  // Postulados muestra todo lo recibido, el Kanban solo lo que entró acá. Se guarda como dato
+  // propio (no se deduce de `stage`) para que la decisión del recruiter sea explícita y para
+  // que un descarte hecho en el triage nunca aparezca en el tablero.
+  pipelineEnteredAt: timestamp("pipeline_entered_at"),
   // Marcador liviano de favorito/destacado para el triage de postulados. No es el shortlist
   // (que es la selección formal que se comparte con la empresa): es una estrella del recruiter.
   isFavorite: boolean("is_favorite").notNull().default(false),
@@ -656,6 +666,16 @@ export const screeningQuestions = pgTable("screening_questions", {
   options: text("options").array(),
   required: boolean("required").notNull().default(true),
   position: integer("position").notNull().default(0),
+  // Criterio de preselección: además de informar, la respuesta se evalúa y suma al indicador
+  // "N/M criterios cumplidos" de la bandeja de Postulados. Las preguntas de texto no pueden
+  // serlo (no hay forma objetiva de evaluarlas).
+  isCriterion: boolean("is_criterion").notNull().default(false),
+  // Respuestas que se consideran correctas (yes_no: "Sí"/"No"; multiple_choice: las opciones
+  // válidas). Para preguntas numéricas se usan minValue/maxValue en su lugar; los límites son
+  // enteros por consistencia con jobs.salary_min/max, y la respuesta se compara como número.
+  expectedValues: text("expected_values").array(),
+  minValue: integer("min_value"),
+  maxValue: integer("max_value"),
   ...timestamps,
 }, (t) => ({
   jobIdx: index("screening_questions_job_idx").on(t.jobId, t.position),

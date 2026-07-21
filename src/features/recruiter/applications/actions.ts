@@ -3,10 +3,17 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
-import { postularCandidatoSchema, moverEtapaSchema, rechazarPostulacionesSchema } from "./schema";
+import {
+  APPLICATION_STAGES,
+  postularCandidatoSchema,
+  moverEtapaSchema,
+  rechazarPostulacionesSchema,
+} from "./schema";
 import type { RejectionReason } from "./schema";
 import { postularCandidato } from "./domain/postular-candidato";
 import { moverEtapa } from "./domain/mover-etapa";
+import { pasarAlPipeline } from "./domain/pasar-al-pipeline";
+import { guardarEnTalentPool } from "./domain/guardar-en-talent-pool";
 import { rechazarPostulacion } from "./domain/rechazar-postulacion";
 import { marcarFavorito } from "./domain/marcar-favorito";
 import { puntuarPostulaciones } from "./domain/puntuar-postulaciones";
@@ -16,6 +23,7 @@ import {
   getApplicationForMove,
   findExistingApplication,
   listApplicationsForScoring,
+  listCandidatesForApplications,
 } from "./data/applications.queries";
 import { debeNotificarCandidato, toStepperStage, ESTADO_VISIBLE_LABELS } from "@/features/candidate/portal/domain/gestionar-postulacion";
 import { notifyProfile } from "../notifications/data/notifications.mutations";
@@ -23,10 +31,12 @@ import {
   insertApplication,
   updateApplicationStage,
   setApplicationFavorite,
+  setPipelineEntered,
   saveApplicationScore,
 } from "./data/applications.mutations";
-import { isStageActive } from "../pipeline-stages/data/pipeline-stages.queries";
+import { isStageActive, getActiveStages } from "../pipeline-stages/data/pipeline-stages.queries";
 import { getCandidateById, findDuplicateCandidate } from "../candidates/data/candidates.queries";
+import { setTalentState } from "../candidates/data/candidates.mutations";
 import { findLinkableProfile } from "../candidates/data/profile-link.queries";
 import { getLinkedCandidateProfile } from "../candidates/data/linked-profile.queries";
 import { getJobById } from "../jobs/data/jobs.queries";
@@ -35,6 +45,7 @@ import { cargarCandidato } from "../candidates/domain/cargar-candidato";
 import type { DuplicateCandidateMatch } from "../candidates/domain/duplicate-keys";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
 import { enviarMensaje } from "../messaging/domain/enviar-mensaje";
+import { MESSAGE_CHANNELS } from "../messaging/schema";
 import { ensureThread, recordOutbound } from "../messaging/data/messaging.mutations";
 import { getAiProvider } from "@/lib/ai";
 
@@ -74,6 +85,7 @@ export async function postularCandidatoAction(
         getCandidateById(candidateId, organizationId),
       findExistingApplication: (jobId, candidateId) =>
         findExistingApplication(jobId, candidateId),
+      getActiveStages,
       createApplication: insertApplication,
     },
   );
@@ -125,6 +137,7 @@ export async function postularVariosAction(
       getCandidateById(id, organizationId),
     findExistingApplication: (jId: string, cId: string) =>
       findExistingApplication(jId, cId),
+    getActiveStages,
     createApplication: insertApplication,
   };
 
@@ -198,6 +211,7 @@ export async function crearYPostularCandidatoAction(
       getJobById: (id, organizationId) => getJobForPipeline(id, organizationId),
       getCandidateById: (id, organizationId) => getCandidateById(id, organizationId),
       findExistingApplication: (jId, cId) => findExistingApplication(jId, cId),
+      getActiveStages,
       createApplication: insertApplication,
     },
   );
@@ -403,6 +417,192 @@ export async function analizarPostulacionAction(
   revalidatePath(`/jobs/${application.jobId}/postulados`);
   revalidatePath(`/jobs/${application.jobId}/pipeline`);
   return { ok: true };
+}
+
+export type AccionMasivaResult = {
+  ok: boolean;
+  /** Cuántas postulaciones cambiaron de estado. */
+  hechas?: number;
+  /** Cuántas se saltaron por una regla de negocio (ya avanzadas, descartadas, etc.). */
+  saltadas?: number;
+  error?: string;
+};
+
+const accionMasivaSchema = z.object({
+  jobId: z.string().uuid("ID de búsqueda inválido."),
+  applicationIds: z
+    .array(z.string().uuid("ID de postulación inválido."))
+    .min(1, "Elegí al menos una postulación."),
+});
+
+/**
+ * Avanza una o varias postulaciones de la bandeja al pipeline (el individual manda un array
+ * de un solo id, igual que `rechazarVariosAction`). Tolerante: las que ya estaban en el
+ * pipeline se cuentan como saltadas, no hacen fallar al resto del lote.
+ */
+export async function pasarAlPipelineAction(
+  input: { jobId: string; applicationIds: string[]; toStage?: string },
+): Promise<AccionMasivaResult> {
+  const parsed = accionMasivaSchema
+    .extend({ toStage: z.enum(APPLICATION_STAGES).optional() })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+  const { jobId, applicationIds, toStage } = parsed.data;
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const ctx = {
+    userId: "",
+    organizationId: membership.organizationId,
+    role: membership.role,
+  };
+  const deps = {
+    getApplicationById,
+    getActiveStages,
+    setPipelineEntered,
+  };
+
+  let hechas = 0;
+  let saltadas = 0;
+  let firstError: string | undefined;
+  for (const applicationId of applicationIds) {
+    const res = await pasarAlPipeline({ applicationId, toStage }, ctx, deps);
+    if (res.ok) hechas += 1;
+    else {
+      saltadas += 1;
+      firstError ??= res.error;
+    }
+  }
+
+  if (hechas === 0) {
+    return { ok: false, error: firstError ?? "No se pudo avanzar a los candidatos." };
+  }
+
+  revalidatePath(`/jobs/${jobId}/postulados`);
+  revalidatePath(`/jobs/${jobId}/pipeline`);
+  return { ok: true, hechas, saltadas };
+}
+
+/**
+ * Guarda una o varias postulaciones en el Talent Pool: salen de esta búsqueda pero el
+ * candidato queda marcado como talento disponible para futuras (ver `guardarEnTalentPool`).
+ */
+export async function guardarEnTalentPoolAction(
+  input: { jobId: string; applicationIds: string[]; note?: string },
+): Promise<AccionMasivaResult> {
+  const parsed = accionMasivaSchema
+    .extend({ note: z.string().trim().max(500).optional() })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+  const { jobId, applicationIds, note } = parsed.data;
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const ctx = {
+    userId: "",
+    organizationId: membership.organizationId,
+    role: membership.role,
+  };
+  const deps = {
+    getApplicationById,
+    updateApplicationStage,
+    setTalentState,
+  };
+
+  let hechas = 0;
+  let saltadas = 0;
+  let firstError: string | undefined;
+  for (const applicationId of applicationIds) {
+    const res = await guardarEnTalentPool({ applicationId, note }, ctx, deps);
+    if (res.ok) hechas += 1;
+    else {
+      saltadas += 1;
+      firstError ??= res.error;
+    }
+  }
+
+  if (hechas === 0) {
+    return { ok: false, error: firstError ?? "No se pudo guardar en el Talent Pool." };
+  }
+
+  revalidatePath(`/jobs/${jobId}/postulados`);
+  revalidatePath(`/jobs/${jobId}/pipeline`);
+  revalidatePath("/candidates");
+  return { ok: true, hechas, saltadas };
+}
+
+/**
+ * Contacta a uno o varios postulados desde la bandeja. Orquesta `enviarMensaje` por candidato
+ * (la regla vive en el dominio de mensajería) personalizando el cuerpo con el nombre de cada
+ * uno — mismo mecanismo que ya usa el rechazo cuando notifica.
+ */
+export async function contactarPostuladosAction(input: {
+  jobId: string;
+  applicationIds: string[];
+  channel: string;
+  body: string;
+}): Promise<AccionMasivaResult> {
+  const parsed = accionMasivaSchema
+    .extend({
+      channel: z.enum(MESSAGE_CHANNELS, {
+        errorMap: () => ({ message: "Canal inválido." }),
+      }),
+      body: z.string().trim().min(1, "Escribí el mensaje."),
+    })
+    .safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+  const { jobId, applicationIds, channel, body } = parsed.data;
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+  const org = membership.organizationId;
+
+  const job = await getJobById(jobId, org);
+  if (!job) return { ok: false, error: "Búsqueda no encontrada." };
+
+  // Los candidatos del lote salen de una sola consulta; enviarMensaje ya los recibe
+  // resueltos y no vuelve a la base por cada uno.
+  const destinatarios = await listCandidatesForApplications(applicationIds, org);
+
+  let hechas = 0;
+  let saltadas = applicationIds.length - destinatarios.length;
+  let firstError: string | undefined;
+
+  for (const candidate of destinatarios) {
+    const res = await enviarMensaje(
+      {
+        candidateId: candidate.id,
+        channel,
+        body: personalizeMessage(body, candidate.fullName, job.title),
+      },
+      { organizationId: org, role: membership.role },
+      {
+        getCandidate: async () => candidate,
+        ensureThread: (cId, ch) => ensureThread(org, cId, ch),
+        recordOutbound: (threadId, b) => recordOutbound(org, threadId, b),
+      },
+    );
+    if (res.ok) hechas += 1;
+    else {
+      saltadas += 1;
+      firstError ??= res.error;
+    }
+  }
+
+  if (hechas === 0) {
+    return { ok: false, error: firstError ?? "No se pudo enviar el mensaje." };
+  }
+
+  revalidatePath("/messages");
+  return { ok: true, hechas, saltadas };
 }
 
 export type RechazarPostulacionesInput = {

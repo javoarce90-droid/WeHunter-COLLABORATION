@@ -33,6 +33,10 @@ export async function insertApplication(args: {
   jobId: string;
   candidateId: string;
   stage: ApplicationStage;
+  /** El alta hecha por el recruiter (sourcing desde el pool) entra directo al tablero: ya
+   *  hubo una decisión de trabajarlo. Las postulaciones que llegan solas (Career Site,
+   *  portal) nacen en la bandeja y esperan el triage. */
+  pipelineEntered?: boolean;
 }): Promise<ApplicationRow | null> {
   const db = await getDb();
   const row = await db.rls(async (tx) => {
@@ -43,6 +47,7 @@ export async function insertApplication(args: {
         jobId: args.jobId,
         candidateId: args.candidateId,
         stage: args.stage,
+        pipelineEnteredAt: args.pipelineEntered ? new Date() : null,
       })
       .onConflictDoNothing({ target: [applications.jobId, applications.candidateId] })
       .returning();
@@ -94,6 +99,39 @@ export async function updateApplicationStage(
 
     return app!;
   }, "db.applications.update-stage");
+
+  return toRow(row);
+}
+
+/**
+ * Marca el ingreso al pipeline: setea `pipeline_entered_at` y mueve a la etapa destino,
+ * con su evento de historial, en UNA transacción. Espeja a `updateApplicationStage` — son
+ * dos escrituras distintas a propósito: mover de etapa dentro del tablero no vuelve a tocar
+ * la fecha de ingreso.
+ */
+export async function setPipelineEntered(
+  applicationId: string,
+  fromStage: ApplicationStage,
+  toStage: ApplicationStage,
+): Promise<ApplicationRow> {
+  const db = await getDb();
+  const row = await db.rls(async (tx) => {
+    const [app] = await tx
+      .update(applications)
+      .set({ stage: toStage, pipelineEnteredAt: new Date(), updatedAt: new Date() })
+      .where(eq(applications.id, applicationId))
+      .returning();
+
+    await tx.insert(applicationEvents).values({
+      organizationId: app!.organizationId,
+      applicationId: app!.id,
+      fromStage,
+      toStage,
+      changedBy: db.userId,
+    });
+
+    return app!;
+  }, "db.applications.enter-pipeline");
 
   return toRow(row);
 }

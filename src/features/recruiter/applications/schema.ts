@@ -16,6 +16,18 @@ export const APPLICATION_STAGES = [
 
 export type ApplicationStage = (typeof APPLICATION_STAGES)[number];
 
+/** Etapas que son columnas reales del tablero. "new" queda afuera: dejó de ser una etapa
+ *  del proceso para significar "todavía en la bandeja de Postulados, sin decisión tomada".
+ *  Sigue en el enum porque es el estado con el que nace toda postulación. */
+export const PIPELINE_STAGES = APPLICATION_STAGES.filter(
+  (s): s is Exclude<ApplicationStage, "new"> => s !== "new",
+);
+
+/** Una postulación que nunca fue avanzada por el recruiter sigue en la bandeja. */
+export function isInboxStage(stage: ApplicationStage): boolean {
+  return stage === "new";
+}
+
 export const STAGE_LABELS: Record<ApplicationStage, string> = {
   new: "Nuevo",
   screening: "Screening",

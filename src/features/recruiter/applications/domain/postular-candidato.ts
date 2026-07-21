@@ -12,6 +12,10 @@ export type ApplicationRow = {
   updatedAt: Date;
 };
 
+/** Etapa de arranque si la org no dejó ninguna otra activa: el tablero siempre necesita una
+ *  columna real donde poner al candidato que el recruiter acaba de sumar. */
+const FALLBACK_STAGE: ApplicationStage = "screening";
+
 export type PostularInput = {
   jobId: string;
   candidateId: string;
@@ -27,12 +31,15 @@ export type PostularDeps = {
   getJobById: (jobId: string, organizationId: string) => Promise<{ id: string; status: string } | null>;
   getCandidateById: (candidateId: string, organizationId: string) => Promise<{ id: string } | null>;
   findExistingApplication: (jobId: string, candidateId: string) => Promise<{ id: string } | null>;
+  /** Etapas activas del tablero, en orden: el candidato sumado por el recruiter entra en la primera. */
+  getActiveStages: (organizationId: string) => Promise<ApplicationStage[]>;
   /** `null` = conflicto de unicidad (carrera con otro insert simultáneo, ver applications.mutations). */
   createApplication: (data: {
     organizationId: string;
     jobId: string;
     candidateId: string;
     stage: ApplicationStage;
+    pipelineEntered?: boolean;
   }) => Promise<ApplicationRow | null>;
 };
 
@@ -69,11 +76,17 @@ export async function postularCandidato(
     return { ok: false, error: "El candidato ya está postulado a esta búsqueda." };
   }
 
+  // Sumar un candidato del pool a una búsqueda YA es la decisión de trabajarlo: entra directo
+  // al tablero, no a la bandeja de Postulados (esa es para lo que llega solo, sin decisión).
+  const activeStages = (await deps.getActiveStages(ctx.organizationId)).filter(
+    (s) => s !== "new" && s !== "rejected",
+  );
   const application = await deps.createApplication({
     organizationId: ctx.organizationId,
     jobId: input.jobId,
     candidateId: input.candidateId,
-    stage: "new",
+    stage: activeStages[0] ?? FALLBACK_STAGE,
+    pipelineEntered: true,
   });
   if (!application) {
     return { ok: false, error: "El candidato ya está postulado a esta búsqueda." };

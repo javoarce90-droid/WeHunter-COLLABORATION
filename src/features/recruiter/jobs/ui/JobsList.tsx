@@ -68,11 +68,23 @@ function JobRow({ job }: { job: JobWithStats }) {
           </Link>
           <Badge variant={meta.variant}>{meta.label}</Badge>
         </div>
-        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted">
-          <span className="font-medium text-text/70 tabular-nums">
-            {job.candidateCount}
-          </span>
-          <span>{job.candidateCount === 1 ? "candidato" : "candidatos"}</span>
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted">
+          <span className="font-medium text-text/70 tabular-nums">{job.viewCount}</span>
+          <span>{job.viewCount === 1 ? "visita" : "visitas"}</span>
+          <span aria-hidden>·</span>
+          <span className="font-medium text-text/70 tabular-nums">{job.receivedCount}</span>
+          <span>{job.receivedCount === 1 ? "postulación" : "postulaciones"}</span>
+          {job.pendingCount > 0 && (
+            <>
+              <span aria-hidden>·</span>
+              <Link
+                href={`/jobs/${job.id}/postulados`}
+                className="rounded-sm font-semibold text-primary outline-none hover:text-primary-hover focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+              >
+                <span className="tabular-nums">{job.pendingCount}</span> sin revisar
+              </Link>
+            </>
+          )}
           <span aria-hidden>·</span>
           <span>Actualizada {relativeTime(job.updatedAt)}</span>
         </p>

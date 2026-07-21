@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getCareerSiteJob } from "@/features/candidate/career-site/data/career-site.data";
 import { PublicJobDetail } from "@/features/candidate/career-site/ui/PublicJobDetail";
+import { TrackJobView } from "@/features/candidate/career-site/ui/TrackJobView";
 
 export const dynamic = "force-dynamic";
 
@@ -42,11 +43,14 @@ export default async function CareerSiteJobPage({
   const shareUrl = host ? `${proto}://${host}/careers/${slug}/${jobId}` : "";
 
   return (
-    <PublicJobDetail
-      slug={slug}
-      job={result.job}
-      shareUrl={shareUrl}
-      accentColor={result.organization.settings?.accentColor}
-    />
+    <>
+      <TrackJobView slug={slug} jobId={jobId} />
+      <PublicJobDetail
+        slug={slug}
+        job={result.job}
+        shareUrl={shareUrl}
+        accentColor={result.organization.settings?.accentColor}
+      />
+    </>
   );
 }

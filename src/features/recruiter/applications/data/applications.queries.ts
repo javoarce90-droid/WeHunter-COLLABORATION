@@ -1,7 +1,8 @@
-import { and, eq, desc, sql } from "drizzle-orm";
+import { and, eq, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { applications, applicationEvents, candidates, jobs, profiles, type Job } from "@/db/schema";
 import { APPLICATION_STAGES, type ApplicationStage, type RejectionReason } from "../schema";
+import type { InboxApplicationRow } from "../domain/pasar-al-pipeline";
 
 /** Lecturas del pipeline. Cliente RLS; filtramos siempre por organization activa. */
 
@@ -53,6 +54,9 @@ export async function listApplicationsByJob(
         and(
           eq(applications.jobId, jobId),
           eq(applications.organizationId, organizationId),
+          // El tablero muestra SOLO lo que el recruiter decidió avanzar. Lo que sigue en la
+          // bandeja de Postulados (pipeline_entered_at null) no es parte del proceso todavía.
+          isNotNull(applications.pipelineEnteredAt),
         ),
       ),
     "db.applications.by-job",
@@ -77,10 +81,37 @@ export async function listApplicationsByJob(
   }));
 }
 
+/**
+ * Candidatos que YA están en la búsqueda, en cualquier estado (bandeja, pipeline o
+ * descartados). El selector de "Agregar candidatos" los excluye del pool: no alcanza con
+ * mirar el pipeline, porque quien está en la bandeja también tiene su postulación y el
+ * índice único la rechazaría.
+ */
+export async function listCandidateIdsByJob(
+  jobId: string,
+  organizationId: string,
+): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ candidateId: applications.candidateId })
+        .from(applications)
+        .where(
+          and(
+            eq(applications.jobId, jobId),
+            eq(applications.organizationId, organizationId),
+          ),
+        ),
+    "db.applications.candidate-ids-by-job",
+  );
+  return rows.map((r) => r.candidateId);
+}
+
 export async function getApplicationById(
   applicationId: string,
   organizationId: string,
-): Promise<{ id: string; organizationId: string; jobId: string; candidateId: string; stage: ApplicationStage; createdAt: Date; updatedAt: Date } | null> {
+): Promise<InboxApplicationRow | null> {
   const db = await getDb();
   const rows = await db.rls((tx) =>
     tx
@@ -103,6 +134,7 @@ export async function getApplicationById(
     jobId: r.jobId,
     candidateId: r.candidateId,
     stage: r.stage as ApplicationStage,
+    pipelineEnteredAt: r.pipelineEnteredAt,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -227,14 +259,20 @@ export async function listApplicationsByCandidate(
 export type PostuladoRow = {
   id: string;
   stage: ApplicationStage;
+  /** null = pendiente de decisión (sigue en la bandeja). */
+  pipelineEnteredAt: Date | null;
   isFavorite: boolean;
   aiScore: number | null;
   aiSummary: string | null;
+  /** Mensaje que el propio candidato escribió al postularse. */
+  coverNote: string | null;
   createdAt: Date;
   candidate: {
     id: string;
     fullName: string;
     email: string | null;
+    phone: string | null;
+    cvUrl: string | null;
     source: string | null;
   };
 };
@@ -253,13 +291,17 @@ export async function listPostulados(
       .select({
         id: applications.id,
         stage: applications.stage,
+        pipelineEnteredAt: applications.pipelineEnteredAt,
         isFavorite: applications.isFavorite,
         aiScore: applications.aiScore,
         aiSummary: applications.aiSummary,
+        coverNote: applications.coverNote,
         createdAt: applications.createdAt,
         candidateId: candidates.id,
         candidateFullName: candidates.fullName,
         candidateEmail: candidates.email,
+        candidatePhone: candidates.phone,
+        candidateCvUrl: candidates.cvUrl,
         candidateSource: candidates.source,
       })
       .from(applications)
@@ -277,17 +319,52 @@ export async function listPostulados(
   return rows.map((r) => ({
     id: r.id,
     stage: r.stage as ApplicationStage,
+    pipelineEnteredAt: r.pipelineEnteredAt,
     isFavorite: r.isFavorite,
     aiScore: r.aiScore,
     aiSummary: r.aiSummary,
+    coverNote: r.coverNote,
     createdAt: r.createdAt,
     candidate: {
       id: r.candidateId,
       fullName: r.candidateFullName,
       email: r.candidateEmail,
+      phone: r.candidatePhone,
+      cvUrl: r.candidateCvUrl,
       source: r.candidateSource,
     },
   }));
+}
+
+/**
+ * Candidatos detrás de un conjunto de postulaciones, en UNA query. Lo usa el contacto en
+ * lote: sin esto haría dos consultas por fila (postulación y candidato) solo para armar el
+ * saludo. Ver database.md #3 y #6.
+ */
+export async function listCandidatesForApplications(
+  applicationIds: string[],
+  organizationId: string,
+): Promise<{ applicationId: string; id: string; fullName: string }[]> {
+  if (applicationIds.length === 0) return [];
+  const db = await getDb();
+  return db.rls(
+    (tx) =>
+      tx
+        .select({
+          applicationId: applications.id,
+          id: candidates.id,
+          fullName: candidates.fullName,
+        })
+        .from(applications)
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .where(
+          and(
+            inArray(applications.id, applicationIds),
+            eq(applications.organizationId, organizationId),
+          ),
+        ),
+    "db.applications.candidates-for-applications",
+  );
 }
 
 /** Datos de los candidatos de un job para puntuar con IA (skills, perfil, CV). */
@@ -350,16 +427,27 @@ export async function listApplicationsForScoring(
 
 export type StageCounts = Record<ApplicationStage, number>;
 
-/** Cantidad de candidatos por etapa para una búsqueda. Una query agrupada (database.md #3). */
+export type JobApplicationCounts = {
+  /** Por etapa, contando SOLO lo que ya entró al pipeline (es la foto del tablero). */
+  stages: StageCounts;
+  /** Postulaciones recibidas, estén donde estén. */
+  recibidas: number;
+  /** En la bandeja esperando decisión (ni avanzadas ni descartadas). */
+  pendientes: number;
+};
+
+/** Foto de las postulaciones de una búsqueda. Una query agrupada (database.md #3): el
+ *  desglose por etapa y los totales de la bandeja salen del mismo escaneo. */
 export async function getJobStageCounts(
   jobId: string,
   organizationId: string,
-): Promise<StageCounts> {
+): Promise<JobApplicationCounts> {
   const db = await getDb();
   const rows = await db.rls((tx) =>
     tx
       .select({
         stage: applications.stage,
+        enPipeline: isNotNull(applications.pipelineEnteredAt),
         count: sql<number>`count(*)::int`,
       })
       .from(applications)
@@ -369,14 +457,24 @@ export async function getJobStageCounts(
           eq(applications.organizationId, organizationId),
         ),
       )
-      .groupBy(applications.stage),
+      .groupBy(applications.stage, isNotNull(applications.pipelineEnteredAt)),
     "db.applications.stage-counts",
   );
-  const counts = Object.fromEntries(
+
+  const stages = Object.fromEntries(
     APPLICATION_STAGES.map((s) => [s, 0]),
   ) as StageCounts;
-  for (const r of rows) counts[r.stage as ApplicationStage] = r.count;
-  return counts;
+  let recibidas = 0;
+  let pendientes = 0;
+
+  for (const r of rows) {
+    const stage = r.stage as ApplicationStage;
+    recibidas += r.count;
+    if (r.enPipeline) stages[stage] += r.count;
+    else if (stage !== "rejected") pendientes += r.count;
+  }
+
+  return { stages, recibidas, pendientes };
 }
 
 /** Cuántos candidatos (de cualquier búsqueda de la org) están hoy en una etapa puntual.

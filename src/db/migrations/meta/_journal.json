@@ -407,6 +407,20 @@
       "when": 1784826282540,
       "tag": "0057_outstanding_katie_power",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1784912682540,
+      "tag": "0058_fearless_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1784912682541,
+      "tag": "0059_postulados_inbox",
+      "breakpoints": true
     }
   ]
 }

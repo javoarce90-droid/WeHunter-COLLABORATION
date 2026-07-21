@@ -35,8 +35,15 @@ export async function listJobs(organizationId: string): Promise<JobListItem[]> {
   );
 }
 
-/** Búsqueda (columnas de listado) + cantidad de candidatos en su pipeline. */
-export type JobWithStats = JobListItem & { candidateCount: number };
+/** Búsqueda (columnas de listado) + su actividad: visitas al aviso y estado de las postulaciones. */
+export type JobWithStats = JobListItem & {
+  /** Postulaciones recibidas, estén donde estén. */
+  receivedCount: number;
+  /** En la bandeja de Postulados, sin decisión tomada. */
+  pendingCount: number;
+  /** Visitas al aviso en el Career Site público. */
+  viewCount: number;
+};
 
 /**
  * Listado para la pantalla de búsquedas: cada job con el conteo de su pipeline.
@@ -57,7 +64,14 @@ export async function listJobsWithStats(
           status: jobs.status,
           createdAt: jobs.createdAt,
           updatedAt: jobs.updatedAt,
-          candidateCount: sql<number>`count(${applications.id})::int`,
+          viewCount: jobs.viewCount,
+          receivedCount: sql<number>`count(${applications.id})::int`,
+          // "Sin revisar": todavía en la bandeja y sin descartar. Sale del mismo escaneo
+          // que el total, con un filter agregado (database.md #3).
+          pendingCount: sql<number>`count(${applications.id}) filter (
+            where ${applications.pipelineEnteredAt} is null
+              and ${applications.stage} <> 'rejected'
+          )::int`,
         })
         .from(jobs)
         .leftJoin(applications, eq(applications.jobId, jobs.id))

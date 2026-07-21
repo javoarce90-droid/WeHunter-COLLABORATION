@@ -6,7 +6,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
 import { AiScore, SparkleIcon } from "@/components/ui/ai";
 import { Menu, MenuItem } from "@/components/ui/menu";
-import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
+import { PIPELINE_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
@@ -69,8 +69,8 @@ export function PipelineCard({
       return;
     }
     const n = Number(e.key);
-    if (n >= 1 && n <= APPLICATION_STAGES.length) {
-      const target = APPLICATION_STAGES[n - 1];
+    if (n >= 1 && n <= PIPELINE_STAGES.length) {
+      const target = PIPELINE_STAGES[n - 1];
       if (!terminal && target !== stage) {
         e.preventDefault();
         onMoveStage(application.id, target);

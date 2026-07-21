@@ -5,9 +5,9 @@ import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { getJobStageCounts } from "@/features/recruiter/applications/data/applications.queries";
 import {
   APPLICATION_STAGES,
+  PIPELINE_STAGES,
   STAGE_LABELS,
 } from "@/features/recruiter/applications/schema";
-import { relativeTime } from "@/features/recruiter/jobs/ui/status-meta";
 import { getClientById } from "@/features/recruiter/clients/data/clients.queries";
 import {
   MODALITY_LABELS,
@@ -59,12 +59,13 @@ export default async function JobDetailPage({
     ? await getClientById(job.clientId, membership.organizationId)
     : null;
 
-  const total = APPLICATION_STAGES.reduce((sum, s) => sum + counts[s], 0);
+  const enPipeline = APPLICATION_STAGES.reduce((sum, s) => sum + counts.stages[s], 0);
 
   const facts: { label: string; value: string }[] = [
-    { label: "Candidatos", value: String(total) },
+    { label: "Postulaciones", value: String(counts.recibidas) },
+    { label: "Sin revisar", value: String(counts.pendientes) },
+    { label: "En pipeline", value: String(enPipeline) },
     { label: "Creada", value: dateFmt.format(job.createdAt) },
-    { label: "Última actividad", value: relativeTime(job.updatedAt) },
   ];
 
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
@@ -100,7 +101,7 @@ export default async function JobDetailPage({
   return (
     <div className="flex flex-col gap-5">
       {/* Datos clave: tira densa con divisores finos, no tarjetas KPI. */}
-      <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-[var(--radius)] border border-border bg-border">
+      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-[var(--radius)] border border-border bg-border sm:grid-cols-4">
         {facts.map((f) => (
           <div key={f.label} className="bg-surface px-4 py-3">
             <dt className="text-xs font-medium text-muted">{f.label}</dt>
@@ -255,27 +256,29 @@ export default async function JobDetailPage({
           </Link>
         }
       >
-          {total === 0 ? (
+          {enPipeline === 0 ? (
             <p className="text-sm text-muted">
               Todavía no hay candidatos en el pipeline.{" "}
               <Link
-                href={`/jobs/${job.id}/pipeline`}
+                href={`/jobs/${job.id}/postulados`}
                 className="font-semibold text-primary hover:text-primary-hover"
               >
-                Postulá al primero
+                {counts.pendientes > 0
+                  ? `Revisá las ${counts.pendientes} postulaciones que esperan`
+                  : "Revisá las postulaciones"}
               </Link>
               .
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {APPLICATION_STAGES.map((stage) => (
+              {PIPELINE_STAGES.map((stage) => (
                 <Badge
                   key={stage}
                   variant={stage}
-                  className={counts[stage] === 0 ? "opacity-45" : undefined}
+                  className={counts.stages[stage] === 0 ? "opacity-45" : undefined}
                 >
                   {STAGE_LABELS[stage]}
-                  <span className="ml-1.5 tabular-nums">{counts[stage]}</span>
+                  <span className="ml-1.5 tabular-nums">{counts.stages[stage]}</span>
                 </Badge>
               ))}
             </div>

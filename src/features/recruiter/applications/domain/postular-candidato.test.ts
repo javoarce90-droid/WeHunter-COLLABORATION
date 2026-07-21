@@ -17,7 +17,10 @@ const makeDeps = (overrides?: Partial<PostularDeps>): PostularDeps => ({
   getJobById: vi.fn().mockResolvedValue({ id: "job-1", status: "open" }),
   getCandidateById: vi.fn().mockResolvedValue({ id: "cand-1" }),
   findExistingApplication: vi.fn().mockResolvedValue(null),
-  createApplication: vi.fn().mockResolvedValue(makeApp()),
+  getActiveStages: vi
+    .fn()
+    .mockResolvedValue(["new", "screening", "interview", "offer", "hired", "rejected"]),
+  createApplication: vi.fn().mockResolvedValue(makeApp({ stage: "screening" })),
   ...overrides,
 });
 
@@ -30,15 +33,39 @@ const ctx: PostularContext = {
 const input = { jobId: "job-1", candidateId: "cand-1" };
 
 describe("postularCandidato", () => {
-  it("crea la application en etapa 'new' con datos correctos", async () => {
+  it("suma al candidato directo al pipeline, en la primera etapa activa", async () => {
     const deps = makeDeps();
     const result = await postularCandidato(input, ctx, deps);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.stage).toBe("new");
     expect(deps.createApplication).toHaveBeenCalledWith(
-      expect.objectContaining({ jobId: "job-1", candidateId: "cand-1", stage: "new" }),
+      expect.objectContaining({
+        jobId: "job-1",
+        candidateId: "cand-1",
+        stage: "screening",
+        pipelineEntered: true,
+      }),
+    );
+  });
+
+  it("no usa la bandeja ni el descarte como etapa de entrada", async () => {
+    const deps = makeDeps({
+      getActiveStages: vi.fn().mockResolvedValue(["new", "rejected", "interview"]),
+    });
+    await postularCandidato(input, ctx, deps);
+
+    expect(deps.createApplication).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: "interview" }),
+    );
+  });
+
+  it("cae a screening si la org no dejó ninguna etapa activa", async () => {
+    const deps = makeDeps({ getActiveStages: vi.fn().mockResolvedValue([]) });
+    await postularCandidato(input, ctx, deps);
+
+    expect(deps.createApplication).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: "screening" }),
     );
   });
 
