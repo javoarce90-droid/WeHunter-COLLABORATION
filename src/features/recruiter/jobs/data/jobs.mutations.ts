@@ -1,6 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { jobs, type Job } from "@/db/schema";
+import { jobs, jobStages, type Job } from "@/db/schema";
+import { getPipelineStageConfigs } from "../../pipeline-stages/data/pipeline-stages.queries";
+import { buildDefaultJobStages } from "../../pipeline-stages/schema";
 import type { JobDetails } from "../domain/job-details";
 
 /** Escrituras de búsquedas. Cliente RLS; el organizationId acota a la org activa. */
@@ -15,8 +17,12 @@ export async function insertJob(
 ): Promise<{ jobId: string }> {
   const db = await getDb();
   const { organizationId, title, description, createdBy, ...details } = args;
-  const rows = await db.rls((tx) =>
-    tx
+  // Se lee fuera de la transacción: getPipelineStageConfigs abre la suya y anidarlas rompe.
+  const configs = await getPipelineStageConfigs(organizationId);
+  // El job y su pipeline nacen juntos: una búsqueda sin etapas no se puede operar, así que
+  // sembrarlas después dejaría una ventana con el tablero roto.
+  const jobId = await db.rls(async (tx) => {
+    const [row] = await tx
       .insert(jobs)
       .values({
         organizationId,
@@ -25,10 +31,24 @@ export async function insertJob(
         createdBy,
         ...details,
       })
-      .returning({ id: jobs.id }),
-    "db.jobs.insert",
-  );
-  return { jobId: rows[0]!.id };
+      .returning({ id: jobs.id });
+
+    await tx.insert(jobStages).values(
+      buildDefaultJobStages(configs).map((s) => ({
+        organizationId,
+        jobId: row!.id,
+        name: s.name,
+        position: s.position,
+        slaDays: s.slaDays,
+        kind: s.kind,
+        legacyStage: s.legacyStage,
+      })),
+    );
+
+    return row!.id;
+  }, "db.jobs.insert");
+
+  return { jobId };
 }
 
 export async function updateJobStatus(

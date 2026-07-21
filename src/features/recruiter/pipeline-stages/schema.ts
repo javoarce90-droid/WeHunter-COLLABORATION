@@ -42,3 +42,53 @@ export function isNonDeactivatable(stage: ApplicationStage): boolean {
 export const configurarEtapaSchema = {
   stageKey: APPLICATION_STAGES,
 };
+
+/** Qué significa una etapa para el resto del sistema (espeja el enum `stage_kind`).
+ *  El nombre lo elige el recruiter y no se puede interpretar; esto sí. */
+export const STAGE_KINDS = ["inbox", "in_process", "offer", "hired", "rejected"] as const;
+export type StageKind = (typeof STAGE_KINDS)[number];
+
+export type JobStage = {
+  id: string;
+  name: string;
+  position: number;
+  slaDays: number | null;
+  kind: StageKind;
+};
+
+/** Una etapa terminal no admite salir de ella por movimiento normal. */
+export function isClosingKind(kind: StageKind): boolean {
+  return kind === "hired";
+}
+
+/** La bandeja no es columna del tablero: es Postulados. */
+export function isInboxKind(kind: StageKind): boolean {
+  return kind === "inbox";
+}
+
+/** Molde con el que nace el pipeline de una búsqueda nueva: la config de la organización
+ *  materializada como etapas propias del job. A partir de ahí cada búsqueda evoluciona sola. */
+export function buildDefaultJobStages(
+  configs: PipelineStageConfig[],
+): { name: string; position: number; slaDays: number | null; kind: StageKind; legacyStage: ApplicationStage }[] {
+  const KIND: Record<ApplicationStage, StageKind> = {
+    new: "inbox",
+    screening: "in_process",
+    interview: "in_process",
+    interview_hr: "in_process",
+    interview_tech: "in_process",
+    interview_client: "in_process",
+    offer: "offer",
+    hired: "hired",
+    rejected: "rejected",
+  };
+  return configs
+    .filter((c) => c.isActive)
+    .map((c, i) => ({
+      name: c.label,
+      position: i,
+      slaDays: c.slaDays,
+      kind: KIND[c.stageKey],
+      legacyStage: c.stageKey,
+    }));
+}

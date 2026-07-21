@@ -442,6 +442,20 @@
       "when": 1784912682544,
       "tag": "0062_drop_legacy_create_org_signature",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1784912682545,
+      "tag": "0063_foamy_stranger",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1784912682546,
+      "tag": "0064_job_stages_backfill",
+      "breakpoints": true
     }
   ]
 }

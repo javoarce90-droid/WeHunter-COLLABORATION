@@ -627,6 +627,9 @@ export const applications = pgTable("applications", {
     .references(() => candidates.id, { onDelete: "cascade" })
     .notNull(),
   stage: applicationStage("stage").notNull().default("new"),
+  // Etapa real de la postulación dentro del pipeline de SU búsqueda. `stage` (el enum)
+  // queda como espejo mientras se migran los consumidores que todavía lo leen.
+  stageId: uuid("stage_id").references(() => jobStages.id, { onDelete: "restrict" }),
   pipelineEnteredAt: timestamp("pipeline_entered_at"),
   // Marcador liviano de favorito/destacado para el triage de postulados. No es el shortlist
   // (que es la selección formal que se comparte con la empresa): es una estrella del recruiter.
@@ -803,6 +806,42 @@ export const applicationEvents = pgTable("application_events", {
 }, (t) => ({
   orgIdx: index("application_events_org_idx").on(t.organizationId),
   applicationIdx: index("application_events_application_idx").on(t.applicationId),
+}));
+
+// Qué significa una etapa para el resto del sistema. El nombre lo elige el recruiter y no
+// se puede interpretar; el `kind` es lo que leen el portal del candidato, los reportes y el
+// cierre de la búsqueda. Sin esto, agregar una etapa propia ("Challenge Técnico") dejaría a
+// esos consumidores sin saber qué mostrar.
+export const stageKind = pgEnum("stage_kind", [
+  "inbox", // bandeja de Postulados: todavía sin decisión
+  "in_process", // cualquier etapa intermedia del proceso
+  "offer",
+  "hired",
+  "rejected",
+]);
+
+// Etapas del pipeline de UNA búsqueda. Cada job tiene las suyas: agregarlas, renombrarlas,
+// reordenarlas o borrarlas no afecta al resto de las búsquedas.
+export const jobStages = pgTable("job_stages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id")
+    .references(() => jobs.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+  slaDays: integer("sla_days"),
+  kind: stageKind("kind").notNull(),
+  // De qué etapa del enum salió al migrar. Solo lo tienen las etapas sembradas: sirve para
+  // mantener `applications.stage` en sync mientras los consumidores viejos siguen leyéndolo.
+  // Las etapas creadas por el recruiter lo tienen en null y derivan su valor del `kind`.
+  legacyStage: applicationStage("legacy_stage"),
+  ...timestamps,
+}, (t) => ({
+  jobIdx: index("job_stages_job_idx").on(t.jobId, t.position),
+  orgIdx: index("job_stages_org_idx").on(t.organizationId),
 }));
 
 // Configuración de etapas del pipeline por organización.

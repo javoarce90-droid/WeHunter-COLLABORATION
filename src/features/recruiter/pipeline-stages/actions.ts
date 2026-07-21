@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
 import { APPLICATION_STAGES } from "../applications/schema";
 import { configurarEtapa } from "./domain/configurar-etapa";
@@ -46,4 +47,107 @@ export async function configurarEtapaAction(
     { organizationId: membership.organizationId, role: membership.role },
     { upsert: upsertPipelineStageConfig, countCandidatesInStage: countApplicationsInStage },
   );
+}
+
+// ── Pipeline de una búsqueda ────────────────────────────────────────────────
+
+import {
+  agregarEtapa,
+  renombrarEtapa,
+  eliminarEtapa,
+  reordenarEtapas,
+} from "./domain/gestionar-etapas-busqueda";
+import { listJobStages, getJobStage, countApplicationsInJobStage } from "./data/job-stages.queries";
+import {
+  insertJobStage,
+  renameJobStage,
+  deleteJobStage,
+  setJobStagePositions,
+} from "./data/job-stages.mutations";
+
+export interface EtapaActionResult {
+  ok: boolean;
+  error?: string;
+}
+
+async function ctxDeSesion() {
+  const membership = await getActiveMembership();
+  if (!membership) return null;
+  return { organizationId: membership.organizationId, role: membership.role };
+}
+
+function revalidarBusqueda(jobId: string) {
+  revalidatePath(`/jobs/${jobId}/pipeline`);
+  revalidatePath(`/jobs/${jobId}/postulados`);
+}
+
+export async function agregarEtapaAction(
+  jobId: string,
+  name: string,
+): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await agregarEtapa({ jobId, name }, ctx, {
+    listStages: listJobStages,
+    insertStage: insertJobStage,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarBusqueda(jobId);
+  return { ok: true };
+}
+
+export async function renombrarEtapaAction(
+  jobId: string,
+  stageId: string,
+  name: string,
+): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await renombrarEtapa({ stageId, name }, ctx, {
+    getStage: getJobStage,
+    listStages: listJobStages,
+    renameStage: renameJobStage,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarBusqueda(jobId);
+  return { ok: true };
+}
+
+export async function eliminarEtapaAction(
+  jobId: string,
+  stageId: string,
+): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await eliminarEtapa({ stageId }, ctx, {
+    getStage: getJobStage,
+    countApplications: countApplicationsInJobStage,
+    deleteStage: deleteJobStage,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarBusqueda(jobId);
+  return { ok: true };
+}
+
+export async function reordenarEtapasAction(
+  jobId: string,
+  stageIds: string[],
+): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await reordenarEtapas({ jobId, stageIds }, ctx, {
+    listStages: listJobStages,
+    setPositions: setJobStagePositions,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarBusqueda(jobId);
+  return { ok: true };
 }
