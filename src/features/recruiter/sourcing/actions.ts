@@ -41,6 +41,7 @@ const importSchema = z.object({
   location: z.string().nullable(),
   skills: z.array(z.string()),
   platform: z.enum(SOURCING_PLATFORMS),
+  linkedinUrl: z.string().optional().nullable(),
 });
 
 export async function importarSourcingAction(result: {
@@ -49,6 +50,7 @@ export async function importarSourcingAction(result: {
   location: string | null;
   skills: string[];
   platform: string;
+  linkedinUrl?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const parsed = importSchema.safeParse(result);
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
@@ -66,7 +68,7 @@ export async function importarSourcingAction(result: {
     cvUrl: null,
     headline: parsed.data.headline,
     location: parsed.data.location,
-    linkedinUrl: null,
+    linkedinUrl: parsed.data.linkedinUrl ?? null,
     summary: null,
     skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
     source: platformToSource(parsed.data.platform),
@@ -76,3 +78,34 @@ export async function importarSourcingAction(result: {
   revalidatePath("/candidates");
   return { ok: true };
 }
+
+const linkedinQuerySchema = z.object({
+  query: z.string().trim().min(1, "Ingresá un término de búsqueda"),
+});
+
+export async function buscarLinkedinAction(input: {
+  query: string;
+}): Promise<{
+  ok: boolean;
+  candidates?: import("./domain/linkedin-search").LinkedInCandidateResult[];
+  isLiveApi?: boolean;
+  error?: string;
+}> {
+  const parsed = linkedinQuerySchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Query inválida." };
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const { searchLinkedInCandidates } = await import("./domain/linkedin-search");
+  const res = await searchLinkedInCandidates(parsed.data);
+
+  if (res.error) {
+    return { ok: false, error: res.error, isLiveApi: false };
+  }
+
+  return { ok: true, candidates: res.candidates, isLiveApi: res.isLiveApi };
+}
+
+
+
