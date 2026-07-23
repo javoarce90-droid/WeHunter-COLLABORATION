@@ -56,7 +56,7 @@ export function NoteEditor({ applicationId, jobId, initialNotes }: Props) {
         maxLength={NOTE_MAX_LENGTH}
         rows={4}
         placeholder="Nota interna — no visible para la empresa ni el candidato."
-        className="w-full resize-none rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-xs text-text outline-none transition-colors focus:border-primary"
+        className="w-full resize-none rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-xs text-text outline-none transition-colors focus:border-primary"
       />
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <div className="flex items-center justify-end gap-2">

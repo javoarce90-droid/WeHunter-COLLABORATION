@@ -22,6 +22,7 @@ const testJobs: Job[] = [
     requirements: null,
     responsibilities: null,
     benefits: null,
+    screeningQuestions: [],
   },
   {
     id: "job-2",
@@ -42,6 +43,7 @@ const testJobs: Job[] = [
     requirements: null,
     responsibilities: null,
     benefits: null,
+    screeningQuestions: [],
   },
   {
     id: "job-3",
@@ -62,6 +64,7 @@ const testJobs: Job[] = [
     requirements: null,
     responsibilities: null,
     benefits: null,
+    screeningQuestions: [],
   },
 ];
 

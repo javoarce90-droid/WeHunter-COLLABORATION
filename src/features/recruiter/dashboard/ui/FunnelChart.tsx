@@ -1,5 +1,6 @@
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
-import { STAGE_DOT } from "@/features/recruiter/applications/ui/stage-visual";
+import { STAGE_DOT, readableTextOn } from "@/features/recruiter/applications/ui/stage-visual";
+import { SectionCard } from "@/components/ui/section-card";
 import type { DashboardKpis } from "../domain/obtener-kpis";
 
 /**
@@ -12,14 +13,14 @@ export function FunnelChart({ funnel }: { funnel: DashboardKpis["funnel"] }) {
   const max = Math.max(1, ...funnel.map((f) => f.count));
 
   return (
-    <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-bold text-text">Funnel de conversión</h2>
+    <SectionCard
+      title="Funnel de conversión"
+      action={
         <span className="text-xs text-muted">
           <span className="font-semibold text-text tabular-nums">{total}</span> postulaciones
         </span>
-      </div>
-
+      }
+    >
       {total === 0 ? (
         <p className="py-6 text-center text-sm text-muted">
           Todavía no hay postulaciones para graficar. El funnel se arma a medida que movés
@@ -44,7 +45,10 @@ export function FunnelChart({ funnel }: { funnel: DashboardKpis["funnel"] }) {
                     }}
                   >
                     {f.count > 0 && (
-                      <span className="text-[11px] font-bold text-white tabular-nums">
+                      <span
+                        className="text-[11px] font-bold tabular-nums"
+                        style={{ color: readableTextOn(STAGE_DOT[f.stage]) }}
+                      >
                         {f.count}
                       </span>
                     )}
@@ -58,6 +62,6 @@ export function FunnelChart({ funnel }: { funnel: DashboardKpis["funnel"] }) {
           })}
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }

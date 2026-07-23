@@ -5,6 +5,7 @@ import { getActiveMembership } from "@/lib/auth/session";
 import { APPLICATION_STAGES } from "../applications/schema";
 import { configurarEtapa } from "./domain/configurar-etapa";
 import { upsertPipelineStageConfig } from "./data/pipeline-stages.mutations";
+import { countApplicationsInStage } from "../applications/data/applications.queries";
 
 const configurarEtapaSchema = z.object({
   stageKey: z.enum(APPLICATION_STAGES),
@@ -43,6 +44,6 @@ export async function configurarEtapaAction(
   return configurarEtapa(
     parsed.data,
     { organizationId: membership.organizationId, role: membership.role },
-    { upsert: upsertPipelineStageConfig },
+    { upsert: upsertPipelineStageConfig, countCandidatesInStage: countApplicationsInStage },
   );
 }

@@ -10,6 +10,7 @@ import {
 } from "./domain/gestionar-experiencia";
 import { agregarEducacion, editarEducacion, eliminarEducacion } from "./domain/gestionar-educacion";
 import { agregarCertificacion, eliminarCertificacion } from "./domain/gestionar-certificacion";
+import { agregarIdioma, eliminarIdioma } from "./domain/gestionar-idioma";
 import {
   insertExperience,
   updateExperience,
@@ -19,6 +20,8 @@ import {
   deleteEducation,
   insertCertification,
   deleteCertification,
+  insertLanguage,
+  deleteLanguage,
 } from "./data/resume.mutations";
 
 export interface ResumeActionState {
@@ -215,6 +218,45 @@ export async function eliminarCertificacionAction(
 
   const result = await eliminarCertificacion(String(formData.get("id") ?? ""), owner, {
     deleteCertification,
+  });
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/c/profile");
+  return {};
+}
+
+// ---- Idiomas ----
+
+export async function agregarIdiomaAction(
+  _prev: ResumeActionState,
+  formData: FormData,
+): Promise<ResumeActionState> {
+  const owner = await ownProfileOwner();
+  if (!owner) return { error: "No tenés sesión activa." };
+
+  const result = await agregarIdioma(
+    {
+      language: String(formData.get("language") ?? ""),
+      level: String(formData.get("level") ?? ""),
+    },
+    owner,
+    { insertLanguage },
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/c/profile");
+  return {};
+}
+
+export async function eliminarIdiomaAction(
+  _prev: ResumeActionState,
+  formData: FormData,
+): Promise<ResumeActionState> {
+  const owner = await ownProfileOwner();
+  if (!owner) return { error: "No tenés sesión activa." };
+
+  const result = await eliminarIdioma(String(formData.get("id") ?? ""), owner, {
+    deleteLanguage,
   });
   if (!result.ok) return { error: result.error };
 

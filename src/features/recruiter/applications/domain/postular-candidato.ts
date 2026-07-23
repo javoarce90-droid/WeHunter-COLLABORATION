@@ -53,8 +53,8 @@ export async function postularCandidato(
   if (!job) {
     return { ok: false, error: "Búsqueda no encontrada." };
   }
-  if (job.status === "closed") {
-    return { ok: false, error: "No se puede postular a una búsqueda cerrada." };
+  if (job.status === "closed" || job.status === "archived") {
+    return { ok: false, error: "No se puede postular a una búsqueda cerrada o archivada." };
   }
 
   // El candidato debe existir y pertenecer a la org

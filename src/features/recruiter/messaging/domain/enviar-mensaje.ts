@@ -26,8 +26,10 @@ export type EnviarMensajeDeps = {
 };
 
 /**
- * Envía (mock) un mensaje saliente a un candidato por un canal. No hay integración real con
- * Gmail/WhatsApp todavía: el envío se registra como historial. La regla cuida rol + existencia.
+ * Envía (mock) un mensaje saliente a un candidato por un canal. El envío en sí sigue sin
+ * integración real (se registra como historial, no sale de verdad) — la lectura de Gmail SÍ
+ * es real (ver sincronizar-gmail.ts), pero es un caso de uso separado, de solo lectura.
+ * La regla cuida rol + existencia.
  */
 export async function enviarMensaje(
   input: EnviarMensajeInput,

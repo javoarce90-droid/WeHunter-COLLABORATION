@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toOptionalUrl } from "@/lib/url";
 
 /** Schemas de input de Configuración. Validación cerca de la action. */
 
@@ -10,7 +11,7 @@ export const profileInputSchema = z.object({
   jobTitle: z.preprocess(emptyToUndef, z.string().trim().max(120).optional()),
   phone: z.preprocess(emptyToUndef, z.string().trim().max(40).optional()),
   location: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
-  linkedinUrl: z.preprocess(emptyToUndef, z.string().trim().max(300).optional()),
+  linkedinUrl: z.preprocess(toOptionalUrl, z.string().trim().max(300).optional()),
   bio: z.preprocess(
     emptyToUndef,
     z.string().trim().max(500, "La bio no puede superar los 500 caracteres.").optional(),
@@ -21,11 +22,19 @@ const HEX_COLOR_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const colorField = () =>
   z.preprocess(emptyToUndef, z.string().trim().regex(HEX_COLOR_RE, "Color inválido (ej: #6D28D9).").optional());
 const urlField = () =>
-  z.preprocess(emptyToUndef, z.string().trim().url("URL inválida.").max(300).optional());
+  z.preprocess(toOptionalUrl, z.string().trim().url("URL inválida.").max(300).optional());
+
+const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export const workspaceInputSchema = z.object({
   name: z.string().trim().min(1, "El nombre del workspace es obligatorio.").max(120),
-  careerSiteEnabled: z.preprocess((v) => v === "true" || v === "on", z.boolean()),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(3, "El slug debe tener al menos 3 caracteres.")
+    .max(60)
+    .regex(SLUG_RE, "Usá solo minúsculas, números y guiones (ej: mi-empresa)."),
   description: z.preprocess(
     emptyToUndef,
     z.string().trim().max(1000, "La descripción no puede superar los 1000 caracteres.").optional(),

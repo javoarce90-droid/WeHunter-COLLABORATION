@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
@@ -37,9 +39,9 @@ type Props = {
   postulados: PostuladoRow[];
 };
 
-const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
-const labelClass = "text-xs font-semibold text-muted";
+/** Foco visible estándar para botones de texto/íconos sin fondo (gap WCAG AA de PRODUCT.md). */
+const focusRing =
+  "outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface";
 
 type SortKey = "candidate" | "stage" | "date" | "match";
 type SortDir = "asc" | "desc";
@@ -55,6 +57,9 @@ function sourceLabel(source: string | null): string {
 export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
+  // Transición aparte para el análisis IA: es la acción más lenta y su botón muestra loading
+  // propio, sin que las mutaciones optimistas (favorito/mover) queden atrapadas en ese estado.
+  const [isAnalyzing, startAnalyze] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // ids que se están por rechazar en el dialog abierto (null = cerrado). Individual y en
   // lote comparten el mismo dialog; no reusa `selected` porque el individual (vía menú de
@@ -158,7 +163,7 @@ export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
   }
 
   function onAnalizar() {
-    startTransition(async () => {
+    startAnalyze(async () => {
       const res = await analizarPostuladosAction(jobId);
       if (!res.ok) toast({ message: res.error ?? "No se pudo analizar.", variant: "danger" });
       else
@@ -214,8 +219,12 @@ export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
         <p className="text-sm text-muted">
           {postulados.length} postulado{postulados.length !== 1 ? "s" : ""}
         </p>
-        <AiButton onClick={onAnalizar} title="Calcular compatibilidad de cada candidato con la búsqueda">
-          Analizar con IA
+        <AiButton
+          onClick={onAnalizar}
+          loading={isAnalyzing}
+          title="Calcular compatibilidad de cada candidato con la búsqueda"
+        >
+          {isAnalyzing ? "Analizando…" : "Analizar con IA"}
         </AiButton>
       </div>
 
@@ -231,7 +240,7 @@ export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="text-sm font-semibold text-muted hover:text-text"
+            className={`rounded text-sm font-semibold text-muted hover:text-text ${focusRing}`}
           >
             Limpiar
           </button>
@@ -288,7 +297,7 @@ export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
                         onClick={() => onToggleFavorite(row)}
                         aria-label={row.isFavorite ? "Quitar de favoritos" : "Marcar favorito"}
                         aria-pressed={row.isFavorite}
-                        className="shrink-0 text-muted transition-colors hover:text-warning"
+                        className={`shrink-0 rounded text-muted transition-colors hover:text-warning ${focusRing}`}
                       >
                         <svg
                           width="16"
@@ -389,37 +398,26 @@ export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
             descartadas o en una etapa terminal se saltan.
           </p>
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="reject-reason" className={labelClass}>
-              Motivo de descarte (interno, no lo ve el candidato)
-            </label>
-            <select
-              id="reject-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value as RejectionReason)}
-              className={fieldClass}
-            >
-              {REJECTION_REASONS.map((r) => (
-                <option key={r} value={r}>
-                  {REJECTION_REASON_LABELS[r]}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Motivo de descarte (interno, no lo ve el candidato)"
+            value={reason}
+            onChange={(e) => setReason(e.target.value as RejectionReason)}
+          >
+            {REJECTION_REASONS.map((r) => (
+              <option key={r} value={r}>
+                {REJECTION_REASON_LABELS[r]}
+              </option>
+            ))}
+          </Select>
 
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="reject-note" className={labelClass}>
-              Nota interna (opcional)
-            </label>
-            <textarea
-              id="reject-note"
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Solo la ve el equipo de reclutamiento."
-              className={`${fieldClass} resize-none`}
-            />
-          </div>
+          <Textarea
+            label="Nota interna (opcional)"
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Solo la ve el equipo de reclutamiento."
+            className="resize-none"
+          />
 
           <label className="flex items-center gap-2 text-sm text-text">
             <Checkbox
@@ -431,15 +429,12 @@ export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
 
           {notifyCandidate && (
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="reject-message" className={labelClass}>
-                Mensaje para el candidato
-              </label>
-              <textarea
-                id="reject-message"
+              <Textarea
+                label="Mensaje para el candidato"
                 rows={4}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className={`${fieldClass} resize-y`}
+                className="resize-y"
               />
               <p className="text-[11px] text-muted">
                 Variables: <code>{"{{candidato}}"}</code> y <code>{"{{puesto}}"}</code> ({jobTitle}
@@ -452,7 +447,7 @@ export function PostuladosTable({ jobId, jobTitle, postulados }: Props) {
             <button
               type="button"
               onClick={closeRejectDialog}
-              className="text-sm font-semibold text-muted hover:text-text"
+              className={`rounded text-sm font-semibold text-muted hover:text-text ${focusRing}`}
             >
               Cancelar
             </button>
@@ -492,7 +487,7 @@ function SortableTh({
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className="inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-label transition-colors hover:text-text"
+        className={`inline-flex items-center gap-1 rounded text-xs font-semibold uppercase tracking-wide text-label transition-colors hover:text-text ${focusRing}`}
         aria-label={`Ordenar por ${label}`}
       >
         {label}

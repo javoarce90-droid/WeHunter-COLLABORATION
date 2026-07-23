@@ -13,20 +13,26 @@ import { puntuarPostulaciones } from "./domain/puntuar-postulaciones";
 import {
   getJobForPipeline,
   getApplicationById,
+  getApplicationForMove,
   findExistingApplication,
   listApplicationsForScoring,
 } from "./data/applications.queries";
+import { debeNotificarCandidato, toStepperStage, ESTADO_VISIBLE_LABELS } from "@/features/candidate/portal/domain/gestionar-postulacion";
+import { notifyProfile } from "../notifications/data/notifications.mutations";
 import {
   insertApplication,
   updateApplicationStage,
   setApplicationFavorite,
   saveApplicationScore,
 } from "./data/applications.mutations";
-import { getCandidateById } from "../candidates/data/candidates.queries";
+import { isStageActive } from "../pipeline-stages/data/pipeline-stages.queries";
+import { getCandidateById, findDuplicateCandidate } from "../candidates/data/candidates.queries";
+import { findLinkableProfile } from "../candidates/data/profile-link.queries";
 import { getLinkedCandidateProfile } from "../candidates/data/linked-profile.queries";
 import { getJobById } from "../jobs/data/jobs.queries";
-import { candidateInputSchema } from "../candidates/schema";
+import { candidateCreateInputSchema } from "../candidates/schema";
 import { cargarCandidato } from "../candidates/domain/cargar-candidato";
+import type { DuplicateCandidateMatch } from "../candidates/domain/duplicate-keys";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
 import { enviarMensaje } from "../messaging/domain/enviar-mensaje";
 import { ensureThread, recordOutbound } from "../messaging/data/messaging.mutations";
@@ -34,6 +40,8 @@ import { getAiProvider } from "@/lib/ai";
 
 export interface ApplicationActionState {
   error?: string;
+  duplicate?: DuplicateCandidateMatch;
+  profileMatch?: true;
 }
 
 export async function postularCandidatoAction(
@@ -155,7 +163,7 @@ export async function crearYPostularCandidatoAction(
   const jobId = String(formData.get("jobId") ?? "");
   if (!jobId) return { error: "Falta la búsqueda." };
 
-  const parsed = candidateInputSchema.safeParse({
+  const parsed = candidateCreateInputSchema.safeParse({
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     skills: formData.get("skills"),
@@ -168,13 +176,19 @@ export async function crearYPostularCandidatoAction(
   const membership = await getActiveMembership();
   if (!membership) return { error: "No autorizado." };
 
+  const confirmDuplicate = formData.get("confirmDuplicate") === "true";
+  const linkProfile = formData.get("linkProfile") === "true";
+  const skipProfileLink = formData.get("skipProfileLink") === "true";
+
   // 1. Alta en el pool (sin CV: el enriquecimiento se hace después desde la ficha).
   const created = await cargarCandidato(
-    parsed.data,
+    { ...parsed.data, confirmDuplicate, linkProfile, skipProfileLink },
     { organizationId: membership.organizationId, role: membership.role },
-    { insertCandidate },
+    { findDuplicateCandidate, findLinkableProfile, insertCandidate },
   );
-  if (!created.ok) return { error: created.error };
+  if (!created.ok) {
+    return { error: created.error, duplicate: created.duplicate, profileMatch: created.profileMatch };
+  }
 
   // 2. Postular a la búsqueda. Mismo caso de uso (y deps) que el postular del pool.
   const postulado = await postularCandidato(
@@ -212,6 +226,11 @@ export async function moverEtapaAction(
     return { error: "No autorizado." };
   }
 
+  const application = await getApplicationForMove(parsed.data.applicationId, membership.organizationId);
+  if (!application) {
+    return { error: "Postulación no encontrada." };
+  }
+
   const result = await moverEtapa(
     parsed.data,
     {
@@ -220,14 +239,28 @@ export async function moverEtapaAction(
       role: membership.role,
     },
     {
-      getApplicationById: (applicationId, organizationId) =>
-        getApplicationById(applicationId, organizationId),
+      getApplicationById: async () => application,
+      isStageActive,
       updateApplicationStage,
     },
   );
 
   if (!result.ok) {
     return { error: result.error };
+  }
+
+  if (application.candidateProfileId && debeNotificarCandidato(application.stage, result.data.stage)) {
+    // Aviso al candidato: efecto secundario no crítico, no debe hacer fallar un cambio de
+    // etapa que ya se persistió (mismo criterio que enviarMensaje en rechazarVariosAction).
+    try {
+      await notifyProfile(membership.organizationId, application.candidateProfileId, {
+        type: "candidate_status",
+        title: `Tu postulación a "${application.jobTitle}" pasó a "${ESTADO_VISIBLE_LABELS[toStepperStage(result.data.stage)]}"`,
+        link: "/portal/mis-postulaciones",
+      });
+    } catch {
+      // no-op: el cambio de etapa ya se aplicó, un fallo al notificar no debe revertirlo.
+    }
   }
 
   revalidatePath(`/jobs/${result.data.jobId}/pipeline`);

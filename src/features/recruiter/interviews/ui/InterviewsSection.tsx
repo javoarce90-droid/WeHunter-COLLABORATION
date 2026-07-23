@@ -6,7 +6,7 @@ import {
   eliminarInterviewAction,
   type InterviewActionState,
 } from "../actions";
-import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS } from "../schema";
+import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS, TYPE_BADGE, TYPE_LABELS } from "../schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
 import { InterviewForm, type TeamMemberOption } from "./InterviewForm";
 
@@ -56,12 +56,15 @@ export function InterviewsSection({ applicationId, jobId, interviews, teamMember
                   <span className="text-xs font-medium text-text">
                     {dateFormatter.format(it.scheduledAt)}
                   </span>
-                  <Badge
-                    variant={STATUS_BADGE[it.status]}
-                    className={it.status === "cancelled" ? "line-through" : ""}
-                  >
-                    {STATUS_LABELS[it.status]}
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge variant={TYPE_BADGE[it.type]}>{TYPE_LABELS[it.type]}</Badge>
+                    <Badge
+                      variant={STATUS_BADGE[it.status]}
+                      className={it.status === "cancelled" ? "line-through" : ""}
+                    >
+                      {STATUS_LABELS[it.status]}
+                    </Badge>
+                  </div>
                 </div>
                 <p className="mt-0.5 text-[11px] text-muted">{MODE_LABELS[it.mode]}</p>
                 {it.location && (

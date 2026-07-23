@@ -62,7 +62,8 @@ export function StageSettingsPanel({ config, open, onClose }: Props) {
     >
       <div className="flex flex-col gap-1">
         <p className="mb-3 text-xs text-muted">
-          Activá o desactivá columnas y definí el SLA (días máximos en cada etapa).
+          Activá o desactivá columnas y definí el SLA (días máximos en cada etapa). Esta
+          configuración es la misma para todas tus búsquedas, no solo para esta.
         </p>
 
         {optimisticConfig.map((stage) => {

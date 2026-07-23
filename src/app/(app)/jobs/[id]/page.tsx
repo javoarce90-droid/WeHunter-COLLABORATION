@@ -18,6 +18,7 @@ import {
   AREA_LABELS,
 } from "@/features/recruiter/jobs/ui/field-meta";
 import { Badge } from "@/components/ui/badge";
+import { SectionCard } from "@/components/ui/section-card";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
@@ -112,17 +113,18 @@ export default async function JobDetailPage({
 
       {/* Detalles de la búsqueda (solo lo que tiene valor) */}
       {hasDetails && (
-        <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-            <h2 className="text-sm font-bold text-text">Detalles</h2>
-            {job.priority && (
+        <SectionCard
+          title="Detalles"
+          action={
+            job.priority ? (
               <Badge variant={PRIORITY_BADGE[job.priority]}>
                 Prioridad {PRIORITY_LABELS[job.priority].toLowerCase()}
               </Badge>
-            )}
-          </div>
-          <div className="flex flex-col gap-4 px-5 py-4">
-            {client && (
+            ) : undefined
+          }
+          bodyClassName="flex flex-col gap-4"
+        >
+          {client && (
               <div>
                 <p className="text-xs font-medium text-muted">Cliente</p>
                 <Link
@@ -158,23 +160,24 @@ export default async function JobDetailPage({
                 </div>
               </div>
             )}
-          </div>
-        </section>
+        </SectionCard>
       )}
 
       {/* Aviso público (armado desde los campos estructurados) */}
       {hasAviso && (
-        <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-            <h2 className="text-sm font-bold text-text">Aviso público</h2>
+        <SectionCard
+          title="Aviso público"
+          action={
             <Link
               href={`/jobs/${job.id}/aviso`}
               className="text-xs font-semibold text-primary hover:text-primary-hover"
             >
               Ver aviso →
             </Link>
-          </div>
-          <div className="flex flex-col gap-5 px-5 py-4">
+          }
+          bodyClassName="flex flex-col gap-5"
+        >
+          <>
             {avisoSections.length > 0
               ? avisoSections.map((s) => (
                   <div key={s.title}>
@@ -206,22 +209,22 @@ export default async function JobDetailPage({
                 </ul>
               </div>
             )}
-          </div>
-        </section>
+          </>
+        </SectionCard>
       )}
 
       {/* Brief interno */}
-      <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
-        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <h2 className="text-sm font-bold text-text">Brief interno</h2>
+      <SectionCard
+        title="Brief interno"
+        action={
           <Link
             href={`/jobs/${job.id}/edit`}
             className="text-xs font-semibold text-primary hover:text-primary-hover"
           >
             Editar
           </Link>
-        </div>
-        <div className="px-5 py-4">
+        }
+      >
           {job.description ? (
             <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
               {job.description}
@@ -238,21 +241,20 @@ export default async function JobDetailPage({
               para dar contexto al equipo.
             </p>
           )}
-        </div>
-      </section>
+        </SectionCard>
 
       {/* Foto del pipeline */}
-      <section className="rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
-        <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
-          <h2 className="text-sm font-bold text-text">Pipeline</h2>
+      <SectionCard
+        title="Pipeline"
+        action={
           <Link
             href={`/jobs/${job.id}/pipeline`}
             className="text-xs font-semibold text-primary hover:text-primary-hover"
           >
             Ver pipeline →
           </Link>
-        </div>
-        <div className="px-5 py-4">
+        }
+      >
           {total === 0 ? (
             <p className="text-sm text-muted">
               Todavía no hay candidatos en el pipeline.{" "}
@@ -278,8 +280,7 @@ export default async function JobDetailPage({
               ))}
             </div>
           )}
-        </div>
-      </section>
+        </SectionCard>
     </div>
   );
 }

@@ -2,6 +2,8 @@ import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { notifications, memberships } from "@/db/schema";
 
+export type NotificationType = "hire" | "team" | "system" | "candidate_status";
+
 export async function markAllRead(organizationId: string): Promise<void> {
   const db = await getDb();
   await db.rls(
@@ -16,6 +18,30 @@ export async function markAllRead(organizationId: string): Promise<void> {
           ),
         ),
     "db.notifications.mark-read",
+  );
+}
+
+/**
+ * Notifica a un único perfil (ej. un candidato con postulaciones en esta org, que no tiene
+ * membership). RLS: el with_check solo exige que quien inserta sea miembro de la org — no
+ * que el destinatario lo sea — así que esto ya funciona sin tocar políticas.
+ */
+export async function notifyProfile(
+  organizationId: string,
+  profileId: string,
+  notif: { type: NotificationType; title: string; link?: string | null },
+): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx.insert(notifications).values({
+        organizationId,
+        profileId,
+        type: notif.type,
+        title: notif.title,
+        link: notif.link ?? null,
+      }),
+    "db.notifications.notify-profile",
   );
 }
 

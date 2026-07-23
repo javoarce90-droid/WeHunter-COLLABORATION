@@ -26,7 +26,7 @@ export function JobTabs({ jobId }: { jobId: string }) {
   return (
     <nav
       aria-label="Secciones de la búsqueda"
-      className="-mb-px flex gap-1 overflow-x-auto border-b border-border"
+      className="-mb-px flex gap-1 overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {TABS.filter((tab) => !tab.hidden).map((tab) => {
         const href = tab.segment ? `${base}/${tab.segment}` : base;
@@ -39,13 +39,13 @@ export function JobTabs({ jobId }: { jobId: string }) {
             href={href}
             aria-current={active ? "page" : undefined}
             className={[
-              "relative whitespace-nowrap px-3.5 py-2.5 text-sm font-semibold transition-colors",
+              "relative whitespace-nowrap rounded-md px-3.5 py-2.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
               active ? "text-primary" : "text-muted hover:text-text",
             ].join(" ")}
           >
             {tab.label}
             {active && (
-              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />
+              <span className="absolute inset-x-2 -bottom-px h-0.5 animate-fade-in rounded-full bg-primary" />
             )}
           </Link>
         );

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
+import { normalizeUrl } from "@/lib/url";
 import { getAiProvider, type DraftCandidateProfile } from "@/lib/ai";
 import { candidateProfileSchema } from "@/features/candidate/profile/schema";
 import { uploadCandidateProfileCv } from "@/features/candidate/profile/data/profile.storage";
@@ -104,7 +105,8 @@ export async function generarPerfilConIaAction(
   if (!user) return { error: "No tenés sesión activa." };
 
   const linkedinUrlRaw = formData.get("linkedinUrl");
-  const linkedinUrl = typeof linkedinUrlRaw === "string" ? linkedinUrlRaw.trim() : "";
+  const linkedinUrl =
+    typeof linkedinUrlRaw === "string" ? normalizeUrl(linkedinUrlRaw) : "";
 
   const cv = formData.get("cv");
   const hasCv = cv instanceof File && cv.size > 0;

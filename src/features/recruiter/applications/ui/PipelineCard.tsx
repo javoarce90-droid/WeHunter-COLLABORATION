@@ -10,7 +10,7 @@ import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
-import { isTerminal, relativeTime } from "./stage-visual";
+import { isTerminal, relativeTime, getSlaStatus } from "./stage-visual";
 
 type Props = {
   application: ApplicationWithCandidate;
@@ -34,17 +34,6 @@ function pickNextInterview(interviews: InterviewRow[]): InterviewRow | undefined
   return interviews
     .filter((i) => i.status === "scheduled" && i.scheduledAt.getTime() >= now)
     .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())[0];
-}
-
-function getSlaStatus(
-  enteredStageAt: Date | undefined,
-  slaDays: number | null | undefined,
-): { status: "over" | "warn"; days: number } | null {
-  if (!slaDays || !enteredStageAt) return null;
-  const days = Math.floor((Date.now() - enteredStageAt.getTime()) / 86400000);
-  if (days >= slaDays) return { status: "over", days };
-  if (days >= Math.floor(slaDays * 0.75)) return { status: "warn", days };
-  return null;
 }
 
 export function PipelineCard({
@@ -99,7 +88,7 @@ export function PipelineCard({
       {...attributes}
       {...listeners}
       className={[
-        "rounded-[var(--radius)] border border-border bg-surface p-3 shadow-[var(--shadow)] outline-none transition-all hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+        "rounded-[var(--radius)] border border-border bg-surface p-3 shadow-[var(--shadow)] outline-none transition-[border-color,box-shadow,opacity] duration-150 hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
         !terminal && !isDragOverlay
           ? "touch-none cursor-grab active:cursor-grabbing"
           : "cursor-pointer",

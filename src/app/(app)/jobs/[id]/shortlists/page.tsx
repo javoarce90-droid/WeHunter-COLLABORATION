@@ -10,6 +10,7 @@ import {
 } from "@/features/recruiter/shortlists/data/shortlists.queries";
 import { CrearShortlistForm } from "@/features/recruiter/shortlists/ui/CrearShortlistForm";
 import { ShortlistCard } from "@/features/recruiter/shortlists/ui/ShortlistCard";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -60,10 +61,10 @@ export default async function ShortlistsPage({ params }: Props) {
       </div>
 
       {shortlists.length === 0 ? (
-        <div className="rounded-[var(--radius)] border border-dashed border-primary/25 bg-bg p-10 text-center text-sm text-muted">
-          Todavía no creaste shortlists para esta búsqueda. Armá uno seleccionando
-          candidatos del pipeline.
-        </div>
+        <EmptyState
+          title="Todavía no hay shortlists"
+          description="Armá uno seleccionando candidatos del pipeline y compartilo con la empresa por un enlace seguro."
+        />
       ) : (
         <div className="flex flex-col gap-4">
           {shortlists.map((sl) => (

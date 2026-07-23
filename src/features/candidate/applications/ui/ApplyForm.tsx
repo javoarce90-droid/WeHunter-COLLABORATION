@@ -1,14 +1,17 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, fieldClasses } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { postularAction, type PostularActionState } from "../actions";
 import { accentStyle } from "@/features/candidate/career-site/ui/brand";
 import type { CareerSiteJobDetail } from "@/features/candidate/career-site/data/career-site.data";
+import { ScreeningQuestionFields } from "./ScreeningQuestionFields";
+import { obligatoriasSinResponder } from "../domain/screening";
 
-const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+// Base de campo compartida — la usa el wrapper del file input y ScreeningQuestionFields (prop).
+const fieldClass = fieldClasses();
 
 const initialState: PostularActionState = {};
 
@@ -30,6 +33,14 @@ export function ApplyForm({
   accentColor?: string;
 }) {
   const [state, formAction, pending] = useActionState(postularAction, initialState);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const questions = job.screeningQuestions ?? [];
+  const faltantes = obligatoriasSinResponder(questions, answers);
+  const answersPayload = JSON.stringify(
+    Object.entries(answers)
+      .filter(([, value]) => value.trim())
+      .map(([questionId, value]) => ({ questionId, value })),
+  );
 
   if (state.ok) {
     return (
@@ -58,10 +69,7 @@ export function ApplyForm({
         <Input label="Teléfono (opcional)" name="phone" type="tel" />
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-muted">Mensaje (opcional)</label>
-        <textarea name="coverNote" rows={4} maxLength={2000} className={fieldClass} />
-      </div>
+      <Textarea label="Mensaje (opcional)" name="coverNote" rows={4} maxLength={2000} />
 
       {existingCvUrl ? (
         <input type="hidden" name="existingCvUrl" value={existingCvUrl} />
@@ -80,14 +88,34 @@ export function ApplyForm({
         </div>
       )}
 
+      {questions.length > 0 && (
+        <div className="flex flex-col gap-4 border-t border-border pt-4">
+          <ScreeningQuestionFields
+            questions={questions}
+            answers={answers}
+            onChange={(id, value) => setAnswers((a) => ({ ...a, [id]: value }))}
+            disabled={pending}
+            fieldClass={fieldClass}
+          />
+          <input type="hidden" name="screeningAnswers" value={answersPayload} />
+        </div>
+      )}
+
+      {faltantes.length > 0 && (
+        <p className="text-xs text-muted">
+          Falta responder: {faltantes.map((q) => q.label).join(", ")}.
+        </p>
+      )}
+
       {state.error && <p className="text-xs text-danger">{state.error}</p>}
       <Button
         type="submit"
-        disabled={pending}
+        loading={pending}
+        disabled={faltantes.length > 0}
         style={accentStyle(accentColor)}
         className="hover:brightness-90"
       >
-        {pending ? "Enviando…" : "Enviar postulación"}
+        Enviar postulación
       </Button>
     </form>
   );

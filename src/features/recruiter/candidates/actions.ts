@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
 import {
   candidateInputSchema,
+  candidateCreateInputSchema,
   CV_ALLOWED_TYPES,
   CV_MAX_BYTES,
 } from "./schema";
@@ -16,11 +17,17 @@ import {
   type TalentState,
 } from "./domain/cambiar-estado-talento";
 import {
+  verificarCandidatoPorEmail,
+  type VerificarCandidatoPorEmailResult,
+} from "./domain/verificar-candidato-por-email";
+import type { DuplicateCandidateMatch } from "./domain/duplicate-keys";
+import {
   insertCandidate,
   updateCandidateFields,
   setTalentState,
 } from "./data/candidates.mutations";
-import { getCandidateById } from "./data/candidates.queries";
+import { getCandidateById, findDuplicateCandidate } from "./data/candidates.queries";
+import { findLinkableProfile } from "./data/profile-link.queries";
 import {
   uploadCandidateCv,
   deleteCandidateCv,
@@ -28,6 +35,8 @@ import {
 
 export interface CandidateFormState {
   error?: string;
+  duplicate?: DuplicateCandidateMatch;
+  profileMatch?: true;
 }
 
 export async function cambiarEstadoTalentoAction(
@@ -53,9 +62,28 @@ export async function cambiarEstadoTalentoAction(
   return { ok: true };
 }
 
-/** Lee del FormData los campos del candidato (núcleo + enriquecidos) para validar con Zod. */
-function parseCandidateForm(formData: FormData) {
-  return candidateInputSchema.safeParse({
+/**
+ * Chequeo en vivo (blur del campo email, antes de completar el resto del form): adelanta el
+ * mismo aviso de duplicado/cuenta vinculable que `cargarCandidato` haría recién al enviar.
+ * Es solo lectura — el chequeo autoritativo sigue en el dominio al crear de verdad.
+ */
+export async function verificarEmailCandidatoAction(
+  email: string,
+): Promise<VerificarCandidatoPorEmailResult> {
+  const membership = await getActiveMembership();
+  return verificarCandidatoPorEmail(
+    email,
+    {
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+    },
+    { findDuplicateCandidate, findLinkableProfile },
+  );
+}
+
+/** Campos del candidato (núcleo + enriquecidos) crudos del FormData, sin validar todavía. */
+function candidateFormFields(formData: FormData) {
+  return {
     fullName: formData.get("fullName"),
     email: formData.get("email"),
     headline: formData.get("headline"),
@@ -65,7 +93,17 @@ function parseCandidateForm(formData: FormData) {
     summary: formData.get("summary"),
     skills: formData.get("skills"),
     source: formData.get("source"),
-  });
+  };
+}
+
+/** Al editar, el email sigue opcional (no bloquear datos viejos sin email). */
+function parseCandidateForm(formData: FormData) {
+  return candidateInputSchema.safeParse(candidateFormFields(formData));
+}
+
+/** Al cargar un candidato nuevo, el email es obligatorio (ver schema.ts). */
+function parseCreateCandidateForm(formData: FormData) {
+  return candidateCreateInputSchema.safeParse(candidateFormFields(formData));
 }
 
 /** Extrae y valida el CV del FormData. Devuelve el File o null, o un mensaje de error. */
@@ -87,7 +125,7 @@ export async function cargarCandidatoAction(
   _prev: CandidateFormState,
   formData: FormData,
 ): Promise<CandidateFormState> {
-  const parsed = parseCandidateForm(formData);
+  const parsed = parseCreateCandidateForm(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
@@ -97,14 +135,19 @@ export async function cargarCandidatoAction(
 
   const membership = await getActiveMembership();
   const cvFile = cv.file;
+  const confirmDuplicate = formData.get("confirmDuplicate") === "true";
+  const linkProfile = formData.get("linkProfile") === "true";
+  const skipProfileLink = formData.get("skipProfileLink") === "true";
 
   const result = await cargarCandidato(
-    parsed.data,
+    { ...parsed.data, confirmDuplicate, linkProfile, skipProfileLink },
     {
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
     },
     {
+      findDuplicateCandidate,
+      findLinkableProfile,
       insertCandidate,
       ...(cvFile && membership
         ? {
@@ -115,7 +158,7 @@ export async function cargarCandidatoAction(
     },
   );
   if (!result.ok) {
-    return { error: result.error };
+    return { error: result.error, duplicate: result.duplicate, profileMatch: result.profileMatch };
   }
 
   redirect("/candidates");

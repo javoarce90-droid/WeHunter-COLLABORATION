@@ -8,6 +8,7 @@ import type {
   EmploymentType,
   JobArea,
 } from "@/features/recruiter/jobs/domain/job-details";
+import type { ScreeningQuestion } from "@/features/candidate/applications/domain/screening";
 
 /**
  * Acceso público (visitante SIN sesión) al Career Site. Toda la autorización vive en las
@@ -100,6 +101,9 @@ export const getCareerSite = cache(async (slug: string): Promise<CareerSite | nu
   return { ...org, jobs: raw.jobs };
 });
 
+/** El tipo canónico vive en el dominio de applications: lo comparten el Career Site y el portal. */
+export type CareerSiteScreeningQuestion = ScreeningQuestion;
+
 export type CareerSiteJobDetail = {
   id: string;
   title: string;
@@ -117,6 +121,7 @@ export type CareerSiteJobDetail = {
   requirements: string | null;
   responsibilities: string | null;
   benefits: { name: string; description: string }[] | null;
+  screeningQuestions: CareerSiteScreeningQuestion[];
   createdAt: string;
 };
 

@@ -13,9 +13,11 @@ import type {
 } from "../domain/job-details";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { Input } from "@/components/ui/input";
+import { Input, fieldClasses } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { JobMarkdown } from "./markdown";
+import { ScreeningBuilder } from "@/features/recruiter/screening/ui/ScreeningBuilder";
+import type { ScreeningQuestionInput } from "@/features/recruiter/screening/domain/definir-preguntas-screening";
 import {
   MODALITY_LABELS,
   SENIORITY_LABELS,
@@ -48,6 +50,7 @@ interface JobDefaults {
   requirements?: string | null;
   responsibilities?: string | null;
   benefits?: Benefit[] | null;
+  screeningQuestions?: ScreeningQuestionInput[] | null;
 }
 
 interface JobFormProps {
@@ -60,8 +63,9 @@ interface JobFormProps {
   cancelLabel?: string;
 }
 
-export const selectClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+/** Base de campo compartida (bg-bg, foco, error). Reusa el primitivo para no duplicar clases.
+ *  Sigue exportado porque JobAiCreateForm lo usa con selects/textarea propios. */
+export const selectClass = fieldClasses();
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -140,6 +144,14 @@ export function JobForm({
   // Serializamos beneficios (lista dinámica) a un hidden input para que viajen en el FormData.
   const benefitsPayload = JSON.stringify(
     benefits.filter((b) => b.name.trim() || b.description.trim()),
+  );
+
+  const [screeningQuestions, setScreeningQuestions] = useState<ScreeningQuestionInput[]>(
+    defaults?.screeningQuestions ?? [],
+  );
+
+  const screeningQuestionsPayload = JSON.stringify(
+    screeningQuestions.filter((q) => q.label.trim()),
   );
 
   return (
@@ -348,6 +360,21 @@ export function JobForm({
             </div>
           </Section>
 
+          {/* Screening: solo en edición. En la creación se define en su propio paso post-creación
+              (/jobs/[id]/screening), igual para el flujo manual y el de IA. */}
+          {jobId && (
+            <Section
+              title="Preguntas de screening"
+              hint="El candidato las responde al postularse. Las obligatorias bloquean el envío si quedan sin responder — nunca lo rechazan solas."
+            >
+              <ScreeningBuilder
+                questions={screeningQuestions}
+                onChange={setScreeningQuestions}
+              />
+              <input type="hidden" name="screeningQuestions" value={screeningQuestionsPayload} />
+            </Section>
+          )}
+
           <Section title="Notas internas">
             <Field label="Brief interno (no se publica)">
               <textarea
@@ -363,10 +390,13 @@ export function JobForm({
           {state.error && <p className="text-xs text-danger">{state.error}</p>}
 
           <div className="flex items-center gap-3">
-            <Button type="submit" disabled={pending}>
-              {pending ? "Guardando…" : submitLabel}
+            <Button type="submit" loading={pending}>
+              {submitLabel}
             </Button>
-            <Link href={cancelHref} className="text-sm font-semibold text-muted">
+            <Link
+              href={cancelHref}
+              className="rounded text-sm font-semibold text-muted outline-none transition-colors hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface"
+            >
               {cancelLabel}
             </Link>
           </div>

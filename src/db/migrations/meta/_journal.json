@@ -323,6 +323,90 @@
       "when": 1783954053896,
       "tag": "0045_revert_candidate_profile_sync_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1784045764802,
+      "tag": "0046_shiny_umar",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1784054357924,
+      "tag": "0047_link_candidate_to_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1784060882829,
+      "tag": "0048_big_rafael_vega",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1784121642781,
+      "tag": "0049_backfill_career_site_always_enabled",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1784124457557,
+      "tag": "0050_careless_fantastic_four",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1784127132308,
+      "tag": "0051_plain_falcon",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1784127157150,
+      "tag": "0052_career_site_screening_questions",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1784131949249,
+      "tag": "0053_condemned_zaladane",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1784135082540,
+      "tag": "0054_bumpy_jane_foster",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1784480682540,
+      "tag": "0055_hiring_request_client_functions",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1784653482540,
+      "tag": "0056_portal_screening_questions",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1784826282540,
+      "tag": "0057_outstanding_katie_power",
+      "breakpoints": true
     }
   ]
 }

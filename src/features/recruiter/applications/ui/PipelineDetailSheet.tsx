@@ -11,6 +11,8 @@ import { useToast } from "@/lib/toast";
 import { NoteTimeline } from "@/features/recruiter/notes/ui/NoteTimeline";
 import { InterviewsSection } from "@/features/recruiter/interviews/ui/InterviewsSection";
 import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
+import { ScreeningAnswers } from "@/features/recruiter/screening/ui/ScreeningAnswers";
+import type { ScreeningAnswerRow } from "@/features/recruiter/screening/data/screening.queries";
 import { generarGuiaEntrevistaAction } from "../actions";
 import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
 import type { ApplicationStage } from "../schema";
@@ -26,6 +28,7 @@ type Props = {
   teamMembers: TeamMemberOption[];
   notes: TimelineNote[];
   stageEvents: StageHistoryEvent[];
+  screeningAnswers: ScreeningAnswerRow[];
   onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
   onClose: () => void;
   /** Si se pasa, solo muestra botones para estas etapas (activas). */
@@ -43,6 +46,7 @@ export function PipelineDetailSheet({
   teamMembers,
   notes,
   stageEvents,
+  screeningAnswers,
   onMoveStage,
   onClose,
   activeStageKeys,
@@ -160,6 +164,13 @@ export function PipelineDetailSheet({
             </div>
             <StageHistoryTimeline events={stageEvents} />
           </section>
+
+          {/* Respuestas de screening (solo si la búsqueda tiene preguntas) */}
+          {screeningAnswers.length > 0 && (
+            <section>
+              <ScreeningAnswers answers={screeningAnswers} />
+            </section>
+          )}
 
           {/* Notas internas (timeline) */}
           <section className="flex flex-col gap-1.5">

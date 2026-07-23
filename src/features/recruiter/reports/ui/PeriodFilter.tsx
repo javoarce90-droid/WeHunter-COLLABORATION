@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
 
 export const PERIODS = [
   { key: "7d", label: "7 días" },
@@ -37,25 +37,12 @@ export function isPeriodKey(v: string | undefined): v is PeriodKey {
 /** Filtro de período: navegación por ?period= (segmento barato, prefetcheable). */
 export function PeriodFilter({ current }: { current: PeriodKey }) {
   return (
-    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Período del reporte">
-      {PERIODS.map((p) => {
-        const active = p.key === current;
-        return (
-          <Link
-            key={p.key}
-            href={`/reports?period=${p.key}`}
-            aria-current={active ? "true" : undefined}
-            className={[
-              "rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
-              active
-                ? "border-primary bg-primary-light text-primary-hover"
-                : "border-border text-muted hover:text-text",
-            ].join(" ")}
-          >
-            {p.label}
-          </Link>
-        );
-      })}
-    </div>
+    <FilterChipGroup label="Período del reporte">
+      {PERIODS.map((p) => (
+        <FilterChip key={p.key} href={`/reports?period=${p.key}`} active={p.key === current}>
+          {p.label}
+        </FilterChip>
+      ))}
+    </FilterChipGroup>
   );
 }

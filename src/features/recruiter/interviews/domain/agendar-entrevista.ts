@@ -1,4 +1,4 @@
-import type { InterviewMode, InterviewStatus } from "../schema";
+import type { InterviewMode, InterviewStatus, InterviewType } from "../schema";
 
 /** Fila de entrevista tal como la devuelve la capa de datos. Tipo compartido del dominio. */
 export type InterviewRow = {
@@ -7,6 +7,7 @@ export type InterviewRow = {
   applicationId: string;
   scheduledAt: Date;
   mode: InterviewMode;
+  type: InterviewType;
   location: string | null;
   notes: string | null;
   status: InterviewStatus;
@@ -23,6 +24,7 @@ export type AgendarEntrevistaInput = {
   applicationId: string;
   scheduledAt: Date;
   mode: InterviewMode;
+  type: InterviewType;
   location?: string;
   notes?: string;
   participantEmails?: string[];
@@ -44,6 +46,7 @@ export type AgendarEntrevistaDeps = {
     applicationId: string;
     scheduledAt: Date;
     mode: InterviewMode;
+    type: InterviewType;
     location: string | null;
     notes: string | null;
     participantEmails: string[];
@@ -83,6 +86,7 @@ export async function agendarEntrevista(
     applicationId: input.applicationId,
     scheduledAt: input.scheduledAt,
     mode: input.mode,
+    type: input.type,
     location: normalize(input.location),
     notes: normalize(input.notes),
     participantEmails: input.participantEmails ?? [],

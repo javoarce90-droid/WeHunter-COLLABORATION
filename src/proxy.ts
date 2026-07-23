@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isCandidateRoute, isRecruiterRoute } from "@/lib/auth/route-realms";
+import { isRemembered, REMEMBER_COOKIE } from "@/lib/supabase/remember";
 
 /**
  * Proxy de sesión (en Next 16 reemplaza a `middleware.ts`).
@@ -20,6 +21,10 @@ export async function proxy(request: NextRequest) {
   const isCandidateProtected = isCandidateRoute(pathname);
   const isRecruiterProtected = isRecruiterRoute(pathname);
 
+  // "Recordar mi cuenta": si el usuario no lo tildó, mantenemos las cookies de auth como
+  // cookies de sesión también al refrescarlas acá (si no, el refresco las volvería persistentes).
+  const rememberMe = isRemembered(request.cookies.get(REMEMBER_COOKIE)?.value);
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -33,9 +38,13 @@ export async function proxy(request: NextRequest) {
             request.cookies.set(name, value)
           );
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            const opts =
+              rememberMe || !value
+                ? options
+                : { ...options, maxAge: undefined, expires: undefined };
+            response.cookies.set(name, value, opts);
+          });
         },
       },
     }

@@ -5,6 +5,7 @@ import { agregarNotaAction, type NoteActionState } from "../actions";
 import { NOTE_MAX_LENGTH } from "../schema";
 import type { TimelineNote } from "../data/notes.queries";
 import { NoteList } from "./NoteList";
+import { NotesPrivacyBanner } from "./NotesPrivacyBanner";
 
 type Props = {
   applicationId: string;
@@ -29,6 +30,7 @@ export function NoteTimeline({ applicationId, jobId, notes }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
+      <NotesPrivacyBanner />
       {notes.length > 0 && <NoteList notes={notes} />}
 
       <form ref={formRef} action={dispatch} className="flex flex-col gap-1.5">
@@ -39,7 +41,7 @@ export function NoteTimeline({ applicationId, jobId, notes }: Props) {
           rows={3}
           maxLength={NOTE_MAX_LENGTH}
           placeholder="Agregá una nota interna — no visible para la empresa ni el candidato."
-          className="w-full resize-none rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]"
+          className="w-full resize-none rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]"
         />
         {state.error && <p className="text-xs text-danger">{state.error}</p>}
         <div className="flex justify-end">

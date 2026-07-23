@@ -6,7 +6,10 @@ import { CandidateProfileForm } from "@/features/candidate/profile/ui/CandidateP
 import { ExperienceSection } from "@/features/candidate/profile/ui/ExperienceSection";
 import { EducationSection } from "@/features/candidate/profile/ui/EducationSection";
 import { CertificationsSection } from "@/features/candidate/profile/ui/CertificationsSection";
+import { LanguagesSection } from "@/features/candidate/profile/ui/LanguagesSection";
+import { calcularCompletitud } from "@/features/candidate/profile/domain/calcular-completitud";
 import { candidateLogoutAction } from "@/features/candidate/profile/actions";
+import { DeleteAccountSection } from "@/features/candidate/account-deletion/ui/DeleteAccountSection";
 import { Avatar } from "@/components/ui/avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { WehunterLogo } from "@/components/ui/wehunter-logo";
@@ -32,6 +35,8 @@ export default async function CandidateProfilePage() {
     candidate.cvUrl ? getCvSignedUrl(candidate.cvUrl) : Promise.resolve(null),
     getMyResume(),
   ]);
+
+  const completitud = calcularCompletitud(candidate, resume);
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
@@ -84,6 +89,28 @@ export default async function CandidateProfilePage() {
           <p className="text-xs text-muted">Asegurate de que tu información profesional esté al día para aumentar tus posibilidades de contratación.</p>
         </div>
 
+        {completitud.percent < 100 && (
+          <div className="flex flex-col gap-2 rounded-[var(--radius)] border border-primary/20 bg-primary/5 p-4 shadow-[var(--shadow)]">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-semibold text-text">
+                Tu perfil está {completitud.percent}% completo.
+              </p>
+              <span className="text-xs font-bold text-primary">{completitud.percent}%</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-primary/10">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{ width: `${completitud.percent}%` }}
+              />
+            </div>
+            {completitud.faltantes.length > 0 && (
+              <p className="text-xs text-muted">
+                Agregá {completitud.faltantes.slice(0, 3).join(", ")} para mejorar tus oportunidades.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Hero de perfil */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-surface border border-border rounded-[var(--radius)] shadow-[var(--shadow)] p-6">
           <div className="flex min-w-0 items-center gap-3">
@@ -133,8 +160,11 @@ export default async function CandidateProfilePage() {
             <ExperienceSection experiences={resume.experiences} />
             <EducationSection education={resume.education} />
             <CertificationsSection certifications={resume.certifications} />
+            <LanguagesSection languages={resume.languages} />
           </div>
         </div>
+
+        <DeleteAccountSection />
       </main>
     </div>
   );

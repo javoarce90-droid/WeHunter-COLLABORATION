@@ -4,17 +4,30 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { login, type AuthFormState } from "../actions";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
 
 const initialState: AuthFormState = {};
 
-export function LoginForm({ redirectTo }: { redirectTo: string }) {
+export function LoginForm({
+  redirectTo,
+  oauthError = false,
+}: {
+  redirectTo: string;
+  oauthError?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(login, initialState);
 
   return (
     <Card>
       <CardContent className="flex flex-col gap-4">
+        {oauthError && (
+          <p className="rounded-[var(--radius)] bg-danger/10 px-3 py-2 text-xs text-danger">
+            No se pudo iniciar sesión con ese proveedor. Probá de nuevo.
+          </p>
+        )}
         <form action={formAction} className="flex flex-col gap-4">
           <input type="hidden" name="redirect" value={redirectTo} />
           <Input
@@ -34,10 +47,23 @@ export function LoginForm({ redirectTo }: { redirectTo: string }) {
           {state.error && (
             <p className="text-xs text-danger">{state.error}</p>
           )}
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-text">
+              <Checkbox name="remember" defaultChecked />
+              Recordar mi cuenta
+            </label>
+            <Link
+              href="/forgot-password"
+              className="text-xs font-semibold text-primary hover:underline"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
           <Button type="submit" disabled={pending}>
             {pending ? "Ingresando…" : "Ingresar"}
           </Button>
         </form>
+        <SocialAuthButtons realm="recruiter" />
         <p className="text-center text-xs text-muted">
           ¿No tenés cuenta?{" "}
           <Link href="/register" className="font-semibold text-primary">

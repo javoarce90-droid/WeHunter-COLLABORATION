@@ -2,12 +2,11 @@
 
 import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { editarWorkspaceAction } from "../actions";
 import type { OrgSettings } from "../data/settings.queries";
 
 const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+  "w-full rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
 
 const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -30,6 +29,7 @@ export function WorkspaceSection({
   const branding = org.branding;
   const [primaryColor, setPrimaryColor] = useState(branding?.primaryColor ?? "");
   const [accentColor, setAccentColor] = useState(branding?.accentColor ?? "");
+  const [slug, setSlug] = useState(org.slug);
 
   if (!canEdit) {
     return (
@@ -89,6 +89,23 @@ export function WorkspaceSection({
       <p className="mt-2 border-t border-border pt-4 text-xs font-semibold uppercase tracking-wide text-label">
         Career Site
       </p>
+
+      <div className="flex flex-col gap-1.5 max-w-md">
+        <label className="text-xs font-semibold text-muted">Dirección del Career Site</label>
+        <div className="flex items-center overflow-hidden rounded-[var(--radius)] border border-border bg-surface focus-within:border-primary focus-within:ring-2 focus-within:ring-[var(--focus-ring)]">
+          <span className="shrink-0 border-r border-border bg-primary-light px-3 py-2 text-sm text-muted">
+            /careers/
+          </span>
+          <input
+            name="slug"
+            value={slug}
+            onChange={(e) => setSlug(e.target.value.toLowerCase())}
+            required
+            className="w-full bg-transparent px-3 py-2 text-sm text-text outline-none"
+          />
+        </div>
+        <span className="text-xs text-muted">Minúsculas, números y guiones. Cambiarlo rompe los links ya compartidos.</span>
+      </div>
 
       <div className="flex items-center gap-4">
         {coverPreview ? (
@@ -174,8 +191,9 @@ export function WorkspaceSection({
           <label className="text-xs font-semibold text-muted">Sitio web</label>
           <input
             name="website"
-            type="url"
-            placeholder="https://"
+            type="text"
+            inputMode="url"
+            placeholder="tu-empresa.com"
             defaultValue={branding?.website ?? ""}
             className={fieldClass}
           />
@@ -185,8 +203,9 @@ export function WorkspaceSection({
             <label className="text-xs font-semibold text-muted">LinkedIn</label>
             <input
               name="linkedinUrl"
-              type="url"
-              placeholder="https://linkedin.com/company/..."
+              type="text"
+            inputMode="url"
+              placeholder="linkedin.com/company/..."
               defaultValue={branding?.social?.linkedin ?? ""}
               className={fieldClass}
             />
@@ -195,8 +214,9 @@ export function WorkspaceSection({
             <label className="text-xs font-semibold text-muted">Instagram</label>
             <input
               name="instagramUrl"
-              type="url"
-              placeholder="https://instagram.com/..."
+              type="text"
+            inputMode="url"
+              placeholder="instagram.com/..."
               defaultValue={branding?.social?.instagram ?? ""}
               className={fieldClass}
             />
@@ -205,8 +225,9 @@ export function WorkspaceSection({
             <label className="text-xs font-semibold text-muted">X</label>
             <input
               name="xUrl"
-              type="url"
-              placeholder="https://x.com/..."
+              type="text"
+            inputMode="url"
+              placeholder="x.com/..."
               defaultValue={branding?.social?.x ?? ""}
               className={fieldClass}
             />
@@ -215,8 +236,9 @@ export function WorkspaceSection({
             <label className="text-xs font-semibold text-muted">Facebook</label>
             <input
               name="facebookUrl"
-              type="url"
-              placeholder="https://facebook.com/..."
+              type="text"
+            inputMode="url"
+              placeholder="facebook.com/..."
               defaultValue={branding?.social?.facebook ?? ""}
               className={fieldClass}
             />
@@ -225,12 +247,7 @@ export function WorkspaceSection({
       </div>
 
       <div className="flex items-center justify-between gap-4 rounded-[var(--radius)] border border-border px-3 py-2.5">
-        <Checkbox
-          name="careerSiteEnabled"
-          value="true"
-          defaultChecked={org.careerSiteEnabled}
-          label="Publicar el Career Site"
-        />
+        <span className="text-sm text-text">El Career Site está siempre publicado.</span>
         <a
           href={`/careers/${org.slug}`}
           target="_blank"

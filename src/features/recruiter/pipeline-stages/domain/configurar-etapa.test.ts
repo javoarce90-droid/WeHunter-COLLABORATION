@@ -4,7 +4,13 @@ import type { ConfigurarEtapaCtx, ConfigurarEtapaDeps } from "./configurar-etapa
 
 const ctx: ConfigurarEtapaCtx = { organizationId: "org-1", role: "recruiter" };
 const makeUpsert = () => vi.fn().mockResolvedValue(undefined);
-const deps = (upsert = makeUpsert()): ConfigurarEtapaDeps => ({ upsert });
+const deps = (
+  upsert = makeUpsert(),
+  candidatesInStage = 0,
+): ConfigurarEtapaDeps => ({
+  upsert,
+  countCandidatesInStage: vi.fn().mockResolvedValue(candidatesInStage),
+});
 
 describe("configurarEtapa", () => {
   test("rejects consultant role", async () => {
@@ -80,6 +86,30 @@ describe("configurarEtapa", () => {
       slaDays: 7,
       labelOverride: "Entrevista técnica",
     });
+  });
+
+  test("no se puede desactivar una etapa con candidatos adentro", async () => {
+    const upsert = makeUpsert();
+    const result = await configurarEtapa(
+      { stageKey: "screening", isActive: false },
+      ctx,
+      deps(upsert, 3),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/3 candidatos/);
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  test("activar una etapa (no desactivar) no chequea candidatos", async () => {
+    const upsert = makeUpsert();
+    const countCandidatesInStage = vi.fn().mockResolvedValue(5);
+    const result = await configurarEtapa(
+      { stageKey: "screening", isActive: true },
+      ctx,
+      { upsert, countCandidatesInStage },
+    );
+    expect(result.ok).toBe(true);
+    expect(countCandidatesInStage).not.toHaveBeenCalled();
   });
 
   test("admin role is allowed", async () => {

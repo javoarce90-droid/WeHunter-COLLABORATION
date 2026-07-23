@@ -1,13 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth/session";
+import { getCurrentUser, getCandidateProfile } from "@/lib/auth/session";
 import { withdrawApplicationRpc } from "./data/applications.mutations";
 import { retirarPostulacion } from "./domain/gestionar-postulacion";
 import { postularDesdeCareerSite } from "@/features/candidate/applications/domain/postular-desde-career-site";
 import { applyToJobRpc } from "@/features/candidate/applications/data/apply.data";
 import { uploadCareerSiteApplicationCv } from "@/features/candidate/applications/data/apply.storage";
-import { CV_MAX_BYTES, CV_ALLOWED_TYPES } from "@/features/candidate/applications/schema";
+import {
+  CV_MAX_BYTES,
+  CV_ALLOWED_TYPES,
+  screeningAnswersField,
+} from "@/features/candidate/applications/schema";
 
 export interface PortalApplyState {
   error?: string;
@@ -49,13 +53,19 @@ export async function postularEnPortalAction(
   const cv = readCv(formData.get("cv"));
   if ("error" in cv) return { error: cv.error };
 
+  const profile = await getCandidateProfile();
   const existingCvUrl = formData.get("existingCvUrl");
   let cvPath: string | undefined;
   if (cv.file) {
     cvPath = (await uploadCareerSiteApplicationCv(organizationId, user.id, cv.file)).path;
   } else if (typeof existingCvUrl === "string" && existingCvUrl) {
     cvPath = existingCvUrl;
+  } else if (profile?.cvUrl) {
+    cvPath = profile.cvUrl;
   }
+
+  const answers = screeningAnswersField.safeParse(formData.get("screeningAnswers"));
+  if (!answers.success) return { error: "Respuestas de screening inválidas." };
 
   const phone = formData.get("phone");
   const linkedinUrl = formData.get("linkedinUrl");
@@ -64,9 +74,11 @@ export async function postularEnPortalAction(
       jobId,
       fullName,
       email,
-      phone: typeof phone === "string" ? phone : undefined,
+      phone: profile?.phone ?? (typeof phone === "string" ? phone : undefined),
+      location: profile?.location ?? undefined,
       coverNote: typeof linkedinUrl === "string" && linkedinUrl ? `LinkedIn: ${linkedinUrl}` : undefined,
       cvPath,
+      screeningAnswers: answers.data,
     },
     { applyToJob: applyToJobRpc },
   );

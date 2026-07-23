@@ -49,3 +49,6 @@ GEMINI.md
 .agents/
 local-notes/
 .impeccable/
+
+# docs internas (notas personales, ya no se comparten por git — trabajo solo)
+/docs

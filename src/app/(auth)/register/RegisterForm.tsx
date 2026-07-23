@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { AccountTypeTabs } from "@/components/ui/account-type-tabs";
+import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
 
 const initialState: AuthFormState = {};
 
@@ -15,7 +16,7 @@ export function RegisterForm() {
 
   return (
     <>
-      <AccountTypeTabs />
+      {!state.message && <AccountTypeTabs />}
       <Card>
         <CardContent className="flex flex-col gap-4">
           {state.message ? (
@@ -51,6 +52,7 @@ export function RegisterForm() {
               </Button>
             </form>
           )}
+          {!state.message && <SocialAuthButtons realm="recruiter" />}
           <p className="text-center text-xs text-muted">
             ¿Ya tenés cuenta?{" "}
             <Link href="/login" className="font-semibold text-primary">

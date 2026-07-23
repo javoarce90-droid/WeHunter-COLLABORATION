@@ -81,6 +81,8 @@ Variantes: `primary` · `secondary` · `ghost` · `destructive` · `sm`
 - Ghost: `bg-transparent text-muted border border-border hover:bg-bg`
 - Sm: `px-2.5 py-1.5 text-xs`
 
+Estados (todos los botones): `hover` por variante · `focus-visible` ring `--focus-ring` (`--focus-ring-danger` en destructive) · `active:scale-[0.98]` (feedback táctil) · `disabled:opacity-50` · `loading` (prop) que bloquea el botón y muestra `<Spinner>` inline preservando el ancho. Para forms con server action, usar `SubmitButton` (deriva `loading` de `useFormStatus`). `Spinner` es solo para acciones puntuales; para carga de contenido va `Skeleton`.
+
 ### Badge
 
 Variantes de color (`success`, `warning`, `danger`, `primary`, `muted`, `blue`) y de stage del pipeline (`new`, `screening`, `interview`, `offer`, `hired`, `rejected`).

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toOptionalUrl } from "@/lib/url";
 
 /** Schemas de input de la feature de candidatos. Validación cerca de la action. */
 
@@ -41,13 +42,32 @@ export const candidateInputSchema = z.object({
   headline: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
   phone: z.preprocess(emptyToUndef, z.string().trim().max(40).optional()),
   location: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
-  linkedinUrl: z.preprocess(emptyToUndef, z.string().trim().max(300).optional()),
+  linkedinUrl: z.preprocess(toOptionalUrl, z.string().trim().max(300).optional()),
   summary: z.preprocess(emptyToUndef, z.string().trim().max(5000).optional()),
   skills: skillsField,
   source: z.preprocess(emptyToUndef, candidateSourceSchema.optional()),
 });
 
 export type CandidateInput = z.infer<typeof candidateInputSchema>;
+
+// Al cargar un candidato nuevo el email es obligatorio (detecta duplicados y permite
+// vincular una cuenta real, ver duplicate-keys.ts/profile-link.ts): sin email ninguno de
+// los dos chequeos tiene con qué buscar. Editar un candidato ya existente sin email no se
+// bloquea (dato viejo) — por eso es un schema aparte, no un cambio en candidateInputSchema.
+export const candidateCreateInputSchema = candidateInputSchema.extend({
+  email: z.preprocess(
+    (v) => (typeof v === "string" ? v : ""),
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .min(1, "El email es obligatorio.")
+      .email("El email no es válido.")
+      .max(160, "El email es demasiado largo."),
+  ),
+});
+
+export type CandidateCreateInput = z.infer<typeof candidateCreateInputSchema>;
 
 // Restricciones del CV (validadas en la action antes de subir a Storage).
 export const CV_MAX_BYTES = 5 * 1024 * 1024; // 5 MB

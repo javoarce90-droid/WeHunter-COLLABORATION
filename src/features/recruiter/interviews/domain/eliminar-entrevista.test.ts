@@ -12,6 +12,7 @@ const existing: InterviewRow = {
   applicationId: "app-1",
   scheduledAt: new Date("2026-07-01T10:00:00Z"),
   mode: "remote",
+  type: "screening",
   location: null,
   notes: null,
   status: "scheduled",

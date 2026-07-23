@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
+import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/lib/toast";
@@ -20,6 +21,7 @@ import { CANDIDATE_SOURCE_LABELS } from "./source-meta";
 import { TALENT_STATE_LABELS, TALENT_STATE_BADGE, TALENT_STATE_ORDER } from "./talent-meta";
 import type { CandidateSource } from "../domain/candidate-details";
 import type { TalentState } from "../domain/cambiar-estado-talento";
+import { normalizeEmailKey, normalizeLinkedinKey } from "../domain/duplicate-keys";
 
 type JobOption = { id: string; title: string };
 type FilterKey = "all" | TalentState | "duplicates";
@@ -37,8 +39,10 @@ function sourceLabel(source: string | null): string {
 /** Claves de identidad para detectar duplicados: email y LinkedIn normalizados. */
 function dupKeys(c: Candidate): string[] {
   const keys: string[] = [];
-  if (c.email) keys.push("e:" + c.email.trim().toLowerCase());
-  if (c.linkedinUrl) keys.push("l:" + c.linkedinUrl.trim().toLowerCase().replace(/\/+$/, ""));
+  const email = normalizeEmailKey(c.email);
+  const linkedin = normalizeLinkedinKey(c.linkedinUrl);
+  if (email) keys.push("e:" + email);
+  if (linkedin) keys.push("l:" + linkedin);
   return keys;
 }
 
@@ -175,31 +179,23 @@ export function CandidatesList({ candidates, jobs }: Props) {
       </div>
 
       {/* Filter chips por estado operativo + duplicados */}
-      <div className="flex flex-wrap gap-1.5">
+      <FilterChipGroup label="Filtrar candidatos por estado">
         {CHIPS.map((chip) => {
-          const active = filter === chip.key;
           const n = counts[chip.key];
           const isDup = chip.key === "duplicates";
           return (
-            <button
+            <FilterChip
               key={chip.key}
-              type="button"
               onClick={() => setFilter(chip.key)}
-              className={[
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
-                active
-                  ? "border-primary bg-primary-light text-primary-hover"
-                  : "border-border text-muted hover:text-text",
-                isDup && n > 0 && !active ? "text-danger" : "",
-              ].join(" ")}
-              aria-pressed={active}
+              active={filter === chip.key}
+              count={n}
+              tone={isDup && n > 0 ? "danger" : undefined}
             >
               {chip.label}
-              <span className="tabular-nums opacity-70">{n}</span>
-            </button>
+            </FilterChip>
           );
         })}
-      </div>
+      </FilterChipGroup>
 
       {/* Barra de selección (bulk postular) */}
       {selected.size > 0 && (
@@ -538,7 +534,7 @@ function PostularDialog({
               id="bulk-job"
               value={jobId}
               onChange={(e) => setJobId(e.target.value)}
-              className="w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]"
+              className="w-full rounded-[var(--radius)] border border-border bg-bg px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]"
             >
               <option value="">Seleccioná una búsqueda…</option>
               {jobs.map((j) => (

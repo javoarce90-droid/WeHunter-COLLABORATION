@@ -7,7 +7,7 @@ import { actualizarPerfilAction } from "../actions";
 import type { OwnProfile } from "../data/settings.queries";
 
 const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+  "w-full rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
 
 function Field({
   label,
@@ -93,7 +93,7 @@ export function ProfileSection({
           <input name="location" defaultValue={profile?.location ?? ""} className={fieldClass} placeholder="Ciudad, país" />
         </Field>
         <Field label="LinkedIn">
-          <input name="linkedinUrl" defaultValue={profile?.linkedinUrl ?? ""} className={fieldClass} placeholder="https://linkedin.com/in/…" />
+          <input name="linkedinUrl" inputMode="url" defaultValue={profile?.linkedinUrl ?? ""} className={fieldClass} placeholder="linkedin.com/in/…" />
         </Field>
       </div>
 

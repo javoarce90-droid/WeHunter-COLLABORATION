@@ -43,7 +43,7 @@ export async function invitarMiembroAction(
   );
 
   if (!result.ok) return { ok: false, error: result.error };
-  revalidatePath("/settings");
+  revalidatePath("/team");
   return { ok: true };
 }
 
@@ -74,7 +74,7 @@ export async function actualizarMiembroAction(
   );
 
   if (!result.ok) return { ok: false, error: result.error };
-  revalidatePath("/settings");
+  revalidatePath("/team");
   return { ok: true };
 }
 
@@ -87,6 +87,6 @@ export async function revocarInvitacionAction(
     return { ok: false, error: "Sin permisos." };
   }
   await revokeInvitation(invitationId, membership.organizationId);
-  revalidatePath("/settings");
+  revalidatePath("/team");
   return { ok: true };
 }

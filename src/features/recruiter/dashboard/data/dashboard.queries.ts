@@ -43,7 +43,8 @@ export async function getDashboardCounts(
     let open = 0;
     for (const r of jobRows) {
       const n = Number(r.n);
-      total += n;
+      // Las archivadas quedan fuera del total: son búsquedas sacadas de la vista activa.
+      if (r.status !== "archived") total += n;
       if (r.status === "open") open += n;
     }
 

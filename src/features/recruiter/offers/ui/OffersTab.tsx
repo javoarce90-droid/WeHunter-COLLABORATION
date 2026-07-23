@@ -206,7 +206,7 @@ export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
               <button
                 type="button"
                 onClick={() => setConfirmAccept(null)}
-                className="text-sm font-semibold text-muted hover:text-text"
+                className="rounded text-sm font-semibold text-muted outline-none transition-colors hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface"
               >
                 Cancelar
               </button>

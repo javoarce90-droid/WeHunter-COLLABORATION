@@ -8,6 +8,7 @@ import {
   type JobFilter,
 } from "@/features/recruiter/jobs/ui/job-filters";
 import { ListSkeleton } from "@/components/ui/list-skeleton";
+import { buttonVariants } from "@/components/ui/button";
 
 /** El shell (título + acción) pinta al instante; el listado se streamea. */
 export default async function JobsPage({
@@ -25,10 +26,7 @@ export default async function JobsPage({
           <h1 className="font-display text-xl font-bold text-text">Búsquedas</h1>
           <p className="text-sm text-muted">Gestioná tus avisos y su pipeline.</p>
         </div>
-        <Link
-          href="/jobs/new"
-          className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-        >
+        <Link href="/jobs/new" className={buttonVariants({ variant: "primary" })}>
           Crear búsqueda
         </Link>
       </div>

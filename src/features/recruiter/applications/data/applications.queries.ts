@@ -108,6 +108,52 @@ export async function getApplicationById(
   };
 }
 
+export type ApplicationForMove = {
+  id: string;
+  organizationId: string;
+  jobId: string;
+  candidateId: string;
+  stage: ApplicationStage;
+  createdAt: Date;
+  updatedAt: Date;
+  candidateProfileId: string | null;
+  jobTitle: string;
+};
+
+/** Trae la postulación + lo mínimo de candidato/puesto para decidir si hay que notificar al
+ * candidato al moverla. Reemplaza a getApplicationById en moverEtapaAction: mismo shape base,
+ * en una sola consulta en vez de dos (esta + la que moverEtapa haría por su cuenta). */
+export async function getApplicationForMove(
+  applicationId: string,
+  organizationId: string,
+): Promise<ApplicationForMove | null> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applications.id,
+          organizationId: applications.organizationId,
+          jobId: applications.jobId,
+          candidateId: applications.candidateId,
+          stage: applications.stage,
+          createdAt: applications.createdAt,
+          updatedAt: applications.updatedAt,
+          candidateProfileId: candidates.profileId,
+          jobTitle: jobs.title,
+        })
+        .from(applications)
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .innerJoin(jobs, eq(applications.jobId, jobs.id))
+        .where(and(eq(applications.id, applicationId), eq(applications.organizationId, organizationId)))
+        .limit(1),
+    "db.applications.for-move",
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return { ...r, stage: r.stage as ApplicationStage };
+}
+
 export async function findExistingApplication(
   jobId: string,
   candidateId: string,
@@ -331,6 +377,26 @@ export async function getJobStageCounts(
   ) as StageCounts;
   for (const r of rows) counts[r.stage as ApplicationStage] = r.count;
   return counts;
+}
+
+/** Cuántos candidatos (de cualquier búsqueda de la org) están hoy en una etapa puntual.
+ *  Usado para bloquear la desactivación de una etapa que todavía tiene gente adentro. */
+export async function countApplicationsInStage(
+  organizationId: string,
+  stage: ApplicationStage,
+): Promise<number> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(applications)
+        .where(
+          and(eq(applications.organizationId, organizationId), eq(applications.stage, stage)),
+        ),
+    "db.applications.count-in-stage",
+  );
+  return rows[0]?.n ?? 0;
 }
 
 /**

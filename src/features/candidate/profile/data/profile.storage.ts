@@ -26,3 +26,12 @@ export async function uploadCandidateProfileCv(
   }
   return { path };
 }
+
+/** Borra el CV del perfil (derecho de borrado — mismo bucket/RLS que el upload de arriba). */
+export async function deleteCandidateProfileCv(path: string): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.storage.from(CV_BUCKET).remove([path]);
+  if (error) {
+    throw new Error(`No se pudo borrar el CV: ${error.message}`);
+  }
+}

@@ -25,9 +25,11 @@ const NAV: { href: string; label: string; Icon: (p: IconProps) => React.ReactEle
   { href: "/candidates", label: "Candidatos", Icon: UsersIcon },
   { href: "/sourcing", label: "Sourcing", Icon: SearchIcon },
   { href: "/clients", label: "Clientes", Icon: BuildingIcon },
+  { href: "/requisitions", label: "Solicitudes", Icon: InboxIcon },
   { href: "/agenda", label: "Agenda", Icon: CalendarIcon },
   { href: "/messages", label: "Mensajes", Icon: ChatIcon },
   { href: "/reports", label: "Reportes", Icon: ChartIcon },
+  { href: "/team", label: "Equipo", Icon: TeamIcon },
   { href: "/settings", label: "Configuración", Icon: SettingsIcon },
 ];
 
@@ -195,6 +197,15 @@ function BuildingIcon({ className }: IconProps) {
   );
 }
 
+function InboxIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
+      <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+  );
+}
+
 function CalendarIcon({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -226,6 +237,17 @@ function ChartIcon({ className }: IconProps) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M3 3v18h18" />
       <path d="M7 14l3-4 3 3 4-6" />
+    </svg>
+  );
+}
+
+function TeamIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="9" cy="10" r="2" />
+      <path d="M6 16a3 3 0 0 1 6 0" />
+      <path d="M14 9h4M14 13h4" />
     </svg>
   );
 }

@@ -1,8 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { REMEMBER_COOKIE } from "@/lib/supabase/remember";
 import { isCandidateRoute } from "@/lib/auth/route-realms";
 
 /**
@@ -47,13 +49,32 @@ export async function login(
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
   }
 
-  const supabase = await createSupabaseServerClient();
+  // Checkbox "Recordar mi cuenta": presente en el FormData solo si quedó tildado.
+  const rememberMe = formData.get("remember") != null;
+  const supabase = await createSupabaseServerClient(rememberMe);
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
   if (error) {
     return { error: "Email o contraseña incorrectos" };
   }
 
+  await persistRememberMe(rememberMe);
   redirect(safeRedirect(formData.get("redirect")));
+}
+
+/**
+ * Guarda la preferencia de "recordar mi cuenta" para que el proxy la respete al refrescar la
+ * sesión. Con recordar → cookie persistente; sin recordar → cookie de sesión (muere al cerrar
+ * el navegador, igual que las cookies de auth que setea el login en ese caso).
+ */
+async function persistRememberMe(rememberMe: boolean): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(REMEMBER_COOKIE, rememberMe ? "1" : "0", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    ...(rememberMe ? { maxAge: 60 * 60 * 24 * 400 } : {}),
+  });
 }
 
 export async function register(
@@ -100,5 +121,6 @@ export async function register(
 export async function logout(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
+  (await cookies()).delete(REMEMBER_COOKIE);
   redirect("/login");
 }
