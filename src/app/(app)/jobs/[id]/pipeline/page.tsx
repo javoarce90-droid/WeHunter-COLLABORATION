@@ -4,7 +4,6 @@ import {
   listApplicationsByJob,
   listCandidateIdsByJob,
   getJobStageCounts,
-  getStageEntryTimes,
   listStageEventsByJob,
   type StageHistoryEvent,
 } from "@/features/recruiter/applications/data/applications.queries";
@@ -12,7 +11,7 @@ import { listCandidates } from "@/features/recruiter/candidates/data/candidates.
 import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
-import { getPipelineStageConfigs } from "@/features/recruiter/pipeline-stages/data/pipeline-stages.queries";
+import { listJobStages } from "@/features/recruiter/pipeline-stages/data/job-stages.queries";
 import {
   listScreeningAnswersByJob,
   type ScreeningAnswerRow,
@@ -20,7 +19,7 @@ import {
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import { PipelineView } from "@/features/recruiter/applications/ui/PipelineView";
 import { AgregarCandidatos } from "@/features/recruiter/applications/ui/AgregarCandidatos";
-import { StageSettingsButton } from "@/features/recruiter/pipeline-stages/ui/StageSettingsButton";
+import { JobStageSettingsButton } from "@/features/recruiter/pipeline-stages/ui/JobStageSettingsButton";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -37,7 +36,7 @@ export default async function PipelinePage({ params }: Props) {
     candidates,
     interviews,
     notes,
-    stageConfig,
+    stages,
     stageEvents,
     members,
     screeningAnswers,
@@ -48,7 +47,7 @@ export default async function PipelinePage({ params }: Props) {
       listCandidates(membership.organizationId),
       listInterviewsByJob(jobId, membership.organizationId),
       listNotesByJob(jobId, membership.organizationId),
-      getPipelineStageConfigs(membership.organizationId),
+      listJobStages(jobId, membership.organizationId),
       listStageEventsByJob(jobId, membership.organizationId),
       listMembers(membership.organizationId),
       listScreeningAnswersByJob(jobId, membership.organizationId),
@@ -58,15 +57,6 @@ export default async function PipelinePage({ params }: Props) {
   const teamMembers = members
     .filter((m) => m.status === "active")
     .map((m) => ({ profileId: m.profileId, name: m.name, email: m.email }));
-
-  // getStageEntryTimes se hace después de tener las applications para poder hacer el fallback.
-  const entryTimesFromEvents = await getStageEntryTimes(jobId, membership.organizationId);
-
-  // Fallback: si un candidato nunca fue movido (sin evento), usamos su createdAt.
-  const stageEntryTimes: Record<string, Date> = {};
-  for (const app of applications) {
-    stageEntryTimes[app.id] = entryTimesFromEvents[app.id] ?? app.createdAt;
-  }
 
   // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
   const postuladosIds = new Set(candidateIdsEnLaBusqueda);
@@ -110,11 +100,10 @@ export default async function PipelinePage({ params }: Props) {
       notesByApplication={notesByApplication}
       stageEventsByApplication={stageEventsByApplication}
       screeningAnswersByApplication={screeningAnswersByApplication}
-      stageConfig={stageConfig}
-      stageEntryTimes={stageEntryTimes}
+      stages={stages}
       actions={
         <>
-          <StageSettingsButton stageConfig={stageConfig} />
+          <JobStageSettingsButton jobId={jobId} stages={stages} />
           <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
         </>
       }

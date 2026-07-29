@@ -4,6 +4,7 @@ import {
   renombrarEtapa,
   eliminarEtapa,
   reordenarEtapas,
+  configurarSlaEtapaBusqueda,
 } from "./gestionar-etapas-busqueda";
 import type { EtapasCtx } from "./gestionar-etapas-busqueda";
 import type { JobStage } from "../schema";
@@ -139,6 +140,54 @@ describe("eliminarEtapa", () => {
     expect(res).toMatchObject({ ok: false });
     if (!res.ok) expect(res.error).toMatch(/3 candidatos/);
     expect(d.deleteStage).not.toHaveBeenCalled();
+  });
+});
+
+describe("configurarSlaEtapaBusqueda", () => {
+  const deps = (stage: (JobStage & { jobId: string }) | null, over = {}) => ({
+    getStage: vi.fn().mockResolvedValue(stage),
+    setSla: vi.fn().mockResolvedValue(undefined),
+    ...over,
+  });
+
+  it("configura el SLA de una etapa", async () => {
+    const d = deps({ ...stages[1], jobId: "job-1" });
+    const res = await configurarSlaEtapaBusqueda({ stageId: "s-screen", slaDays: 3 }, ctx, d);
+
+    expect(res.ok).toBe(true);
+    expect(d.setSla).toHaveBeenCalledWith("s-screen", 3);
+  });
+
+  it("permite quitar el SLA (null)", async () => {
+    const d = deps({ ...stages[1], jobId: "job-1" });
+    const res = await configurarSlaEtapaBusqueda({ stageId: "s-screen", slaDays: null }, ctx, d);
+
+    expect(res.ok).toBe(true);
+    expect(d.setSla).toHaveBeenCalledWith("s-screen", null);
+  });
+
+  it("rechaza un SLA menor a 1 día", async () => {
+    const d = deps({ ...stages[1], jobId: "job-1" });
+    const res = await configurarSlaEtapaBusqueda({ stageId: "s-screen", slaDays: 0 }, ctx, d);
+
+    expect(res).toMatchObject({ ok: false });
+    expect(d.setSla).not.toHaveBeenCalled();
+  });
+
+  it("etapa no encontrada", async () => {
+    const d = deps(null);
+    const res = await configurarSlaEtapaBusqueda({ stageId: "s-inexistente", slaDays: 3 }, ctx, d);
+
+    expect(res).toMatchObject({ ok: false });
+    expect(d.setSla).not.toHaveBeenCalled();
+  });
+
+  it("un rol sin permiso no configura SLA", async () => {
+    const d = deps({ ...stages[1], jobId: "job-1" });
+    const res = await configurarSlaEtapaBusqueda({ stageId: "s-screen", slaDays: 3 }, ctxSinPermiso, d);
+
+    expect(res).toMatchObject({ ok: false });
+    expect(d.getStage).not.toHaveBeenCalled();
   });
 });
 

@@ -6,22 +6,25 @@ import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
 import { AiScore, SparkleIcon } from "@/components/ui/ai";
 import { Menu, MenuItem } from "@/components/ui/menu";
-import { PIPELINE_STAGES, STAGE_LABELS } from "../schema";
-import type { ApplicationStage } from "../schema";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
-import { isTerminal, relativeTime, getSlaStatus } from "./stage-visual";
+import type { JobStage } from "@/features/recruiter/pipeline-stages/schema";
+import { isClosingKind } from "@/features/recruiter/pipeline-stages/schema";
+import { relativeTime, getSlaStatus } from "./stage-visual";
 
 type Props = {
   application: ApplicationWithCandidate;
+  /** Nombre de la etapa donde está hoy (= la columna donde se renderiza la card). */
+  stageName: string;
+  /** Etapas destino posibles de esta búsqueda, en orden — habilita el salto por teclado (1-9). */
+  stages: JobStage[];
   interviews: InterviewRow[];
   noteCount: number;
-  onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
+  onMoveStage: (applicationId: string, toStageId: string) => void;
   onOpen: (applicationId: string) => void;
   /** Analiza esta postulación puntual con IA. Se omite (no se muestra el botón) si no se pasa. */
   onAnalizar?: (applicationId: string) => void;
   analyzing?: boolean;
-  enteredStageAt?: Date;
   slaDays?: number | null;
   /** true cuando se usa dentro de DragOverlay — deshabilita el drag y los handlers. */
   isDragOverlay?: boolean;
@@ -38,20 +41,20 @@ function pickNextInterview(interviews: InterviewRow[]): InterviewRow | undefined
 
 export function PipelineCard({
   application,
+  stageName,
+  stages,
   interviews,
   noteCount,
   onMoveStage,
   onOpen,
   onAnalizar,
   analyzing = false,
-  enteredStageAt,
   slaDays,
   isDragOverlay = false,
 }: Props) {
-  const stage = application.stage;
-  const terminal = isTerminal(stage);
+  const terminal = application.stageKind ? isClosingKind(application.stageKind) : false;
   const nextInterview = pickNextInterview(interviews);
-  const sla = getSlaStatus(enteredStageAt, slaDays);
+  const sla = getSlaStatus(application.stageEnteredAt, slaDays);
 
   const { setNodeRef, attributes, listeners, transform, isDragging } = useDraggable({
     id: application.id,
@@ -69,11 +72,11 @@ export function PipelineCard({
       return;
     }
     const n = Number(e.key);
-    if (n >= 1 && n <= PIPELINE_STAGES.length) {
-      const target = PIPELINE_STAGES[n - 1];
-      if (!terminal && target !== stage) {
+    if (n >= 1 && n <= stages.length) {
+      const target = stages[n - 1];
+      if (!terminal && target.id !== application.stageId) {
         e.preventDefault();
-        onMoveStage(application.id, target);
+        onMoveStage(application.id, target.id);
       }
     }
   }
@@ -84,7 +87,7 @@ export function PipelineCard({
       style={style}
       onClick={() => !isDragOverlay && onOpen(application.id)}
       onKeyDown={onKeyDown}
-      aria-label={`${application.candidate.fullName}, etapa ${STAGE_LABELS[stage]}. Enter para ver detalle.`}
+      aria-label={`${application.candidate.fullName}, etapa ${stageName}. Enter para ver detalle.`}
       {...attributes}
       {...listeners}
       className={[

@@ -56,6 +56,7 @@ import {
   renombrarEtapa,
   eliminarEtapa,
   reordenarEtapas,
+  configurarSlaEtapaBusqueda,
 } from "./domain/gestionar-etapas-busqueda";
 import { listJobStages, getJobStage, countApplicationsInJobStage } from "./data/job-stages.queries";
 import {
@@ -63,6 +64,7 @@ import {
   renameJobStage,
   deleteJobStage,
   setJobStagePositions,
+  setJobStageSla,
 } from "./data/job-stages.mutations";
 
 export interface EtapaActionResult {
@@ -128,6 +130,24 @@ export async function eliminarEtapaAction(
     getStage: getJobStage,
     countApplications: countApplicationsInJobStage,
     deleteStage: deleteJobStage,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarBusqueda(jobId);
+  return { ok: true };
+}
+
+export async function configurarSlaEtapaBusquedaAction(
+  jobId: string,
+  stageId: string,
+  slaDays: number | null,
+): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await configurarSlaEtapaBusqueda({ stageId, slaDays }, ctx, {
+    getStage: getJobStage,
+    setSla: setJobStageSla,
   });
   if (!res.ok) return { ok: false, error: res.error };
 

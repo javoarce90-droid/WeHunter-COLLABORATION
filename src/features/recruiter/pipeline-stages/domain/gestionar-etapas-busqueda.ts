@@ -104,6 +104,31 @@ export async function renombrarEtapa(
   return ok(undefined);
 }
 
+export type ConfigurarSlaEtapaBusquedaDeps = {
+  getStage: (stageId: string, organizationId: string) => Promise<(JobStage & { jobId: string }) | null>;
+  setSla: (stageId: string, slaDays: number | null) => Promise<void>;
+};
+
+export async function configurarSlaEtapaBusqueda(
+  input: { stageId: string; slaDays: number | null },
+  ctx: EtapasCtx,
+  deps: ConfigurarSlaEtapaBusquedaDeps,
+): Promise<Result<void>> {
+  if (!can(ctx.role, "stages.configure")) {
+    return err("Tu rol no permite configurar el pipeline.");
+  }
+
+  if (input.slaDays !== null && input.slaDays < 1) {
+    return err("El SLA tiene que ser de al menos 1 día.");
+  }
+
+  const stage = await deps.getStage(input.stageId, ctx.organizationId);
+  if (!stage) return err("Etapa no encontrada.");
+
+  await deps.setSla(input.stageId, input.slaDays);
+  return ok(undefined);
+}
+
 export type EliminarEtapaDeps = {
   getStage: (stageId: string, organizationId: string) => Promise<(JobStage & { jobId: string }) | null>;
   countApplications: (stageId: string) => Promise<number>;

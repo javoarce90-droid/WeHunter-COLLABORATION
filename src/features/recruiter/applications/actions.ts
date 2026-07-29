@@ -7,11 +7,13 @@ import {
   APPLICATION_STAGES,
   postularCandidatoSchema,
   moverEtapaSchema,
+  moverAEtapaSchema,
   rechazarPostulacionesSchema,
 } from "./schema";
 import type { RejectionReason } from "./schema";
 import { postularCandidato } from "./domain/postular-candidato";
 import { moverEtapa } from "./domain/mover-etapa";
+import { moverAEtapa } from "./domain/mover-a-etapa";
 import { pasarAlPipeline } from "./domain/pasar-al-pipeline";
 import { guardarEnTalentPool } from "./domain/guardar-en-talent-pool";
 import { rechazarPostulacion } from "./domain/rechazar-postulacion";
@@ -21,6 +23,7 @@ import {
   getJobForPipeline,
   getApplicationById,
   getApplicationForMove,
+  getApplicationForStageMove,
   findExistingApplication,
   listApplicationsForScoring,
   listCandidatesForApplications,
@@ -33,8 +36,11 @@ import {
   setApplicationFavorite,
   setPipelineEntered,
   saveApplicationScore,
+  moveToStage,
 } from "./data/applications.mutations";
 import { isStageActive, getActiveStages } from "../pipeline-stages/data/pipeline-stages.queries";
+import { getJobStage } from "../pipeline-stages/data/job-stages.queries";
+import { legacyStageFor } from "./domain/mover-a-etapa";
 import { getCandidateById, findDuplicateCandidate } from "../candidates/data/candidates.queries";
 import { setTalentState } from "../candidates/data/candidates.mutations";
 import { findLinkableProfile } from "../candidates/data/profile-link.queries";
@@ -279,6 +285,76 @@ export async function moverEtapaAction(
 
   revalidatePath(`/jobs/${result.data.jobId}/pipeline`);
   revalidatePath(`/jobs/${result.data.jobId}/postulados`);
+  return {};
+}
+
+/**
+ * Mover un candidato dentro del tablero por-búsqueda (`job_stages`). Reemplaza a
+ * `moverEtapaAction` para el Kanban: esa sigue existiendo para consumidores que aún operan
+ * por el enum legacy.
+ */
+export async function moverAEtapaAction(
+  _prev: ApplicationActionState,
+  formData: FormData,
+): Promise<ApplicationActionState> {
+  const parsed = moverAEtapaSchema.safeParse({
+    applicationId: formData.get("applicationId"),
+    toStageId: formData.get("toStageId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const membership = await getActiveMembership();
+  if (!membership) {
+    return { error: "No autorizado." };
+  }
+
+  const application = await getApplicationForStageMove(parsed.data.applicationId, membership.organizationId);
+  if (!application) {
+    return { error: "Postulación no encontrada." };
+  }
+
+  const result = await moverAEtapa(
+    parsed.data,
+    {
+      userId: "",
+      organizationId: membership.organizationId,
+      role: membership.role,
+    },
+    {
+      getApplication: async () => application,
+      getStage: getJobStage,
+      moveToStage,
+    },
+  );
+
+  if (!result.ok) {
+    return { error: result.error };
+  }
+
+  if (application.candidateProfileId) {
+    const targetStage = await getJobStage(parsed.data.toStageId, membership.organizationId);
+    if (targetStage) {
+      const toLegacyStage = legacyStageFor(targetStage);
+      if (debeNotificarCandidato(application.stage, toLegacyStage)) {
+        // Aviso al candidato: efecto secundario no crítico, no debe hacer fallar un cambio de
+        // etapa que ya se persistió (mismo criterio que moverEtapaAction).
+        try {
+          await notifyProfile(membership.organizationId, application.candidateProfileId, {
+            type: "candidate_status",
+            title: `Tu postulación a "${application.jobTitle}" pasó a "${ESTADO_VISIBLE_LABELS[toStepperStage(toLegacyStage)]}"`,
+            link: "/portal/mis-postulaciones",
+          });
+        } catch {
+          // no-op
+        }
+      }
+    }
+  }
+
+  revalidatePath(`/jobs/${application.jobId}/pipeline`);
+  revalidatePath(`/jobs/${application.jobId}/postulados`);
   return {};
 }
 

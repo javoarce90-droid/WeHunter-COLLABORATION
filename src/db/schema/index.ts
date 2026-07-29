@@ -294,6 +294,11 @@ export const memberships = pgTable("memberships", {
   // organization) para que un miembro invitado más tarde vea el tour aunque el resto ya lo
   // haya cerrado.
   onboardingDismissedAt: timestamp("onboarding_dismissed_at"),
+  // Cliente al que este recruiter está atado en exclusiva (alcance simple del prototipo: un
+  // cliente por recruiter). null = sin asignación, ve/crea para cualquier cliente de la org.
+  assignedClientId: uuid("assigned_client_id").references(() => clients.id, {
+    onDelete: "set null",
+  }),
   ...timestamps,
 }, (t) => ({
   uniqueMember: uniqueIndex("memberships_org_profile_idx").on(
@@ -422,6 +427,8 @@ export const jobs = pgTable("jobs", {
   // transacciones extra; ver decisión de performance). Se selecciona solo en el detalle.
   benefits: jsonb("benefits").$type<{ name: string; description: string }[]>(),
   viewCount: integer("view_count").notNull().default(0),
+  // Cuántas veces se copió el link público del aviso (botón "Copiar link").
+  shareCount: integer("share_count").notNull().default(0),
   createdBy: uuid("created_by").references(() => profiles.id),
   ...timestamps,
 }, (t) => ({
@@ -631,6 +638,10 @@ export const applications = pgTable("applications", {
   // queda como espejo mientras se migran los consumidores que todavía lo leen.
   stageId: uuid("stage_id").references(() => jobStages.id, { onDelete: "restrict" }),
   pipelineEnteredAt: timestamp("pipeline_entered_at"),
+  // Cuándo entró a la etapa actual. Reemplaza la derivación por `application_events` ⋈ enum
+  // (incorrecta para dos etapas custom que comparten el mismo `legacyStage`) — se resetea en
+  // cada movimiento de etapa.
+  stageEnteredAt: timestamp("stage_entered_at").defaultNow().notNull(),
   // Marcador liviano de favorito/destacado para el triage de postulados. No es el shortlist
   // (que es la selección formal que se comparte con la empresa): es una estrella del recruiter.
   isFavorite: boolean("is_favorite").notNull().default(false),

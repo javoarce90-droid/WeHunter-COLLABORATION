@@ -1,8 +1,17 @@
 import { and, eq, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { applications, applicationEvents, candidates, jobs, profiles, type Job } from "@/db/schema";
+import {
+  applications,
+  applicationEvents,
+  candidates,
+  jobs,
+  jobStages,
+  profiles,
+  type Job,
+} from "@/db/schema";
 import { APPLICATION_STAGES, type ApplicationStage, type RejectionReason } from "../schema";
 import type { InboxApplicationRow } from "../domain/pasar-al-pipeline";
+import type { StageKind } from "../../pipeline-stages/schema";
 
 /** Lecturas del pipeline. Cliente RLS; filtramos siempre por organization activa. */
 
@@ -12,6 +21,11 @@ export type ApplicationWithCandidate = {
   jobId: string;
   candidateId: string;
   stage: ApplicationStage;
+  /** Etapa propia de la búsqueda (job_stages). null = todavía no migrada. */
+  stageId: string | null;
+  stageKind: StageKind | null;
+  /** Cuándo entró a la etapa actual — resetea en cada movimiento. */
+  stageEnteredAt: Date;
   aiScore: number | null;
   aiSummary: string | null;
   notes: string | null;
@@ -43,6 +57,9 @@ export async function listApplicationsByJob(
         jobId: applications.jobId,
         candidateId: applications.candidateId,
         stage: applications.stage,
+        stageId: applications.stageId,
+        stageKind: jobStages.kind,
+        stageEnteredAt: applications.stageEnteredAt,
         aiScore: applications.aiScore,
         aiSummary: applications.aiSummary,
         notes: applications.notes,
@@ -55,6 +72,7 @@ export async function listApplicationsByJob(
       })
       .from(applications)
       .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
       .where(
         and(
           eq(applications.jobId, jobId),
@@ -70,6 +88,9 @@ export async function listApplicationsByJob(
     jobId: r.jobId,
     candidateId: r.candidateId,
     stage: r.stage as ApplicationStage,
+    stageId: r.stageId,
+    stageKind: r.stageKind as StageKind | null,
+    stageEnteredAt: r.stageEnteredAt,
     aiScore: r.aiScore,
     aiSummary: r.aiSummary,
     notes: r.notes,
@@ -187,6 +208,50 @@ export async function getApplicationForMove(
   const r = rows[0];
   if (!r) return null;
   return { ...r, stage: r.stage as ApplicationStage };
+}
+
+export type ApplicationForStageMove = {
+  id: string;
+  jobId: string;
+  stageId: string | null;
+  /** Kind de la etapa donde está hoy; null si todavía no fue migrada a `job_stages`. */
+  stageKind: StageKind | null;
+  stage: ApplicationStage;
+  candidateProfileId: string | null;
+  jobTitle: string;
+};
+
+/** Trae la postulación + su etapa por-búsqueda actual, para `moverAEtapaAction`
+ *  (`mover-a-etapa.ts`, tablero nuevo por job_stages). Análogo a `getApplicationForMove`
+ *  pero por `stage_id` en vez del enum legacy. */
+export async function getApplicationForStageMove(
+  applicationId: string,
+  organizationId: string,
+): Promise<ApplicationForStageMove | null> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applications.id,
+          jobId: applications.jobId,
+          stageId: applications.stageId,
+          stageKind: jobStages.kind,
+          stage: applications.stage,
+          candidateProfileId: candidates.profileId,
+          jobTitle: jobs.title,
+        })
+        .from(applications)
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .innerJoin(jobs, eq(applications.jobId, jobs.id))
+        .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
+        .where(and(eq(applications.id, applicationId), eq(applications.organizationId, organizationId)))
+        .limit(1),
+    "db.applications.for-stage-move",
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return { ...r, stageKind: r.stageKind as StageKind | null, stage: r.stage as ApplicationStage };
 }
 
 export async function findExistingApplication(
@@ -498,50 +563,6 @@ export async function countApplicationsInStage(
     "db.applications.count-in-stage",
   );
   return rows[0]?.n ?? 0;
-}
-
-/**
- * Para cada postulación del job, retorna cuándo entró a su etapa actual.
- * Se usa para calcular el SLA risk en las cards del pipeline.
- * Fallback: si no hay evento (candidato nunca movido), usar application.createdAt en el llamador.
- */
-export async function getStageEntryTimes(
-  jobId: string,
-  organizationId: string,
-): Promise<Record<string, Date>> {
-  const db = await getDb();
-  // Une application_events con applications para filtrar por job y por etapa actual.
-  // eq() entre dos columnas genera `col_a = col_b` en SQL.
-  const rows = await db.rls(
-    (tx) =>
-      tx
-        .select({
-          applicationId: applicationEvents.applicationId,
-          createdAt: applicationEvents.createdAt,
-        })
-        .from(applicationEvents)
-        .innerJoin(
-          applications,
-          eq(applicationEvents.applicationId, applications.id),
-        )
-        .where(
-          and(
-            eq(applications.jobId, jobId),
-            eq(applications.organizationId, organizationId),
-            // Solo eventos donde to_stage = stage actual de la postulación.
-            eq(applicationEvents.toStage, applications.stage),
-          ),
-        )
-        .orderBy(desc(applicationEvents.createdAt)),
-    "db.applications.stage-entry-times",
-  );
-
-  const result: Record<string, Date> = {};
-  for (const r of rows) {
-    // orderBy DESC + first-seen = el evento más reciente por applicationId.
-    if (!result[r.applicationId]) result[r.applicationId] = r.createdAt;
-  }
-  return result;
 }
 
 /** Evento de historial de una postulación, para la timeline en el sheet de detalle.

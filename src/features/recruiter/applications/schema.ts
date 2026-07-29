@@ -63,6 +63,12 @@ export const moverEtapaSchema = z.object({
   }),
 });
 
+/** Mover dentro del tablero por-búsqueda (job_stages), no por el enum legacy. */
+export const moverAEtapaSchema = z.object({
+  applicationId: z.string().uuid("ID de postulación inválido."),
+  toStageId: z.string().uuid("ID de etapa inválido."),
+});
+
 /** Motivos de descarte (espeja el enum `rejection_reason` del schema Drizzle).
  *  Lista fija, no configurable por organización. Visible solo para el recruiter. */
 export const REJECTION_REASONS = [
