@@ -4,9 +4,11 @@ import {
   candidateWorkExperiences,
   candidateEducation,
   candidateCertifications,
+  candidateLanguages,
   type CandidateWorkExperience,
   type CandidateEducation,
   type CandidateCertification,
+  type CandidateLanguage,
 } from "@/db/schema";
 
 /**
@@ -18,10 +20,11 @@ export async function getCandidateResume(candidateId: string): Promise<{
   experiences: CandidateWorkExperience[];
   education: CandidateEducation[];
   certifications: CandidateCertification[];
+  languages: CandidateLanguage[];
 }> {
   const db = await getDb();
 
-  const [experiences, education, certifications] = await Promise.all([
+  const [experiences, education, certifications, languages] = await Promise.all([
     db.rls(
       (tx) =>
         tx
@@ -49,7 +52,16 @@ export async function getCandidateResume(candidateId: string): Promise<{
           .orderBy(desc(candidateCertifications.createdAt)),
       "db.candidates.resumeCertifications",
     ),
+    db.rls(
+      (tx) =>
+        tx
+          .select()
+          .from(candidateLanguages)
+          .where(eq(candidateLanguages.candidateId, candidateId))
+          .orderBy(desc(candidateLanguages.createdAt)),
+      "db.candidates.resumeLanguages",
+    ),
   ]);
 
-  return { experiences, education, certifications };
+  return { experiences, education, certifications, languages };
 }

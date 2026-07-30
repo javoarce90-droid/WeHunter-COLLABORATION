@@ -4,7 +4,7 @@ import { cargarCandidatoAction } from "@/features/recruiter/candidates/actions";
 
 export default function NewCandidatePage() {
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto w-full max-w-6xl flex flex-col gap-6">
       <div>
         <nav aria-label="Migas de pan" className="mb-3 flex items-center gap-1.5 text-sm text-muted">
           <Link href="/candidates" className="hover:text-text">
