@@ -23,9 +23,6 @@ export function Audience() {
     <section className="alt">
       <div className="sec">
         <Reveal style={{ textAlign: "center" }}>
-          <div className="eyebrow" style={{ justifyContent: "center", display: "flex" }}>
-            Para quién es
-          </div>
           <div className="sec-title">
             Diseñado para quienes
             <br />
