@@ -217,7 +217,7 @@ export function LegalSection() {
             <p>
               Para consultas sobre estos Términos:
               <br />
-              <strong>Email:</strong> dev@we-hunter.com
+              <strong>Email:</strong> hola@we-hunter.com
               <br />
               <strong>Sitio web:</strong> www.we-hunter.com
             </p>
@@ -410,7 +410,7 @@ export function LegalSection() {
             <p>
               Para consultas sobre privacidad o ejercicio de derechos:
               <br />
-              <strong>Email:</strong> dev@we-hunter.com
+              <strong>Email:</strong> hola@we-hunter.com
               <br />
               <strong>Sitio web:</strong> www.we-hunter.com
             </p>
