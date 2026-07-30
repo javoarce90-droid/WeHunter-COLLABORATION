@@ -15,11 +15,8 @@ export function Nav() {
       <div className="nav-inner">
         <WehunterLogo height={30} />
         <div className="nav-links">
-          <a href="#soluciones">Soluciones</a>
           <NoopLink message="Comunidad próximamente!">Comunidad</NoopLink>
-          <NoopLink message="Portal de empleos próximamente!">
-            Empleos
-          </NoopLink>
+          <NoopLink message="Portal de empleos próximamente!">Empleos</NoopLink>
           <Link href="/precios">Precios</Link>
           <Link href="/login">Iniciar Sesión</Link>
         </div>
