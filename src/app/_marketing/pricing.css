@@ -1,4 +1,4 @@
-.wh-pricing {
+/* .wh-pricing {
   font-family: var(--font-manrope);
   background: #fff;
   color: #1a1a2e;
@@ -91,7 +91,9 @@
   display: flex;
   flex-direction: column;
   background: #fff;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 .wh-pricing .plan-card:hover {
   border-color: #c4b5fd;
@@ -221,5 +223,398 @@
   .wh-pricing .plans-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+} */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* 1. FUENTE GLOBAL */
+body {
+  font-family: "Manrope", sans-serif;
+  background: #fff;
+  color: #1a1a2e;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+
+  /* Body por defecto: 18px / 400 */
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+nav {
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0 40px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-logo {
+  font-size: 20px;
+  color: #6b21c8;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.nav-logo img {
+  max-width: 180px;
+  height: auto;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: #6b7280;
+  padding: 0;
+  transition: color 0.2s;
+  text-decoration: none;
+}
+
+.back-btn:hover {
+  color: #6d28d9;
+}
+
+/* 2. BOTONES: 18-20 px / 600 */
+.demo-btn,
+.plan-cta {
+  font-family: "Manrope", sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border: none;
+  text-align: center;
+}
+
+.demo-btn {
+  background: #6d28d9;
+  color: #fff;
+  padding: 10px 24px;
+}
+
+.demo-btn:hover {
+  background: #5b21b6;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 64px 40px 80px;
+}
+
+/* 3. TÍTULO HERO: 72 px / 700 */
+.page-title {
+  font-family: "Manrope", sans-serif;
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #0f0f1a;
+  margin-bottom: 48px;
+  text-align: center;
+}
+
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.plan-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.plan-card:hover {
+  border-color: #c4b5fd;
+  box-shadow: 0 8px 32px rgba(109, 40, 217, 0.08);
+}
+
+.plan-card.featured {
+  border-color: #6d28d9;
+  border-width: 1.5px;
+  background: #faf8ff;
+}
+
+/* 4. SUBTÍTULOS / NOMBRES DE PLANES: 28-30 px / 500 */
+.plan-name {
+  font-size: 28px;
+  font-weight: 500;
+  color: #6d28d9;
+  margin-bottom: 12px;
+  letter-spacing: -0.01em;
+}
+
+/* 5. BODY DEL TEXTO: 18 px / 400 */
+.plan-desc,
+.plan-users,
+.plan-features li {
+  font-size: 16px;
+  font-weight: 400;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.plan-desc {
+  margin-bottom: 22px;
+  min-height: 50px;
+}
+
+.plan-users-first {
+  min-height: 200px;
+}
+
+.plan-users {
+  color: #0f0f1a;
+  margin-bottom: 18px;
+  min-height: 60px;
+}
+
+.plan-users-second {
+  min-height: 450px;
+}
+
+.plan-includes-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f0f1a;
+  margin-bottom: 10px;
+}
+
+.plan-features {
+  list-style: none;
+  padding: 0;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.plan-note {
+  font-size: 16px;
+  font-weight: 400;
+  color: #6b7280;
+  line-height: 1.55;
+  padding-top: 18px;
+  border-top: 1px solid #f3f4f6;
+  margin-top: 24px;
+  min-height: 100px;
+}
+
+.plan-cta {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  margin-top: 22px;
+}
+
+.plan-cta.primary {
+  background: #6d28d9;
+  color: #fff;
+}
+
+.plan-cta.primary:hover {
+  background: #5b21b6;
+}
+
+.plan-cta.secondary {
+  background: #fff;
+  color: #6d28d9;
+  border: 1.5px solid #6d28d9;
+}
+
+.plan-cta.secondary:hover {
+  background: #faf5ff;
+}
+
+/* --- SECCIÓN CUADRO COMPARATIVO --- */
+.comparison-section {
+  margin: 80px auto 0;
+  padding-top: 48px;
+  padding-bottom: 48px;
+  border-top: 1px solid #e5e7eb;
+  width: 80%; /* Desktop: ancho menor al 100% */
+}
+
+.comparison-title {
+  font-size: 30px;
+  font-weight: 500;
+  text-align: center;
+  color: #0f0f1a;
+  margin-bottom: 36px;
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 18px;
+  font-weight: 400;
+  min-width: 650px;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 18px 20px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.comparison-table th {
+  background-color: #faf8ff;
+  font-size: 20px;
+  font-weight: 600;
+  color: #6d28d9;
+}
+
+.comparison-table th:first-child {
+  color: #0f0f1a;
+  width: 40%;
+}
+
+.comparison-table th:not(:first-child),
+.comparison-table td:not(:first-child) {
+  text-align: center;
+  width: 20%;
+}
+
+.comparison-table tbody tr:hover {
+  background-color: #fcfaff;
+}
+
+.check-icon,
+.cross-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.check-icon {
+  background-color: #dcfce7;
+  color: #16a34a;
+}
+
+.cross-icon {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.text-badge {
+  font-size: 16px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+/* --- ADAPTACIONES TABLET Y DESKTOP PEQUEÑO --- */
+@media (max-width: 1024px) {
+  .comparison-section {
+    width: 95%; /* Ligera expansión para pantallas medianas */
+  }
+}
+
+@media (max-width: 900px) {
+  .plans-grid {
+    grid-template-columns: 1fr;
+  }
+  .page {
+    padding: 48px 24px 64px;
+  }
+  .comparison-section {
+    width: 100%; /* En móviles/tablets ocupa todo el ancho */
+    margin-top: 48px;
+  }
+}
+
+/* --- ADAPTACIONES MOBILE --- */
+@media (max-width: 640px) {
+  nav {
+    padding: 0 16px;
+  }
+  .nav-logo img {
+    max-width: 140px;
+  }
+  .demo-btn,
+  .back-btn {
+    display: none;
+  }
+  .page {
+    padding: 32px 16px 48px;
+  }
+  .page-title {
+    font-size: 36px;
+    margin-bottom: 32px;
+  }
+  .plan-card {
+    padding: 24px 20px;
+  }
+  .plan-name,
+  .comparison-title {
+    font-size: 24px;
+  }
+  .plan-desc,
+  .plan-users-first,
+  .plan-users-second,
+  .plan-note {
+    min-height: auto;
+  }
+  .plan-desc,
+  .plan-users,
+  .plan-features li {
+    font-size: 16px;
+  }
+  .comparison-table {
+    font-size: 14px;
+  }
+  .comparison-section {
+    width: 95%;
+  }
+  .comparison-table th,
+  .comparison-table td {
+    padding: 12px 14px;
+  }
+  .comparison-table th {
+    font-size: 15px;
   }
 }
