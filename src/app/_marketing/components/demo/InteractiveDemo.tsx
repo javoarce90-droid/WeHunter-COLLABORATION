@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Image from "next/image";
 import { useDemoTab } from "../DemoTabContext";
 import type { DemoTabId } from "../DemoTabContext";
 import { DemoSidebar } from "./DemoSidebar";
@@ -37,9 +38,11 @@ export function InteractiveDemo() {
 
   return (
     <div className="demo-stage" id="demo">
-      <div className="demo-hint">Probala ahora — así se ve la plataforma real</div>
+      <div className="demo-hint">
+        Probala ahora — así se ve la plataforma real
+      </div>
       <div className="demo-frost demo-wrapper" ref={wrapperRef}>
-        <div className="demo-window">
+        {/* <div className="demo-window">
           <div className="demo-titlebar">
             <span className="tl" style={{ background: "#ff5f57" }} />
             <span className="tl" style={{ background: "#febc2e" }} />
@@ -121,8 +124,18 @@ export function InteractiveDemo() {
               <DemoSidebar active={activeTab} onNavigate={setActiveTab} />
               <AsistentePanel ref={asistenteRef} />
             </div>
-          </div>
+          </div> 
         </div>
+            */}
+        <Image
+          className="demo-ats-gif"
+          src="/demo/demo-ats.gif"
+          alt="demo-ats"
+          width={0}
+          height={0}
+          sizes="100vw"
+          loading="eager"
+        />
         <AutoTour
           wrapperRef={wrapperRef}
           manualInteractionRef={manualInteractionRef}
