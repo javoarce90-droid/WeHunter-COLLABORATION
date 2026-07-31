@@ -104,7 +104,7 @@ export function PricingPage() {
       </nav>
 
       <div className="page">
-        <h1 className="page-title">Elegí según tu equipo</h1>
+        <h1 className="page-title">Elegí el plan ideal para vos</h1>
 
         <div className="plans-grid">
           {PLANS.map((plan) => (
