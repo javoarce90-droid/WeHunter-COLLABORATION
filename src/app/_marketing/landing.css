@@ -115,7 +115,7 @@ section.alt {
 .guide-r {
   display: none;
 }
-@media (min-width: 768px) {
+/* @media (min-width: 768px) {
   .guide-l,
   .guide-r {
     display: block;
@@ -133,59 +133,60 @@ section.alt {
   .guide-r {
     left: calc(50% + 36rem);
   }
-}
+} */
 .page {
   position: relative;
   z-index: 2;
 }
 
-/* NAV */
+/* ==========================================
+   NAVBAR BASE Y FIJA (FIXED TOP)
+   ========================================== */
 .nav {
-  z-index: 100;
+  z-index: 1000;
   height: 64px;
   display: flex;
   align-items: center;
+  position: relative;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
 }
+
 .nav-inner {
   max-width: 72rem;
   margin: 0 auto;
   padding: 0 24px;
   width: 100%;
+  height: 100%;
   display: flex;
-  align-items: center;
+  align-items: center; /* Centrado vertical estricto para logo y hamburguesa */
   justify-content: space-between;
 }
-.nav-logo {
-  font-size: 20px;
-  color: #6b21c8;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 1px;
-  text-decoration: none;
-}
-.logo-we {
-  font-family: "Pacifico", cursive;
-  font-weight: 400;
-  font-size: 21px;
-  color: #6b21c8;
-}
-.logo-hunter {
-  font-family: "Manrope", sans-serif;
-  font-weight: 800;
-  font-size: 20px;
-  color: #6b21c8;
-  letter-spacing: -0.5px;
-}
-.nav-links {
-  display: none;
-  gap: 28px;
+
+/* Alineación limpia del logo */
+.logo-container {
+  display: flex;
   align-items: center;
+  line-height: 1;
 }
-@media (min-width: 860px) {
-  .nav-links {
-    display: flex;
-  }
+
+/* Contenedor del Menú en Escritorio */
+.nav-menu {
+  display: flex;
+  align-items: center;
+  gap: 28px;
 }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
 .nav-links a {
   font-size: 14px;
   color: var(--muted);
@@ -193,9 +194,14 @@ section.alt {
   font-weight: 500;
   transition: color 0.2s;
 }
+
 .nav-links a:hover {
   color: var(--purple);
 }
+
+/* ==========================================
+   BOTONES
+   ========================================== */
 .btn-pill {
   display: inline-flex;
   align-items: center;
@@ -204,43 +210,118 @@ section.alt {
   background: var(--ink);
   color: #fff;
   font-weight: 600;
-  font-size: 18px;
-  padding: 12px 26px;
+  font-size: 14px;
+  padding: 10px 20px;
   border: none;
   cursor: pointer;
   font-family: "Manrope", sans-serif;
   transition: all 0.2s;
+  text-decoration: none;
 }
+
 .btn-pill:hover {
   background: #000;
 }
+
 .btn-pill:active {
   transform: scale(0.98);
 }
+
 .btn-pill .arrow {
   transition: transform 0.2s;
   font-size: 13px;
 }
+
 .btn-pill:hover .arrow {
   transform: translateX(2px);
 }
-.btn-ghost-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border-radius: 100px;
-  background: #fff;
-  color: var(--ink);
-  border: 1px solid var(--border);
-  font-weight: 600;
-  font-size: 18px;
-  padding: 12px 26px;
+
+/* ==========================================
+   BOTÓN HAMBURGUESA (MÓVIL) - CENTRADO
+   ========================================== */
+.hamburger-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 24px;
+  height: 18px;
+  background: transparent;
+  border: none;
   cursor: pointer;
-  font-family: "Manrope", sans-serif;
-  transition: all 0.2s;
+  padding: 0;
+  margin: 0;
+  z-index: 1001;
+  align-self: center; /* Garantiza centrado vertical */
 }
-.btn-ghost-pill:hover {
-  background: var(--bg-soft);
+
+.hamburger-btn span {
+  width: 100%;
+  height: 2px;
+  background-color: var(--ink);
+  border-radius: 2px;
+  transition: all 0.3s ease-in-out;
+}
+
+/* Animación a la 'X' */
+.hamburger-btn.open span:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+
+.hamburger-btn.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger-btn.open span:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+/* ==========================================
+   DESPLIEGUE RESPONSIVE (< 860px)
+   ========================================== */
+@media (max-width: 859px) {
+  .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+
+  .hamburger-btn {
+    display: flex;
+  }
+
+  .nav-menu {
+    position: absolute;
+    top: 64px;
+    left: 0;
+    right: 0;
+    background: #fff;
+    flex-direction: column;
+    padding: 2rem 1.5rem;
+    gap: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+    display: none;
+  }
+
+  .nav-menu.active {
+    display: flex;
+  }
+
+  .nav-links {
+    flex-direction: column;
+    width: 100%;
+    gap: 1.25rem;
+  }
+
+  .nav-links a {
+    font-size: 16px;
+  }
+
+  .btn-pill {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* HERO */
