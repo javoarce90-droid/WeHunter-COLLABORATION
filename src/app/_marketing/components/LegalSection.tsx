@@ -41,7 +41,6 @@ export function LegalSection() {
       >
         Política de Privacidad
       </a>
-      <NoopLink>Cookies</NoopLink>
 
       <div
         className={`legal-overlay${open === "tyc" ? " open" : ""}`}
