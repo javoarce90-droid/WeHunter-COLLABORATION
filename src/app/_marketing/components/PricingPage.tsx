@@ -41,7 +41,7 @@ const PLANS = [
       "Roles y permisos.",
       "Trabajo colaborativo.",
       "Asignación de búsquedas entre recruiters.",
-      "IA sin límites del plan Freelancer.",
+      "IA con cupo ampliado.",
       "Soporte prioritario.",
       "Onboarding personalizado.",
     ],
