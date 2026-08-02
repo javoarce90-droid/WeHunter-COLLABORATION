@@ -1,6 +1,6 @@
 "use client";
 
-import { ToggleLeft, Type, Hash, ListChecks, Plus, X } from "lucide-react";
+import { ToggleLeft, Type, Hash, ListChecks, Plus, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,13 @@ export function ScreeningBuilder({
   }
   function remove(i: number) {
     onChange(questions.filter((_, idx) => idx !== i));
+  }
+  function move(i: number, direction: -1 | 1) {
+    const target = i + direction;
+    if (target < 0 || target >= questions.length) return;
+    const next = [...questions];
+    [next[i], next[target]] = [next[target], next[i]];
+    onChange(next);
   }
   function changeType(i: number, type: ScreeningQuestionType) {
     update(i, {
@@ -123,6 +130,26 @@ export function ScreeningBuilder({
             <span className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-light text-xs font-bold text-primary-hover tabular-nums">
               {i + 1}
             </span>
+            <div className="mt-1.5 flex shrink-0 flex-col gap-0.5">
+              <IconButton
+                aria-label={`Subir pregunta ${i + 1}`}
+                variant="surface"
+                size="sm"
+                disabled={i === 0}
+                onClick={() => move(i, -1)}
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </IconButton>
+              <IconButton
+                aria-label={`Bajar pregunta ${i + 1}`}
+                variant="surface"
+                size="sm"
+                disabled={i === questions.length - 1}
+                onClick={() => move(i, 1)}
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </IconButton>
+            </div>
             <div className="flex-1">
               <Input
                 aria-label={`Pregunta ${i + 1}`}

@@ -92,3 +92,48 @@ export function buildDefaultJobStages(
       legacyStage: c.stageKey,
     }));
 }
+
+/**
+ * Igual que `buildDefaultJobStages`, pero a partir de la plantilla flexible de Configuración >
+ * Etapas por defecto (`job_stage_templates`, nombres libres) en vez de la config atada al enum.
+ *
+ * Sigue siendo necesario asignar `legacyStage` a ALGUNAS etapas: tres flujos viejos todavía
+ * dependen de encontrar la etapa por ese valor exacto para mantener `stage_id` en sync
+ * (`insertApplication` busca "new", `rechazarPostulacion`→`updateApplicationStage` busca
+ * "rejected", y `pasarAlPipeline`→`setPipelineEntered` busca la primera etapa activa del
+ * organization-wide `pipeline_stages`, que en la práctica siempre es "screening" — es la única
+ * usada hoy, ningún caller pasa un `toStage` distinto). Sin esto, la primera postulación que
+ * entra a una búsqueda nueva quedaría sin `stage_id` — invisible en el tablero.
+ *
+ * Las etapas intermedias además de la primera quedan con `legacyStage: null`: el movimiento
+ * dentro del tablero (`moverAEtapa`/`moveToStage`) ya no necesita ese valor, lo deriva del
+ * `kind` (`legacyStageFor`, `mover-a-etapa.ts`).
+ */
+export function buildJobStagesFromTemplate(
+  template: { name: string; position: number; slaDays: number | null; kind: StageKind }[],
+): { name: string; position: number; slaDays: number | null; kind: StageKind; legacyStage: ApplicationStage | null }[] {
+  const FIXED_LEGACY: Partial<Record<StageKind, ApplicationStage>> = {
+    inbox: "new",
+    offer: "offer",
+    hired: "hired",
+    rejected: "rejected",
+  };
+  let primerEnProceso = true;
+
+  return [...template]
+    .sort((a, b) => a.position - b.position)
+    .map((stage) => {
+      let legacyStage = FIXED_LEGACY[stage.kind] ?? null;
+      if (stage.kind === "in_process" && primerEnProceso) {
+        legacyStage = "screening";
+        primerEnProceso = false;
+      }
+      return {
+        name: stage.name,
+        position: stage.position,
+        slaDays: stage.slaDays,
+        kind: stage.kind,
+        legacyStage,
+      };
+    });
+}

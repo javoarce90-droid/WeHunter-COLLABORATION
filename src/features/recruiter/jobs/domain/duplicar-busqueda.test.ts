@@ -38,14 +38,19 @@ function deps(found: Job | null = original, jobId = "job-9"): DuplicarBusquedaDe
     insertJob: vi.fn(async () => ({ jobId })),
   };
 }
-const ctx = { userId: "u1", organizationId: "org-1", role: "recruiter" as const };
+const ctx = {
+  userId: "u1",
+  organizationId: "org-1",
+  role: "recruiter" as const,
+  membershipId: "m1",
+};
 
 describe("duplicarBusqueda", () => {
   it("rechaza sin sesión/organization", async () => {
     const d = deps();
     const res = await duplicarBusqueda(
       { jobId: "job-1" },
-      { userId: null, organizationId: null, role: null },
+      { userId: null, organizationId: null, role: null, membershipId: null },
       d,
     );
     expect(res.ok).toBe(false);
@@ -76,6 +81,7 @@ describe("duplicarBusqueda", () => {
         title: "Backend Engineer (copia)",
         description: "Node + Postgres",
         createdBy: "u1",
+        assignedTo: "m1",
         position: "Backend Engineer Senior",
         skills: ["Node", "Postgres"],
         salaryMin: 3000,

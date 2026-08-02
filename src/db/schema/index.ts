@@ -290,10 +290,6 @@ export const memberships = pgTable("memberships", {
   role: orgRole("role").notNull().default("recruiter"),
   // Activo/inactivo: permite desactivar el acceso de un miembro sin borrarlo.
   status: membershipStatus("status").notNull().default("active"),
-  // null = todavía no descartó/terminó el tour de bienvenida. Es por membership (no por
-  // organization) para que un miembro invitado más tarde vea el tour aunque el resto ya lo
-  // haya cerrado.
-  onboardingDismissedAt: timestamp("onboarding_dismissed_at"),
   // Cliente al que este recruiter está atado en exclusiva (alcance simple del prototipo: un
   // cliente por recruiter). null = sin asignación, ve/crea para cualquier cliente de la org.
   assignedClientId: uuid("assigned_client_id").references(() => clients.id, {
@@ -308,18 +304,26 @@ export const memberships = pgTable("memberships", {
   orgIdx: index("memberships_org_idx").on(t.organizationId),
 }));
 
-// Invitación a sumarse al equipo de una org con un rol. El envío del email es mock por ahora;
-// el flujo de aceptación real (registro + alta de membership) queda para después.
+// Invitación a sumarse al equipo de una org con un rol. Se manda por SendGrid con un link a
+// `/invite/aceptar?token=...`; la posesión del token es la autorización (mismo modelo que el
+// link de reset de contraseña), no un rol/capability.
 export const invitations = pgTable("invitations", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
   email: text("email").notNull(),
+  // Nullable: filas viejas de antes de este campo no tenían nombre. Siempre se completa
+  // en `insertInvitation` para las nuevas — se usa como `full_name` de la cuenta si la
+  // persona invitada todavía no tiene una.
+  inviteeName: text("invitee_name"),
   role: orgRole("role").notNull().default("recruiter"),
   status: invitationStatus("status").notNull().default("pending"),
   token: text("token").notNull(),
   invitedBy: uuid("invited_by").references(() => profiles.id),
+  // Nullable: filas viejas de antes de este campo no tienen vencimiento retroactivo.
+  // Siempre se completa (a 7 días) en `insertInvitation` para las nuevas.
+  expiresAt: timestamp("expires_at"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("invitations_org_idx").on(t.organizationId),
@@ -427,6 +431,14 @@ export const jobs = pgTable("jobs", {
   // transacciones extra; ver decisión de performance). Se selecciona solo en el detalle.
   benefits: jsonb("benefits").$type<{ name: string; description: string }[]>(),
   viewCount: integer("view_count").notNull().default(0),
+  // Responsable único de la búsqueda (recruiter interno o consultor externo) — auto-asignado
+  // a quien la crea. Nunca varios a la vez; se reasigna después desde Editar.
+  assignedTo: uuid("assigned_to")
+    .notNull()
+    .references(() => memberships.id),
+  // Sourcer opcional de esta búsqueda puntual (mismo mecanismo que `assignedTo`, pero
+  // nullable: no toda búsqueda tiene uno). Se asigna/saca desde el header del detalle.
+  sourcerId: uuid("sourcer_id").references(() => memberships.id),
   // Cuántas veces se copió el link público del aviso (botón "Copiar link").
   shareCount: integer("share_count").notNull().default(0),
   createdBy: uuid("created_by").references(() => profiles.id),
@@ -434,6 +446,8 @@ export const jobs = pgTable("jobs", {
 }, (t) => ({
   orgIdx: index("jobs_org_idx").on(t.organizationId),
   clientIdx: index("jobs_client_idx").on(t.clientId),
+  assignedToIdx: index("jobs_assigned_to_idx").on(t.assignedTo),
+  sourcerIdx: index("jobs_sourcer_idx").on(t.sourcerId),
 }));
 
 // Solicitud de búsqueda (Hiring Request, §17 backlog). La pide un Cliente externo (camino
@@ -874,6 +888,25 @@ export const pipelineStages = pgTable("pipeline_stages", {
     t.organizationId,
     t.stageKey,
   ),
+}));
+
+// Plantilla de etapas por defecto de la organización: semilla para `job_stages` al crear una
+// búsqueda nueva. A diferencia de `pipeline_stages` (atada al enum fijo `application_stage`),
+// acá los nombres son libres — mismo modelo que `job_stages`, pero sin `job_id` porque vive a
+// nivel organización. Tabla propia (no reutiliza `job_stages` con `job_id` nullable) para no
+// pisar la migración de la Fase A del plan de Pipeline, que va a rediseñar esa tabla en paralelo.
+export const jobStageTemplates = pgTable("job_stage_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+  slaDays: integer("sla_days"),
+  kind: stageKind("kind").notNull(),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("job_stage_templates_org_idx").on(t.organizationId, t.position),
 }));
 
 // Oferta formal a un candidato finalista de una búsqueda. Apunta a la application (job +

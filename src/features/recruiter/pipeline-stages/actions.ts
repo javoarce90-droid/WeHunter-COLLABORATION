@@ -171,3 +171,118 @@ export async function reordenarEtapasAction(
   revalidarBusqueda(jobId);
   return { ok: true };
 }
+
+// ── Plantilla de etapas por defecto (org, semilla de las búsquedas nuevas) ──────
+
+import {
+  agregarEtapaPlantilla,
+  renombrarEtapaPlantilla,
+  eliminarEtapaPlantilla,
+  reordenarPlantilla,
+  configurarSlaPlantilla,
+  generarPlantillaPorDefecto,
+} from "./domain/gestionar-plantilla-etapas";
+import { listStageTemplates, getStageTemplate } from "./data/job-stage-templates.queries";
+import {
+  insertStageTemplate,
+  renameStageTemplate,
+  deleteStageTemplate,
+  setStageTemplatePositions,
+  setStageTemplateSla,
+  replaceStageTemplate,
+} from "./data/job-stage-templates.mutations";
+
+function revalidarPlantilla() {
+  revalidatePath("/settings/stages");
+}
+
+export async function agregarEtapaPlantillaAction(name: string): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await agregarEtapaPlantilla({ name }, ctx, {
+    listStages: listStageTemplates,
+    insertStage: insertStageTemplate,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarPlantilla();
+  return { ok: true };
+}
+
+export async function renombrarEtapaPlantillaAction(
+  stageId: string,
+  name: string,
+): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await renombrarEtapaPlantilla({ stageId, name }, ctx, {
+    getStage: getStageTemplate,
+    listStages: listStageTemplates,
+    renameStage: renameStageTemplate,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarPlantilla();
+  return { ok: true };
+}
+
+export async function eliminarEtapaPlantillaAction(stageId: string): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await eliminarEtapaPlantilla({ stageId }, ctx, {
+    getStage: getStageTemplate,
+    deleteStage: deleteStageTemplate,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarPlantilla();
+  return { ok: true };
+}
+
+export async function configurarSlaPlantillaAction(
+  stageId: string,
+  slaDays: number | null,
+): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await configurarSlaPlantilla({ stageId, slaDays }, ctx, {
+    getStage: getStageTemplate,
+    setSla: setStageTemplateSla,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarPlantilla();
+  return { ok: true };
+}
+
+export async function reordenarPlantillaAction(stageIds: string[]): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await reordenarPlantilla({ stageIds }, ctx, {
+    listStages: listStageTemplates,
+    setPositions: setStageTemplatePositions,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarPlantilla();
+  return { ok: true };
+}
+
+export async function generarPlantillaPorDefectoAction(): Promise<EtapaActionResult> {
+  const ctx = await ctxDeSesion();
+  if (!ctx) return { ok: false, error: "No autorizado." };
+
+  const res = await generarPlantillaPorDefecto(ctx, {
+    listStages: listStageTemplates,
+    replaceTemplate: replaceStageTemplate,
+  });
+  if (!res.ok) return { ok: false, error: res.error };
+
+  revalidarPlantilla();
+  return { ok: true };
+}

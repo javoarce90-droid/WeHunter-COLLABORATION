@@ -4,16 +4,28 @@ import { crearBusqueda, type CrearBusquedaDeps } from "./crear-busqueda";
 const deps = (jobId = "job-1"): CrearBusquedaDeps => ({
   insertJob: vi.fn(async () => ({ jobId })),
 });
-const ctx = { userId: "u1", organizationId: "org-1", role: "recruiter" as const };
+const ctx = {
+  userId: "u1",
+  organizationId: "org-1",
+  role: "recruiter" as const,
+  membershipId: "m1",
+};
 
 describe("crearBusqueda", () => {
   it("rechaza sin sesión/organization", async () => {
     const d = deps();
     const res = await crearBusqueda(
       { title: "Dev" },
-      { userId: null, organizationId: null, role: null },
+      { userId: null, organizationId: null, role: null, membershipId: null },
       d,
     );
+    expect(res.ok).toBe(false);
+    expect(d.insertJob).not.toHaveBeenCalled();
+  });
+
+  it("rechaza sin membership (sin org activa)", async () => {
+    const d = deps();
+    const res = await crearBusqueda({ title: "Dev" }, { ...ctx, membershipId: null }, d);
     expect(res.ok).toBe(false);
     expect(d.insertJob).not.toHaveBeenCalled();
   });
@@ -45,6 +57,7 @@ describe("crearBusqueda", () => {
         title: "Backend Engineer",
         description: "Node + Postgres",
         createdBy: "u1",
+        assignedTo: "m1",
       }),
     );
   });
@@ -55,5 +68,36 @@ describe("crearBusqueda", () => {
     expect(d.insertJob).toHaveBeenCalledWith(
       expect.objectContaining({ description: null }),
     );
+  });
+
+  it("un recruiter con cliente asignado no puede crear para otro cliente", async () => {
+    const d = deps();
+    const res = await crearBusqueda(
+      { title: "Backend Engineer", clientId: "client-2" },
+      { ...ctx, assignedClientId: "client-1" },
+      d,
+    );
+    expect(res.ok).toBe(false);
+    expect(d.insertJob).not.toHaveBeenCalled();
+  });
+
+  it("un recruiter con cliente asignado sí puede crear para ese mismo cliente", async () => {
+    const d = deps();
+    const res = await crearBusqueda(
+      { title: "Backend Engineer", clientId: "client-1" },
+      { ...ctx, assignedClientId: "client-1" },
+      d,
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("sin cliente asignado no hay restricción de clientId", async () => {
+    const d = deps();
+    const res = await crearBusqueda(
+      { title: "Backend Engineer", clientId: "cualquiera" },
+      ctx,
+      d,
+    );
+    expect(res.ok).toBe(true);
   });
 });

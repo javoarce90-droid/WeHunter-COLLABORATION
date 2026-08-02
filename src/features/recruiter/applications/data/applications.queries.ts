@@ -1,4 +1,4 @@
-import { and, eq, desc, sql, isNotNull, inArray } from "drizzle-orm";
+import { and, eq, ne, asc, desc, sql, isNotNull, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   applications,
@@ -9,7 +9,7 @@ import {
   profiles,
   type Job,
 } from "@/db/schema";
-import { APPLICATION_STAGES, type ApplicationStage, type RejectionReason } from "../schema";
+import type { ApplicationStage, RejectionReason } from "../schema";
 import type { InboxApplicationRow } from "../domain/pasar-al-pipeline";
 import type { StageKind } from "../../pipeline-stages/schema";
 
@@ -493,11 +493,14 @@ export async function listApplicationsForScoring(
   }));
 }
 
-export type StageCounts = Record<ApplicationStage, number>;
+export type StageCount = { stageId: string; name: string; kind: StageKind; count: number };
 
 export type JobApplicationCounts = {
-  /** Por etapa, contando SOLO lo que ya entró al pipeline (es la foto del tablero). */
-  stages: StageCounts;
+  /** Etapas REALES de esta búsqueda (sin la bandeja), en orden de tablero — cada una con
+   *  cuántos candidatos ya entraron al pipeline y están ahí. Reemplaza el desglose por enum
+   *  fijo: con etapas propias por job, dos etapas custom podían compartir el mismo
+   *  `legacyStage` y quedar mezcladas en un solo bucket. */
+  stages: StageCount[];
   /** Postulaciones recibidas, estén donde estén. */
   recibidas: number;
   /** En la bandeja esperando decisión (ni avanzadas ni descartadas). */
@@ -511,38 +514,40 @@ export async function getJobStageCounts(
   organizationId: string,
 ): Promise<JobApplicationCounts> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
+  const [stageRows, totalsRow] = await db.rls(async (tx) => {
+    // LEFT JOIN para que una etapa sin candidatos siga apareciendo (con 0), igual que antes.
+    const stageRows = await tx
       .select({
-        stage: applications.stage,
-        enPipeline: isNotNull(applications.pipelineEnteredAt),
-        count: sql<number>`count(*)::int`,
+        stageId: jobStages.id,
+        name: jobStages.name,
+        kind: jobStages.kind,
+        count: sql<number>`count(${applications.id}) filter (where ${isNotNull(applications.pipelineEnteredAt)})::int`,
+      })
+      .from(jobStages)
+      .leftJoin(
+        applications,
+        and(eq(applications.stageId, jobStages.id), eq(applications.organizationId, organizationId)),
+      )
+      .where(and(eq(jobStages.jobId, jobId), ne(jobStages.kind, "inbox")))
+      .groupBy(jobStages.id, jobStages.name, jobStages.kind, jobStages.position)
+      .orderBy(asc(jobStages.position));
+
+    const [totalsRow] = await tx
+      .select({
+        recibidas: sql<number>`count(*)::int`,
+        pendientes: sql<number>`count(*) filter (where ${applications.pipelineEnteredAt} is null and ${applications.stage} != 'rejected')::int`,
       })
       .from(applications)
-      .where(
-        and(
-          eq(applications.jobId, jobId),
-          eq(applications.organizationId, organizationId),
-        ),
-      )
-      .groupBy(applications.stage, isNotNull(applications.pipelineEnteredAt)),
-    "db.applications.stage-counts",
-  );
+      .where(and(eq(applications.jobId, jobId), eq(applications.organizationId, organizationId)));
 
-  const stages = Object.fromEntries(
-    APPLICATION_STAGES.map((s) => [s, 0]),
-  ) as StageCounts;
-  let recibidas = 0;
-  let pendientes = 0;
+    return [stageRows, totalsRow] as const;
+  }, "db.applications.stage-counts");
 
-  for (const r of rows) {
-    const stage = r.stage as ApplicationStage;
-    recibidas += r.count;
-    if (r.enPipeline) stages[stage] += r.count;
-    else if (stage !== "rejected") pendientes += r.count;
-  }
-
-  return { stages, recibidas, pendientes };
+  return {
+    stages: stageRows.map((r) => ({ stageId: r.stageId, name: r.name, kind: r.kind as StageKind, count: r.count })),
+    recibidas: totalsRow?.recibidas ?? 0,
+    pendientes: totalsRow?.pendientes ?? 0,
+  };
 }
 
 /** Cuántos candidatos (de cualquier búsqueda de la org) están hoy en una etapa puntual.

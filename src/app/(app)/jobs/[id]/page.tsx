@@ -3,11 +3,7 @@ import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { getJobStageCounts } from "@/features/recruiter/applications/data/applications.queries";
-import {
-  APPLICATION_STAGES,
-  PIPELINE_STAGES,
-  STAGE_LABELS,
-} from "@/features/recruiter/applications/schema";
+import { KIND_DOT } from "@/features/recruiter/applications/ui/stage-visual";
 import { getClientById } from "@/features/recruiter/clients/data/clients.queries";
 import {
   MODALITY_LABELS,
@@ -59,7 +55,7 @@ export default async function JobDetailPage({
     ? await getClientById(job.clientId, membership.organizationId)
     : null;
 
-  const enPipeline = APPLICATION_STAGES.reduce((sum, s) => sum + counts.stages[s], 0);
+  const enPipeline = counts.stages.reduce((sum, s) => sum + s.count, 0);
 
   const facts: { label: string; value: string }[] = [
     { label: "Postulaciones", value: String(counts.recibidas) },
@@ -271,15 +267,24 @@ export default async function JobDetailPage({
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {PIPELINE_STAGES.map((stage) => (
-                <Badge
-                  key={stage}
-                  variant={stage}
-                  className={counts.stages[stage] === 0 ? "opacity-45" : undefined}
+              {counts.stages.map((stage) => (
+                <span
+                  key={stage.stageId}
+                  className={[
+                    "inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-semibold text-text",
+                    stage.count === 0 ? "opacity-45" : undefined,
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                 >
-                  {STAGE_LABELS[stage]}
-                  <span className="ml-1.5 tabular-nums">{counts.stages[stage]}</span>
-                </Badge>
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ background: KIND_DOT[stage.kind] }}
+                    aria-hidden
+                  />
+                  {stage.name}
+                  <span className="tabular-nums">{stage.count}</span>
+                </span>
               ))}
             </div>
           )}

@@ -5,6 +5,8 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { crearOrganizationSchema } from "./schema";
 import { crearOrganization } from "./domain/crear-organization";
 import { createOrganizationWithOwner } from "./data/onboarding.mutations";
+import { buildDefaultStageTemplate } from "@/features/recruiter/pipeline-stages/domain/gestionar-plantilla-etapas";
+import { replaceStageTemplate } from "@/features/recruiter/pipeline-stages/data/job-stage-templates.mutations";
 
 export interface OnboardingFormState {
   error?: string;
@@ -34,6 +36,10 @@ export async function crearOrganizationAction(
   if (!result.ok) {
     return { error: result.error };
   }
+
+  // Semilla fija (sin presets): el recruiter puede editarla después en Configuración >
+  // Etapas por defecto — esto es solo el punto de partida.
+  await replaceStageTemplate(result.data.organizationId, buildDefaultStageTemplate());
 
   redirect("/dashboard");
 }

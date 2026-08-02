@@ -1,14 +1,21 @@
 import { and, eq, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { clients, jobs, type Client } from "@/db/schema";
+import { clients, jobs, memberships, profiles, requisitions, clientShares, type Client } from "@/db/schema";
 
 /** Lecturas de clientes. Cliente RLS; filtramos por organization activa. */
 
 const LIST_LIMIT = 100;
 
-export type ClientWithStats = Client & { jobCount: number };
+export type ClientWithStats = Client & {
+  jobCount: number;
+  requisitionCount: number;
+  /** Si tiene al menos un link de acceso activo (ni revocado ni vencido). */
+  hasActiveShare: boolean;
+};
 
-/** Listado de clientes con la cantidad de búsquedas vinculadas (una query, sin N+1). */
+/** Listado de clientes con sus contadores (búsquedas, solicitudes, si tiene link de acceso
+ *  activo) — una sola query: el conteo de búsquedas por join+group, el resto por subquery
+ *  correlacionada para no generar fan-out con el join (database.md regla #3). */
 export async function listClientsWithStats(
   organizationId: string,
 ): Promise<ClientWithStats[]> {
@@ -19,6 +26,16 @@ export async function listClientsWithStats(
         .select({
           client: clients,
           jobCount: sql<number>`count(${jobs.id})::int`,
+          requisitionCount: sql<number>`(
+            select count(*)::int from ${requisitions}
+            where ${requisitions.clientId} = ${clients.id}
+          )`,
+          hasActiveShare: sql<boolean>`exists(
+            select 1 from ${clientShares}
+            where ${clientShares.clientId} = ${clients.id}
+              and ${clientShares.revokedAt} is null
+              and (${clientShares.expiresAt} is null or ${clientShares.expiresAt} > now())
+          )`,
         })
         .from(clients)
         .leftJoin(jobs, eq(jobs.clientId, clients.id))
@@ -28,7 +45,12 @@ export async function listClientsWithStats(
         .limit(LIST_LIMIT),
     "db.clients.list-with-stats",
   );
-  return rows.map(({ client, jobCount }) => ({ ...client, jobCount }));
+  return rows.map(({ client, jobCount, requisitionCount, hasActiveShare }) => ({
+    ...client,
+    jobCount,
+    requisitionCount,
+    hasActiveShare,
+  }));
 }
 
 /** Listado mínimo (id + nombre) para selects. */
@@ -84,5 +106,43 @@ export async function listJobsByClient(
         .orderBy(desc(jobs.updatedAt))
         .limit(LIST_LIMIT),
     "db.clients.jobs-by-client",
+  );
+}
+
+export type AssignableRecruiter = {
+  membershipId: string;
+  name: string | null;
+  /** Si este recruiter es el asignado en exclusiva a este cliente hoy. */
+  assigned: boolean;
+};
+
+/** Recruiters activos de la org + cuál (si alguno) está asignado a este cliente — una sola
+ *  query, así el select de "Recruiter asignado" trae su propio default sin una segunda
+ *  transacción (database.md regla #3). */
+export async function listAssignableRecruiters(
+  organizationId: string,
+  clientId: string,
+): Promise<AssignableRecruiter[]> {
+  const db = await getDb();
+  return db.rls(
+    (tx) =>
+      tx
+        .select({
+          membershipId: memberships.id,
+          name: profiles.fullName,
+          assigned: sql<boolean>`${memberships.assignedClientId} = ${clientId}`,
+        })
+        .from(memberships)
+        .innerJoin(profiles, eq(memberships.profileId, profiles.id))
+        .where(
+          and(
+            eq(memberships.organizationId, organizationId),
+            eq(memberships.role, "recruiter"),
+            eq(memberships.status, "active"),
+          ),
+        )
+        .orderBy(profiles.fullName)
+        .limit(LIST_LIMIT),
+    "db.clients.assignable-recruiters",
   );
 }

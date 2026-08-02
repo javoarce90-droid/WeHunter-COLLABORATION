@@ -463,6 +463,55 @@
       "when": 1785363864270,
       "tag": "0065_glossy_morlun",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1785507730528,
+      "tag": "0066_overrated_mojo",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1785508557802,
+      "tag": "0067_rainy_alice",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1785509015364,
+      "tag": "0068_chilly_doctor_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1785511113796,
+      "tag": "0069_empty_beast",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1785544760940,
+      "tag": "0070_lowly_tomorrow_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1785632340025,
+      "tag": "0071_slow_mandroid",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1785633407031,
+      "tag": "0072_org_owner_can_delete",
+      "breakpoints": true
     }
   ]
 }

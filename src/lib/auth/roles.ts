@@ -89,6 +89,17 @@ export const ROLE_LABELS: Record<OrgRole, string> = {
   viewer: "Viewer",
 };
 
+/** Variante visual de Badge por rol — compartida entre el equipo y el selector de workspace. */
+export const ROLE_BADGE: Record<OrgRole, "primary" | "blue" | "muted"> = {
+  owner: "primary",
+  admin: "blue",
+  recruiter: "muted",
+  sourcer: "muted",
+  consultant: "muted",
+  hiring_manager: "muted",
+  viewer: "muted",
+};
+
 export const ROLE_DESCRIPTIONS: Record<OrgRole, string> = {
   owner: "Dueño de la cuenta. Acceso total, no se puede quitar.",
   admin: "Administra el workspace, el equipo y toda la operación.",

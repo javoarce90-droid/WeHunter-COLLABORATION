@@ -12,6 +12,9 @@ export interface DuplicarBusquedaCtx {
   userId: string | null;
   organizationId: string | null;
   role: OrgRole | null;
+  /** Membership de quien duplica — la copia se auto-asigna a quien la crea, igual que
+   *  `crearBusqueda` (no se copia el `assignedTo` del original). */
+  membershipId: string | null;
 }
 
 export interface DuplicarBusquedaDeps {
@@ -22,6 +25,7 @@ export interface DuplicarBusquedaDeps {
       title: string;
       description: string | null;
       createdBy: string;
+      assignedTo: string;
     } & JobDetails,
   ): Promise<{ jobId: string }>;
 }
@@ -31,7 +35,7 @@ export async function duplicarBusqueda(
   ctx: DuplicarBusquedaCtx,
   deps: DuplicarBusquedaDeps,
 ): Promise<Result<{ jobId: string }>> {
-  if (!ctx.userId || !ctx.organizationId || !ctx.role) {
+  if (!ctx.userId || !ctx.organizationId || !ctx.role || !ctx.membershipId) {
     return err("Necesitás estar autenticado en un workspace.");
   }
   if (!can(ctx.role, "jobs.manage")) {
@@ -70,6 +74,7 @@ export async function duplicarBusqueda(
     title: `${original.title} (copia)`,
     description: original.description,
     createdBy: ctx.userId,
+    assignedTo: ctx.membershipId,
     ...details,
   });
 

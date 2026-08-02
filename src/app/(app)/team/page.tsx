@@ -22,14 +22,12 @@ export default async function TeamPage() {
         </p>
       </div>
 
-      <section className="flex flex-col gap-4 rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
-        <TeamSection
-          members={members}
-          invitations={invitations}
-          currentRole={membership.role as OrgRole}
-          currentUserId={user.id}
-        />
-      </section>
+      <TeamSection
+        members={members}
+        invitations={invitations}
+        currentRole={membership.role as OrgRole}
+        currentUserId={user.id}
+      />
     </div>
   );
 }

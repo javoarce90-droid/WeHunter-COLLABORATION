@@ -1,0 +1,1 @@
+ALTER TABLE "memberships" DROP COLUMN "onboarding_dismissed_at";
