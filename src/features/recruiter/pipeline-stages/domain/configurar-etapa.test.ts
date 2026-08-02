@@ -20,7 +20,7 @@ describe("configurarEtapa", () => {
       deps(),
     );
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toMatch(/consultor/i);
+    if (!result.ok) expect(result.error).toMatch(/no permite/i);
   });
 
   test("cannot deactivate hired", async () => {

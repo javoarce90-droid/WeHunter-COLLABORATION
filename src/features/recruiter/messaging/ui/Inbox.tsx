@@ -13,7 +13,6 @@ import {
   loadThreadAction,
   crearTemplateAction,
   eliminarTemplateAction,
-  sincronizarGmailAction,
 } from "../actions";
 import type { ThreadListRow, MessageRow, ThreadHeader, TemplateRow } from "../data/messaging.queries";
 
@@ -161,7 +160,6 @@ function Conversation({
   const toast = useToast();
   const [body, setBody] = useState("");
   const [sending, startSend] = useTransition();
-  const [syncing, startSync] = useTransition();
   const { header, messages } = conversation;
   const channelTemplates = templates.filter((t) => t.channel === header.channel);
 
@@ -174,21 +172,6 @@ function Conversation({
         return;
       }
       setBody("");
-      onSent();
-    });
-  }
-
-  function sync() {
-    startSync(async () => {
-      const res = await sincronizarGmailAction(header.candidateId);
-      if (!res.ok) {
-        toast({ message: res.error ?? "No se pudo sincronizar con Gmail.", variant: "danger" });
-        return;
-      }
-      toast({
-        message: res.synced ? `${res.synced} mensaje${res.synced === 1 ? "" : "s"} nuevo${res.synced === 1 ? "" : "s"} de Gmail.` : "Ya estaba al día.",
-        variant: "success",
-      });
       onSent();
     });
   }
@@ -206,11 +189,6 @@ function Conversation({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {header.channel === "email" && header.candidateEmail && (
-            <Button variant="secondary" size="sm" onClick={sync} disabled={syncing}>
-              {syncing ? "Sincronizando…" : "Sincronizar con Gmail"}
-            </Button>
-          )}
           <Badge variant={header.channel === "whatsapp" ? "success" : "blue"}>
             {CHANNEL_LABELS[header.channel]}
           </Badge>

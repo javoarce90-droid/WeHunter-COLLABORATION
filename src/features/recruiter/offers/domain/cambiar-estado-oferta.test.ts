@@ -54,7 +54,7 @@ describe("cambiarEstadoOferta", () => {
     );
     expect(res.ok).toBe(false);
     if (res.ok) return;
-    expect(res.error).toMatch(/consultor/i);
+    expect(res.error).toMatch(/no permite/i);
   });
 
   it("rechaza si la oferta no existe", async () => {

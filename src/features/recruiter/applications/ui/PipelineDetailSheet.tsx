@@ -14,25 +14,26 @@ import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/Interv
 import { ScreeningAnswers } from "@/features/recruiter/screening/ui/ScreeningAnswers";
 import type { ScreeningAnswerRow } from "@/features/recruiter/screening/data/screening.queries";
 import { generarGuiaEntrevistaAction } from "../actions";
-import { APPLICATION_STAGES, STAGE_LABELS } from "../schema";
-import type { ApplicationStage } from "../schema";
+import { STAGE_LABELS } from "../schema";
 import type { ApplicationWithCandidate, StageHistoryEvent } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
+import type { JobStage } from "@/features/recruiter/pipeline-stages/schema";
+import { isClosingKind } from "@/features/recruiter/pipeline-stages/schema";
 import { isTerminal } from "./stage-visual";
 import { StageHistoryTimeline } from "./StageHistoryTimeline";
 
 type Props = {
   application: ApplicationWithCandidate | null;
+  /** Etapas propias de esta búsqueda, en orden — arma el menú "Cambiar etapa". */
+  stages: JobStage[];
   interviews: InterviewRow[];
   teamMembers: TeamMemberOption[];
   notes: TimelineNote[];
   stageEvents: StageHistoryEvent[];
   screeningAnswers: ScreeningAnswerRow[];
-  onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
+  onMoveStage: (applicationId: string, toStageId: string) => void;
   onClose: () => void;
-  /** Si se pasa, solo muestra botones para estas etapas (activas). */
-  activeStageKeys?: ApplicationStage[];
 };
 
 /**
@@ -42,6 +43,7 @@ type Props = {
  */
 export function PipelineDetailSheet({
   application,
+  stages,
   interviews,
   teamMembers,
   notes,
@@ -49,7 +51,6 @@ export function PipelineDetailSheet({
   screeningAnswers,
   onMoveStage,
   onClose,
-  activeStageKeys,
 }: Props) {
   const toast = useToast();
   const [, startGuide] = useTransition();
@@ -57,7 +58,19 @@ export function PipelineDetailSheet({
   const [guide, setGuide] = useState<{ appId: string; questions: string[] } | null>(null);
 
   const open = application !== null;
-  const terminal = application ? isTerminal(application.stage) : false;
+  // La etapa propia de la búsqueda donde está hoy — su nombre es el que eligió el recruiter,
+  // no necesariamente el del enum legacy que sigue en `application.stage` (espejo).
+  const currentStage = application?.stageId
+    ? stages.find((s) => s.id === application.stageId)
+    : undefined;
+  const terminal = application
+    ? currentStage
+      ? isClosingKind(currentStage.kind)
+      : isTerminal(application.stage)
+    : false;
+  const stageLabel = application
+    ? (currentStage?.name ?? STAGE_LABELS[application.stage])
+    : "";
   const guideQuestions =
     application && guide?.appId === application.id ? guide.questions : null;
 
@@ -105,7 +118,7 @@ export function PipelineDetailSheet({
               </span>
               <div className="flex items-center gap-2">
                 {application.aiScore != null && <AiScore score={application.aiScore} size={26} />}
-                <Badge variant={application.stage}>{STAGE_LABELS[application.stage]}</Badge>
+                <Badge variant={application.stage}>{stageLabel}</Badge>
               </div>
             </div>
             {application.aiScore != null && application.aiSummary && (
@@ -113,7 +126,7 @@ export function PipelineDetailSheet({
             )}
             {terminal ? (
               <p className="rounded-[var(--radius)] bg-bg px-3 py-2 text-xs text-muted">
-                Etapa terminal: este candidato ya está {STAGE_LABELS[application.stage].toLowerCase()}.
+                Etapa terminal: este candidato ya está {stageLabel.toLowerCase()}.
               </p>
             ) : (
               <Menu
@@ -131,15 +144,16 @@ export function PipelineDetailSheet({
                 }
               >
                 <MenuLabel>Mover a</MenuLabel>
-                {(activeStageKeys ?? APPLICATION_STAGES)
-                  .filter((s) => s !== application.stage)
+                {stages
+                  .filter((s) => s.kind !== "inbox" && s.id !== application.stageId)
+                  .sort((a, b) => a.position - b.position)
                   .map((s) => (
                     <MenuItem
-                      key={s}
-                      destructive={s === "rejected"}
-                      onClick={() => onMoveStage(application.id, s)}
+                      key={s.id}
+                      destructive={s.kind === "rejected"}
+                      onClick={() => onMoveStage(application.id, s.id)}
                     >
-                      {STAGE_LABELS[s]}
+                      {s.name}
                     </MenuItem>
                   ))}
               </Menu>

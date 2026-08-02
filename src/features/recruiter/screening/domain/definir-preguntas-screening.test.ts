@@ -53,7 +53,20 @@ describe("definirPreguntasScreening", () => {
     expect(d.syncQuestions).toHaveBeenCalledWith(
       "job-1",
       "org-1",
-      [{ id: undefined, type: "yes_no", label: "¿Tenés visa?", options: null, required: true, position: 0 }],
+      [
+        {
+          id: undefined,
+          type: "yes_no",
+          label: "¿Tenés visa?",
+          options: null,
+          required: true,
+          position: 0,
+          isCriterion: false,
+          expectedValues: null,
+          minValue: null,
+          maxValue: null,
+        },
+      ],
     );
   });
 
@@ -94,6 +107,10 @@ describe("definirPreguntasScreening", () => {
         options: ["Remoto", "Híbrido"],
         required: true,
         position: 0,
+        isCriterion: false,
+        expectedValues: null,
+        minValue: null,
+        maxValue: null,
       },
     ]);
   });
@@ -111,5 +128,142 @@ describe("definirPreguntasScreening", () => {
     );
     const [, , sent] = (d.syncQuestions as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(sent.map((q: { position: number }) => q.position)).toEqual([0, 1]);
+  });
+});
+
+describe("definirPreguntasScreening — criterios de preselección", () => {
+  const guardadas = (d: DefinirPreguntasScreeningDeps) =>
+    (d.syncQuestions as ReturnType<typeof vi.fn>).mock.calls[0][2];
+
+  it("normaliza una pregunta que no es criterio", async () => {
+    const d = deps();
+    await definirPreguntasScreening("job-1", [yesNo], ctx, d);
+    expect(guardadas(d)[0]).toMatchObject({
+      isCriterion: false,
+      expectedValues: null,
+      minValue: null,
+      maxValue: null,
+    });
+  });
+
+  it("guarda la respuesta esperada de un sí/no", async () => {
+    const d = deps();
+    await definirPreguntasScreening(
+      "job-1",
+      [{ ...yesNo, isCriterion: true, expectedValues: ["Sí"] }],
+      ctx,
+      d,
+    );
+    expect(guardadas(d)[0]).toMatchObject({ isCriterion: true, expectedValues: ["Sí"] });
+  });
+
+  it("rechaza un criterio sin respuesta esperada", async () => {
+    const d = deps();
+    const res = await definirPreguntasScreening("job-1", [{ ...yesNo, isCriterion: true }], ctx, d);
+    expect(res.ok).toBe(false);
+    expect(d.syncQuestions).not.toHaveBeenCalled();
+  });
+
+  it("no permite que una pregunta de texto sea criterio", async () => {
+    const d = deps();
+    const res = await definirPreguntasScreening(
+      "job-1",
+      [{ type: "text", label: "Contanos de vos", required: true, isCriterion: true }],
+      ctx,
+      d,
+    );
+    expect(res.ok).toBe(false);
+  });
+
+  it("rechaza una respuesta esperada que no está entre las opciones", async () => {
+    const d = deps();
+    const res = await definirPreguntasScreening(
+      "job-1",
+      [
+        {
+          type: "multiple_choice",
+          label: "Nivel de inglés",
+          required: true,
+          options: ["Básico", "Intermedio"],
+          isCriterion: true,
+          expectedValues: ["Avanzado"],
+        },
+      ],
+      ctx,
+      d,
+    );
+    expect(res.ok).toBe(false);
+    expect(d.syncQuestions).not.toHaveBeenCalled();
+  });
+
+  it("acepta varias opciones válidas como criterio", async () => {
+    const d = deps();
+    const res = await definirPreguntasScreening(
+      "job-1",
+      [
+        {
+          type: "multiple_choice",
+          label: "Nivel de inglés",
+          required: true,
+          options: ["Básico", "Intermedio", "Avanzado"],
+          isCriterion: true,
+          expectedValues: ["Intermedio", "Avanzado"],
+        },
+      ],
+      ctx,
+      d,
+    );
+    expect(res.ok).toBe(true);
+    expect(guardadas(d)[0].expectedValues).toEqual(["Intermedio", "Avanzado"]);
+  });
+
+  it("exige al menos un límite en un criterio numérico", async () => {
+    const d = deps();
+    const res = await definirPreguntasScreening(
+      "job-1",
+      [{ type: "number", label: "Años de experiencia", required: true, isCriterion: true }],
+      ctx,
+      d,
+    );
+    expect(res.ok).toBe(false);
+  });
+
+  it("rechaza un rango numérico invertido", async () => {
+    const d = deps();
+    const res = await definirPreguntasScreening(
+      "job-1",
+      [
+        {
+          type: "number",
+          label: "Años de experiencia",
+          required: true,
+          isCriterion: true,
+          minValue: 10,
+          maxValue: 3,
+        },
+      ],
+      ctx,
+      d,
+    );
+    expect(res.ok).toBe(false);
+  });
+
+  it("guarda el rango numérico válido", async () => {
+    const d = deps();
+    await definirPreguntasScreening(
+      "job-1",
+      [
+        {
+          type: "number",
+          label: "Años de experiencia",
+          required: true,
+          isCriterion: true,
+          minValue: 3,
+        },
+      ],
+      ctx,
+      d,
+    );
+    expect(guardadas(d)[0]).toMatchObject({ isCriterion: true, minValue: 3, maxValue: null });
   });
 });

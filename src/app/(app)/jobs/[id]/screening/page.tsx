@@ -1,9 +1,11 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { listScreeningQuestionsByJob } from "@/features/recruiter/screening/data/screening.queries";
 import { ScreeningStep } from "@/features/recruiter/screening/ui/ScreeningStep";
 import type { ScreeningQuestionInput } from "@/features/recruiter/screening/domain/definir-preguntas-screening";
+import { ToastOnMount } from "@/components/ui/toast-on-mount";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -35,6 +37,9 @@ export default async function ScreeningStepPage({ params }: Props) {
 
   return (
     <div className="flex flex-col gap-5">
+      <Suspense fallback={null}>
+        <ToastOnMount param="created" message="Búsqueda guardada como borrador" />
+      </Suspense>
       <div>
         <h2 className="font-display text-base font-bold text-text">Preguntas de screening</h2>
         <p className="mt-1 max-w-[65ch] text-sm text-muted">

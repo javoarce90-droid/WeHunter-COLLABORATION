@@ -28,15 +28,15 @@ export function LandingPage() {
           <Hero />
 
           <div className="divider-d" />
+          <WhatChanges />
           <PainSection />
           <div className="divider-d" />
           <MoreThanAts />
           <div className="divider-d" />
-          <WhatChanges />
           <Audience />
           <div className="divider-d" />
 
-          <Solutions />
+          {/* <Solutions /> */}
 
           <div className="divider-d" />
           <AiCopilot />

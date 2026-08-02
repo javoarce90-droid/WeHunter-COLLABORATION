@@ -22,6 +22,24 @@ export default function ClientsPage() {
         </Link>
       </div>
 
+      <div className="flex items-center gap-2.5 rounded-[var(--radius)] border border-[#DBEAFE] bg-[#EEF2FF] px-3.5 py-2.5 text-xs text-[#1E40AF]">
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className="shrink-0"
+          aria-hidden
+        >
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v5M12 16h.01" />
+        </svg>
+        A cada cliente le compartís un link (sin cuenta) para que cargue solicitudes y siga el
+        estado de sus búsquedas.
+      </div>
+
       <Suspense fallback={<ListSkeleton />}>
         <ClientsSection />
       </Suspense>

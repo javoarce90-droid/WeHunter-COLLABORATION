@@ -32,11 +32,101 @@ import {
   uploadCandidateCv,
   deleteCandidateCv,
 } from "./data/candidates.storage";
+import {
+  insertExperience,
+  insertEducation,
+  insertCertification,
+  insertLanguage,
+} from "@/features/candidate/profile/data/resume.mutations";
 
 export interface CandidateFormState {
   error?: string;
   duplicate?: DuplicateCandidateMatch;
   profileMatch?: true;
+}
+
+async function saveCandidateResumeItems(candidateId: string, formData: FormData) {
+  const owner = { kind: "candidate" as const, candidateId };
+
+  const experiencesRaw = formData.get("experiencesJson");
+  if (typeof experiencesRaw === "string" && experiencesRaw.trim()) {
+    try {
+      const items = JSON.parse(experiencesRaw);
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          if (item.company && item.position) {
+            await insertExperience(owner, {
+              company: String(item.company),
+              position: String(item.position),
+              startDate: item.startDate || null,
+              endDate: item.endDate || null,
+              description: item.description || null,
+              employmentType: item.employmentType || null,
+              modality: item.modality || null,
+              skills: Array.isArray(item.skills) ? item.skills : null,
+            });
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const educationRaw = formData.get("educationJson");
+  if (typeof educationRaw === "string" && educationRaw.trim()) {
+    try {
+      const items = JSON.parse(educationRaw);
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          if (item.institution && item.degree) {
+            await insertEducation(owner, {
+              institution: String(item.institution),
+              degree: String(item.degree),
+              fieldOfStudy: item.fieldOfStudy || null,
+              startDate: item.startDate || null,
+              endDate: item.endDate || null,
+              description: item.description || null,
+              grade: item.grade || null,
+              activities: item.activities || null,
+            });
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const certsRaw = formData.get("certificationsJson");
+  if (typeof certsRaw === "string" && certsRaw.trim()) {
+    try {
+      const items = JSON.parse(certsRaw);
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          if (item.name) {
+            await insertCertification(owner, {
+              name: String(item.name),
+              url: item.url || null,
+            });
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const languagesRaw = formData.get("languagesJson");
+  if (typeof languagesRaw === "string" && languagesRaw.trim()) {
+    try {
+      const items = JSON.parse(languagesRaw);
+      if (Array.isArray(items)) {
+        for (const item of items) {
+          if (item.language && item.level) {
+            await insertLanguage(owner, {
+              language: String(item.language),
+              level: String(item.level),
+            });
+          }
+        }
+      }
+    } catch {}
+  }
 }
 
 export async function cambiarEstadoTalentoAction(
@@ -161,6 +251,8 @@ export async function cargarCandidatoAction(
     return { error: result.error, duplicate: result.duplicate, profileMatch: result.profileMatch };
   }
 
+  await saveCandidateResumeItems(result.data.candidateId, formData);
+
   redirect("/candidates");
 }
 
@@ -208,6 +300,8 @@ export async function editarCandidatoAction(
   if (!result.ok) {
     return { error: result.error };
   }
+
+  await saveCandidateResumeItems(candidateId, formData);
 
   redirect("/candidates");
 }

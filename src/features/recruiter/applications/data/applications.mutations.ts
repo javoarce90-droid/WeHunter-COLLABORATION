@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { applications, applicationEvents } from "@/db/schema";
+import { applications, applicationEvents, jobStages } from "@/db/schema";
 import type { ApplicationStage, RejectionReason } from "../schema";
 import type { ApplicationRow } from "../domain/postular-candidato";
 
@@ -33,9 +33,22 @@ export async function insertApplication(args: {
   jobId: string;
   candidateId: string;
   stage: ApplicationStage;
+  /** El alta hecha por el recruiter (sourcing desde el pool) entra directo al tablero: ya
+   *  hubo una decisión de trabajarlo. Las postulaciones que llegan solas (Career Site,
+   *  portal) nacen en la bandeja y esperan el triage. */
+  pipelineEntered?: boolean;
 }): Promise<ApplicationRow | null> {
   const db = await getDb();
   const row = await db.rls(async (tx) => {
+    // La etapa propia de la búsqueda equivalente al valor del enum de arranque — mantiene
+    // `stage_id` en sync desde el alta, para que el tablero por-búsqueda (que lee por id)
+    // ya la vea sin esperar a un primer movimiento manual.
+    const [seedStage] = await tx
+      .select({ id: jobStages.id })
+      .from(jobStages)
+      .where(and(eq(jobStages.jobId, args.jobId), eq(jobStages.legacyStage, args.stage)))
+      .limit(1);
+
     const [app] = await tx
       .insert(applications)
       .values({
@@ -43,6 +56,8 @@ export async function insertApplication(args: {
         jobId: args.jobId,
         candidateId: args.candidateId,
         stage: args.stage,
+        stageId: seedStage?.id,
+        pipelineEnteredAt: args.pipelineEntered ? new Date() : null,
       })
       .onConflictDoNothing({ target: [applications.jobId, applications.candidateId] })
       .returning();
@@ -82,6 +97,19 @@ export async function updateApplicationStage(
       .where(eq(applications.id, applicationId))
       .returning();
 
+    // Mantiene stage_id en sync mientras este mutation legacy (por enum) siga en uso.
+    const [stageRow] = await tx
+      .select({ id: jobStages.id })
+      .from(jobStages)
+      .where(and(eq(jobStages.jobId, app!.jobId), eq(jobStages.legacyStage, toStage)))
+      .limit(1);
+    if (stageRow) {
+      await tx
+        .update(applications)
+        .set({ stageId: stageRow.id, stageEnteredAt: new Date() })
+        .where(eq(applications.id, applicationId));
+    }
+
     await tx.insert(applicationEvents).values({
       organizationId: app!.organizationId,
       applicationId: app!.id,
@@ -96,6 +124,94 @@ export async function updateApplicationStage(
   }, "db.applications.update-stage");
 
   return toRow(row);
+}
+
+/**
+ * Marca el ingreso al pipeline: setea `pipeline_entered_at` y mueve a la etapa destino,
+ * con su evento de historial, en UNA transacción. Espeja a `updateApplicationStage` — son
+ * dos escrituras distintas a propósito: mover de etapa dentro del tablero no vuelve a tocar
+ * la fecha de ingreso.
+ */
+export async function setPipelineEntered(
+  applicationId: string,
+  fromStage: ApplicationStage,
+  toStage: ApplicationStage,
+): Promise<ApplicationRow> {
+  const db = await getDb();
+  const row = await db.rls(async (tx) => {
+    const [app] = await tx
+      .update(applications)
+      .set({ stage: toStage, pipelineEnteredAt: new Date(), updatedAt: new Date() })
+      .where(eq(applications.id, applicationId))
+      .returning();
+
+    // Mantiene stage_id en sync: la postulación deja la etapa "inbox" y entra a una etapa
+    // real del tablero por-búsqueda.
+    const [stageRow] = await tx
+      .select({ id: jobStages.id })
+      .from(jobStages)
+      .where(and(eq(jobStages.jobId, app!.jobId), eq(jobStages.legacyStage, toStage)))
+      .limit(1);
+    if (stageRow) {
+      await tx
+        .update(applications)
+        .set({ stageId: stageRow.id, stageEnteredAt: new Date() })
+        .where(eq(applications.id, applicationId));
+    }
+
+    await tx.insert(applicationEvents).values({
+      organizationId: app!.organizationId,
+      applicationId: app!.id,
+      fromStage,
+      toStage,
+      changedBy: db.userId,
+    });
+
+    return app!;
+  }, "db.applications.enter-pipeline");
+
+  return toRow(row);
+}
+
+/**
+ * Mueve una postulación dentro del tablero de SU búsqueda: dep de `moverAEtapa`
+ * (`mover-a-etapa.ts`). A diferencia de `updateApplicationStage`, ya recibe el id de etapa
+ * directo (sin derivarlo por enum) — `legacyStage` solo mantiene en sync la columna vieja
+ * para los consumidores que todavía la leen. Resetea `stage_entered_at`: es lo que hace que
+ * el contador de días en la etapa arranque de nuevo en cada movimiento.
+ */
+export async function moveToStage(args: {
+  applicationId: string;
+  toStageId: string;
+  legacyStage: ApplicationStage;
+}): Promise<void> {
+  const db = await getDb();
+  await db.rls(async (tx) => {
+    const [before] = await tx
+      .select({ stage: applications.stage })
+      .from(applications)
+      .where(eq(applications.id, args.applicationId))
+      .limit(1);
+
+    const [app] = await tx
+      .update(applications)
+      .set({
+        stageId: args.toStageId,
+        stage: args.legacyStage,
+        stageEnteredAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(applications.id, args.applicationId))
+      .returning();
+
+    await tx.insert(applicationEvents).values({
+      organizationId: app!.organizationId,
+      applicationId: app!.id,
+      fromStage: (before?.stage as ApplicationStage) ?? null,
+      toStage: args.legacyStage,
+      changedBy: db.userId,
+    });
+  }, "db.applications.move-to-stage");
 }
 
 export async function setApplicationFavorite(

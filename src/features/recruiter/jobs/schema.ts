@@ -63,6 +63,22 @@ const markdownField = (max: number) =>
 // el guardado de toda la búsqueda.
 export const screeningQuestionTypeSchema = z.enum(["yes_no", "text", "number", "multiple_choice"]);
 
+/** Forma de una pregunta de screening. Fuente única: la usan el JobForm (JSON en un hidden
+ *  input) y el paso post-creación, que guardan por el mismo caso de uso. Las reglas del
+ *  criterio de preselección (coherencia entre tipo y respuesta esperada) las valida el
+ *  dominio, no acá: acá solo se cuida la forma. */
+export const screeningQuestionSchema = z.object({
+  id: z.string().uuid().optional(),
+  type: screeningQuestionTypeSchema,
+  label: z.string().trim().max(200).default(""),
+  options: z.array(z.string().trim().max(120)).max(10).optional(),
+  required: z.boolean().default(true),
+  isCriterion: z.boolean().optional(),
+  expectedValues: z.array(z.string().trim().max(120)).max(10).nullish(),
+  minValue: z.number().int().nullish(),
+  maxValue: z.number().int().nullish(),
+});
+
 const screeningQuestionsField = z.preprocess((v) => {
   if (typeof v !== "string" || v.trim() === "") return undefined;
   try {
@@ -71,18 +87,7 @@ const screeningQuestionsField = z.preprocess((v) => {
   } catch {
     return undefined;
   }
-}, z
-  .array(
-    z.object({
-      id: z.string().uuid().optional(),
-      type: screeningQuestionTypeSchema,
-      label: z.string().trim().max(200).default(""),
-      options: z.array(z.string().trim().max(120)).max(10).optional(),
-      required: z.boolean().default(true),
-    }),
-  )
-  .max(20)
-  .optional());
+}, z.array(screeningQuestionSchema).max(20).optional());
 
 export const jobModalitySchema = z.enum(["onsite", "remote", "hybrid"]);
 export const jobSenioritySchema = z.enum(["junior", "semisenior", "senior", "lead"]);

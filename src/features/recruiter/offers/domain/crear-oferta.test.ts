@@ -46,7 +46,7 @@ describe("crearOferta", () => {
     const res = await crearOferta(input, { ...ctx, role: "consultant" }, makeDeps());
     expect(res.ok).toBe(false);
     if (res.ok) return;
-    expect(res.error).toMatch(/consultor/i);
+    expect(res.error).toMatch(/no permite/i);
   });
 
   it("rechaza si la postulación no existe", async () => {

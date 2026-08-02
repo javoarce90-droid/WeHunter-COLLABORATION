@@ -2,23 +2,13 @@
 
 import { z } from "zod";
 import { getActiveMembership } from "@/lib/auth/session";
-import { screeningQuestionTypeSchema } from "@/features/recruiter/jobs/schema";
+import { screeningQuestionSchema } from "@/features/recruiter/jobs/schema";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { definirPreguntasScreening } from "./domain/definir-preguntas-screening";
 import { syncScreeningQuestions } from "./data/screening.mutations";
 
-/** Mismas reglas que `screeningQuestionsField` (jobs/schema), pero sobre un array ya parseado. */
-const questionsSchema = z
-  .array(
-    z.object({
-      id: z.string().uuid().optional(),
-      type: screeningQuestionTypeSchema,
-      label: z.string().trim().max(200).default(""),
-      options: z.array(z.string().trim().max(120)).max(10).optional(),
-      required: z.boolean().default(true),
-    }),
-  )
-  .max(20);
+/** Misma forma que en el JobForm, pero sobre un array ya parseado (acá no llega como JSON). */
+const questionsSchema = z.array(screeningQuestionSchema).max(20);
 
 /**
  * Guarda las preguntas de screening de una búsqueda desde el paso post-creación (independiente

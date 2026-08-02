@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { clients } from "@/db/schema";
+import { clients, memberships } from "@/db/schema";
 
 /** Escrituras de clientes. Cliente RLS; el organizationId acota a la org activa. */
 
@@ -50,4 +50,34 @@ export async function updateClientFields(
     "db.clients.update",
   );
   return { updated: rows.length > 0 };
+}
+
+/** Un cliente, un recruiter a la vez: limpia cualquier otro membership que lo tuviera
+ *  asignado antes de (opcionalmente) asignarle el nuevo. */
+export async function assignRecruiterToClient(
+  organizationId: string,
+  clientId: string,
+  membershipId: string | null,
+): Promise<void> {
+  const db = await getDb();
+  await db.rls(async (tx) => {
+    await tx
+      .update(memberships)
+      .set({ assignedClientId: null })
+      .where(
+        and(
+          eq(memberships.organizationId, organizationId),
+          eq(memberships.assignedClientId, clientId),
+        ),
+      );
+
+    if (membershipId) {
+      await tx
+        .update(memberships)
+        .set({ assignedClientId: clientId })
+        .where(
+          and(eq(memberships.id, membershipId), eq(memberships.organizationId, organizationId)),
+        );
+    }
+  }, "db.clients.assign-recruiter");
 }

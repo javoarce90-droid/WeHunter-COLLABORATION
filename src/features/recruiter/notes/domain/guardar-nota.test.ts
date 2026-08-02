@@ -68,7 +68,7 @@ describe("guardarNota", () => {
     const result = await guardarNota(input, { ...ctx, role: "consultant" }, deps);
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toMatch(/consultores/i);
+    expect(result.error).toMatch(/no permite/i);
   });
 
   it("permite guardar nota siendo owner o admin", async () => {

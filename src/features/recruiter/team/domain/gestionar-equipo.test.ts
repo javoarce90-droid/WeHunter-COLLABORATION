@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { invitarMiembro, actualizarMiembro } from "./gestionar-equipo";
-import type { TeamContext, InvitarDeps, ActualizarDeps } from "./gestionar-equipo";
+import { invitarMiembro, actualizarMiembro, eliminarMiembro } from "./gestionar-equipo";
+import type { TeamContext, InvitarDeps, ActualizarDeps, EliminarDeps } from "./gestionar-equipo";
+import type { OrgRole } from "@/lib/auth/session";
 
 const owner: TeamContext = { userId: "u-owner", organizationId: "org-1", role: "owner" };
 
@@ -9,14 +10,14 @@ describe("invitarMiembro", () => {
 
   it("el owner invita con un rol asignable", async () => {
     const d = deps();
-    const r = await invitarMiembro({ email: "x@y.com", role: "recruiter", token: "t" }, owner, d);
+    const r = await invitarMiembro({ name: "X Y", email: "x@y.com", role: "recruiter", token: "t" }, owner, d);
     expect(r.ok).toBe(true);
     expect(d.createInvitation).toHaveBeenCalled();
   });
 
   it("un recruiter no puede invitar", async () => {
     const r = await invitarMiembro(
-      { email: "x@y.com", role: "recruiter", token: "t" },
+      { name: "X Y", email: "x@y.com", role: "recruiter", token: "t" },
       { ...owner, role: "recruiter" },
       deps(),
     );
@@ -24,14 +25,27 @@ describe("invitarMiembro", () => {
   });
 
   it("no se puede invitar como owner", async () => {
-    const r = await invitarMiembro({ email: "x@y.com", role: "owner", token: "t" }, owner, deps());
+    const r = await invitarMiembro(
+      { name: "X Y", email: "x@y.com", role: "owner", token: "t" },
+      owner,
+      deps(),
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("rechaza sin nombre completo", async () => {
+    const r = await invitarMiembro(
+      { name: "a", email: "x@y.com", role: "recruiter", token: "t" },
+      owner,
+      deps(),
+    );
     expect(r.ok).toBe(false);
   });
 });
 
 describe("actualizarMiembro", () => {
   const deps = (
-    target: { id: string; role: "owner" | "admin" | "recruiter" | "consultant"; profileId: string } | null,
+    target: { id: string; role: OrgRole; profileId: string } | null,
   ): ActualizarDeps => ({
     getMembership: vi.fn().mockResolvedValue(target),
     updateMembership: vi.fn().mockResolvedValue(undefined),
@@ -77,6 +91,47 @@ describe("actualizarMiembro", () => {
   it("rechaza si no hay nada para actualizar", async () => {
     const d = deps({ id: "m-1", role: "recruiter", profileId: "u-2" });
     const r = await actualizarMiembro({ membershipId: "m-1" }, owner, d);
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe("eliminarMiembro", () => {
+  const deps = (
+    target: { id: string; role: OrgRole; profileId: string } | null,
+  ): EliminarDeps => ({
+    getMembership: vi.fn().mockResolvedValue(target),
+    deleteMembership: vi.fn().mockResolvedValue(undefined),
+  });
+
+  it("elimina la membership de un miembro", async () => {
+    const d = deps({ id: "m-1", role: "recruiter", profileId: "u-2" });
+    const r = await eliminarMiembro({ membershipId: "m-1" }, owner, d);
+    expect(r.ok).toBe(true);
+    expect(d.deleteMembership).toHaveBeenCalledWith("m-1", "org-1");
+  });
+
+  it("no se puede eliminar al owner", async () => {
+    const d = deps({ id: "m-owner", role: "owner", profileId: "u-owner" });
+    const r = await eliminarMiembro({ membershipId: "m-owner" }, owner, d);
+    expect(r.ok).toBe(false);
+    expect(d.deleteMembership).not.toHaveBeenCalled();
+  });
+
+  it("no podés eliminarte a vos mismo", async () => {
+    const d = deps({ id: "m-self", role: "admin", profileId: "u-owner" });
+    const r = await eliminarMiembro({ membershipId: "m-self" }, owner, d);
+    expect(r.ok).toBe(false);
+  });
+
+  it("un recruiter no puede eliminar miembros", async () => {
+    const d = deps({ id: "m-1", role: "recruiter", profileId: "u-2" });
+    const r = await eliminarMiembro({ membershipId: "m-1" }, { ...owner, role: "recruiter" }, d);
+    expect(r.ok).toBe(false);
+  });
+
+  it("miembro no encontrado", async () => {
+    const d = deps(null);
+    const r = await eliminarMiembro({ membershipId: "m-x" }, owner, d);
     expect(r.ok).toBe(false);
   });
 });

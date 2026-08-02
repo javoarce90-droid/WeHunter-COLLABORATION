@@ -1,4 +1,6 @@
 import type { MessageChannel } from "../schema";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 export type EnviarMensajeInput = {
   candidateId: string;
@@ -8,7 +10,7 @@ export type EnviarMensajeInput = {
 
 export type EnviarMensajeContext = {
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type EnviarMensajeDeps = {
@@ -36,8 +38,8 @@ export async function enviarMensaje(
   ctx: EnviarMensajeContext,
   deps: EnviarMensajeDeps,
 ): Promise<{ ok: true; threadId: string } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden enviar mensajes." };
+  if (!can(ctx.role, "messaging.send")) {
+    return { ok: false, error: "Tu rol no permite enviar mensajes." };
   }
 
   if (input.body.trim().length === 0) {

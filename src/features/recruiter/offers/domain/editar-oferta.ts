@@ -1,4 +1,6 @@
 import { isOfferEditable, type OfferStatus } from "../schema";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 export type EditarOfertaInput = {
   offerId: string;
@@ -13,7 +15,7 @@ export type EditarOfertaInput = {
 
 export type EditarOfertaContext = {
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type EditarOfertaDeps = {
@@ -29,8 +31,8 @@ export async function editarOferta(
   ctx: EditarOfertaContext,
   deps: EditarOfertaDeps,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden editar ofertas." };
+  if (!can(ctx.role, "offers.manage")) {
+    return { ok: false, error: "Tu rol no permite gestionar ofertas." };
   }
 
   if (input.title.trim().length === 0) {

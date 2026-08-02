@@ -1,4 +1,5 @@
 import { isClosingStage, type ApplicationStage } from "../schema";
+import type { StageKind } from "@/features/recruiter/pipeline-stages/schema";
 
 /** Color sólido por etapa para marcadores de columna/dots (semántica de DESIGN.md). */
 export const STAGE_DOT: Record<ApplicationStage, string> = {
@@ -8,6 +9,17 @@ export const STAGE_DOT: Record<ApplicationStage, string> = {
   interview_hr: "#F59E0B",
   interview_tech: "#B45309",
   interview_client: "#7B2FDB",
+  offer: "#8B5CF6",
+  hired: "#059669",
+  rejected: "#DC2626",
+};
+
+/** Color por `kind` de etapa: el tablero por-búsqueda ya no tiene nombres fijos (el
+ *  recruiter los renombra), así que el dot se pinta por lo que la etapa significa, no por
+ *  su nombre. */
+export const KIND_DOT: Record<StageKind, string> = {
+  inbox: "#9CA3AF",
+  in_process: "#2563EB",
   offer: "#8B5CF6",
   hired: "#059669",
   rejected: "#DC2626",

@@ -19,16 +19,13 @@ const MODULES = [
 export function MoreThanAts() {
   return (
     <section>
-      <div className="sec" style={{ textAlign: "center" }}>
+      <div id="mucho-mas-ats" className="sec" style={{ textAlign: "center" }}>
         <Reveal>
-          <div className="eyebrow" style={{ justifyContent: "center", display: "flex" }}>
-            El producto
-          </div>
           <div className="sec-title">Mucho más que un ATS.</div>
           <div className="sec-sub" style={{ margin: "14px auto 0" }}>
-            Mientras otros sistemas solo administran candidatos, WeHunter reúne todas las
-            herramientas necesarias para gestionar el proceso completo de contratación desde
-            una única plataforma.
+            Mientras otros sistemas solo administran candidatos, WeHunter reúne
+            todas las herramientas necesarias para gestionar el proceso completo
+            de contratación desde una única plataforma.
           </div>
         </Reveal>
         <Reveal className="module-grid">

@@ -37,6 +37,10 @@ export async function syncScreeningQuestions(
             options: q.options,
             required: q.required,
             position: q.position,
+            isCriterion: q.isCriterion,
+            expectedValues: q.expectedValues,
+            minValue: q.minValue,
+            maxValue: q.maxValue,
           })
           .where(eq(screeningQuestions.id, q.id));
       } else {
@@ -48,6 +52,10 @@ export async function syncScreeningQuestions(
           options: q.options,
           required: q.required,
           position: q.position,
+          isCriterion: q.isCriterion,
+          expectedValues: q.expectedValues,
+          minValue: q.minValue,
+          maxValue: q.maxValue,
         });
       }
     }

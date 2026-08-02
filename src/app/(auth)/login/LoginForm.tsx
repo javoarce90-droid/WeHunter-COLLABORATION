@@ -70,6 +70,15 @@ export function LoginForm({
             Registrate
           </Link>
         </p>
+        <div className="flex items-center justify-center gap-3 text-xs text-muted">
+          <Link href="/legal/terminos" target="_blank" className="hover:text-text hover:underline">
+            Términos y condiciones
+          </Link>
+          <span aria-hidden>·</span>
+          <Link href="/legal/privacidad" target="_blank" className="hover:text-text hover:underline">
+            Política de privacidad
+          </Link>
+        </div>
       </CardContent>
     </Card>
   );

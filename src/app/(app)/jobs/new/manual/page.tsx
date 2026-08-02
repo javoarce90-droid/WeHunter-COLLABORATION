@@ -3,8 +3,12 @@ import { listClientsForSelect } from "@/features/recruiter/clients/data/clients.
 import { JobForm } from "@/features/recruiter/jobs/ui/JobForm";
 import { crearBusquedaAction } from "@/features/recruiter/jobs/actions";
 
-export default async function NewJobManualPage() {
-  const membership = await getActiveMembership();
+export default async function NewJobManualPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clientId?: string }>;
+}) {
+  const [membership, { clientId }] = await Promise.all([getActiveMembership(), searchParams]);
   const clients = membership
     ? await listClientsForSelect(membership.organizationId)
     : [];
@@ -21,6 +25,8 @@ export default async function NewJobManualPage() {
         action={crearBusquedaAction}
         submitLabel="Crear búsqueda"
         clients={clients}
+        assignedClientId={membership?.assignedClientId ?? null}
+        defaults={clientId ? { clientId } : undefined}
         cancelHref="/jobs/new"
         cancelLabel="Volver"
       />

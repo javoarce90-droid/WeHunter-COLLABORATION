@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { canManageRecruiting } from "@/lib/auth/roles";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import type { Job } from "@/db/schema";
 
@@ -56,7 +56,7 @@ export async function cambiarEstadoBusqueda(
   if (!ctx.organizationId || !ctx.role) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!canManageRecruiting(ctx.role)) {
+  if (!can(ctx.role, "jobs.manage")) {
     return err("No tenés permisos para gestionar búsquedas.");
   }
 

@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { canManageRecruiting } from "@/lib/auth/roles";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 
 /**
@@ -20,6 +20,9 @@ export interface AprobarRequisitionCtx {
   userId: string | null;
   organizationId: string | null;
   role: OrgRole | null;
+  /** Membership de quien aprueba — el job nace auto-asignado a quien lo aprueba, mismo
+   *  criterio que `crearBusqueda`. */
+  membershipId: string | null;
 }
 
 export interface AprobarRequisitionDeps {
@@ -33,6 +36,7 @@ export interface AprobarRequisitionDeps {
     requisitionId: string;
     organizationId: string;
     reviewedBy: string;
+    assignedTo: string;
     reviewNote: string | null;
   }): Promise<{ jobId: string }>;
 }
@@ -42,10 +46,10 @@ export async function aprobarRequisition(
   ctx: AprobarRequisitionCtx,
   deps: AprobarRequisitionDeps,
 ): Promise<Result<{ jobId: string }>> {
-  if (!ctx.userId || !ctx.organizationId || !ctx.role) {
+  if (!ctx.userId || !ctx.organizationId || !ctx.role || !ctx.membershipId) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!canManageRecruiting(ctx.role)) {
+  if (!can(ctx.role, "requisitions.review")) {
     return err("No tenés permisos para revisar solicitudes.");
   }
 
@@ -66,6 +70,7 @@ export async function aprobarRequisition(
     requisitionId: input.requisitionId,
     organizationId: ctx.organizationId,
     reviewedBy: ctx.userId,
+    assignedTo: ctx.membershipId,
     reviewNote,
   });
 

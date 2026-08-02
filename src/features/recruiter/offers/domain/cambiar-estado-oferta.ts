@@ -1,4 +1,6 @@
 import { canTransitionOffer, OFFER_STATUS_LABELS, type OfferStatus } from "../schema";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 export type CambiarEstadoInput = {
   offerId: string;
@@ -7,7 +9,7 @@ export type CambiarEstadoInput = {
 
 export type CambiarEstadoContext = {
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type CambiarEstadoDeps = {
@@ -29,8 +31,8 @@ export async function cambiarEstadoOferta(
   ctx: CambiarEstadoContext,
   deps: CambiarEstadoDeps,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden cambiar el estado de una oferta." };
+  if (!can(ctx.role, "offers.manage")) {
+    return { ok: false, error: "Tu rol no permite gestionar ofertas." };
   }
 
   const offer = await deps.getOffer(input.offerId, ctx.organizationId);

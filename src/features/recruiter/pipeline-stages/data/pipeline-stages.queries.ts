@@ -34,6 +34,15 @@ export async function getPipelineStageConfigs(
   });
 }
 
+/** Etapas activas de la org, en el orden del tablero. Lo usa `pasarAlPipeline` para saber a
+ *  qué etapa entra una postulación que sale de la bandeja. */
+export async function getActiveStages(
+  organizationId: string,
+): Promise<ApplicationStage[]> {
+  const configs = await getPipelineStageConfigs(organizationId);
+  return configs.filter((c) => c.isActive).map((c) => c.stageKey);
+}
+
 /** Si una etapa puntual está activa para la org. Usado como autorización primaria antes de
  *  mover un candidato a esa etapa (moverEtapa) — no trae el resto de la config, que no hace falta. */
 export async function isStageActive(

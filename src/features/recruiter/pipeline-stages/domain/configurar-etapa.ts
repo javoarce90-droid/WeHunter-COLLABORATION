@@ -1,6 +1,8 @@
 import type { ApplicationStage } from "../../applications/schema";
 import type { StageConfigPatch } from "../data/pipeline-stages.mutations";
 import { isNonDeactivatable } from "../schema";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 export type ConfigurarEtapaInput = {
   stageKey: ApplicationStage;
@@ -8,7 +10,7 @@ export type ConfigurarEtapaInput = {
 
 export type ConfigurarEtapaCtx = {
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type ConfigurarEtapaDeps = {
@@ -28,8 +30,8 @@ export async function configurarEtapa(
   ctx: ConfigurarEtapaCtx,
   deps: ConfigurarEtapaDeps,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden configurar el pipeline." };
+  if (!can(ctx.role, "stages.configure")) {
+    return { ok: false, error: "Tu rol no permite configurar el pipeline." };
   }
 
   if (input.isActive === false && isNonDeactivatable(input.stageKey)) {

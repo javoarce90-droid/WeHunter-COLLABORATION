@@ -1,6 +1,6 @@
-import { count, eq } from "drizzle-orm";
+import { and, count, eq, gte, isNull, ne } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { jobs, candidates, applications, type Application } from "@/db/schema";
+import { jobs, candidates, applications, memberships, type Application } from "@/db/schema";
 import type { DashboardCounts } from "../domain/obtener-kpis";
 
 /**
@@ -8,9 +8,9 @@ import type { DashboardCounts } from "../domain/obtener-kpis";
  * organizationId además del RLS: el usuario puede pertenecer a varias orgs y el
  * dashboard es el de SU workspace activo.
  *
- * PERFORMANCE: las tres cuentas se traen en UNA sola transacción RLS (ver database.md
- * regla #3). Antes eran 3 transacciones independientes -> 3× (BEGIN + set claims + set
- * role + COMMIT). Ahora pagamos ese overhead una vez y corremos los 3 SELECT juntos.
+ * PERFORMANCE: todas las cuentas se traen en UNA sola transacción RLS (ver database.md
+ * regla #3): pagamos el overhead de RLS (BEGIN + set claims + set role + COMMIT) una sola
+ * vez y corremos los SELECT juntos.
  */
 
 type Stage = Application["stage"];
@@ -20,9 +20,12 @@ export async function getDashboardCounts(
 ): Promise<DashboardCounts> {
   const db = await getDb();
 
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
   return db.rls(async (tx) => {
-    // Dentro de una sola transacción: una sola vez el overhead de RLS para las 3 lecturas.
-    const [jobRows, candRows, stageRows] = await Promise.all([
+    const [jobRows, candRows, stageRows, pendingRows, hiredRows, memberRows] = await Promise.all([
       tx
         .select({ status: jobs.status, n: count() })
         .from(jobs)
@@ -37,6 +40,34 @@ export async function getDashboardCounts(
         .from(applications)
         .where(eq(applications.organizationId, organizationId))
         .groupBy(applications.stage),
+      // Postulaciones en bandeja, sin decisión tomada — mismo criterio que pendingCount
+      // por-búsqueda (jobs.queries.ts), acá agregado a nivel org.
+      tx
+        .select({ n: count() })
+        .from(applications)
+        .where(
+          and(
+            eq(applications.organizationId, organizationId),
+            isNull(applications.pipelineEnteredAt),
+            ne(applications.stage, "rejected"),
+          ),
+        ),
+      tx
+        .select({ n: count() })
+        .from(applications)
+        .where(
+          and(
+            eq(applications.organizationId, organizationId),
+            eq(applications.stage, "hired"),
+            gte(applications.updatedAt, startOfMonth),
+          ),
+        ),
+      tx
+        .select({ n: count() })
+        .from(memberships)
+        .where(
+          and(eq(memberships.organizationId, organizationId), eq(memberships.status, "active")),
+        ),
     ]);
 
     let total = 0;
@@ -57,6 +88,9 @@ export async function getDashboardCounts(
       jobs: { total, open },
       candidates: Number(candRows[0]?.n ?? 0),
       byStage,
+      pendingCount: Number(pendingRows[0]?.n ?? 0),
+      hiredThisMonth: Number(hiredRows[0]?.n ?? 0),
+      activeMembersCount: Number(memberRows[0]?.n ?? 0),
     };
   }, "db.dashboard.kpis");
 }

@@ -1,5 +1,6 @@
 import type { Job } from "@/db/schema";
 import { STATUS_ACTIONS, StatusButton } from "./status-actions";
+import { PublishConfirmButton } from "./PublishConfirmButton";
 
 /**
  * Transiciones de estado desde la vista previa del aviso: el recruiter revisa cómo se va a
@@ -11,18 +12,27 @@ import { STATUS_ACTIONS, StatusButton } from "./status-actions";
  *
  * Sin badge de estado: el layout de la búsqueda ya lo muestra al lado del título.
  */
-export function EstadoAvisoControl({ job }: { job: Pick<Job, "id" | "status"> }) {
+export function EstadoAvisoControl({ job }: { job: Pick<Job, "id" | "status" | "title"> }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {STATUS_ACTIONS[job.status].map((a, i) => (
-        <StatusButton
-          key={a.to}
-          jobId={job.id}
-          label={a.label}
-          to={a.to}
-          variant={i === 0 ? "primary" : "ghost"}
-        />
-      ))}
+      {STATUS_ACTIONS[job.status].map((a, i) =>
+        a.to === "open" ? (
+          <PublishConfirmButton
+            key={a.to}
+            jobId={job.id}
+            jobTitle={job.title}
+            variant={i === 0 ? "primary" : "ghost"}
+          />
+        ) : (
+          <StatusButton
+            key={a.to}
+            jobId={job.id}
+            label={a.label}
+            to={a.to}
+            variant={i === 0 ? "primary" : "ghost"}
+          />
+        ),
+      )}
     </div>
   );
 }
