@@ -1,4 +1,6 @@
 import { ok, err, type Result } from "@/lib/result";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 /**
  * Caso de uso: sincronizar el hilo de email de un candidato puntual con Gmail (§8 backlog).
@@ -9,7 +11,7 @@ import { ok, err, type Result } from "@/lib/result";
 
 export type SincronizarGmailContext = {
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type GmailSyncedMessageInput = {
@@ -36,7 +38,7 @@ export async function sincronizarGmail(
   ctx: SincronizarGmailContext,
   deps: SincronizarGmailDeps,
 ): Promise<Result<{ synced: number }>> {
-  if (ctx.role === "consultant") {
+  if (!can(ctx.role, "messaging.send")) {
     return err("Los consultores no pueden sincronizar mensajes.");
   }
 

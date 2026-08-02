@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getCandidateById } from "@/features/recruiter/candidates/data/candidates.queries";
+import { getCandidateResume } from "@/features/recruiter/candidates/data/resume.queries";
 import { CandidateForm } from "@/features/recruiter/candidates/ui/CandidateForm";
 import { editarCandidatoAction } from "@/features/recruiter/candidates/actions";
 import { normalizeIfUncapitalized } from "@/lib/text";
@@ -13,15 +14,18 @@ export default async function EditCandidatePage({
 }) {
   const { id } = await params;
   const membership = await getActiveMembership();
-  const candidate = membership
-    ? await getCandidateById(id, membership.organizationId)
-    : null;
+  if (!membership) notFound();
+
+  const [candidate, resume] = await Promise.all([
+    getCandidateById(id, membership.organizationId),
+    getCandidateResume(id),
+  ]);
   if (!candidate) notFound();
 
   const fullName = normalizeIfUncapitalized(candidate.fullName);
 
   return (
-    <div className="flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto w-full max-w-6xl flex flex-col gap-6">
       <div>
         <nav aria-label="Migas de pan" className="mb-3 flex items-center gap-1.5 text-sm text-muted">
           <Link href="/candidates" className="hover:text-text">
@@ -54,6 +58,7 @@ export default async function EditCandidatePage({
           summary: candidate.summary,
           skills: candidate.skills,
           source: candidate.source,
+          initialResume: resume,
         }}
       />
     </div>

@@ -34,6 +34,14 @@ export interface DashboardKpis {
   postulacionesActivas: number;
   postulacionesTotales: number;
   contrataciones: number;
+  /** En bandeja, sin decisión tomada — org-wide. */
+  pendienteRevision: number;
+  /** Activas y ya evaluadas al menos una vez (postulacionesActivas menos las pendientes). */
+  enPipeline: number;
+  /** Contrataciones del mes calendario en curso. */
+  contratacionesMes: number;
+  /** Miembros activos del workspace (para el checklist de setup del día 1). */
+  activeMembersCount: number;
   /** Conteo de postulaciones por etapa, en orden, para el funnel de conversión. */
   funnel: { stage: Stage; count: number }[];
 }
@@ -47,6 +55,9 @@ export interface DashboardCounts {
   jobs: { total: number; open: number };
   candidates: number;
   byStage: Partial<Record<Stage, number>>;
+  pendingCount: number;
+  hiredThisMonth: number;
+  activeMembersCount: number;
 }
 
 export interface ObtenerKpisDeps {
@@ -65,6 +76,9 @@ export async function obtenerKpis(
     jobs,
     candidates: candidatosEnPool,
     byStage,
+    pendingCount,
+    hiredThisMonth,
+    activeMembersCount,
   } = await deps.getCounts(ctx.organizationId);
 
   const totalPostulaciones = Object.values(byStage).reduce(
@@ -75,14 +89,19 @@ export async function obtenerKpis(
     (acc, stage) => acc + (byStage[stage] ?? 0),
     0,
   );
+  const postulacionesActivas = totalPostulaciones - cerradas;
 
   return ok({
     busquedasAbiertas: jobs.open,
     busquedasTotales: jobs.total,
     candidatosEnPool,
-    postulacionesActivas: totalPostulaciones - cerradas,
+    postulacionesActivas,
     postulacionesTotales: totalPostulaciones,
     contrataciones: byStage.hired ?? 0,
+    pendienteRevision: pendingCount,
+    enPipeline: Math.max(0, postulacionesActivas - pendingCount),
+    contratacionesMes: hiredThisMonth,
+    activeMembersCount,
     funnel: FUNNEL_ORDER.map((stage) => ({ stage, count: byStage[stage] ?? 0 })),
   });
 }

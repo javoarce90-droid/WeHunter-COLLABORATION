@@ -18,6 +18,10 @@ import {
   eliminarCertificacion,
 } from "@/features/candidate/profile/domain/gestionar-certificacion";
 import {
+  agregarIdioma,
+  eliminarIdioma,
+} from "@/features/candidate/profile/domain/gestionar-idioma";
+import {
   insertExperience,
   updateExperience,
   deleteExperience,
@@ -26,6 +30,8 @@ import {
   deleteEducation,
   insertCertification,
   deleteCertification,
+  insertLanguage,
+  deleteLanguage,
 } from "@/features/candidate/profile/data/resume.mutations";
 import { getCandidateById } from "./data/candidates.queries";
 
@@ -240,6 +246,47 @@ export async function eliminarCertificacionRecruiterAction(
 
   const result = await eliminarCertificacion(String(formData.get("id") ?? ""), owner, {
     deleteCertification,
+  });
+  if (!result.ok) return { error: result.error };
+
+  revalidateCandidate(candidateId);
+  return {};
+}
+
+// ---- Idiomas ----
+
+export async function agregarIdiomaRecruiterAction(
+  _prev: ResumeActionState,
+  formData: FormData,
+): Promise<ResumeActionState> {
+  const candidateId = String(formData.get("candidateId") ?? "");
+  const owner = await candidateOwner(candidateId);
+  if (!owner) return { error: "No autorizado." };
+
+  const result = await agregarIdioma(
+    {
+      language: String(formData.get("language") ?? ""),
+      level: String(formData.get("level") ?? ""),
+    },
+    owner,
+    { insertLanguage },
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidateCandidate(candidateId);
+  return {};
+}
+
+export async function eliminarIdiomaRecruiterAction(
+  _prev: ResumeActionState,
+  formData: FormData,
+): Promise<ResumeActionState> {
+  const candidateId = String(formData.get("candidateId") ?? "");
+  const owner = await candidateOwner(candidateId);
+  if (!owner) return { error: "No autorizado." };
+
+  const result = await eliminarIdioma(String(formData.get("id") ?? ""), owner, {
+    deleteLanguage,
   });
   if (!result.ok) return { error: result.error };
 

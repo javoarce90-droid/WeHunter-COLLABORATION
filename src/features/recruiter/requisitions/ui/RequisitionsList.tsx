@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SENIORITY_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
@@ -12,7 +13,13 @@ const dateFormatter = new Intl.DateTimeFormat("es-AR", {
   year: "numeric",
 });
 
-export function RequisitionsList({ requisitions }: { requisitions: RequisitionListRow[] }) {
+export function RequisitionsList({
+  requisitions,
+  canReview,
+}: {
+  requisitions: RequisitionListRow[];
+  canReview: boolean;
+}) {
   if (requisitions.length === 0) {
     return (
       <EmptyState
@@ -24,41 +31,90 @@ export function RequisitionsList({ requisitions }: { requisitions: RequisitionLi
   }
 
   return (
-    <ul className="divide-y divide-border rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
-      {requisitions.map((r) => {
-        const status = REQUISITION_STATUS_META[r.status];
-        const subtitle = [
-          r.clientName,
-          r.position,
-          r.seniority ? SENIORITY_LABELS[r.seniority as JobSeniority] : null,
-          r.location,
-          REQUISITION_REASON_LABELS[r.reason],
-        ]
-          .filter(Boolean)
-          .join(" · ");
+    <div className="overflow-x-auto rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left">
+            <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-label">
+              Solicitud
+            </th>
+            <th className="hidden px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label sm:table-cell">
+              Cliente
+            </th>
+            <th className="hidden px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label md:table-cell">
+              Motivo
+            </th>
+            <th className="hidden px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label lg:table-cell">
+              Presupuesto
+            </th>
+            <th className="hidden px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label lg:table-cell">
+              Inicio
+            </th>
+            <th className="px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label">
+              Estado
+            </th>
+            <th className="px-4 py-2.5" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {requisitions.map((r) => {
+            const status = REQUISITION_STATUS_META[r.status];
+            const subtitle = [
+              r.seniority ? SENIORITY_LABELS[r.seniority as JobSeniority] : null,
+              r.location,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            const canReviewThis = canReview && r.status === "pending";
 
-        return (
-          <li key={r.id}>
-            <Link
-              href={`/requisitions/${r.id}`}
-              className="group flex items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-bg"
-            >
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-text transition-colors group-hover:text-primary">
-                  {r.title}
-                </p>
-                <p className="truncate text-sm text-muted">{subtitle}</p>
-              </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <span className="hidden text-xs text-muted sm:inline">
-                  {dateFormatter.format(r.createdAt)}
-                </span>
-                <Badge variant={status.variant}>{status.label}</Badge>
-              </div>
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
+            return (
+              <tr key={r.id} className="transition-colors hover:bg-bg">
+                <td className="px-4 py-3">
+                  <Link href={`/requisitions/${r.id}`} className="group block min-w-0">
+                    <p className="truncate font-semibold text-text transition-colors group-hover:text-primary">
+                      {r.title}
+                    </p>
+                    {subtitle && <p className="truncate text-xs text-muted">{subtitle}</p>}
+                  </Link>
+                </td>
+                <td className="hidden px-3 py-3 sm:table-cell">
+                  {r.clientName ? (
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Avatar name={r.clientName} size="sm" />
+                      <span className="truncate text-text">{r.clientName}</span>
+                    </div>
+                  ) : (
+                    <span className="text-muted">—</span>
+                  )}
+                </td>
+                <td className="hidden px-3 py-3 text-muted md:table-cell">
+                  {REQUISITION_REASON_LABELS[r.reason]}
+                </td>
+                <td className="hidden px-3 py-3 tabular-nums text-muted lg:table-cell">
+                  {r.budget || "—"}
+                </td>
+                <td className="hidden px-3 py-3 text-muted lg:table-cell">
+                  {r.estimatedStartDate ? dateFormatter.format(new Date(r.estimatedStartDate)) : "—"}
+                </td>
+                <td className="px-3 py-3">
+                  <Badge variant={status.variant}>{status.label}</Badge>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Link
+                    href={`/requisitions/${r.id}`}
+                    className={[
+                      "text-xs font-semibold",
+                      canReviewThis ? "text-primary hover:text-primary-hover" : "text-muted",
+                    ].join(" ")}
+                  >
+                    {canReviewThis ? "Revisar →" : "›"}
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

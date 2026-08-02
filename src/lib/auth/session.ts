@@ -1,10 +1,14 @@
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getAuth, getDb } from "@/db/client";
-import { accountType, memberships, orgRole, profiles } from "@/db/schema";
+import { accountType, memberships, orgRole, organizations, profiles } from "@/db/schema";
 
 export type OrgRole = (typeof orgRole.enumValues)[number];
 export type AccountType = (typeof accountType.enumValues)[number];
+
+/** Cuál de las memberships del usuario está viendo. Ver `getActiveMembership`. */
+export const ACTIVE_ORG_COOKIE = "wh.active_org";
 
 /**
  * Helpers de sesión y tenancy. Son la base de la autorización: cada caso de uso del
@@ -13,9 +17,14 @@ export type AccountType = (typeof accountType.enumValues)[number];
  */
 
 export interface ActiveMembership {
+  id: string;
   organizationId: string;
+  /** Nombre/slug de la org — vienen del mismo join, gratis: los usa el selector de workspace. */
+  organizationName: string;
+  organizationSlug: string;
   role: OrgRole;
-  onboardingDismissedAt: Date | null;
+  /** Cliente al que este recruiter está atado en exclusiva. null = sin asignación. */
+  assignedClientId: string | null;
 }
 
 /**
@@ -29,38 +38,56 @@ export async function getCurrentUser() {
 }
 
 /**
- * Membership "activa" del usuario actual: con qué organization y rol opera.
- * Por ahora devolvemos la primera (una persona puede pertenecer a varias orgs; el
- * selector de org activa es una mejora futura). Devuelve null si el usuario no tiene
- * ninguna membership todavía → hay que onboardear (crear organization).
+ * TODAS las memberships del usuario actual (una persona puede pertenecer a varias orgs —
+ * invitada a más de un workspace), con nombre/slug de cada organización vía join. Única query
+ * de la que salen tanto `getActiveMembership()` como el selector de workspace: cache() por
+ * request evita pagar dos transacciones por lo mismo si ambos la piden en el mismo render.
  *
- * Usa el cliente RLS: Postgres solo devuelve las memberships del propio usuario.
+ * Usa el cliente RLS: Postgres solo devuelve las memberships del propio usuario (política
+ * `is_org_member` en `organizations`, no recursiva en `memberships`).
+ */
+export const getMyMemberships = cache(async (): Promise<ActiveMembership[]> => {
+  const db = await getDb();
+  if (!db.userId) return [];
+
+  return db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: memberships.id,
+          organizationId: memberships.organizationId,
+          organizationName: organizations.name,
+          organizationSlug: organizations.slug,
+          role: memberships.role,
+          assignedClientId: memberships.assignedClientId,
+        })
+        .from(memberships)
+        .innerJoin(organizations, eq(memberships.organizationId, organizations.id))
+        .where(eq(memberships.profileId, db.userId!))
+        .orderBy(memberships.createdAt),
+    "db.membership",
+  );
+});
+
+/**
+ * Membership "activa" del usuario actual: con qué organization y rol opera. Si tiene varias
+ * (ver `getMyMemberships`), la elección se persiste en la cookie `wh.active_org` (la setea el
+ * selector de workspace, `workspace-switcher/actions.ts`). Sin cookie, o si la cookie no
+ * corresponde a ninguna membership real de este usuario (org ajena, o a la que perdió acceso),
+ * cae a la más vieja por `createdAt` — nunca se confía en la cookie a ciegas, se valida contra
+ * lo que Postgres devolvió para ESTE usuario. Devuelve null si el usuario no tiene ninguna
+ * membership todavía → hay que onboardear (crear organization).
  *
- * cache() por request: el layout y la page la piden por separado, pero la query a la
- * base corre UNA sola vez. Si ves "db.membership" dos veces en la terminal, algo rompió
- * la dedup.
+ * cache() por request: el layout y la page la piden por separado, pero la query a la base
+ * corre UNA sola vez. Si ves "db.membership" dos veces en la terminal, algo rompió la dedup.
  */
 export const getActiveMembership = cache(
   async (): Promise<ActiveMembership | null> => {
-    const db = await getDb();
-    if (!db.userId) return null;
+    const rows = await getMyMemberships();
+    if (rows.length === 0) return null;
 
-    const rows = await db.rls(
-      (tx) =>
-        tx
-          .select({
-            organizationId: memberships.organizationId,
-            role: memberships.role,
-            onboardingDismissedAt: memberships.onboardingDismissedAt,
-          })
-          .from(memberships)
-          .where(eq(memberships.profileId, db.userId!))
-          .orderBy(memberships.createdAt)
-          .limit(1),
-      "db.membership",
-    );
-
-    return rows[0] ?? null;
+    const activeOrgId = (await cookies()).get(ACTIVE_ORG_COOKIE)?.value;
+    return rows.find((m) => m.organizationId === activeOrgId) ?? rows[0];
   },
 );
 

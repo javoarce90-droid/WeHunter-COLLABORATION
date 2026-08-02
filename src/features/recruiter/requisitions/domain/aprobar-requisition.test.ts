@@ -12,6 +12,7 @@ const ctx: AprobarRequisitionCtx = {
   userId: "user-1",
   organizationId: "org-1",
   role: "recruiter",
+  membershipId: "membership-1",
 };
 
 const input = { requisitionId: "req-1" };
@@ -27,6 +28,7 @@ describe("aprobarRequisition", () => {
       requisitionId: "req-1",
       organizationId: "org-1",
       reviewedBy: "user-1",
+      assignedTo: "membership-1",
       reviewNote: null,
     });
   });
@@ -71,6 +73,13 @@ describe("aprobarRequisition", () => {
   it("rechaza sin sesión activa", async () => {
     const deps = makeDeps();
     const result = await aprobarRequisition(input, { ...ctx, userId: null }, deps);
+    expect(result.ok).toBe(false);
+    expect(deps.approveAndCreateJob).not.toHaveBeenCalled();
+  });
+
+  it("rechaza sin membership (sin org activa)", async () => {
+    const deps = makeDeps();
+    const result = await aprobarRequisition(input, { ...ctx, membershipId: null }, deps);
     expect(result.ok).toBe(false);
     expect(deps.approveAndCreateJob).not.toHaveBeenCalled();
   });

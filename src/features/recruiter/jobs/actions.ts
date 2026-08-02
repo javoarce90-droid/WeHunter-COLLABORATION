@@ -9,8 +9,18 @@ import { crearBusqueda } from "./domain/crear-busqueda";
 import { editarBusqueda } from "./domain/editar-busqueda";
 import { cambiarEstadoBusqueda } from "./domain/cambiar-estado-busqueda";
 import { duplicarBusqueda } from "./domain/duplicar-busqueda";
-import { insertJob, updateJobFields, updateJobStatus } from "./data/jobs.mutations";
+import { registrarCompartidaBusqueda } from "./domain/registrar-compartida-busqueda";
+import { reasignarResponsable, actualizarSourcer } from "./domain/gestionar-responsables";
+import {
+  insertJob,
+  updateJobFields,
+  updateJobStatus,
+  incrementShareCount,
+  updateJobAssignedTo,
+  updateJobSourcer,
+} from "./data/jobs.mutations";
 import { getJobById, getJobStatus } from "./data/jobs.queries";
+import { getMembershipById } from "@/features/recruiter/team/data/team.queries";
 import { getAiProvider } from "@/lib/ai";
 import { definirPreguntasScreening } from "@/features/recruiter/screening/domain/definir-preguntas-screening";
 import { syncScreeningQuestions } from "@/features/recruiter/screening/data/screening.mutations";
@@ -112,6 +122,8 @@ export async function crearBusquedaAction(
       userId: user?.id ?? null,
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
+      membershipId: membership?.id ?? null,
+      assignedClientId: membership?.assignedClientId ?? null,
     },
     { insertJob },
   );
@@ -121,7 +133,7 @@ export async function crearBusquedaAction(
 
   // Paso siguiente: sumar preguntas de screening (opcional) y de ahí al aviso. El screening ya no
   // viaja en el form de creación — se define en su propio paso visual, igual para manual e IA.
-  redirect(`/jobs/${result.data.jobId}/screening`);
+  redirect(`/jobs/${result.data.jobId}/screening?created=1`);
 }
 
 /**
@@ -175,6 +187,8 @@ export async function crearBusquedaConIaAction(input: {
       userId: user?.id ?? null,
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
+      membershipId: membership?.id ?? null,
+      assignedClientId: membership?.assignedClientId ?? null,
     },
     { insertJob },
   );
@@ -183,7 +197,7 @@ export async function crearBusquedaConIaAction(input: {
   }
 
   // Igual que el manual: paso de screening antes del aviso (así el creado por IA también lo tiene).
-  redirect(`/jobs/${result.data.jobId}/screening`);
+  redirect(`/jobs/${result.data.jobId}/screening?created=1`);
 }
 
 export async function editarBusquedaAction(
@@ -219,7 +233,7 @@ export async function editarBusquedaAction(
     );
   }
 
-  redirect("/jobs");
+  redirect("/jobs?updated=1");
 }
 
 /** Botones de estado (publicar/pausar/cerrar). Revalida la lista y la búsqueda al terminar. */
@@ -246,6 +260,26 @@ export async function cambiarEstadoBusquedaAction(
   revalidatePath(`/jobs/${jobId}`, "layout");
 }
 
+/** Registra que se copió el link público de una búsqueda. Revalida solo la lista: es el
+ *  único lugar que muestra el contador. */
+export async function registrarCompartidaBusquedaAction(formData: FormData): Promise<void> {
+  const jobId = String(formData.get("jobId") ?? "");
+  if (!jobId) return;
+
+  const membership = await getActiveMembership();
+  const result = await registrarCompartidaBusqueda(
+    { jobId },
+    {
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+    },
+    { incrementShareCount },
+  );
+  if (!result.ok) return;
+
+  revalidatePath("/jobs");
+}
+
 /** Duplica una búsqueda: copia borrador de sus campos, sin candidatos ni pipeline. */
 export async function duplicarBusquedaAction(formData: FormData): Promise<void> {
   const jobId = String(formData.get("jobId") ?? "");
@@ -262,10 +296,53 @@ export async function duplicarBusquedaAction(formData: FormData): Promise<void> 
       userId: user?.id ?? null,
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
+      membershipId: membership?.id ?? null,
     },
     { getJobById, insertJob },
   );
   if (!result.ok) return;
 
   redirect(`/jobs/${result.data.jobId}/edit`);
+}
+
+/** Cambia el responsable único de la búsqueda, desde el header del detalle. */
+export async function reasignarResponsableAction(
+  jobId: string,
+  membershipId: string,
+): Promise<JobFormState> {
+  if (!jobId || !membershipId) return { error: "Datos inválidos." };
+
+  const membership = await getActiveMembership();
+  if (!membership) return { error: "No autorizado." };
+
+  const result = await reasignarResponsable(
+    { jobId, membershipId },
+    { organizationId: membership.organizationId, role: membership.role },
+    { getMembership: getMembershipById, updateAssignedTo: updateJobAssignedTo },
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/jobs/${jobId}`, "layout");
+  return {};
+}
+
+/** Asigna (o saca, con `membershipId: null`) el Sourcer opcional de la búsqueda. */
+export async function actualizarSourcerAction(
+  jobId: string,
+  membershipId: string | null,
+): Promise<JobFormState> {
+  if (!jobId) return { error: "Datos inválidos." };
+
+  const membership = await getActiveMembership();
+  if (!membership) return { error: "No autorizado." };
+
+  const result = await actualizarSourcer(
+    { jobId, membershipId },
+    { organizationId: membership.organizationId, role: membership.role },
+    { getMembership: getMembershipById, updateSourcer: updateJobSourcer },
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/jobs/${jobId}`, "layout");
+  return {};
 }

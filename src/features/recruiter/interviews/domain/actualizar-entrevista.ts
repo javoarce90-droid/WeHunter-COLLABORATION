@@ -1,5 +1,7 @@
 import type { InterviewMode, InterviewStatus, InterviewType } from "../schema";
 import type { InterviewRow } from "./agendar-entrevista";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 // ---- Tipos del caso de uso ----
 
@@ -17,7 +19,7 @@ export type ActualizarEntrevistaInput = {
 export type ActualizarEntrevistaContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type ActualizarEntrevistaDeps = {
@@ -48,8 +50,8 @@ export async function actualizarEntrevista(
   ctx: ActualizarEntrevistaContext,
   deps: ActualizarEntrevistaDeps,
 ): Promise<{ ok: true; data: InterviewRow } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden editar entrevistas." };
+  if (!can(ctx.role, "interviews.manage")) {
+    return { ok: false, error: "Tu rol no permite gestionar entrevistas." };
   }
 
   const interview = await deps.getInterviewById(input.interviewId, ctx.organizationId);

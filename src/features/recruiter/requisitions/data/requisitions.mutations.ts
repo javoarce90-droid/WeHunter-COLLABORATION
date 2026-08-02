@@ -16,6 +16,7 @@ export async function approveAndCreateJob(args: {
   requisitionId: string;
   organizationId: string;
   reviewedBy: string;
+  assignedTo: string;
   reviewNote: string | null;
 }): Promise<{ jobId: string }> {
   const db = await getDb();
@@ -53,6 +54,7 @@ export async function approveAndCreateJob(args: {
         responsibilities: req.responsibilities,
         benefits: req.benefits,
         createdBy: args.reviewedBy,
+        assignedTo: args.assignedTo,
       })
       .returning({ id: jobs.id });
 

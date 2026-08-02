@@ -12,8 +12,10 @@ import { crearCliente } from "./domain/crear-cliente";
 import { editarCliente } from "./domain/editar-cliente";
 import { generarClientShare } from "./domain/generar-client-share";
 import { revocarClientShare } from "./domain/revocar-client-share";
-import { insertClient, updateClientFields } from "./data/clients.mutations";
+import { asignarRecruiterACliente } from "./domain/asignar-recruiter-a-cliente";
+import { insertClient, updateClientFields, assignRecruiterToClient } from "./data/clients.mutations";
 import { getClientById } from "./data/clients.queries";
+import { getMembershipById } from "@/features/recruiter/team/data/team.queries";
 import {
   createClientShare,
   generateClientShareToken,
@@ -145,5 +147,32 @@ export async function revocarClientShareAction(
 
   const clientId = String(formData.get("clientId") ?? "");
   if (clientId) revalidatePath(`/clients/${clientId}`);
+  return {};
+}
+
+export interface AsignarRecruiterState {
+  error?: string;
+}
+
+export async function asignarRecruiterAClienteAction(
+  _prev: AsignarRecruiterState,
+  formData: FormData,
+): Promise<AsignarRecruiterState> {
+  const clientId = String(formData.get("clientId") ?? "");
+  const membershipIdRaw = String(formData.get("membershipId") ?? "");
+  if (!clientId) return { error: "Falta el cliente." };
+
+  const membership = await getActiveMembership();
+  const result = await asignarRecruiterACliente(
+    { clientId, membershipId: membershipIdRaw || null },
+    {
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+    },
+    { getClientById, getMembershipById, assignRecruiterToClient },
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/clients/${clientId}`);
   return {};
 }

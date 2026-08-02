@@ -1,6 +1,6 @@
 "use client";
 
-import { ToggleLeft, Type, Hash, ListChecks, Plus, X } from "lucide-react";
+import { ToggleLeft, Type, Hash, ListChecks, Plus, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -46,16 +46,44 @@ export function ScreeningBuilder({
   function remove(i: number) {
     onChange(questions.filter((_, idx) => idx !== i));
   }
+  function move(i: number, direction: -1 | 1) {
+    const target = i + direction;
+    if (target < 0 || target >= questions.length) return;
+    const next = [...questions];
+    [next[i], next[target]] = [next[target], next[i]];
+    onChange(next);
+  }
   function changeType(i: number, type: ScreeningQuestionType) {
-    update(i, { type, options: type === "multiple_choice" ? ["", ""] : undefined });
+    update(i, {
+      type,
+      options: type === "multiple_choice" ? ["", ""] : undefined,
+      isCriterion: false,
+      expectedValues: undefined,
+      minValue: null,
+      maxValue: null,
+    });
+  }
+
+  function toggleCriterion(i: number, isCriterion: boolean) {
+    const q = questions[i];
+    update(i, {
+      isCriterion,
+      expectedValues: isCriterion && q.type === "yes_no" ? ["Sí"] : undefined,
+      minValue: null,
+      maxValue: null,
+    });
   }
   function updateOption(qi: number, oi: number, value: string) {
     onChange(
-      questions.map((q, idx) =>
-        idx === qi
-          ? { ...q, options: (q.options ?? []).map((o, i) => (i === oi ? value : o)) }
-          : q,
-      ),
+      questions.map((q, idx) => {
+        if (idx !== qi) return q;
+        const previo = (q.options ?? [])[oi];
+        return {
+          ...q,
+          options: (q.options ?? []).map((o, i) => (i === oi ? value : o)),
+          expectedValues: q.expectedValues?.map((e) => (e === previo ? value : e)),
+        };
+      }),
     );
   }
   function addOption(qi: number) {
@@ -68,11 +96,15 @@ export function ScreeningBuilder({
   // Mínimo 2 opciones para que una pregunta de opción múltiple tenga sentido.
   function removeOption(qi: number, oi: number) {
     onChange(
-      questions.map((q, idx) =>
-        idx === qi && (q.options?.length ?? 0) > 2
-          ? { ...q, options: (q.options ?? []).filter((_, i) => i !== oi) }
-          : q,
-      ),
+      questions.map((q, idx) => {
+        if (idx !== qi || (q.options?.length ?? 0) <= 2) return q;
+        const borrada = (q.options ?? [])[oi];
+        return {
+          ...q,
+          options: (q.options ?? []).filter((_, i) => i !== oi),
+          expectedValues: q.expectedValues?.filter((e) => e !== borrada),
+        };
+      }),
     );
   }
 
@@ -98,6 +130,26 @@ export function ScreeningBuilder({
             <span className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-light text-xs font-bold text-primary-hover tabular-nums">
               {i + 1}
             </span>
+            <div className="mt-1.5 flex shrink-0 flex-col gap-0.5">
+              <IconButton
+                aria-label={`Subir pregunta ${i + 1}`}
+                variant="surface"
+                size="sm"
+                disabled={i === 0}
+                onClick={() => move(i, -1)}
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </IconButton>
+              <IconButton
+                aria-label={`Bajar pregunta ${i + 1}`}
+                variant="surface"
+                size="sm"
+                disabled={i === questions.length - 1}
+                onClick={() => move(i, 1)}
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </IconButton>
+            </div>
             <div className="flex-1">
               <Input
                 aria-label={`Pregunta ${i + 1}`}
@@ -181,8 +233,8 @@ export function ScreeningBuilder({
             </div>
           )}
 
-          <div className="pl-9">
-            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-text">
+          <div className="flex flex-col gap-2 pl-9">
+            <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-sm text-text">
               <Checkbox
                 checked={q.required}
                 onChange={(e) => update(i, { required: e.target.checked })}
@@ -190,6 +242,23 @@ export function ScreeningBuilder({
               Obligatoria
               <span className="text-xs text-muted">— no puede postularse sin responderla</span>
             </label>
+
+            {q.type !== "text" && (
+              <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-sm text-text">
+                <Checkbox
+                  checked={q.isCriterion ?? false}
+                  onChange={(e) => toggleCriterion(i, e.target.checked)}
+                />
+                Criterio de preselección
+                <span className="text-xs text-muted">
+                  — cuenta para el indicador &quot;N/M cumplidos&quot;
+                </span>
+              </label>
+            )}
+
+            {q.isCriterion && q.type !== "text" && (
+              <CriterionEditor question={q} index={i} onChange={(patch) => update(i, patch)} />
+            )}
           </div>
         </div>
       ))}
@@ -203,6 +272,101 @@ export function ScreeningBuilder({
         <p className="text-center text-xs text-muted">
           Llegaste al máximo de {MAX_QUESTIONS} preguntas.
         </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Editor de la respuesta esperada de un criterio. La forma depende del tipo de pregunta:
+ * elegir entre Sí/No, tildar qué opciones valen, o fijar un rango numérico.
+ */
+function CriterionEditor({
+  question,
+  index,
+  onChange,
+}: {
+  question: ScreeningQuestionInput;
+  index: number;
+  onChange: (patch: Partial<ScreeningQuestionInput>) => void;
+}) {
+  const esperadas = question.expectedValues ?? [];
+
+  function toggleEsperada(value: string, checked: boolean) {
+    onChange({
+      expectedValues: checked
+        ? [...esperadas, value]
+        : esperadas.filter((v) => v !== value),
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-[var(--radius)] border border-dashed border-border bg-surface p-3">
+      <span className="text-xs font-semibold text-label">Se cumple cuando la respuesta es</span>
+
+      {question.type === "yes_no" && (
+        <div className="flex gap-4">
+          {["Sí", "No"].map((opt) => (
+            <label key={opt} className="flex items-center gap-1.5 text-sm text-text">
+              <input
+                type="radio"
+                name={`criterio-${index}`}
+                checked={esperadas[0] === opt}
+                onChange={() => onChange({ expectedValues: [opt] })}
+              />
+              {opt}
+            </label>
+          ))}
+        </div>
+      )}
+
+      {question.type === "multiple_choice" && (
+        <div className="flex flex-col gap-1.5">
+          {(question.options ?? []).filter(Boolean).length === 0 ? (
+            <p className="text-xs text-muted">Cargá primero las opciones de la pregunta.</p>
+          ) : (
+            (question.options ?? [])
+              .filter(Boolean)
+              .map((opt) => (
+                <label key={opt} className="flex items-center gap-2 text-sm text-text">
+                  <Checkbox
+                    checked={esperadas.includes(opt)}
+                    onChange={(e) => toggleEsperada(opt, e.target.checked)}
+                  />
+                  {opt}
+                </label>
+              ))
+          )}
+          <span className="text-xs text-muted">
+            Cualquiera de las opciones tildadas cumple el criterio.
+          </span>
+        </div>
+      )}
+
+      {question.type === "number" && (
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="w-28">
+            <Input
+              type="number"
+              label="Mínimo"
+              value={question.minValue ?? ""}
+              onChange={(e) =>
+                onChange({ minValue: e.target.value === "" ? null : Number(e.target.value) })
+              }
+            />
+          </div>
+          <div className="w-28">
+            <Input
+              type="number"
+              label="Máximo"
+              value={question.maxValue ?? ""}
+              onChange={(e) =>
+                onChange({ maxValue: e.target.value === "" ? null : Number(e.target.value) })
+              }
+            />
+          </div>
+          <span className="pb-2 text-xs text-muted">Con uno de los dos alcanza.</span>
+        </div>
       )}
     </div>
   );

@@ -14,10 +14,13 @@ import {
   eliminarEducacionRecruiterAction,
   agregarCertificacionRecruiterAction,
   eliminarCertificacionRecruiterAction,
+  agregarIdiomaRecruiterAction,
+  eliminarIdiomaRecruiterAction,
 } from "@/features/recruiter/candidates/resume-actions";
 import { ExperienceSection } from "@/features/candidate/profile/ui/ExperienceSection";
 import { EducationSection } from "@/features/candidate/profile/ui/EducationSection";
 import { CertificationsSection } from "@/features/candidate/profile/ui/CertificationsSection";
+import { LanguagesSection } from "@/features/candidate/profile/ui/LanguagesSection";
 import { Badge } from "@/components/ui/badge";
 import { AiScore } from "@/components/ui/ai";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -242,6 +245,14 @@ export default async function CandidateDetailPage({
         actions={{
           agregar: agregarCertificacionRecruiterAction,
           eliminar: eliminarCertificacionRecruiterAction,
+        }}
+        hiddenFields={resumeHiddenFields}
+      />
+      <LanguagesSection
+        languages={resume.languages}
+        actions={{
+          agregar: agregarIdiomaRecruiterAction,
+          eliminar: eliminarIdiomaRecruiterAction,
         }}
         hiddenFields={resumeHiddenFields}
       />

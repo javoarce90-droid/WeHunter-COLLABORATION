@@ -1,14 +1,19 @@
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { PICK_ACCOUNT_COOKIE, PICK_ACCOUNT_PATH } from "@/lib/auth/pick-account";
 
 /**
  * Callback de auth compartido. Dos flujos que canjean un `code` por sesión (deja cookies):
  *  - Reset de contraseña (PKCE): viene con `next` (/reset-password | /c/reset-password), sin realm.
- *  - Login social OAuth: viene con `realm` (recruiter | candidate). Al usuario NUEVO del reino
- *    recruiter le fijamos account_type='recruiter' (el default de handle_new_user es 'candidate',
- *    porque OAuth no manda el metadata del signUp). Los layouts rutean por account_type, así que
- *    si ese update falla lo mandamos al login, no al reino equivocado.
+ *  - Login social OAuth: viene con `realm` (recruiter | candidate).
+ *
+ * En OAuth no existe la distinción entre "iniciar sesión" y "registrarse": si la cuenta no
+ * existe, se crea. Por eso el `realm` (o sea, desde qué pantalla se hizo clic) NO decide el
+ * tipo de cuenta: un candidato que entra por el botón de la landing del reclutador quedaría
+ * registrado como reclutador sin que nada se lo pregunte. Al usuario nuevo lo mandamos a
+ * elegir explícitamente; el que ya existía entra a donde le corresponde POR SU CUENTA, no por
+ * la pantalla desde la que entró.
  *
  * Ruta pública: no está en los prefijos protegidos de route-realms, el proxy la deja pasar.
  */
@@ -66,19 +71,27 @@ export async function GET(request: Request) {
   }
 
   if (realm) {
-    // Reino recruiter: el usuario nuevo hay que marcarlo 'recruiter' (OAuth no manda el metadata
-    // del signUp, así que handle_new_user lo dejó 'candidate'). El guard de "usuario nuevo" evita
-    // pisar el tipo de un candidato ya existente que entre por el botón del reino recruiter.
-    if (realm === "recruiter" && data.user && isNewUser(data.user)) {
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ account_type: "recruiter" })
-        .eq("id", data.user.id);
-      if (updateError) {
-        return NextResponse.redirect(failUrl);
-      }
+    if (data.user && isNewUser(data.user)) {
+      // La cookie es la que habilita la pantalla de elección: sin ella no se puede entrar a
+      // cambiarse el tipo de cuenta más tarde. Efímera y httpOnly.
+      (await cookies()).set(PICK_ACCOUNT_COOKIE, realm, {
+        httpOnly: true,
+        secure: proto === "https",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 15,
+      });
+      return NextResponse.redirect(`${appUrl}${PICK_ACCOUNT_PATH}`);
     }
-    return NextResponse.redirect(`${appUrl}${REALM_HOME[realm]}`);
+
+    // Usuario existente: manda su tipo de cuenta real, no el reino de la pantalla usada.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("account_type")
+      .eq("id", data.user?.id ?? "")
+      .maybeSingle();
+    const home = profile?.account_type === "recruiter" ? REALM_HOME.recruiter : REALM_HOME.candidate;
+    return NextResponse.redirect(`${appUrl}${home}`);
   }
 
   return NextResponse.redirect(`${appUrl}${next}`);

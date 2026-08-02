@@ -32,7 +32,14 @@ export function Menu({ trigger, children, align = "end", className = "" }: MenuP
     const pop = popoverRef.current;
     if (!anchor || !pop) return;
     const r = anchor.getBoundingClientRect();
-    pop.style.top = `${Math.round(r.bottom + 4)}px`;
+    // Si no entra debajo del trigger (ej. un trigger pegado al fondo del viewport, como el
+    // pie del sidebar) pero sí arriba, se abre hacia arriba en vez de cortarse.
+    const fitsBelow = r.bottom + 4 + pop.offsetHeight <= window.innerHeight;
+    const fitsAbove = r.top - 4 - pop.offsetHeight >= 0;
+    const openUp = !fitsBelow && fitsAbove;
+    pop.style.top = openUp
+      ? `${Math.round(r.top - pop.offsetHeight - 4)}px`
+      : `${Math.round(r.bottom + 4)}px`;
     const left = align === "end" ? r.right - pop.offsetWidth : r.left;
     // Clamp al viewport para no desbordar a la derecha.
     const clamped = Math.max(8, Math.min(left, window.innerWidth - pop.offsetWidth - 8));

@@ -143,3 +143,13 @@ export const getCareerSiteJob = cache(
     return { organization, job: raw.job };
   },
 );
+
+/**
+ * Suma una visita al aviso público. Efecto secundario del render de la página, no una
+ * lectura: por eso NO va con `cache()`. La función de Postgres valida por su cuenta que el
+ * aviso esté abierto y pertenezca a un career site habilitado (migración 0059), así que
+ * pasarle un id cualquiera no incrementa nada.
+ */
+export async function recordCareerSiteJobView(slug: string, jobId: string): Promise<void> {
+  await admin.execute(sql`select record_career_site_job_view(${slug}, ${jobId}::uuid)`);
+}

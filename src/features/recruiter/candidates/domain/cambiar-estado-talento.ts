@@ -1,3 +1,5 @@
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 export const TALENT_STATES = ["active", "passive", "contacted", "archived"] as const;
 export type TalentState = (typeof TALENT_STATES)[number];
 
@@ -8,7 +10,7 @@ export type CambiarEstadoTalentoInput = {
 
 export type CambiarEstadoTalentoContext = {
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type CambiarEstadoTalentoDeps = {
@@ -28,8 +30,8 @@ export async function cambiarEstadoTalento(
   ctx: CambiarEstadoTalentoContext,
   deps: CambiarEstadoTalentoDeps,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden gestionar el pool." };
+  if (!can(ctx.role, "candidates.manage")) {
+    return { ok: false, error: "Tu rol no permite gestionar el pool." };
   }
 
   const candidate = await deps.getCandidate(input.candidateId, ctx.organizationId);

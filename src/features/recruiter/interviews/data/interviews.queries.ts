@@ -1,6 +1,6 @@
-import { and, eq, asc } from "drizzle-orm";
+import { and, eq, asc, count, gte, lt, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { interviews, applications, candidates, jobs } from "@/db/schema";
+import { interviews, applications, candidates, jobs, jobStages } from "@/db/schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
 import type { InterviewMode, InterviewStatus, InterviewType } from "../schema";
 
@@ -149,14 +149,11 @@ export async function listInterviewsByJob(
   return rows.map(toRow);
 }
 
-/** Entrevista con el contexto que necesita la agenda: candidato y búsqueda. */
-export type AgendaInterview = {
-  id: string;
-  scheduledAt: Date;
-  mode: InterviewMode;
-  type: InterviewType;
-  status: InterviewStatus;
-  location: string | null;
+/**
+ * Entrevista con el contexto que necesita la agenda: el resto de sus campos (participantes,
+ * notas, sync de Calendar) para poder editarla desde ahí sin un segundo fetch por click.
+ */
+export type AgendaInterview = InterviewRow & {
   jobId: string;
   jobTitle: string;
   candidateId: string;
@@ -174,12 +171,7 @@ export async function listAgendaInterviews(
   const rows = await db.rls((tx) =>
     tx
       .select({
-        id: interviews.id,
-        scheduledAt: interviews.scheduledAt,
-        mode: interviews.mode,
-        type: interviews.type,
-        status: interviews.status,
-        location: interviews.location,
+        ...columns,
         jobId: jobs.id,
         jobTitle: jobs.title,
         candidateId: candidates.id,
@@ -195,9 +187,121 @@ export async function listAgendaInterviews(
     "db.interviews.agenda",
   );
   return rows.map((r) => ({
-    ...r,
-    mode: r.mode as InterviewMode,
-    type: r.type as InterviewType,
-    status: r.status as InterviewStatus,
+    ...toRow(r),
+    jobId: r.jobId,
+    jobTitle: r.jobTitle,
+    candidateId: r.candidateId,
+    candidateName: r.candidateName,
   }));
+}
+
+/** Candidato agendable: ya está en el pipeline de esa búsqueda (mismo criterio que
+ *  `listApplicationsByJob`). Alimenta el selector Búsqueda→Candidato del modal de Agenda. */
+export type SchedulableApplication = {
+  applicationId: string;
+  jobId: string;
+  jobTitle: string;
+  candidateId: string;
+  candidateName: string;
+  stageName: string | null;
+};
+
+export async function listSchedulableApplications(
+  organizationId: string,
+): Promise<SchedulableApplication[]> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        applicationId: applications.id,
+        jobId: jobs.id,
+        jobTitle: jobs.title,
+        candidateId: candidates.id,
+        candidateName: candidates.fullName,
+        stageName: jobStages.name,
+      })
+      .from(applications)
+      .innerJoin(jobs, eq(applications.jobId, jobs.id))
+      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
+      .where(
+        and(
+          eq(applications.organizationId, organizationId),
+          isNotNull(applications.pipelineEnteredAt),
+        ),
+      )
+      .orderBy(asc(jobs.title), asc(candidates.fullName))
+      .limit(500),
+    "db.interviews.schedulable-applications",
+  );
+  return rows;
+}
+
+export type UpcomingInterview = {
+  id: string;
+  scheduledAt: Date;
+  type: InterviewType;
+  mode: InterviewMode;
+  jobTitle: string;
+  candidateName: string;
+};
+
+export type DashboardAgendaSummary = {
+  /** Las próximas entrevistas (futuras), para el widget del dashboard. */
+  next: UpcomingInterview[];
+  /** Cuántas caen hoy — para la tarjeta de acción rápida "Agenda de hoy". */
+  todayCount: number;
+};
+
+/** Resumen de agenda para el dashboard: una sola transacción para el mini-listado y el
+ *  contador de hoy (database.md regla #3). */
+export async function getDashboardAgendaSummary(
+  organizationId: string,
+): Promise<DashboardAgendaSummary> {
+  const db = await getDb();
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfTomorrow = new Date(startOfToday);
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+
+  return db.rls(async (tx) => {
+    const [nextRows, todayRows] = await Promise.all([
+      tx
+        .select({
+          id: interviews.id,
+          scheduledAt: interviews.scheduledAt,
+          type: interviews.type,
+          mode: interviews.mode,
+          jobTitle: jobs.title,
+          candidateName: candidates.fullName,
+        })
+        .from(interviews)
+        .innerJoin(applications, eq(interviews.applicationId, applications.id))
+        .innerJoin(jobs, eq(applications.jobId, jobs.id))
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .where(and(eq(interviews.organizationId, organizationId), gte(interviews.scheduledAt, now)))
+        .orderBy(asc(interviews.scheduledAt))
+        .limit(3),
+      tx
+        .select({ n: count() })
+        .from(interviews)
+        .where(
+          and(
+            eq(interviews.organizationId, organizationId),
+            gte(interviews.scheduledAt, startOfToday),
+            lt(interviews.scheduledAt, startOfTomorrow),
+          ),
+        ),
+    ]);
+
+    return {
+      next: nextRows.map((r) => ({
+        ...r,
+        type: r.type as InterviewType,
+        mode: r.mode as InterviewMode,
+      })),
+      todayCount: Number(todayRows[0]?.n ?? 0),
+    };
+  }, "db.interviews.dashboard-summary");
 }

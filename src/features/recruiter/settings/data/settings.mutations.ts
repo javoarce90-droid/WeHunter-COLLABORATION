@@ -71,3 +71,21 @@ export async function updateOrganization(organizationId: string, patch: OrgPatch
     throw err;
   }
 }
+
+/** Borra el workspace. RLS: org_owner_can_delete solo deja al owner de esa org. Cascada FK
+ *  sobre organization_id ya borra el resto de las tablas de dominio (memberships, jobs,
+ *  applications, clients, etc.) — no hace falta borrado manual tabla por tabla.
+ *
+ * Un DELETE que no matchea ninguna policy de RLS borra 0 filas SIN lanzar error — por eso se
+ * verifica `returning()`: si no vino nada, algo real está mal (política ausente/desalineada,
+ * o el organizationId ya no corresponde a este owner) y hay que enterarse, no fingir éxito. */
+export async function deleteOrganization(organizationId: string): Promise<void> {
+  const db = await getDb();
+  const deleted = await db.rls(
+    (tx) => tx.delete(organizations).where(eq(organizations.id, organizationId)).returning({ id: organizations.id }),
+    "db.settings.delete-organization",
+  );
+  if (deleted.length === 0) {
+    throw new Error("No se pudo eliminar el workspace: no se encontró o no hay permiso.");
+  }
+}

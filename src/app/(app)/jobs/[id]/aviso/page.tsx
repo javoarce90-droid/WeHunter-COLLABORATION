@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
-import { listApplicationsByJob } from "@/features/recruiter/applications/data/applications.queries";
+import { listCandidateIdsByJob } from "@/features/recruiter/applications/data/applications.queries";
 import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
 import { AgregarCandidatos } from "@/features/recruiter/applications/ui/AgregarCandidatos";
 import {
@@ -40,15 +40,15 @@ export default async function JobPostingPreviewPage({
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [job, applications, candidates] = await Promise.all([
+  const [job, candidateIdsEnLaBusqueda, candidates] = await Promise.all([
     getJobById(id, membership.organizationId),
-    listApplicationsByJob(id, membership.organizationId),
+    listCandidateIdsByJob(id, membership.organizationId),
     listCandidates(membership.organizationId),
   ]);
   if (!job) notFound();
 
   // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
-  const postuladosIds = new Set(applications.map((a) => a.candidateId));
+  const postuladosIds = new Set(candidateIdsEnLaBusqueda);
   const poolCandidates = candidates
     .filter((c) => !postuladosIds.has(c.id))
     .map((c) => ({ id: c.id, fullName: c.fullName, email: c.email }));

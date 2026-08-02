@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { canManageRecruiting } from "@/lib/auth/roles";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 
 /** Caso de uso: revocar el enlace de acceso de un Cliente (§17, camino Cliente). */
@@ -29,7 +29,7 @@ export async function revocarClientShare(
   if (!ctx.organizationId || !ctx.role) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!canManageRecruiting(ctx.role)) {
+  if (!can(ctx.role, "clients.manage")) {
     return err("No tenés permisos para revocar enlaces de cliente.");
   }
 

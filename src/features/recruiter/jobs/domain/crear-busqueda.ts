@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { canManageRecruiting } from "@/lib/auth/roles";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import {
   normalizeJobDetails,
@@ -24,6 +24,12 @@ export interface CrearBusquedaCtx {
   userId: string | null;
   organizationId: string | null;
   role: OrgRole | null;
+  /** Membership de quien crea, en esta org — se auto-asigna como responsable único de la
+   *  búsqueda (`jobs.assignedTo`). Se reasigna después desde Editar. */
+  membershipId: string | null;
+  /** Cliente al que el creador está atado en exclusiva (memberships.assignedClientId).
+   *  null/undefined = sin restricción, puede crear para cualquier cliente de la org. */
+  assignedClientId?: string | null;
 }
 
 export interface CrearBusquedaDeps {
@@ -32,6 +38,7 @@ export interface CrearBusquedaDeps {
     title: string;
     description: string | null;
     createdBy: string;
+    assignedTo: string;
   } & JobDetails): Promise<{ jobId: string }>;
 }
 
@@ -40,11 +47,14 @@ export async function crearBusqueda(
   ctx: CrearBusquedaCtx,
   deps: CrearBusquedaDeps,
 ): Promise<Result<{ jobId: string }>> {
-  if (!ctx.userId || !ctx.organizationId || !ctx.role) {
+  if (!ctx.userId || !ctx.organizationId || !ctx.role || !ctx.membershipId) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!canManageRecruiting(ctx.role)) {
+  if (!can(ctx.role, "jobs.manage")) {
     return err("No tenés permisos para crear búsquedas.");
+  }
+  if (ctx.assignedClientId && input.clientId !== ctx.assignedClientId) {
+    return err("Solo podés crear búsquedas para tu cliente asignado.");
   }
 
   const title = input.title.trim();
@@ -57,6 +67,7 @@ export async function crearBusqueda(
     title,
     description: input.description?.trim() || null,
     createdBy: ctx.userId,
+    assignedTo: ctx.membershipId,
     ...normalizeJobDetails(input),
   });
 

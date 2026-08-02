@@ -10,9 +10,15 @@ export type ScreeningQuestionRow = {
   options: string[] | null;
   required: boolean;
   position: number;
+  isCriterion: boolean;
+  expectedValues: string[] | null;
+  minValue: number | null;
+  maxValue: number | null;
 };
 
-/** Preguntas de screening de una búsqueda, en orden de presentación. */
+/** Preguntas de screening de una búsqueda, en orden de presentación. Incluye la respuesta
+ *  esperada de cada criterio: es dato interno del recruiter (las funciones públicas del
+ *  Career Site arman su JSON campo por campo y nunca la exponen al candidato). */
 export async function listScreeningQuestionsByJob(
   jobId: string,
   organizationId: string,
@@ -28,6 +34,10 @@ export async function listScreeningQuestionsByJob(
           options: screeningQuestions.options,
           required: screeningQuestions.required,
           position: screeningQuestions.position,
+          isCriterion: screeningQuestions.isCriterion,
+          expectedValues: screeningQuestions.expectedValues,
+          minValue: screeningQuestions.minValue,
+          maxValue: screeningQuestions.maxValue,
         })
         .from(screeningQuestions)
         .where(and(eq(screeningQuestions.jobId, jobId), eq(screeningQuestions.organizationId, organizationId)))

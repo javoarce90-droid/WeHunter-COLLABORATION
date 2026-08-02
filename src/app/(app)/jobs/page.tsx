@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { getActiveMembership } from "@/lib/auth/session";
-import { listJobsWithStats } from "@/features/recruiter/jobs/data/jobs.queries";
+import { listJobsWithStats, getOrganizationSlug } from "@/features/recruiter/jobs/data/jobs.queries";
 import { JobsList } from "@/features/recruiter/jobs/ui/JobsList";
 import {
   isJobFilter,
@@ -9,6 +9,7 @@ import {
 } from "@/features/recruiter/jobs/ui/job-filters";
 import { ListSkeleton } from "@/components/ui/list-skeleton";
 import { buttonVariants } from "@/components/ui/button";
+import { ToastOnMount } from "@/components/ui/toast-on-mount";
 
 /** El shell (título + acción) pinta al instante; el listado se streamea. */
 export default async function JobsPage({
@@ -31,6 +32,10 @@ export default async function JobsPage({
         </Link>
       </div>
 
+      <Suspense fallback={null}>
+        <ToastOnMount param="updated" message="Cambios guardados en la búsqueda" />
+      </Suspense>
+
       <Suspense fallback={<ListSkeleton />}>
         <JobsSection filter={filter} />
       </Suspense>
@@ -40,8 +45,11 @@ export default async function JobsPage({
 
 async function JobsSection({ filter }: { filter: JobFilter }) {
   const membership = await getActiveMembership();
-  const jobs = membership
-    ? await listJobsWithStats(membership.organizationId)
-    : [];
-  return <JobsList jobs={jobs} filter={filter} />;
+  const [jobs, orgSlug] = membership
+    ? await Promise.all([
+        listJobsWithStats(membership.organizationId),
+        getOrganizationSlug(membership.organizationId),
+      ])
+    : [[], null];
+  return <JobsList jobs={jobs} filter={filter} orgSlug={orgSlug} />;
 }

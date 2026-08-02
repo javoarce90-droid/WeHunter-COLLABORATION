@@ -1,19 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
+import { getActiveMembership, getCurrentUser, ACTIVE_ORG_COOKIE } from "@/lib/auth/session";
 import {
   profileInputSchema,
-  workspaceInputSchema,
+  workspaceIdentityInputSchema,
   passwordInputSchema,
   IMAGE_ALLOWED_TYPES,
   IMAGE_MAX_BYTES,
 } from "./schema";
-import { updateOwnProfile, updateOrganization } from "./data/settings.mutations";
-import { uploadAvatar, uploadOrgLogo, uploadCareerSiteCover } from "./data/settings.storage";
-import { editarWorkspace } from "./domain/editar-workspace";
-import type { OrgRole } from "./domain/editar-workspace";
+import { updateOwnProfile, updateOrganization, deleteOrganization } from "./data/settings.mutations";
+import { getOrganization } from "./data/settings.queries";
+import { uploadAvatar, uploadOrgLogo } from "./data/settings.storage";
+import { editarIdentidadWorkspace } from "./domain/editar-identidad-workspace";
+import { eliminarWorkspace } from "./domain/eliminar-workspace";
+import type { OrgRole } from "./domain/editar-identidad-workspace";
 
 type ActionState = { error?: string; ok?: boolean };
 
@@ -106,17 +110,8 @@ export async function editarWorkspaceAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const parsed = workspaceInputSchema.safeParse({
+  const parsed = workspaceIdentityInputSchema.safeParse({
     name: formData.get("name"),
-    slug: formData.get("slug"),
-    description: formData.get("description"),
-    primaryColor: formData.get("primaryColor"),
-    accentColor: formData.get("accentColor"),
-    website: formData.get("website"),
-    linkedinUrl: formData.get("linkedinUrl"),
-    instagramUrl: formData.get("instagramUrl"),
-    xUrl: formData.get("xUrl"),
-    facebookUrl: formData.get("facebookUrl"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -127,39 +122,15 @@ export async function editarWorkspaceAction(
 
   const logoImage = readImage(formData.get("logo"));
   if ("error" in logoImage) return { error: logoImage.error };
-  const coverImage = readImage(formData.get("cover"));
-  if ("error" in coverImage) return { error: coverImage.error };
 
   let logoPath: string | null = null;
   if (logoImage.file) {
     const { path } = await uploadOrgLogo(membership.organizationId, logoImage.file);
     logoPath = path;
   }
-  let coverPath: string | null = null;
-  if (coverImage.file) {
-    const { path } = await uploadCareerSiteCover(membership.organizationId, coverImage.file);
-    coverPath = path;
-  }
 
-  const { linkedinUrl, instagramUrl, xUrl, facebookUrl, ...rest } = parsed.data;
-  const hasSocial = linkedinUrl || instagramUrl || xUrl || facebookUrl;
-
-  const result = await editarWorkspace(
-    {
-      name: rest.name,
-      slug: rest.slug,
-      branding: {
-        description: rest.description,
-        primaryColor: rest.primaryColor,
-        accentColor: rest.accentColor,
-        website: rest.website,
-        ...(hasSocial
-          ? { social: { linkedin: linkedinUrl, instagram: instagramUrl, x: xUrl, facebook: facebookUrl } }
-          : {}),
-      },
-      logoPath,
-      coverPath,
-    },
+  const result = await editarIdentidadWorkspace(
+    { name: parsed.data.name, logoPath },
     { organizationId: membership.organizationId, role: membership.role as OrgRole },
     { updateOrganization },
   );
@@ -167,4 +138,31 @@ export async function editarWorkspaceAction(
 
   revalidatePath("/settings");
   return { ok: true };
+}
+
+// ---- Eliminar workspace ----
+
+export async function eliminarWorkspaceAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const membership = await getActiveMembership();
+  if (!membership) return { error: "No autorizado." };
+
+  const org = await getOrganization(membership.organizationId);
+  if (!org) return { error: "Workspace no encontrado." };
+
+  const result = await eliminarWorkspace(
+    { confirmName: String(formData.get("confirmName") ?? "") },
+    {
+      organizationId: membership.organizationId,
+      organizationName: org.name,
+      role: membership.role as OrgRole,
+    },
+    { deleteOrganization },
+  );
+  if (!result.ok) return { error: result.error };
+
+  (await cookies()).delete(ACTIVE_ORG_COOKIE);
+  redirect("/dashboard");
 }

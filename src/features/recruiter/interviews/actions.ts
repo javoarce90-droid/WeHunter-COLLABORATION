@@ -34,10 +34,12 @@ export interface InterviewActionState {
   error?: string;
 }
 
-/** Revalida el pipeline del job indicado en el form (las entrevistas se ven ahí). */
-function revalidatePipeline(formData: FormData) {
+/** Revalida el pipeline del job (donde se ve embebida) y la Agenda (org-wide) —
+ *  una entrevista pudo agendarse/editarse/borrarse desde cualquiera de las dos. */
+function revalidateInterviewViews(formData: FormData) {
   const jobId = String(formData.get("jobId") ?? "");
   if (jobId) revalidatePath(`/jobs/${jobId}/pipeline`);
+  revalidatePath("/agenda");
 }
 
 /** Junta el multiselect de equipo (checkboxes) + el textarea de emails externos, deduplicado. */
@@ -151,7 +153,7 @@ export async function agendarInterviewAction(
     organizationId: membership.organizationId,
   });
 
-  revalidatePipeline(formData);
+  revalidateInterviewViews(formData);
   return {};
 }
 
@@ -204,7 +206,7 @@ export async function actualizarInterviewAction(
     organizationId: membership.organizationId,
   });
 
-  revalidatePipeline(formData);
+  revalidateInterviewViews(formData);
   return {};
 }
 
@@ -255,6 +257,6 @@ export async function eliminarInterviewAction(
     });
   }
 
-  revalidatePipeline(formData);
+  revalidateInterviewViews(formData);
   return {};
 }

@@ -66,7 +66,7 @@ export function StageSettingsPanel({ config, open, onClose }: Props) {
           configuración es la misma para todas tus búsquedas, no solo para esta.
         </p>
 
-        {optimisticConfig.map((stage) => {
+        {optimisticConfig.filter((s) => s.stageKey !== "new").map((stage) => {
           const isTerminal = isClosingStage(stage.stageKey);
           return (
             <div

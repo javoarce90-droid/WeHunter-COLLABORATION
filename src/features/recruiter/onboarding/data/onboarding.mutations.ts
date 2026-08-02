@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
+import type { WorkspaceType } from "../schema";
 
 /**
  * Crea organization + membership(owner) de forma atómica.
@@ -14,16 +15,18 @@ export async function createOrganizationWithOwner({
   name,
   slug,
   ownerId,
+  workspaceType,
 }: {
   name: string;
   slug: string;
   ownerId: string;
+  workspaceType: WorkspaceType;
 }): Promise<{ organizationId: string }> {
   const db = await getDb();
 
   const rows = await db.rls((tx) =>
     tx.execute<{ id: string }>(
-      sql`select create_organization_with_owner(${name}, ${slug}, ${ownerId}) as id`,
+      sql`select create_organization_with_owner(${name}, ${slug}, ${ownerId}, ${workspaceType}::workspace_type) as id`,
     ),
     "db.onboarding.create-org",
   );

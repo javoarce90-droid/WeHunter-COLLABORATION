@@ -1,4 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
+import type { WorkspaceType } from "../schema";
 
 /**
  * Caso de uso: crear la organization (workspace) de un reclutador y dejarlo como `owner`.
@@ -13,6 +14,8 @@ import { ok, err, type Result } from "@/lib/result";
 
 export interface CrearOrganizationInput {
   name: string;
+  /** Cómo va a usar WeHunter: define el tipo de workspace (freelance / team / enterprise). */
+  workspaceType: WorkspaceType;
 }
 
 export interface CrearOrganizationCtx {
@@ -25,6 +28,7 @@ export interface CrearOrganizationDeps {
     name: string;
     slug: string;
     ownerId: string;
+    workspaceType: WorkspaceType;
   }): Promise<{ organizationId: string }>;
 }
 
@@ -62,6 +66,7 @@ export async function crearOrganization(
     name,
     slug,
     ownerId: ctx.userId,
+    workspaceType: input.workspaceType,
   });
 
   return ok({ organizationId });

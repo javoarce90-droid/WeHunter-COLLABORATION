@@ -33,6 +33,7 @@ export async function aprobarRequisitionAction(
       userId: user?.id ?? null,
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
+      membershipId: membership?.id ?? null,
     },
     { getRequisitionStatus, approveAndCreateJob },
   );

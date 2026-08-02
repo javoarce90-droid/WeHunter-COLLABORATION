@@ -1,3 +1,5 @@
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 export type GenerarShareInput = {
   shortlistId: string;
   // Días hasta el vencimiento del link. null = sin vencimiento.
@@ -7,7 +9,7 @@ export type GenerarShareInput = {
 export type GenerarShareContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type GenerarShareDeps = {
@@ -33,8 +35,8 @@ export async function generarShare(
   | { ok: true; data: { shareId: string; token: string } }
   | { ok: false; error: string }
 > {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden generar enlaces de shortlist." };
+  if (!can(ctx.role, "shortlists.manage")) {
+    return { ok: false, error: "Tu rol no permite compartir shortlists." };
   }
 
   if (input.expiresInDays !== null && input.expiresInDays <= 0) {

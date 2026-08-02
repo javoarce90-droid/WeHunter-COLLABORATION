@@ -38,6 +38,17 @@ export const orgRole = pgEnum("org_role", [
   "admin",
   "recruiter",
   "consultant",
+  "sourcer",
+  "viewer",
+  "hiring_manager",
+]);
+
+// Cómo usa WeHunter la organización. Se elige en el onboarding; null = organizaciones
+// creadas antes de que existiera el paso.
+export const workspaceType = pgEnum("workspace_type", [
+  "freelance",
+  "team",
+  "enterprise",
 ]);
 
 export const jobStatus = pgEnum("job_status", [
@@ -219,6 +230,7 @@ export const organizations = pgTable("organizations", {
   slug: text("slug").notNull(),
   // Logo del workspace: path en el bucket privado `org-logos` (se sirve vía signed URL).
   logoUrl: text("logo_url"),
+  workspaceType: workspaceType("workspace_type"),
   // Preferencias del workspace (zona horaria, etc.). jsonb flexible para no migrar por cada opción.
   preferences: jsonb("preferences"),
   // Career Site (micrositio público de marca-empleadora): gate de autorización primario,
@@ -278,10 +290,11 @@ export const memberships = pgTable("memberships", {
   role: orgRole("role").notNull().default("recruiter"),
   // Activo/inactivo: permite desactivar el acceso de un miembro sin borrarlo.
   status: membershipStatus("status").notNull().default("active"),
-  // null = todavía no descartó/terminó el tour de bienvenida. Es por membership (no por
-  // organization) para que un miembro invitado más tarde vea el tour aunque el resto ya lo
-  // haya cerrado.
-  onboardingDismissedAt: timestamp("onboarding_dismissed_at"),
+  // Cliente al que este recruiter está atado en exclusiva (alcance simple del prototipo: un
+  // cliente por recruiter). null = sin asignación, ve/crea para cualquier cliente de la org.
+  assignedClientId: uuid("assigned_client_id").references(() => clients.id, {
+    onDelete: "set null",
+  }),
   ...timestamps,
 }, (t) => ({
   uniqueMember: uniqueIndex("memberships_org_profile_idx").on(
@@ -291,18 +304,26 @@ export const memberships = pgTable("memberships", {
   orgIdx: index("memberships_org_idx").on(t.organizationId),
 }));
 
-// Invitación a sumarse al equipo de una org con un rol. El envío del email es mock por ahora;
-// el flujo de aceptación real (registro + alta de membership) queda para después.
+// Invitación a sumarse al equipo de una org con un rol. Se manda por SendGrid con un link a
+// `/invite/aceptar?token=...`; la posesión del token es la autorización (mismo modelo que el
+// link de reset de contraseña), no un rol/capability.
 export const invitations = pgTable("invitations", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
   email: text("email").notNull(),
+  // Nullable: filas viejas de antes de este campo no tenían nombre. Siempre se completa
+  // en `insertInvitation` para las nuevas — se usa como `full_name` de la cuenta si la
+  // persona invitada todavía no tiene una.
+  inviteeName: text("invitee_name"),
   role: orgRole("role").notNull().default("recruiter"),
   status: invitationStatus("status").notNull().default("pending"),
   token: text("token").notNull(),
   invitedBy: uuid("invited_by").references(() => profiles.id),
+  // Nullable: filas viejas de antes de este campo no tienen vencimiento retroactivo.
+  // Siempre se completa (a 7 días) en `insertInvitation` para las nuevas.
+  expiresAt: timestamp("expires_at"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("invitations_org_idx").on(t.organizationId),
@@ -409,11 +430,24 @@ export const jobs = pgTable("jobs", {
   // Beneficios: lista de {name, description}. Solo-de-mostrar → jsonb (sin tabla hija ni
   // transacciones extra; ver decisión de performance). Se selecciona solo en el detalle.
   benefits: jsonb("benefits").$type<{ name: string; description: string }[]>(),
+  viewCount: integer("view_count").notNull().default(0),
+  // Responsable único de la búsqueda (recruiter interno o consultor externo) — auto-asignado
+  // a quien la crea. Nunca varios a la vez; se reasigna después desde Editar.
+  assignedTo: uuid("assigned_to")
+    .notNull()
+    .references(() => memberships.id),
+  // Sourcer opcional de esta búsqueda puntual (mismo mecanismo que `assignedTo`, pero
+  // nullable: no toda búsqueda tiene uno). Se asigna/saca desde el header del detalle.
+  sourcerId: uuid("sourcer_id").references(() => memberships.id),
+  // Cuántas veces se copió el link público del aviso (botón "Copiar link").
+  shareCount: integer("share_count").notNull().default(0),
   createdBy: uuid("created_by").references(() => profiles.id),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("jobs_org_idx").on(t.organizationId),
   clientIdx: index("jobs_client_idx").on(t.clientId),
+  assignedToIdx: index("jobs_assigned_to_idx").on(t.assignedTo),
+  sourcerIdx: index("jobs_sourcer_idx").on(t.sourcerId),
 }));
 
 // Solicitud de búsqueda (Hiring Request, §17 backlog). La pide un Cliente externo (camino
@@ -614,6 +648,14 @@ export const applications = pgTable("applications", {
     .references(() => candidates.id, { onDelete: "cascade" })
     .notNull(),
   stage: applicationStage("stage").notNull().default("new"),
+  // Etapa real de la postulación dentro del pipeline de SU búsqueda. `stage` (el enum)
+  // queda como espejo mientras se migran los consumidores que todavía lo leen.
+  stageId: uuid("stage_id").references(() => jobStages.id, { onDelete: "restrict" }),
+  pipelineEnteredAt: timestamp("pipeline_entered_at"),
+  // Cuándo entró a la etapa actual. Reemplaza la derivación por `application_events` ⋈ enum
+  // (incorrecta para dos etapas custom que comparten el mismo `legacyStage`) — se resetea en
+  // cada movimiento de etapa.
+  stageEnteredAt: timestamp("stage_entered_at").defaultNow().notNull(),
   // Marcador liviano de favorito/destacado para el triage de postulados. No es el shortlist
   // (que es la selección formal que se comparte con la empresa): es una estrella del recruiter.
   isFavorite: boolean("is_favorite").notNull().default(false),
@@ -656,6 +698,10 @@ export const screeningQuestions = pgTable("screening_questions", {
   options: text("options").array(),
   required: boolean("required").notNull().default(true),
   position: integer("position").notNull().default(0),
+  isCriterion: boolean("is_criterion").notNull().default(false),
+  expectedValues: text("expected_values").array(),
+  minValue: integer("min_value"),
+  maxValue: integer("max_value"),
   ...timestamps,
 }, (t) => ({
   jobIdx: index("screening_questions_job_idx").on(t.jobId, t.position),
@@ -787,6 +833,42 @@ export const applicationEvents = pgTable("application_events", {
   applicationIdx: index("application_events_application_idx").on(t.applicationId),
 }));
 
+// Qué significa una etapa para el resto del sistema. El nombre lo elige el recruiter y no
+// se puede interpretar; el `kind` es lo que leen el portal del candidato, los reportes y el
+// cierre de la búsqueda. Sin esto, agregar una etapa propia ("Challenge Técnico") dejaría a
+// esos consumidores sin saber qué mostrar.
+export const stageKind = pgEnum("stage_kind", [
+  "inbox", // bandeja de Postulados: todavía sin decisión
+  "in_process", // cualquier etapa intermedia del proceso
+  "offer",
+  "hired",
+  "rejected",
+]);
+
+// Etapas del pipeline de UNA búsqueda. Cada job tiene las suyas: agregarlas, renombrarlas,
+// reordenarlas o borrarlas no afecta al resto de las búsquedas.
+export const jobStages = pgTable("job_stages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id")
+    .references(() => jobs.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+  slaDays: integer("sla_days"),
+  kind: stageKind("kind").notNull(),
+  // De qué etapa del enum salió al migrar. Solo lo tienen las etapas sembradas: sirve para
+  // mantener `applications.stage` en sync mientras los consumidores viejos siguen leyéndolo.
+  // Las etapas creadas por el recruiter lo tienen en null y derivan su valor del `kind`.
+  legacyStage: applicationStage("legacy_stage"),
+  ...timestamps,
+}, (t) => ({
+  jobIdx: index("job_stages_job_idx").on(t.jobId, t.position),
+  orgIdx: index("job_stages_org_idx").on(t.organizationId),
+}));
+
 // Configuración de etapas del pipeline por organización.
 // Metadata sobre el enum: no cambia la identidad canónica de las etapas, solo permite
 // override de label, activar/desactivar columnas en el kanban y configurar SLA.
@@ -806,6 +888,25 @@ export const pipelineStages = pgTable("pipeline_stages", {
     t.organizationId,
     t.stageKey,
   ),
+}));
+
+// Plantilla de etapas por defecto de la organización: semilla para `job_stages` al crear una
+// búsqueda nueva. A diferencia de `pipeline_stages` (atada al enum fijo `application_stage`),
+// acá los nombres son libres — mismo modelo que `job_stages`, pero sin `job_id` porque vive a
+// nivel organización. Tabla propia (no reutiliza `job_stages` con `job_id` nullable) para no
+// pisar la migración de la Fase A del plan de Pipeline, que va a rediseñar esa tabla en paralelo.
+export const jobStageTemplates = pgTable("job_stage_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+  slaDays: integer("sla_days"),
+  kind: stageKind("kind").notNull(),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("job_stage_templates_org_idx").on(t.organizationId, t.position),
 }));
 
 // Oferta formal a un candidato finalista de una búsqueda. Apunta a la application (job +

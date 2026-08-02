@@ -1,5 +1,7 @@
 import { isClosingStage, STAGE_LABELS, type ApplicationStage } from "../schema";
 import type { ApplicationRow } from "./postular-candidato";
+import type { OrgRole } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 
 // ---- Tipos del caso de uso ----
 
@@ -11,7 +13,7 @@ export type MoverEtapaInput = {
 export type MoverEtapaContext = {
   userId: string;
   organizationId: string;
-  role: "owner" | "admin" | "recruiter" | "consultant";
+  role: OrgRole;
 };
 
 export type MoverEtapaDeps = {
@@ -34,8 +36,8 @@ export async function moverEtapa(
   ctx: MoverEtapaContext,
   deps: MoverEtapaDeps,
 ): Promise<{ ok: true; data: ApplicationRow } | { ok: false; error: string }> {
-  if (ctx.role === "consultant") {
-    return { ok: false, error: "Los consultores no pueden mover candidatos en el pipeline." };
+  if (!can(ctx.role, "pipeline.move")) {
+    return { ok: false, error: "Tu rol no permite mover candidatos en el pipeline." };
   }
 
   const application = await deps.getApplicationById(input.applicationId, ctx.organizationId);

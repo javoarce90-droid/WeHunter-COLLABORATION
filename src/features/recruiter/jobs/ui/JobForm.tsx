@@ -58,6 +58,9 @@ interface JobFormProps {
   submitLabel: string;
   jobId?: string;
   clients: { id: string; name: string }[];
+  /** Si quien crea es un recruiter con un cliente asignado en exclusiva, el select de
+   *  Cliente se bloquea a esa única opción (ver asignar-recruiter-a-cliente.ts). */
+  assignedClientId?: string | null;
   defaults?: JobDefaults;
   cancelHref?: string;
   cancelLabel?: string;
@@ -111,10 +114,14 @@ export function JobForm({
   submitLabel,
   jobId,
   clients,
+  assignedClientId,
   defaults,
   cancelHref = "/jobs",
   cancelLabel = "Cancelar",
 }: JobFormProps) {
+  const lockedClient = assignedClientId
+    ? clients.find((c) => c.id === assignedClientId)
+    : null;
   const [state, formAction, pending] = useActionState(action, initialState);
 
   // Campos que la IA puede prellenar → controlados, para poder setearlos tras "Crear con IA".
@@ -206,14 +213,29 @@ export function JobForm({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Cliente">
-                <select name="clientId" defaultValue={defaults?.clientId ?? ""} className={selectClass}>
-                  <option value="">Sin cliente</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                {assignedClientId ? (
+                  <>
+                    <select disabled value={assignedClientId} className={selectClass}>
+                      <option value={assignedClientId}>
+                        {lockedClient?.name ?? "Cliente asignado"}
+                      </option>
+                    </select>
+                    <input type="hidden" name="clientId" value={assignedClientId} />
+                  </>
+                ) : (
+                  <select
+                    name="clientId"
+                    defaultValue={defaults?.clientId ?? ""}
+                    className={selectClass}
+                  >
+                    <option value="">Sin cliente</option>
+                    {clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </Field>
               <Input
                 label="Ubicación"

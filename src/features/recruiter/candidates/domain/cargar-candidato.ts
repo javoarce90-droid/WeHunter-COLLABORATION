@@ -1,4 +1,4 @@
-import { canManageRecruiting } from "@/lib/auth/roles";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import {
   normalizeCandidateDetails,
@@ -74,7 +74,7 @@ export async function cargarCandidato(
   if (!ctx.organizationId || !ctx.role) {
     return { ok: false, error: "Necesitás estar autenticado en un workspace." };
   }
-  if (!canManageRecruiting(ctx.role)) {
+  if (!can(ctx.role, "candidates.manage")) {
     return { ok: false, error: "No tenés permisos para cargar candidatos." };
   }
 

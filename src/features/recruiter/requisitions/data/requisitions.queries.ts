@@ -14,6 +14,8 @@ export type RequisitionListRow = {
   reason: Requisition["reason"];
   location: string | null;
   seniority: Requisition["seniority"];
+  budget: string | null;
+  estimatedStartDate: string | null;
   createdAt: Date;
   clientName: string | null;
 };
@@ -34,6 +36,8 @@ export async function listRequisitions(
           reason: requisitions.reason,
           location: requisitions.location,
           seniority: requisitions.seniority,
+          budget: requisitions.budget,
+          estimatedStartDate: requisitions.estimatedStartDate,
           createdAt: requisitions.createdAt,
           clientName: clients.name,
         })
@@ -43,6 +47,40 @@ export async function listRequisitions(
         .orderBy(desc(requisitions.createdAt))
         .limit(LIST_LIMIT),
     "db.requisitions.list",
+  );
+}
+
+export type RequisitionByClientRow = {
+  id: string;
+  title: string;
+  status: Requisition["status"];
+  reason: Requisition["reason"];
+  createdAt: Date;
+};
+
+/** Solicitudes de un cliente puntual (para su panel de detalle). */
+export async function listRequisitionsByClient(
+  clientId: string,
+  organizationId: string,
+): Promise<RequisitionByClientRow[]> {
+  const db = await getDb();
+  return db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: requisitions.id,
+          title: requisitions.title,
+          status: requisitions.status,
+          reason: requisitions.reason,
+          createdAt: requisitions.createdAt,
+        })
+        .from(requisitions)
+        .where(
+          and(eq(requisitions.clientId, clientId), eq(requisitions.organizationId, organizationId)),
+        )
+        .orderBy(desc(requisitions.createdAt))
+        .limit(LIST_LIMIT),
+    "db.requisitions.by-client",
   );
 }
 

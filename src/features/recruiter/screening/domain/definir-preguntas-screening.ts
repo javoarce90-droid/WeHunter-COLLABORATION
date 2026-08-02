@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { canManageRecruiting } from "@/lib/auth/roles";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 
 /**
@@ -23,6 +23,13 @@ export interface ScreeningQuestionInput {
   label: string;
   options?: string[];
   required: boolean;
+  /** Marca la pregunta como criterio de preselección: su respuesta se evalúa. */
+  isCriterion?: boolean;
+  /** Respuestas válidas (sí/no y opción múltiple). */
+  expectedValues?: string[] | null;
+  /** Rango válido (preguntas numéricas). */
+  minValue?: number | null;
+  maxValue?: number | null;
 }
 
 export interface NormalizedScreeningQuestion {
@@ -32,6 +39,10 @@ export interface NormalizedScreeningQuestion {
   options: string[] | null;
   required: boolean;
   position: number;
+  isCriterion: boolean;
+  expectedValues: string[] | null;
+  minValue: number | null;
+  maxValue: number | null;
 }
 
 export interface DefinirPreguntasScreeningCtx {
@@ -50,6 +61,58 @@ export interface DefinirPreguntasScreeningDeps {
 
 const MAX_QUESTIONS = 20;
 
+type CriterioNormalizado = Pick<
+  NormalizedScreeningQuestion,
+  "isCriterion" | "expectedValues" | "minValue" | "maxValue"
+>;
+
+const SIN_CRITERIO: CriterioNormalizado = {
+  isCriterion: false,
+  expectedValues: null,
+  minValue: null,
+  maxValue: null,
+};
+
+/**
+ * Valida y normaliza la parte "criterio de preselección" de una pregunta.
+ * Devuelve el mensaje de error como string cuando la configuración no cierra.
+ */
+function normalizarCriterio(
+  q: ScreeningQuestionInput,
+  options: string[] | null,
+): CriterioNormalizado | string {
+  if (!q.isCriterion) return SIN_CRITERIO;
+
+  if (q.type === "text") {
+    return "una pregunta de texto no puede ser criterio de preselección.";
+  }
+
+  if (q.type === "number") {
+    const min = q.minValue ?? null;
+    const max = q.maxValue ?? null;
+    if (min == null && max == null) {
+      return "como criterio numérico necesita un mínimo o un máximo.";
+    }
+    if (min != null && max != null && min > max) {
+      return "el mínimo no puede ser mayor que el máximo.";
+    }
+    return { isCriterion: true, expectedValues: null, minValue: min, maxValue: max };
+  }
+
+  const esperadas = (q.expectedValues ?? []).map((v) => v.trim()).filter(Boolean);
+  if (esperadas.length === 0) {
+    return "como criterio necesita al menos una respuesta esperada.";
+  }
+  if (q.type === "multiple_choice") {
+    const validas = new Set(options ?? []);
+    const huerfana = esperadas.find((e) => !validas.has(e));
+    if (huerfana) {
+      return `la respuesta esperada "${huerfana}" ya no es una de las opciones.`;
+    }
+  }
+  return { isCriterion: true, expectedValues: esperadas, minValue: null, maxValue: null };
+}
+
 export async function definirPreguntasScreening(
   jobId: string,
   questions: ScreeningQuestionInput[],
@@ -59,7 +122,7 @@ export async function definirPreguntasScreening(
   if (!ctx.organizationId || !ctx.role) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!canManageRecruiting(ctx.role)) {
+  if (!can(ctx.role, "jobs.manage")) {
     return err("No tenés permisos para configurar el screening.");
   }
   if (questions.length > MAX_QUESTIONS) {
@@ -76,15 +139,28 @@ export async function definirPreguntasScreening(
     const label = q.label.trim();
     if (!label) continue; // se descarta en silencio, igual que un beneficio vacío
 
+    let options: string[] | null = null;
     if (q.type === "multiple_choice") {
-      const options = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
+      options = (q.options ?? []).map((o) => o.trim()).filter(Boolean);
       if (options.length < 2) {
         return err(`La pregunta "${label}" necesita al menos 2 opciones.`);
       }
-      normalized.push({ id: q.id, type: q.type, label, options, required: q.required, position: i });
-    } else {
-      normalized.push({ id: q.id, type: q.type, label, options: null, required: q.required, position: i });
     }
+
+    const criterio = normalizarCriterio(q, options);
+    if (typeof criterio === "string") {
+      return err(`La pregunta "${label}": ${criterio}`);
+    }
+
+    normalized.push({
+      id: q.id,
+      type: q.type,
+      label,
+      options,
+      required: q.required,
+      position: i,
+      ...criterio,
+    });
   }
 
   await deps.syncQuestions(jobId, ctx.organizationId, normalized);

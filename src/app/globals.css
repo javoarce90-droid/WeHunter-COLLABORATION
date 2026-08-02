@@ -120,6 +120,16 @@ body {
   line-height: 1.5;
 }
 
+/* Sigue siendo scrolleable (rueda/trackpad/teclado), solo se esconde la barra visual —
+   para paneles angostos (ej. sidebar) donde la barra nativa rompe el diseño. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Placeholder con contraste WCAG AA (≥4.5:1). El default del navegador (~gris claro) no
    alcanza; usamos --muted (#6B6578 sobre blanco ≈ 5:1). opacity:1 anula el aclarado de Firefox. */
 ::placeholder {

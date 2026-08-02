@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { canManageRecruiting } from "@/lib/auth/roles";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import type { Job } from "@/db/schema";
 import type { JobDetails } from "./job-details";
@@ -12,6 +12,9 @@ export interface DuplicarBusquedaCtx {
   userId: string | null;
   organizationId: string | null;
   role: OrgRole | null;
+  /** Membership de quien duplica — la copia se auto-asigna a quien la crea, igual que
+   *  `crearBusqueda` (no se copia el `assignedTo` del original). */
+  membershipId: string | null;
 }
 
 export interface DuplicarBusquedaDeps {
@@ -22,6 +25,7 @@ export interface DuplicarBusquedaDeps {
       title: string;
       description: string | null;
       createdBy: string;
+      assignedTo: string;
     } & JobDetails,
   ): Promise<{ jobId: string }>;
 }
@@ -31,10 +35,10 @@ export async function duplicarBusqueda(
   ctx: DuplicarBusquedaCtx,
   deps: DuplicarBusquedaDeps,
 ): Promise<Result<{ jobId: string }>> {
-  if (!ctx.userId || !ctx.organizationId || !ctx.role) {
+  if (!ctx.userId || !ctx.organizationId || !ctx.role || !ctx.membershipId) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!canManageRecruiting(ctx.role)) {
+  if (!can(ctx.role, "jobs.manage")) {
     return err("No tenés permisos para duplicar búsquedas.");
   }
 
@@ -70,6 +74,7 @@ export async function duplicarBusqueda(
     title: `${original.title} (copia)`,
     description: original.description,
     createdBy: ctx.userId,
+    assignedTo: ctx.membershipId,
     ...details,
   });
 

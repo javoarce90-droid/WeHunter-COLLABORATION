@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { register, type AuthFormState } from "../actions";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { AccountTypeTabs } from "@/components/ui/account-type-tabs";
@@ -47,6 +48,15 @@ export function RegisterForm() {
               {state.error && (
                 <p className="text-xs text-danger">{state.error}</p>
               )}
+              <label className="inline-flex cursor-pointer items-start gap-2 text-xs text-text">
+                <Checkbox name="acceptTerms" required className="mt-0.5" />
+                <span>
+                  Acepto los{" "}
+                  <Link href="/legal/terminos" target="_blank" className="font-semibold text-primary hover:underline">
+                    Términos y condiciones
+                  </Link>
+                </span>
+              </label>
               <Button type="submit" disabled={pending}>
                 {pending ? "Creando cuenta…" : "Crear cuenta"}
               </Button>

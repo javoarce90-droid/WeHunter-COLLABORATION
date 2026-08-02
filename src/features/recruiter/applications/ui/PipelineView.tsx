@@ -1,6 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import {
   DndContext,
   DragOverlay,
@@ -12,10 +13,9 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SearchInput } from "@/components/ui/search-input";
 import { useToast } from "@/lib/toast";
-import { analizarPostulacionAction, moverEtapaAction } from "../actions";
-import { STAGE_LABELS } from "../schema";
-import type { ApplicationStage } from "../schema";
+import { analizarPostulacionAction, moverAEtapaAction } from "../actions";
 import type {
   ApplicationWithCandidate,
   StageHistoryEvent,
@@ -23,59 +23,59 @@ import type {
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
-import type { PipelineStageConfig } from "@/features/recruiter/pipeline-stages/schema";
+import type { JobStage } from "@/features/recruiter/pipeline-stages/schema";
+import { isClosingKind } from "@/features/recruiter/pipeline-stages/schema";
 import type { ScreeningAnswerRow } from "@/features/recruiter/screening/data/screening.queries";
 import { PipelineCard } from "./PipelineCard";
 import { PipelineDetailSheet } from "./PipelineDetailSheet";
-import { STAGE_DOT, isTerminal, getSlaStatus } from "./stage-visual";
+import { KIND_DOT, getSlaStatus } from "./stage-visual";
 
 type Props = {
+  jobId: string;
   applications: ApplicationWithCandidate[];
+  /** Postulaciones que siguen en la bandeja: el tablero vacío ofrece ir a revisarlas. */
+  pendientes: number;
   interviewsByApplication: Record<string, InterviewRow[]>;
   teamMembers: TeamMemberOption[];
   notesByApplication: Record<string, TimelineNote[]>;
   stageEventsByApplication: Record<string, StageHistoryEvent[]>;
   screeningAnswersByApplication: Record<string, ScreeningAnswerRow[]>;
-  stageConfig: PipelineStageConfig[];
-  stageEntryTimes: Record<string, Date>;
+  /** Etapas propias de esta búsqueda (job_stages), en orden. */
+  stages: JobStage[];
   actions?: ReactNode;
 };
 
-type Move = { applicationId: string; toStage: ApplicationStage };
+type Move = { applicationId: string; toStage: JobStage };
+type SortKey = "name" | "days" | "match";
 
 const noop = () => {};
 
 // ── Column ──────────────────────────────────────────────────────────────────
 
 type ColumnProps = {
-  stageConf: PipelineStageConfig;
+  stage: JobStage;
+  stages: JobStage[];
   cards: ApplicationWithCandidate[];
   interviewsByApplication: Record<string, InterviewRow[]>;
   notesByApplication: Record<string, TimelineNote[]>;
-  stageEntryTimes: Record<string, Date>;
-  onMoveStage: (applicationId: string, toStage: ApplicationStage) => void;
+  onMoveStage: (applicationId: string, toStageId: string) => void;
   onOpen: (id: string) => void;
   onAnalizar: (applicationId: string) => void;
   analyzingIds: Set<string>;
 };
 
 function PipelineColumn({
-  stageConf,
+  stage,
+  stages,
   cards,
   interviewsByApplication,
   notesByApplication,
-  stageEntryTimes,
   onMoveStage,
   onOpen,
   onAnalizar,
   analyzingIds,
 }: ColumnProps) {
-  // Etapa desactivada + con candidatos igual se muestra (ver visibleStages más abajo), pero
-  // no acepta drops: mismo criterio que ya respeta el selector manual "Cambiar etapa".
-  const { setNodeRef, isOver } = useDroppable({
-    id: stageConf.stageKey,
-    disabled: !stageConf.isActive,
-  });
+  const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
   return (
     <section
@@ -88,16 +88,13 @@ function PipelineColumn({
       <header className="flex items-center gap-2 px-1">
         <span
           className="h-2 w-2 shrink-0 rounded-full"
-          style={{ background: STAGE_DOT[stageConf.stageKey] }}
+          style={{ background: KIND_DOT[stage.kind] }}
           aria-hidden
         />
-        <h3 className="text-sm font-semibold text-text">{stageConf.label}</h3>
-        {stageConf.slaDays && (
-          <span
-            className="text-[10px] text-muted"
-            title={`SLA: ${stageConf.slaDays} días`}
-          >
-            /{stageConf.slaDays}d
+        <h3 className="text-sm font-semibold text-text">{stage.name}</h3>
+        {stage.slaDays && (
+          <span className="text-[10px] text-muted" title={`SLA: ${stage.slaDays} días`}>
+            /{stage.slaDays}d
           </span>
         )}
         <span className="ml-auto text-xs font-semibold text-muted tabular-nums">
@@ -115,14 +112,15 @@ function PipelineColumn({
             <PipelineCard
               key={app.id}
               application={app}
+              stageName={stage.name}
+              stages={stages}
               interviews={interviewsByApplication[app.id] ?? []}
               noteCount={notesByApplication[app.id]?.length ?? 0}
               onMoveStage={onMoveStage}
               onOpen={onOpen}
               onAnalizar={onAnalizar}
               analyzing={analyzingIds.has(app.id)}
-              enteredStageAt={stageEntryTimes[app.id]}
-              slaDays={stageConf.slaDays}
+              slaDays={stage.slaDays}
             />
           ))
         )}
@@ -134,14 +132,15 @@ function PipelineColumn({
 // ── Board ────────────────────────────────────────────────────────────────────
 
 export function PipelineView({
+  jobId,
   applications,
+  pendientes,
   interviewsByApplication,
   teamMembers,
   notesByApplication,
   stageEventsByApplication,
   screeningAnswersByApplication,
-  stageConfig,
-  stageEntryTimes,
+  stages,
   actions,
 }: Props) {
   const toast = useToast();
@@ -150,6 +149,9 @@ export function PipelineView({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [riskOnly, setRiskOnly] = useState(false);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
 
   function onAnalizar(applicationId: string) {
     setAnalyzingIds((s) => new Set(s).add(applicationId));
@@ -173,7 +175,14 @@ export function PipelineView({
     applications,
     (state, move: Move) =>
       state.map((a) =>
-        a.id === move.applicationId ? { ...a, stage: move.toStage } : a,
+        a.id === move.applicationId
+          ? {
+              ...a,
+              stageId: move.toStage.id,
+              stageKind: move.toStage.kind,
+              stageEnteredAt: new Date(),
+            }
+          : a,
       ),
   );
 
@@ -181,31 +190,36 @@ export function PipelineView({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  function onMoveStage(applicationId: string, toStage: ApplicationStage) {
+  const stageById = new Map(stages.map((s) => [s.id, s]));
+
+  function onMoveStage(applicationId: string, toStageId: string) {
     const app = optimisticApps.find((a) => a.id === applicationId);
-    if (!app || app.stage === toStage || isTerminal(app.stage)) return;
-    const fromStage = app.stage;
+    const toStage = stageById.get(toStageId);
+    if (!app || !toStage || app.stageId === toStageId) return;
+    if (app.stageKind && isClosingKind(app.stageKind)) return;
+    const fromStageId = app.stageId;
     const name = app.candidate.fullName;
 
     startTransition(async () => {
       applyMove({ applicationId, toStage });
       const fd = new FormData();
       fd.set("applicationId", applicationId);
-      fd.set("newStage", toStage);
-      const res = await moverEtapaAction({}, fd);
+      fd.set("toStageId", toStageId);
+      const res = await moverAEtapaAction({}, fd);
       if (res.error) {
         toast({ message: res.error, variant: "danger" });
         return;
       }
       toast({
-        message: `${name} → ${STAGE_LABELS[toStage]}`,
+        message: `${name} → ${toStage.name}`,
         variant: "success",
-        action: isTerminal(toStage)
-          ? undefined
-          : {
-              label: "Deshacer",
-              onClick: () => onMoveStage(applicationId, fromStage),
-            },
+        action:
+          isClosingKind(toStage.kind) || !fromStageId
+            ? undefined
+            : {
+                label: "Deshacer",
+                onClick: () => onMoveStage(applicationId, fromStageId),
+              },
       });
     });
   }
@@ -217,7 +231,7 @@ export function PipelineView({
   function handleDragEnd({ active, over }: DragEndEvent) {
     setDraggingId(null);
     if (!over || active.id === over.id) return;
-    onMoveStage(active.id as string, over.id as ApplicationStage);
+    onMoveStage(active.id as string, over.id as string);
   }
 
   function handleDragCancel() {
@@ -227,27 +241,64 @@ export function PipelineView({
   // Agrupar por etapa
   const grouped: Record<string, ApplicationWithCandidate[]> = {};
   for (const app of optimisticApps) {
-    (grouped[app.stage] ??= []).push(app);
+    if (!app.stageId) continue;
+    (grouped[app.stageId] ??= []).push(app);
   }
 
   // "En riesgo" = SLA vencido o cerca de vencer en la etapa donde está hoy (ver getSlaStatus).
-  const slaByStage = new Map(stageConfig.map((s) => [s.stageKey, s.slaDays]));
   const isAtRisk = (app: ApplicationWithCandidate) =>
-    getSlaStatus(stageEntryTimes[app.id], slaByStage.get(app.stage)) !== null;
+    getSlaStatus(app.stageEnteredAt, app.stageId ? stageById.get(app.stageId)?.slaDays : null) !== null;
   const atRiskCount = optimisticApps.filter(isAtRisk).length;
 
-  // Mostrar etapas activas + cualquier etapa con candidatos (aunque esté inactiva). Con el
-  // filtro "en riesgo" activo, además se ocultan las columnas sin ningún candidato en riesgo.
-  const visibleStages = stageConfig
-    .filter((sc) => sc.isActive || (grouped[sc.stageKey]?.length ?? 0) > 0)
-    .filter((sc) => !riskOnly || (grouped[sc.stageKey] ?? []).some(isAtRisk));
+  // "Vencidos" = subconjunto de "en riesgo" con el SLA ya cumplido, no solo cerca.
+  const isOverdue = (app: ApplicationWithCandidate) =>
+    getSlaStatus(app.stageEnteredAt, app.stageId ? stageById.get(app.stageId)?.slaDays : null)?.status ===
+    "over";
+  const overdueCount = optimisticApps.filter(isOverdue).length;
 
-  const activeStageKeys = stageConfig
-    .filter((s) => s.isActive)
-    .map((s) => s.stageKey);
+  const q = query.trim().toLowerCase();
+  const matchesQuery = (app: ApplicationWithCandidate) =>
+    !q || app.candidate.fullName.toLowerCase().includes(q);
+
+  function sortCards(cards: ApplicationWithCandidate[]): ApplicationWithCandidate[] {
+    const sorted = [...cards];
+    if (sortKey === "days") {
+      // Más días en la etapa primero (entró antes = timestamp más chico).
+      sorted.sort((a, b) => a.stageEnteredAt.getTime() - b.stageEnteredAt.getTime());
+    } else if (sortKey === "match") {
+      // Sin score va siempre al final, sin importar el resto del orden.
+      sorted.sort((a, b) => {
+        if (a.aiScore == null && b.aiScore == null) return 0;
+        if (a.aiScore == null) return 1;
+        if (b.aiScore == null) return -1;
+        return b.aiScore - a.aiScore;
+      });
+    } else {
+      sorted.sort((a, b) => a.candidate.fullName.localeCompare(b.candidate.fullName));
+    }
+    return sorted;
+  }
+
+  function cardsFor(stageId: string): ApplicationWithCandidate[] {
+    let cards = grouped[stageId] ?? [];
+    if (q) cards = cards.filter(matchesQuery);
+    if (riskOnly) cards = cards.filter(isAtRisk);
+    if (overdueOnly) cards = cards.filter(isOverdue);
+    return sortCards(cards);
+  }
+
+  const anyFilterActive = riskOnly || overdueOnly || q.length > 0;
+
+  // La bandeja ("Postulados") no es columna del tablero — eso es Postulados.
+  const visibleStages = [...stages]
+    .filter((s) => s.kind !== "inbox")
+    .sort((a, b) => a.position - b.position)
+    .filter((s) => !anyFilterActive || cardsFor(s.id).length > 0);
+
   const draggingApp = draggingId
     ? optimisticApps.find((a) => a.id === draggingId)
     : null;
+  const draggingStage = draggingApp?.stageId ? stageById.get(draggingApp.stageId) : undefined;
   const selected = optimisticApps.find((a) => a.id === selectedId) ?? null;
 
   const isEmpty = applications.length === 0;
@@ -260,23 +311,59 @@ export function PipelineView({
         </p>
         <div className="flex flex-wrap items-center gap-2">
           {!isEmpty && (
-            <button
-              type="button"
-              aria-pressed={riskOnly}
-              onClick={() => setRiskOnly((v) => !v)}
-              className={[
-                "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-3 py-1.5 text-xs font-semibold outline-none transition-[transform,color,background-color,border-color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]",
-                riskOnly
-                  ? "border-transparent bg-[#FEF3C7] text-[#92400E]"
-                  : "border-border bg-surface text-muted hover:text-text",
-              ].join(" ")}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
-                <path d="M6 0.5 11.5 11h-11L6 .5Zm-.6 4v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
-              </svg>
-              Solo en riesgo
-              <span className="tabular-nums">({atRiskCount})</span>
-            </button>
+            <>
+              <SearchInput
+                value={query}
+                onChange={setQuery}
+                placeholder="Buscar candidato…"
+                aria-label="Buscar candidato en el pipeline"
+                className="max-w-[180px]"
+              />
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                aria-label="Ordenar candidatos"
+                className="rounded-[var(--radius)] border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+              >
+                <option value="name">Nombre</option>
+                <option value="days">Más días en la etapa</option>
+                <option value="match">Match</option>
+              </select>
+              <button
+                type="button"
+                aria-pressed={riskOnly}
+                onClick={() => setRiskOnly((v) => !v)}
+                className={[
+                  "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-3 py-1.5 text-xs font-semibold outline-none transition-[transform,color,background-color,border-color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]",
+                  riskOnly
+                    ? "border-transparent bg-[#FEF3C7] text-[#92400E]"
+                    : "border-border bg-surface text-muted hover:text-text",
+                ].join(" ")}
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+                  <path d="M6 0.5 11.5 11h-11L6 .5Zm-.6 4v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
+                </svg>
+                Solo en riesgo
+                <span className="tabular-nums">({atRiskCount})</span>
+              </button>
+              <button
+                type="button"
+                aria-pressed={overdueOnly}
+                onClick={() => setOverdueOnly((v) => !v)}
+                className={[
+                  "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-3 py-1.5 text-xs font-semibold outline-none transition-[transform,color,background-color,border-color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]",
+                  overdueOnly
+                    ? "border-transparent bg-[#FEE2E2] text-[#991B1B]"
+                    : "border-border bg-surface text-muted hover:text-text",
+                ].join(" ")}
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+                  <path d="M6 0.5 11.5 11h-11L6 .5Zm-.6 4v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
+                </svg>
+                Vencidos
+                <span className="tabular-nums">({overdueCount})</span>
+              </button>
+            </>
           )}
           {actions}
         </div>
@@ -286,16 +373,36 @@ export function PipelineView({
         <EmptyState
           title="No hay candidatos en el pipeline"
           description={
-            <>
-              Sumá candidatos del pool o creá uno nuevo con el botón{" "}
-              <span className="font-semibold text-text">Agregar candidatos</span>.
-            </>
+            pendientes > 0 ? (
+              <>
+                Hay{" "}
+                <Link
+                  href={`/jobs/${jobId}/postulados`}
+                  className="font-semibold text-primary hover:text-primary-hover"
+                >
+                  {pendientes} postulación{pendientes !== 1 ? "es" : ""} sin revisar
+                </Link>
+                . Avanzá desde ahí a quienes quieras trabajar, o sumá candidatos del pool con{" "}
+                <span className="font-semibold text-text">Agregar candidatos</span>.
+              </>
+            ) : (
+              <>
+                Sumá candidatos del pool o creá uno nuevo con el botón{" "}
+                <span className="font-semibold text-text">Agregar candidatos</span>.
+              </>
+            )
           }
         />
-      ) : riskOnly && atRiskCount === 0 ? (
+      ) : anyFilterActive && visibleStages.length === 0 ? (
         <EmptyState
-          title="Ningún candidato en riesgo"
-          description="Nadie está cerca de vencer su SLA en la etapa donde está hoy."
+          title="Sin resultados"
+          description={
+            q
+              ? "Ningún candidato coincide con la búsqueda."
+              : overdueOnly
+                ? "Nadie tiene el SLA vencido en la etapa donde está hoy."
+                : "Nadie está cerca de vencer su SLA en la etapa donde está hoy."
+          }
         />
       ) : (
         <DndContext
@@ -306,18 +413,14 @@ export function PipelineView({
           onDragCancel={handleDragCancel}
         >
           <div className="flex gap-3 overflow-x-auto overflow-y-hidden pb-4">
-            {visibleStages.map((stageConf) => (
+            {visibleStages.map((stage) => (
               <PipelineColumn
-                key={stageConf.stageKey}
-                stageConf={stageConf}
-                cards={
-                  riskOnly
-                    ? (grouped[stageConf.stageKey] ?? []).filter(isAtRisk)
-                    : (grouped[stageConf.stageKey] ?? [])
-                }
+                key={stage.id}
+                stage={stage}
+                stages={visibleStages}
+                cards={cardsFor(stage.id)}
                 interviewsByApplication={interviewsByApplication}
                 notesByApplication={notesByApplication}
-                stageEntryTimes={stageEntryTimes}
                 onMoveStage={onMoveStage}
                 onOpen={setSelectedId}
                 onAnalizar={onAnalizar}
@@ -330,6 +433,8 @@ export function PipelineView({
             {draggingApp ? (
               <PipelineCard
                 application={draggingApp}
+                stageName={draggingStage?.name ?? ""}
+                stages={visibleStages}
                 interviews={interviewsByApplication[draggingApp.id] ?? []}
                 noteCount={notesByApplication[draggingApp.id]?.length ?? 0}
                 onMoveStage={noop}
@@ -343,6 +448,7 @@ export function PipelineView({
 
       <PipelineDetailSheet
         application={selected}
+        stages={visibleStages}
         interviews={
           selected ? (interviewsByApplication[selected.id] ?? []) : []
         }
@@ -356,7 +462,6 @@ export function PipelineView({
         }
         onMoveStage={onMoveStage}
         onClose={() => setSelectedId(null)}
-        activeStageKeys={activeStageKeys}
       />
     </div>
   );
