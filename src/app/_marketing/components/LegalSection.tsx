@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { NoopLink } from "./NoopLink";
 import { TerminosContent, PrivacidadContent } from "./legal-content";
 
 type LegalId = "tyc" | "privacidad" | null;
@@ -42,7 +41,6 @@ export function LegalSection() {
       >
         Política de Privacidad
       </a>
-      <NoopLink>Cookies</NoopLink>
 
       <div
         className={`legal-overlay${open === "tyc" ? " open" : ""}`}

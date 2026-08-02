@@ -22,7 +22,7 @@ export function TerminosContent() {
         <p>
           WeHunter es una plataforma tecnológica operada por su titular y/o por la persona
           humana o jurídica responsable de su explotación comercial. Contacto:{" "}
-          <strong>dev@we-hunter.com</strong>
+          <strong>hola@we-hunter.com</strong>
         </p>
         <h2>2. Objeto de la Plataforma</h2>
         <p>
@@ -156,7 +156,7 @@ export function TerminosContent() {
         <p>
           Para consultas sobre estos Términos:
           <br />
-          <strong>Email:</strong> dev@we-hunter.com
+          <strong>Email:</strong> hola@we-hunter.com
           <br />
           <strong>Sitio web:</strong> www.we-hunter.com
         </p>
@@ -185,7 +185,7 @@ export function PrivacidadContent() {
         </p>
         <p>
           Para consultas relacionadas con privacidad o ejercicio de derechos:{" "}
-          <strong>dev@we-hunter.com</strong>
+          <strong>hola@we-hunter.com</strong>
         </p>
         <p>
           Cuando WeHunter procese información en nombre de sus clientes, actuará como Encargado
@@ -309,7 +309,7 @@ export function PrivacidadContent() {
         <p>
           Los titulares pueden ejercer los derechos de acceso, rectificación, actualización,
           eliminación, oposición, limitación, portabilidad y retiro del consentimiento enviando
-          una solicitud a <strong>dev@we-hunter.com</strong>. Procuraremos responder dentro de un
+          una solicitud a <strong>hola@we-hunter.com</strong>. Procuraremos responder dentro de un
           plazo razonable conforme a la normativa aplicable.
         </p>
         <h2>14. Cookies</h2>
@@ -335,7 +335,7 @@ export function PrivacidadContent() {
         <p>
           Para consultas sobre privacidad o ejercicio de derechos:
           <br />
-          <strong>Email:</strong> dev@we-hunter.com
+          <strong>Email:</strong> hola@we-hunter.com
           <br />
           <strong>Sitio web:</strong> www.we-hunter.com
         </p>

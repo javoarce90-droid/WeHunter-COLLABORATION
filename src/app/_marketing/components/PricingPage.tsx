@@ -2,58 +2,77 @@ import Link from "next/link";
 import "../pricing.css";
 import { instrumentSerif, manrope, pacifico } from "../fonts";
 import { WehunterLogo } from "@/components/ui/wehunter-logo";
+import { ComparativeTable } from "./ComparativeTable";
 
 const CONTACT_HREF = "/#contact-form-anchor";
 
 const PLANS = [
   {
-    name: "Freelancer",
-    desc: "Ideal para Recruiters Independientes. Gestioná todo tu proceso desde una única plataforma.",
-    users: "Hasta 3 usuarios recruiter",
+    name: "💜 Freelancer",
+    desc: "Para Recruiters Independientes.",
+    users: "Empezá gratis. Descubrí una nueva forma de reclutar. 🚀.",
+    users2:
+      "Probá WeHunter durante 15 días sin costo y descubrí cómo la IA puede ayudarte a encontrar talento más rápido.",
     features: [
-      "Pricing entry level. Podemos empezar gratis",
-      "Funcionando en menos de 24 hs",
-      "Sin contrato",
-      "Soporte por email",
-      "Onboarding incluido",
+      "1 usuario.",
+      "ATS completo + Pipeline.",
+      "Gestión de búsquedas.",
+      "Talen Pool.",
+      "Importación masiva de candidatos.",
+      "CRM.",
+      "Career Site.",
+      "Comunidad WeHunter.",
+      "IA incluida (con cupo mensual).",
+      "Dashboard y métricas.",
+      "Entrevistas, agenda y feedbacks.",
     ],
-    ctaLabel: "Empezar gratis",
+    notes: "🎁 15 días gratis. Sin tarjeta de crédito. Luego: USD 29,99 / mes.",
+    ctaLabel: "Comenzar prueba gratuita",
     ctaVariant: "secondary" as const,
     featured: false,
   },
   {
-    name: "Professional",
-    desc: "Ideal para Equipos de Talent Acquisition y Consultoras con operaciones de recruiting dinámicas.",
-    users: "4–7 usuarios recruiter",
+    name: "👥 Teams",
+    desc: "Para consultoras y equipos de Talent Acquisition.",
+    users: "Potenciá el trabajo de tu equipo. 🤝.",
+    users2: "Gestioná múltiples recruiters y centralizá todos los procesos.",
     features: [
-      "Integraciones con tools y herramientas de la empresa",
-      "Onboarding personalizado",
-      "Soporte prioritario 24/7",
-      "Sin permanencia mínima",
+      "Hasta 5 usuarios.",
+      "Roles y permisos.",
+      "Trabajo colaborativo.",
+      "Asignación de búsquedas entre recruiters.",
+      "IA con cupo ampliado.",
+      "Soporte prioritario.",
+      "Onboarding personalizado.",
     ],
-    ctaLabel: "Solicitar Demo",
+    notes: "Precio según la cantidad de usuarios.",
+    ctaLabel: "Contactar a ventas",
     ctaVariant: "primary" as const,
     featured: true,
   },
   {
-    name: "Enterprise",
-    desc: "Empresas que tienen una gestión de recruiting fluida y de alta demanda.",
-    users: "8+ usuarios recruiter",
+    name: "🏢 Enterprise",
+    desc: "Para empresas y organizaciones.",
+    users:
+      "Una solucion adaptada a la forma en que tu empresa contrata talento.",
+    users2: "Diseñado para organizaciones que necesitan mayor escalabilidad.",
     features: [
-      "Integraciones con tu ATS actual",
-      "Onboarding personalizado",
-      "Soporte prioritario 24/7",
-      "Personalizaciones",
-      "Desarrollos personalizados en features",
+      "Usuarios ilimitados.",
+      "Branding corporativo.",
+      "Integraciones específicas.",
+      "API.",
+      "Login corporativo (SSO).",
+      "Automatizaciones avanzadas.",
+      "SLA.",
+      "Soporte dedicado.",
+      "Desarrollo de funcionalidades a medida.",
     ],
-    ctaLabel: "Solicitar Demo",
+    notes: "Propuesta personalizada.",
+    ctaLabel: "Contactar a ventas",
     ctaVariant: "secondary" as const,
     featured: false,
   },
 ];
-
-const PLAN_NOTE =
-  "** Desarrollos personalizados en features tiene un presupuesto adicional";
 
 export function PricingPage() {
   return (
@@ -85,11 +104,7 @@ export function PricingPage() {
       </nav>
 
       <div className="page">
-        <h1 className="page-title">
-          Elegí según
-          <br />
-          tu equipo
-        </h1>
+        <h1 className="page-title">Elegí el plan ideal para vos</h1>
 
         <div className="plans-grid">
           {PLANS.map((plan) => (
@@ -99,21 +114,31 @@ export function PricingPage() {
             >
               <div className="plan-name">{plan.name}</div>
               <div className="plan-desc">{plan.desc}</div>
-              <div className="plan-users">{plan.users}</div>
-              <div className="plan-includes-label">Incluye:</div>
-              <ul className="plan-features">
-                {plan.features.map((feature) => (
-                  <li key={feature}>{feature}</li>
-                ))}
-              </ul>
-              <div className="plan-note">{PLAN_NOTE}</div>
-              <Link href={CONTACT_HREF} className={`plan-cta ${plan.ctaVariant}`}>
+              <div className="plan-users-first">
+                <div className="plan-users">{plan.users}</div>
+                <div className="plan-users">{plan.users2}</div>
+              </div>
+              <div className="plan-users-second">
+                <div className="plan-includes-label">Incluye:</div>
+                <ul className="plan-features">
+                  {plan.features.map((feature) => (
+                    <li key={feature}>{feature}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="plan-note">{plan.notes}</div>
+              <Link
+                href={CONTACT_HREF}
+                className={`plan-cta ${plan.ctaVariant}`}
+              >
                 {plan.ctaLabel}
               </Link>
             </div>
           ))}
         </div>
       </div>
+
+      <ComparativeTable />
     </div>
   );
 }
