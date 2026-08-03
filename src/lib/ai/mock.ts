@@ -65,7 +65,38 @@ export class MockAiProvider implements AiProvider {
         ? `Coincide en ${matched} de ${jobSkills.length} skills clave de ${role}.`
         : `Match estimado para ${role} con datos limitados del perfil.`;
 
-    return { score, summary, redFlags };
+    // Sin dato duro para seniority/idiomas/ubicación (no hay columnas para eso en el input):
+    // jitter determinístico por candidato, distinto seed por categoría para que no calquen el
+    // mismo número entre sí. Mismo criterio que `score`: juicio de la IA, no medición exacta.
+    const h1 = stableHash(candidate.id);
+    const h2 = stableHash(`${candidate.id}:loc`);
+    const skillsTecnicos =
+      jobSkills.length > 0 ? Math.max(20, Math.round((matched / jobSkills.length) * 100)) : 50;
+    const experiencia = candidate.summary ? 70 + (h1 % 20) : 40 + (h1 % 20);
+    const seniority = 50 + (candSkills.length >= 3 ? 15 : 0) + ((h1 % 20) - 10);
+    const idiomas = 55 + (h2 % 30);
+    const ubicacion = 60 + (h1 % 25);
+    const clamp = (n: number) => Math.max(10, Math.min(100, n));
+
+    const strengths: string[] = [];
+    if (matched > 0) strengths.push(`Domina ${matched} de las ${jobSkills.length} skills clave pedidas`);
+    if (candidate.summary) strengths.push("Tiene experiencia relevante documentada en su perfil");
+    if (candidate.source === "referral") strengths.push("Llegó por referido: señal de confianza extra");
+    if (strengths.length < 2) strengths.push(`Compatibilidad estimada de ${score}/100 con el puesto`);
+
+    return {
+      score,
+      summary,
+      redFlags,
+      breakdown: {
+        experiencia: clamp(experiencia),
+        skillsTecnicos: clamp(skillsTecnicos),
+        seniority: clamp(seniority),
+        idiomas: clamp(idiomas),
+        ubicacion: clamp(ubicacion),
+      },
+      strengths: strengths.slice(0, 4),
+    };
   }
 
   async draftOffer(input: DraftOfferInput): Promise<string> {

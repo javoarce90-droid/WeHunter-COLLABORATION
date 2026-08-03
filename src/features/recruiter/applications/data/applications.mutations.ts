@@ -23,6 +23,11 @@ function toRow(r: typeof applications.$inferSelect): ApplicationRow {
  * para que el historial nunca quede inconsistente con el estado. El evento habilita las
  * métricas de funnel y time-in-stage (§5/§12 del backlog).
  *
+ * Toda postulación creada acá nace en la bandeja de Postulados (`pipelineEnteredAt: null`):
+ * tanto la auto-postulación (que en realidad no pasa por acá, ver apply_to_career_site_job)
+ * como el alta manual desde el pool. Pasar al pipeline es una decisión aparte y explícita,
+ * ver `pasarAlPipeline`.
+ *
  * `postularCandidato` ya chequea duplicados antes de llamar acá, pero ese check-then-insert no
  * es atómico (dos requests casi simultáneos pueden pasar el check antes de que el primer insert
  * commitee). El `onConflictDoNothing` contra `applications_job_candidate_unique` es el respaldo:
@@ -33,10 +38,6 @@ export async function insertApplication(args: {
   jobId: string;
   candidateId: string;
   stage: ApplicationStage;
-  /** El alta hecha por el recruiter (sourcing desde el pool) entra directo al tablero: ya
-   *  hubo una decisión de trabajarlo. Las postulaciones que llegan solas (Career Site,
-   *  portal) nacen en la bandeja y esperan el triage. */
-  pipelineEntered?: boolean;
 }): Promise<ApplicationRow | null> {
   const db = await getDb();
   const row = await db.rls(async (tx) => {
@@ -57,7 +58,7 @@ export async function insertApplication(args: {
         candidateId: args.candidateId,
         stage: args.stage,
         stageId: seedStage?.id,
-        pipelineEnteredAt: args.pipelineEntered ? new Date() : null,
+        pipelineEnteredAt: null,
       })
       .onConflictDoNothing({ target: [applications.jobId, applications.candidateId] })
       .returning();
@@ -214,32 +215,33 @@ export async function moveToStage(args: {
   }, "db.applications.move-to-stage");
 }
 
-export async function setApplicationFavorite(
-  applicationId: string,
-  isFavorite: boolean,
-): Promise<void> {
-  const db = await getDb();
-  await db.rls(
-    (tx) =>
-      tx
-        .update(applications)
-        .set({ isFavorite, updatedAt: new Date() })
-        .where(eq(applications.id, applicationId)),
-    "db.applications.set-favorite",
-  );
-}
-
 export async function saveApplicationScore(
   applicationId: string,
   score: number,
   summary: string,
+  redFlags: string[],
+  breakdown: {
+    experiencia: number;
+    skillsTecnicos: number;
+    seniority: number;
+    idiomas: number;
+    ubicacion: number;
+  },
+  strengths: string[],
 ): Promise<void> {
   const db = await getDb();
   await db.rls(
     (tx) =>
       tx
         .update(applications)
-        .set({ aiScore: score, aiSummary: summary, updatedAt: new Date() })
+        .set({
+          aiScore: score,
+          aiSummary: summary,
+          aiRedFlags: redFlags,
+          aiBreakdown: breakdown,
+          aiStrengths: strengths,
+          updatedAt: new Date(),
+        })
         .where(eq(applications.id, applicationId)),
     "db.applications.save-score",
   );

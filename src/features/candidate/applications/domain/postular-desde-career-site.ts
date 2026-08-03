@@ -10,6 +10,8 @@ export type PostularDesdeCareerSiteInput = {
   location?: string;
   coverNote?: string;
   cvPath?: string;
+  expectedSalary?: number;
+  expectedSalaryCurrency?: string;
   screeningAnswers?: ScreeningAnswerInput[];
 };
 
@@ -29,6 +31,8 @@ export type PostularDesdeCareerSiteDeps = {
     phone: string | null;
     coverNote: string | null;
     cvPath: string | null;
+    expectedSalary: number | null;
+    expectedSalaryCurrency: string | null;
     screeningAnswers: ScreeningAnswerInput[];
   }) => Promise<ApplyOutcome>;
 };
@@ -81,6 +85,8 @@ export async function postularDesdeCareerSite(
     phone: input.phone?.trim() || null,
     coverNote: input.coverNote?.trim() || null,
     cvPath: input.cvPath?.trim() || null,
+    expectedSalary: input.expectedSalary ?? null,
+    expectedSalaryCurrency: input.expectedSalaryCurrency?.trim() || null,
     screeningAnswers: (input.screeningAnswers ?? []).filter((a) => a.value.trim()),
   });
 
