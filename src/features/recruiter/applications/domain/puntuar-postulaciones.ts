@@ -1,4 +1,4 @@
-import type { AiProvider } from "@/lib/ai";
+import type { AiProvider, ScoreBreakdown } from "@/lib/ai";
 import type { OrgRole } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 
@@ -22,7 +22,14 @@ export type PuntuarContext = {
 
 export type PuntuarDeps = {
   provider: AiProvider;
-  saveScore: (applicationId: string, score: number, summary: string) => Promise<void>;
+  saveScore: (
+    applicationId: string,
+    score: number,
+    summary: string,
+    redFlags: string[],
+    breakdown: ScoreBreakdown,
+    strengths: string[],
+  ) => Promise<void>;
 };
 
 /**
@@ -44,7 +51,14 @@ export async function puntuarPostulaciones(
       candidate: app.candidate,
       job: input.job,
     });
-    await deps.saveScore(app.id, result.score, result.summary);
+    await deps.saveScore(
+      app.id,
+      result.score,
+      result.summary,
+      result.redFlags,
+      result.breakdown,
+      result.strengths,
+    );
     scored += 1;
   }
 

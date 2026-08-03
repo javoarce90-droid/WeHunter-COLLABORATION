@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { getActiveMembership } from "@/lib/auth/session";
+import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import {
   APPLICATION_STAGES,
   postularCandidatoSchema,
@@ -17,7 +17,6 @@ import { moverAEtapa } from "./domain/mover-a-etapa";
 import { pasarAlPipeline } from "./domain/pasar-al-pipeline";
 import { guardarEnTalentPool } from "./domain/guardar-en-talent-pool";
 import { rechazarPostulacion } from "./domain/rechazar-postulacion";
-import { marcarFavorito } from "./domain/marcar-favorito";
 import { puntuarPostulaciones } from "./domain/puntuar-postulaciones";
 import {
   getJobForPipeline,
@@ -27,13 +26,14 @@ import {
   findExistingApplication,
   listApplicationsForScoring,
   listCandidatesForApplications,
+  listApplicationsByCandidate,
+  type CandidateApplication,
 } from "./data/applications.queries";
 import { debeNotificarCandidato, toStepperStage, ESTADO_VISIBLE_LABELS } from "@/features/candidate/portal/domain/gestionar-postulacion";
 import { notifyProfile } from "../notifications/data/notifications.mutations";
 import {
   insertApplication,
   updateApplicationStage,
-  setApplicationFavorite,
   setPipelineEntered,
   saveApplicationScore,
   moveToStage,
@@ -42,7 +42,8 @@ import { isStageActive, getActiveStages } from "../pipeline-stages/data/pipeline
 import { getJobStage } from "../pipeline-stages/data/job-stages.queries";
 import { legacyStageFor } from "./domain/mover-a-etapa";
 import { getCandidateById, findDuplicateCandidate } from "../candidates/data/candidates.queries";
-import { setTalentState } from "../candidates/data/candidates.mutations";
+import { getCandidateResume } from "../candidates/data/resume.queries";
+import { setSavedToPool } from "../candidates/data/candidates.mutations";
 import { findLinkableProfile } from "../candidates/data/profile-link.queries";
 import { getLinkedCandidateProfile } from "../candidates/data/linked-profile.queries";
 import { getJobById } from "../jobs/data/jobs.queries";
@@ -53,6 +54,7 @@ import { insertCandidate } from "../candidates/data/candidates.mutations";
 import { enviarMensaje } from "../messaging/domain/enviar-mensaje";
 import { MESSAGE_CHANNELS } from "../messaging/schema";
 import { ensureThread, recordOutbound } from "../messaging/data/messaging.mutations";
+import { insertNote } from "../notes/data/notes.mutations";
 import { getAiProvider } from "@/lib/ai";
 
 export interface ApplicationActionState {
@@ -91,7 +93,6 @@ export async function postularCandidatoAction(
         getCandidateById(candidateId, organizationId),
       findExistingApplication: (jobId, candidateId) =>
         findExistingApplication(jobId, candidateId),
-      getActiveStages,
       createApplication: insertApplication,
     },
   );
@@ -100,13 +101,13 @@ export async function postularCandidatoAction(
     return { error: result.error };
   }
 
-  revalidatePath(`/jobs/${parsed.data.jobId}/pipeline`);
+  revalidatePath(`/jobs/${parsed.data.jobId}/postulados`);
   return {};
 }
 
 export interface PostularVariosResult {
   ok: boolean;
-  /** Cuántos entraron al pipeline. */
+  /** Cuántos se agregaron (quedan en Postulados, pendientes de revisión). */
   added?: number;
   /** Cuántos se saltaron (ya estaban en la búsqueda u otro motivo recuperable). */
   skipped?: number;
@@ -143,7 +144,6 @@ export async function postularVariosAction(
       getCandidateById(id, organizationId),
     findExistingApplication: (jId: string, cId: string) =>
       findExistingApplication(jId, cId),
-    getActiveStages,
     createApplication: insertApplication,
   };
 
@@ -165,7 +165,7 @@ export async function postularVariosAction(
     return { ok: false, error: firstError ?? "No se pudo postular a los candidatos." };
   }
 
-  revalidatePath(`/jobs/${jobId}/pipeline`);
+  revalidatePath(`/jobs/${jobId}/postulados`);
   return { ok: true, added, skipped };
 }
 
@@ -217,7 +217,6 @@ export async function crearYPostularCandidatoAction(
       getJobById: (id, organizationId) => getJobForPipeline(id, organizationId),
       getCandidateById: (id, organizationId) => getCandidateById(id, organizationId),
       findExistingApplication: (jId, cId) => findExistingApplication(jId, cId),
-      getActiveStages,
       createApplication: insertApplication,
     },
   );
@@ -225,7 +224,7 @@ export async function crearYPostularCandidatoAction(
     return { error: `Candidato creado en el pool, pero no se pudo postular: ${postulado.error}` };
   }
 
-  revalidatePath(`/jobs/${jobId}/pipeline`);
+  revalidatePath(`/jobs/${jobId}/postulados`);
   return {};
 }
 
@@ -356,40 +355,6 @@ export async function moverAEtapaAction(
   revalidatePath(`/jobs/${application.jobId}/pipeline`);
   revalidatePath(`/jobs/${application.jobId}/postulados`);
   return {};
-}
-
-const marcarFavoritoSchema = z.object({
-  applicationId: z.string().uuid(),
-  isFavorite: z.boolean(),
-  jobId: z.string().uuid(),
-});
-
-export async function marcarFavoritoAction(
-  applicationId: string,
-  isFavorite: boolean,
-  jobId: string,
-): Promise<{ ok: boolean; error?: string }> {
-  const parsed = marcarFavoritoSchema.safeParse({ applicationId, isFavorite, jobId });
-  if (!parsed.success) {
-    return { ok: false, error: "Datos inválidos." };
-  }
-
-  const membership = await getActiveMembership();
-  if (!membership) return { ok: false, error: "No autorizado." };
-
-  const result = await marcarFavorito(
-    { applicationId, isFavorite },
-    { organizationId: membership.organizationId },
-    {
-      getApplicationById: (id, organizationId) => getApplicationById(id, organizationId),
-      setFavorite: setApplicationFavorite,
-    },
-  );
-
-  if (!result.ok) return { ok: false, error: result.error };
-
-  revalidatePath(`/jobs/${jobId}/postulados`);
-  return { ok: true };
 }
 
 /** Genera (IA mock) una guía de preguntas de entrevista para un candidato en una búsqueda. */
@@ -563,8 +528,9 @@ export async function pasarAlPipelineAction(
 }
 
 /**
- * Guarda una o varias postulaciones en el Talent Pool: salen de esta búsqueda pero el
- * candidato queda marcado como talento disponible para futuras (ver `guardarEnTalentPool`).
+ * Suma uno o varios candidatos al pool de talento del recruiter (ver `guardarEnTalentPool`):
+ * es una acción sobre el CANDIDATO, no un estado de esta postulación — no toca `stage` ni
+ * `pipelineEnteredAt`. Los que ya son parte del pool se cuentan como saltados, no error.
  */
 export async function guardarEnTalentPoolAction(
   input: { jobId: string; applicationIds: string[]; note?: string },
@@ -577,18 +543,22 @@ export async function guardarEnTalentPoolAction(
   }
   const { jobId, applicationIds, note } = parsed.data;
 
-  const membership = await getActiveMembership();
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!membership) return { ok: false, error: "No autorizado." };
 
   const ctx = {
-    userId: "",
+    userId: user?.id ?? "",
     organizationId: membership.organizationId,
     role: membership.role,
   };
   const deps = {
     getApplicationById,
-    updateApplicationStage,
-    setTalentState,
+    getCandidateSavedToPool: async (candidateId: string, organizationId: string) => {
+      const candidate = await getCandidateById(candidateId, organizationId);
+      return candidate ? candidate.savedToPool : null;
+    },
+    setSavedToPool,
+    insertNote,
   };
 
   let hechas = 0;
@@ -762,4 +732,56 @@ export async function rechazarVariosAction(
   revalidatePath(`/jobs/${jobId}/postulados`);
   revalidatePath(`/jobs/${jobId}/pipeline`);
   return { ok: true, rejected, skipped, notified: notifyCandidate ? notified : undefined };
+}
+
+export type FichaCandidatoData = {
+  candidate: {
+    email: string | null;
+    phone: string | null;
+    location: string | null;
+    linkedinUrl: string | null;
+    summary: string | null;
+    skills: string[] | null;
+    cvUrl: string | null;
+  };
+  resume: Awaited<ReturnType<typeof getCandidateResume>>;
+  otherApplications: CandidateApplication[];
+};
+
+/**
+ * Datos "profundos" de un candidato para la pestaña Perfil/Postulaciones de su ficha
+ * (abierta desde "Ver detalle" en Postulados) — a diferencia de notas/historial, que ya
+ * llegan precargados por job (ver postulados/page.tsx), esto se pide bajo demanda recién
+ * cuando se abre la ficha: es más pesado (currículum completo) y la mayoría de las filas de
+ * la bandeja nunca llegan a abrirse (database.md #6/#7).
+ */
+export async function getFichaCandidatoAction(
+  candidateId: string,
+): Promise<{ ok: true; data: FichaCandidatoData } | { ok: false; error: string }> {
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const [candidate, resume, otherApplications] = await Promise.all([
+    getCandidateById(candidateId, membership.organizationId),
+    getCandidateResume(candidateId),
+    listApplicationsByCandidate(candidateId, membership.organizationId),
+  ]);
+  if (!candidate) return { ok: false, error: "Candidato no encontrado." };
+
+  return {
+    ok: true,
+    data: {
+      candidate: {
+        email: candidate.email,
+        phone: candidate.phone,
+        location: candidate.location,
+        linkedinUrl: candidate.linkedinUrl,
+        summary: candidate.summary,
+        skills: candidate.skills,
+        cvUrl: candidate.cvUrl,
+      },
+      resume,
+      otherApplications,
+    },
+  };
 }

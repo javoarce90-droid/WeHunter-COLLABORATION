@@ -1,0 +1,1 @@
+ALTER TABLE "applications" ADD COLUMN "self_applied" boolean DEFAULT false NOT NULL;

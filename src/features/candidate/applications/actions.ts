@@ -37,6 +37,8 @@ export async function postularAction(
     email: formData.get("email"),
     phone: formData.get("phone"),
     coverNote: formData.get("coverNote"),
+    expectedSalary: formData.get("expectedSalary"),
+    expectedSalaryCurrency: formData.get("expectedSalaryCurrency"),
     screeningAnswers: formData.get("screeningAnswers"),
   });
   if (!parsed.success) {
@@ -81,6 +83,8 @@ export async function postularAction(
       location: profile?.location ?? undefined,
       coverNote: parsed.data.coverNote,
       cvPath,
+      expectedSalary: parsed.data.expectedSalary,
+      expectedSalaryCurrency: parsed.data.expectedSalaryCurrency,
       screeningAnswers: parsed.data.screeningAnswers,
     },
     { applyToJob: applyToJobRpc },

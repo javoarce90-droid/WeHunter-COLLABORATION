@@ -287,11 +287,15 @@ export function CandidateForm({
                     className={selectClass}
                   >
                     <option value="">Sin especificar</option>
-                    {Object.entries(CANDIDATE_SOURCE_LABELS).map(([v, l]) => (
-                      <option key={v} value={v}>
-                        {l}
-                      </option>
-                    ))}
+                    {Object.entries(CANDIDATE_SOURCE_LABELS)
+                      // "portal" la setea el sistema cuando el candidato se postula solo —
+                      // no es una fuente que el recruiter elija al cargarlo a mano.
+                      .filter(([v]) => v !== "portal")
+                      .map(([v, l]) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                   </select>
                 </label>
               </div>

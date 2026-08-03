@@ -7,12 +7,19 @@ export async function enviarPostulacionPortal(
   job: Job,
   candidate: ApplyCandidate,
   answers: Record<string, string>,
+  expected?: { expectedSalary?: string; expectedSalaryCurrency?: string },
 ): Promise<PortalApplyState> {
   const formData = new FormData();
   formData.set("jobId", job.id);
   formData.set("organizationId", job.organizationId);
   formData.set("fullName", candidate.fullName.trim());
   formData.set("email", candidate.email.trim());
+  if (expected?.expectedSalary?.trim()) {
+    formData.set("expectedSalary", expected.expectedSalary.trim());
+  }
+  if (expected?.expectedSalaryCurrency?.trim()) {
+    formData.set("expectedSalaryCurrency", expected.expectedSalaryCurrency.trim());
+  }
 
   const screeningAnswers = Object.entries(answers)
     .filter(([, value]) => value.trim())

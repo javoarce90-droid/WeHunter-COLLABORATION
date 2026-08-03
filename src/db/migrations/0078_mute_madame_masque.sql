@@ -1,0 +1,1 @@
+ALTER TABLE "applications" ADD COLUMN "talent_pool_saved_at" timestamp;

@@ -71,6 +71,15 @@ export function ApplyForm({
 
       <Textarea label="Mensaje (opcional)" name="coverNote" rows={4} maxLength={2000} />
 
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <Input label="Pretensión salarial (opcional)" name="expectedSalary" type="number" min={0} />
+        </div>
+        <div className="w-24">
+          <Input label="Moneda" name="expectedSalaryCurrency" maxLength={3} placeholder="USD" />
+        </div>
+      </div>
+
       {existingCvUrl ? (
         <input type="hidden" name="existingCvUrl" value={existingCvUrl} />
       ) : (
