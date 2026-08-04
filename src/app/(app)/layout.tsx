@@ -85,6 +85,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           organizationId={membership.organizationId}
           workspaceType={membership.workspaceType}
           setupCompletedAt={membership.organizationSetupCompletedAt}
+          userId={user.id}
         />
       </Suspense>
     </div>
