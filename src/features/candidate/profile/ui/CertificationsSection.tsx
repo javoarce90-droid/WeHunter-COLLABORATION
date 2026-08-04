@@ -7,6 +7,8 @@ import {
   type ResumeActionState,
 } from "../resume-actions";
 import type { CandidateCertification } from "@/db/schema";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 type ActionFn = (prev: ResumeActionState, formData: FormData) => Promise<ResumeActionState>;
 
@@ -20,55 +22,76 @@ export function CertificationsSection({ certifications, actions, hiddenFields }:
   const [adding, setAdding] = useState(false);
 
   return (
-    <div className="flex flex-col gap-3 bg-surface border border-border p-6 rounded-[var(--radius)] shadow-[var(--shadow)]">
-      <h3 className="text-base font-bold font-display text-text">Certificaciones</h3>
+    <Card className="w-full border border-border/80 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_4px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-200 bg-surface animate-pop-in [animation-delay:200ms]">
+      <CardHeader className="p-5 border-b border-border/80 flex flex-row items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2.5 rounded-lg bg-primary-light/60 text-primary">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-text font-display">Certificaciones</h3>
+            <p className="text-[11px] text-muted">Certificados oficiales o exámenes</p>
+          </div>
+        </div>
+        {!adding && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="text-xs font-semibold text-primary hover:text-primary-hover px-3 py-1.5 rounded-md bg-primary-light/40 border border-primary/20 hover:border-primary/40 transition-all flex items-center gap-1 shrink-0"
+          >
+            + Añadir
+          </button>
+        )}
+      </CardHeader>
 
-      {certifications.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {certifications.map((cert) => (
-            <li
-              key={cert.id}
-              className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-border/60 bg-bg/40 px-4 py-2.5"
-            >
-              <div>
-                <p className="text-sm font-semibold text-text">{cert.name}</p>
-                {cert.url && (
-                  <a
-                    href={cert.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-primary hover:underline"
-                  >
-                    Ver certificado
-                  </a>
-                )}
-              </div>
-              <DeleteButton
-                id={cert.id}
-                action={actions?.eliminar ?? eliminarCertificacionAction}
-                hiddenFields={hiddenFields}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
+      <CardContent className="p-5 flex flex-col gap-3">
+        {certifications.length === 0 && !adding && (
+          <div className="flex flex-col items-center justify-center py-5 px-4 bg-bg/40 rounded-[var(--radius)] border border-dashed border-border/70 text-center">
+            <p className="text-xs text-muted font-medium">Sin certificaciones registradas</p>
+          </div>
+        )}
 
-      {adding ? (
-        <AddForm
-          onDone={() => setAdding(false)}
-          action={actions?.agregar ?? agregarCertificacionAction}
-          hiddenFields={hiddenFields}
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={() => setAdding(true)}
-          className="w-full rounded-[var(--radius)] border border-dashed border-primary/25 px-3 py-2 text-left text-xs italic text-muted transition-colors hover:border-primary/50 hover:text-primary"
-        >
-          + Añadir certificado
-        </button>
-      )}
-    </div>
+        {certifications.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {certifications.map((cert) => (
+              <li
+                key={cert.id}
+                className="flex items-center justify-between gap-3 rounded-[var(--radius)] border border-border/80 bg-bg/40 hover:bg-bg/70 transition-colors p-3 text-xs animate-pop-in"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-text truncate">{cert.name}</p>
+                  {cert.url && (
+                    <a
+                      href={cert.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-primary font-medium hover:underline inline-block mt-0.5"
+                    >
+                      Ver certificado ↗
+                    </a>
+                  )}
+                </div>
+                <DeleteButton
+                  id={cert.id}
+                  action={actions?.eliminar ?? eliminarCertificacionAction}
+                  hiddenFields={hiddenFields}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {adding && (
+          <AddForm
+            onDone={() => setAdding(false)}
+            action={actions?.agregar ?? agregarCertificacionAction}
+            hiddenFields={hiddenFields}
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -93,44 +116,44 @@ function AddForm({
   return (
     <form
       action={dispatch}
-      className="flex flex-col gap-2 rounded-[var(--radius)] border border-border bg-surface p-3"
+      className="flex flex-col gap-3 p-4 rounded-[var(--radius)] border-l-4 border-l-primary border border-primary/20 bg-primary-light/10 text-xs animate-pop-in"
     >
       {hiddenFields &&
         Object.entries(hiddenFields).map(([name, value]) => (
           <input key={name} type="hidden" name={name} value={value} />
         ))}
-      <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
-        Nombre del certificado
-        <input
-          type="text"
-          name="name"
-          required
-          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
-        />
-      </label>
-      <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
-        URL del documento (opcional)
-        <input
-          type="text"
-          inputMode="url"
-          name="url"
-          placeholder="credly.com/badges/…"
-          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
-        />
-      </label>
+      
+      <Input
+        label="Nombre de la certificación"
+        name="name"
+        placeholder="Ej. AWS Certified Solutions Architect"
+        required
+      />
 
-      {state.error && <p className="text-xs text-danger">{state.error}</p>}
+      <Input
+        label="URL del certificado (opcional)"
+        name="url"
+        type="text"
+        inputMode="url"
+        placeholder="https://credly.com/badges/…"
+      />
 
-      <div className="flex items-center justify-end gap-2">
-        <button type="button" onClick={onDone} className="text-xs font-semibold text-muted hover:text-text">
+      {state.error && <p className="text-xs text-danger font-medium">{state.error}</p>}
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onDone}
+          className="px-3 py-1.5 text-xs font-semibold text-muted hover:text-text transition-colors"
+        >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-[var(--radius)] bg-primary px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+          className="px-4 py-1.5 bg-primary text-white text-xs font-semibold rounded-[var(--radius)] hover:bg-primary-hover transition-colors shadow-sm disabled:opacity-50"
         >
-          {isPending ? "Guardando…" : "Añadir certificado"}
+          {isPending ? "Guardando…" : "Guardar certificación"}
         </button>
       </div>
     </form>
@@ -161,10 +184,10 @@ function DeleteButton({
       <button
         type="submit"
         disabled={isPending}
-        className="text-xs font-semibold text-muted hover:text-danger disabled:opacity-50"
+        className="text-xs font-semibold text-muted hover:text-danger disabled:opacity-50 transition-colors"
         title={state.error ?? undefined}
       >
-        {isPending ? "Eliminando…" : "Eliminar"}
+        {isPending ? "Eliminando…" : "✕"}
       </button>
     </form>
   );
