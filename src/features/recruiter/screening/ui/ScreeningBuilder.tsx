@@ -37,8 +37,11 @@ export function ScreeningBuilder({
   questions: ScreeningQuestionInput[];
   onChange: (next: ScreeningQuestionInput[]) => void;
 }) {
+  // `required` queda siempre en true: no se ofrece la opción de hacer una pregunta opcional.
   function update(i: number, patch: Partial<ScreeningQuestionInput>) {
-    onChange(questions.map((q, idx) => (idx === i ? { ...q, ...patch } : q)));
+    onChange(
+      questions.map((q, idx) => (idx === i ? { ...q, ...patch, required: true } : q)),
+    );
   }
   function add() {
     onChange([...questions, { type: "yes_no", label: "", required: true }]);
@@ -234,15 +237,6 @@ export function ScreeningBuilder({
           )}
 
           <div className="flex flex-col gap-2 pl-9">
-            <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-sm text-text">
-              <Checkbox
-                checked={q.required}
-                onChange={(e) => update(i, { required: e.target.checked })}
-              />
-              Obligatoria
-              <span className="text-xs text-muted">— no puede postularse sin responderla</span>
-            </label>
-
             {q.type !== "text" && (
               <label className="inline-flex w-fit cursor-pointer items-center gap-2 text-sm text-text">
                 <Checkbox

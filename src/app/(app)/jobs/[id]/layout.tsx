@@ -2,17 +2,21 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
-import { can } from "@/lib/auth/roles";
 import {
   getJobById,
   getJobAssignees,
   getOrganizationSlug,
 } from "@/features/recruiter/jobs/data/jobs.queries";
-import { RESPONSABLE_ROLES } from "@/features/recruiter/jobs/domain/gestionar-responsables";
+import {
+  RESPONSABLE_ROLES,
+  canAssignResponsable,
+  canAssignSourcer,
+} from "@/features/recruiter/jobs/domain/gestionar-responsables";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { JobTabs } from "@/features/recruiter/jobs/ui/JobTabs";
 import { JobAssigneesHeader } from "@/features/recruiter/jobs/ui/JobAssigneesHeader";
 import { ShareJobButton } from "@/features/recruiter/jobs/ui/ShareJobButton";
+import { EstadoAvisoControl } from "@/features/recruiter/jobs/ui/EstadoAvisoControl";
 import { JOB_STATUS_META, relativeTime } from "@/features/recruiter/jobs/ui/status-meta";
 import { Badge } from "@/components/ui/badge";
 
@@ -44,7 +48,8 @@ export default async function JobLayout({
   if (!assignees) notFound();
 
   const meta = JOB_STATUS_META[job.status];
-  const canManage = can(membership.role, "jobs.manage");
+  const canAssignResp = canAssignResponsable(membership.role, membership.workspaceType);
+  const canAssignSrc = canAssignSourcer(membership.role, membership.workspaceType);
   const activeMembers = members.filter((m) => m.status === "active");
   const eligibleResponsibles = activeMembers
     .filter((m) => RESPONSABLE_ROLES.includes(m.role))
@@ -78,7 +83,10 @@ export default async function JobLayout({
               Actualizada {relativeTime(job.updatedAt)}
             </span>
           </div>
-          {job.status === "open" && <ShareJobButton jobId={job.id} orgSlug={orgSlug} />}
+          <div className="flex flex-wrap items-center gap-2">
+            <EstadoAvisoControl job={job} />
+            {job.status === "open" && <ShareJobButton jobId={job.id} orgSlug={orgSlug} />}
+          </div>
         </div>
       </div>
 
@@ -88,7 +96,8 @@ export default async function JobLayout({
         sourcer={assignees.sourcer}
         eligibleResponsibles={eligibleResponsibles}
         eligibleSourcers={eligibleSourcers}
-        canManage={canManage}
+        canAssignResponsable={canAssignResp}
+        canAssignSourcer={canAssignSrc}
       />
 
       <JobTabs jobId={job.id} />

@@ -147,9 +147,11 @@ export function RequisitionForm({ token }: { token: string }) {
 
         <Input name="location" label="Ubicación" placeholder="Buenos Aires" />
 
-        <Field label="Modalidad">
-          <select name="modality" defaultValue="" className={selectClass}>
-            <option value="">Sin especificar</option>
+        <Field label="Modalidad *">
+          <select name="modality" defaultValue="" required className={selectClass}>
+            <option value="" disabled>
+              Elegí una opción
+            </option>
             {Object.entries(MODALITY_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -158,9 +160,11 @@ export function RequisitionForm({ token }: { token: string }) {
           </select>
         </Field>
 
-        <Field label="Seniority">
-          <select name="seniority" defaultValue="" className={selectClass}>
-            <option value="">Sin especificar</option>
+        <Field label="Seniority *">
+          <select name="seniority" defaultValue="" required className={selectClass}>
+            <option value="" disabled>
+              Elegí una opción
+            </option>
             {Object.entries(SENIORITY_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -169,9 +173,11 @@ export function RequisitionForm({ token }: { token: string }) {
           </select>
         </Field>
 
-        <Field label="Tipo de contratación">
-          <select name="employmentType" defaultValue="" className={selectClass}>
-            <option value="">Sin especificar</option>
+        <Field label="Tipo de contratación *">
+          <select name="employmentType" defaultValue="" required className={selectClass}>
+            <option value="" disabled>
+              Elegí una opción
+            </option>
             {Object.entries(EMPLOYMENT_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}

@@ -1,4 +1,27 @@
+import ReactMarkdown from "react-markdown";
 import type { CareerSiteOrg } from "../data/career-site.data";
+
+/** Sin plugin de tipografía de Tailwind en el proyecto — se estilan los elementos a mano,
+ *  mismo criterio visual que ya usa `JobMarkdown` para el aviso de la búsqueda. */
+const DESCRIPTION_MARKDOWN_COMPONENTS = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <p className="text-sm leading-relaxed text-text/80">{children}</p>
+  ),
+  strong: ({ children }: { children?: React.ReactNode }) => (
+    <strong className="font-semibold text-text">{children}</strong>
+  ),
+  a: ({ href, children }: { href?: string; children?: React.ReactNode }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+      {children}
+    </a>
+  ),
+  ul: ({ children }: { children?: React.ReactNode }) => (
+    <ul className="list-disc space-y-1 pl-5 text-sm text-text/80">{children}</ul>
+  ),
+  ol: ({ children }: { children?: React.ReactNode }) => (
+    <ol className="list-decimal space-y-1 pl-5 text-sm text-text/80">{children}</ol>
+  ),
+};
 
 const SOCIAL_LABELS: Record<string, string> = {
   linkedin: "LinkedIn",
@@ -24,11 +47,15 @@ export function CareerSiteHeader({ org }: { org: CareerSiteOrg }) {
 
   return (
     <header className="border-b border-border bg-surface">
-      {org.coverUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={org.coverUrl} alt="" className="h-40 w-full object-cover sm:h-56" />
-      )}
       <div className="mx-auto max-w-3xl px-4">
+        {org.coverUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={org.coverUrl}
+            alt=""
+            className="mt-6 h-40 w-full rounded-[var(--radius)] object-cover sm:h-56"
+          />
+        )}
         <div
           className={
             org.coverUrl
@@ -62,9 +89,11 @@ export function CareerSiteHeader({ org }: { org: CareerSiteOrg }) {
 
         <div className="flex flex-col gap-3 py-6">
           {org.settings?.description && (
-            <p className="max-w-[70ch] text-sm leading-relaxed text-text/80">
-              {org.settings.description}
-            </p>
+            <div className="flex max-w-[70ch] flex-col gap-2">
+              <ReactMarkdown components={DESCRIPTION_MARKDOWN_COMPONENTS}>
+                {org.settings.description}
+              </ReactMarkdown>
+            </div>
           )}
 
           {links.length > 0 && (

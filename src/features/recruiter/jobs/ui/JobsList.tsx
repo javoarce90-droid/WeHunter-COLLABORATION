@@ -80,7 +80,7 @@ function JobRow({ job, orgSlug }: { job: JobWithStats; orgSlug: string | null })
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <Link
-            href={`/jobs/${job.id}/pipeline`}
+            href={`/jobs/${job.id}/postulados`}
             className="truncate rounded-sm font-semibold text-text outline-none transition-colors group-hover:text-primary focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
           >
             {job.title}

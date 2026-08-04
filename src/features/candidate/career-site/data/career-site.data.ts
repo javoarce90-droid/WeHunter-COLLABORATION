@@ -48,7 +48,7 @@ export type CareerSiteOrg = {
   name: string;
   slug: string;
   logoUrl: string | null; // signed URL, ya resuelta
-  coverUrl: string | null; // URL pública, ya resuelta
+  coverUrl: string | null; // URL pública, ya resuelta (con cache-busting)
   settings: CareerSiteBranding | null;
 };
 
@@ -59,10 +59,11 @@ type RawCareerSiteOrg = {
   logoUrl: string | null; // path crudo del bucket privado org-logos
   coverUrl: string | null; // path crudo del bucket público career-site-media
   settings: CareerSiteBranding | null;
+  updatedAt: string; // para cache-bustear la portada (bucket público, sin esto queda cacheada)
 };
 
-function getCareerSiteCoverPublicUrl(path: string): string {
-  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${CAREER_SITE_MEDIA_BUCKET}/${path}`;
+function getCareerSiteCoverPublicUrl(path: string, version: string): string {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${CAREER_SITE_MEDIA_BUCKET}/${path}?v=${encodeURIComponent(version)}`;
 }
 
 async function getOrgLogoSignedUrl(path: string): Promise<string | null> {
@@ -81,7 +82,7 @@ async function resolveOrg(raw: RawCareerSiteOrg): Promise<CareerSiteOrg> {
     name: raw.name,
     slug: raw.slug,
     logoUrl,
-    coverUrl: raw.coverUrl ? getCareerSiteCoverPublicUrl(raw.coverUrl) : null,
+    coverUrl: raw.coverUrl ? getCareerSiteCoverPublicUrl(raw.coverUrl, raw.updatedAt) : null,
     settings: raw.settings,
   };
 }

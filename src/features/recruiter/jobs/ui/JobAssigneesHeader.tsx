@@ -18,14 +18,16 @@ export function JobAssigneesHeader({
   sourcer,
   eligibleResponsibles,
   eligibleSourcers,
-  canManage,
+  canAssignResponsable,
+  canAssignSourcer,
 }: {
   jobId: string;
   responsible: AssigneeOption;
   sourcer: AssigneeOption | null;
   eligibleResponsibles: AssigneeOption[];
   eligibleSourcers: AssigneeOption[];
-  canManage: boolean;
+  canAssignResponsable: boolean;
+  canAssignSourcer: boolean;
 }) {
   const toast = useToast();
   const [, startTransition] = useTransition();
@@ -60,7 +62,7 @@ export function JobAssigneesHeader({
         <span className="text-[10.5px] font-bold uppercase tracking-wide text-muted">
           Responsable
         </span>
-        {canManage ? (
+        {canAssignResponsable ? (
           <select
             defaultValue={responsible.membershipId}
             onChange={(e) => onChangeResponsible(e.target.value)}
@@ -87,7 +89,7 @@ export function JobAssigneesHeader({
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg py-0.5 pl-1 pr-2 text-xs text-text">
             <Avatar name={sourcer.name ?? sourcer.email} size="sm" />
             {sourcer.name ?? sourcer.email}
-            {canManage && (
+            {canAssignSourcer && (
               <button
                 type="button"
                 onClick={onRemoveSourcer}
@@ -98,7 +100,7 @@ export function JobAssigneesHeader({
               </button>
             )}
           </span>
-        ) : canManage ? (
+        ) : canAssignSourcer ? (
           addingSourcer ? (
             <select
               autoFocus

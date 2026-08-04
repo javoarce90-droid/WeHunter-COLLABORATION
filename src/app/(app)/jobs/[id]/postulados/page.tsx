@@ -2,10 +2,12 @@ import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import {
   listPostulados,
+  listCandidateIdsByJob,
   listStageEventsByJob,
   type StageHistoryEvent,
 } from "@/features/recruiter/applications/data/applications.queries";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
+import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
 import {
   listScreeningQuestionsByJob,
   listScreeningAnswersByJob,
@@ -32,15 +34,24 @@ export default async function PostuladosPage({ params }: Props) {
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [postulados, job, questions, answers, notes, stageEvents] = await Promise.all([
-    listPostulados(jobId, membership.organizationId),
-    getJobById(jobId, membership.organizationId),
-    listScreeningQuestionsByJob(jobId, membership.organizationId),
-    listScreeningAnswersByJob(jobId, membership.organizationId),
-    listNotesByJob(jobId, membership.organizationId),
-    listStageEventsByJob(jobId, membership.organizationId),
-  ]);
+  const [postulados, job, questions, answers, notes, stageEvents, candidates, candidateIdsEnLaBusqueda] =
+    await Promise.all([
+      listPostulados(jobId, membership.organizationId),
+      getJobById(jobId, membership.organizationId),
+      listScreeningQuestionsByJob(jobId, membership.organizationId),
+      listScreeningAnswersByJob(jobId, membership.organizationId),
+      listNotesByJob(jobId, membership.organizationId),
+      listStageEventsByJob(jobId, membership.organizationId),
+      listCandidates(membership.organizationId),
+      listCandidateIdsByJob(jobId, membership.organizationId),
+    ]);
   if (!job) notFound();
+
+  // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
+  const postuladosIds = new Set(candidateIdsEnLaBusqueda);
+  const poolCandidates = candidates
+    .filter((c) => !postuladosIds.has(c.id))
+    .map((c) => ({ id: c.id, fullName: c.fullName, email: c.email }));
 
   const notesByApplication = notes.reduce<Record<string, TimelineNote[]>>((acc, n) => {
     (acc[n.applicationId] ??= []).push(n);
@@ -91,6 +102,7 @@ export default async function PostuladosPage({ params }: Props) {
       totalCriterios={questions.filter((q) => q.isCriterion).length}
       notesByApplication={notesByApplication}
       stageEventsByApplication={stageEventsByApplication}
+      poolCandidates={poolCandidates}
     />
   );
 }

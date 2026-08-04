@@ -17,6 +17,7 @@ import { AiButton } from "@/components/ui/ai";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/toast";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
+import { AgregarCandidatos } from "./AgregarCandidatos";
 import type { CandidateSource } from "@/features/recruiter/candidates/domain/candidate-details";
 import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import {
@@ -39,6 +40,8 @@ import { MatchCell } from "./MatchCell";
 import { AiAnalysisDialog } from "./AiAnalysisDialog";
 import { PostuladoDetailSheet, type ScreeningAnswerLine } from "./PostuladoDetailSheet";
 
+type PoolCandidate = { id: string; fullName: string; email: string | null };
+
 type Props = {
   jobId: string;
   jobTitle: string;
@@ -49,6 +52,9 @@ type Props = {
   totalCriterios: number;
   notesByApplication: Record<string, TimelineNote[]>;
   stageEventsByApplication: Record<string, StageHistoryEvent[]>;
+  /** Candidatos del pool que todavía no están postulados a esta búsqueda — para "Cargar
+   *  candidatos" (única entrada a esta acción: ya no vive en Pipeline). */
+  poolCandidates: PoolCandidate[];
 };
 
 /** Foco visible estándar para botones de texto/íconos sin fondo (gap WCAG AA de PRODUCT.md). */
@@ -112,6 +118,7 @@ export function PostuladosTable({
   totalCriterios,
   notesByApplication,
   stageEventsByApplication,
+  poolCandidates,
 }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
@@ -201,16 +208,20 @@ export function PostuladosTable({
 
   if (postulados.length === 0) {
     return (
-      <EmptyState
-        title="Todavía no hay postulaciones"
-        description={
-          <>
-            Cuando alguien se postule al aviso, o sumes un candidato del pool, va a aparecer
-            acá para que lo revises y decidas si pasa al{" "}
-            <span className="font-semibold text-text">Pipeline</span>.
-          </>
-        }
-      />
+      <div className="flex flex-col items-center gap-4">
+        <EmptyState
+          className="w-full"
+          title="Todavía no hay postulaciones"
+          description={
+            <>
+              Cuando alguien se postule al aviso, o sumes un candidato del pool, va a aparecer
+              acá para que lo revises y decidas si pasa al{" "}
+              <span className="font-semibold text-text">Pipeline</span>.
+            </>
+          }
+        />
+        <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
+      </div>
     );
   }
 
@@ -351,6 +362,7 @@ export function PostuladosTable({
             </FilterChip>
           </FilterChipGroup>
         )}
+        <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
         {hayPendientesDeAnalizar ? (
           <AiButton
             onClick={onAnalizar}

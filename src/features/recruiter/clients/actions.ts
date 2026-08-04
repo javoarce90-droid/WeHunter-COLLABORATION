@@ -15,7 +15,7 @@ import { revocarClientShare } from "./domain/revocar-client-share";
 import { asignarRecruiterACliente } from "./domain/asignar-recruiter-a-cliente";
 import { insertClient, updateClientFields, assignRecruiterToClient } from "./data/clients.mutations";
 import { getClientById } from "./data/clients.queries";
-import { getMembershipById } from "@/features/recruiter/team/data/team.queries";
+import { getMembershipById, getSoleActiveMembershipId } from "@/features/recruiter/team/data/team.queries";
 import {
   createClientShare,
   generateClientShareToken,
@@ -57,11 +57,11 @@ export async function crearClienteAction(
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
     },
-    { insertClient },
+    { insertClient, getSoleActiveMembershipId, assignRecruiterToClient },
   );
   if (!result.ok) return { error: result.error };
 
-  redirect("/clients");
+  redirect(`/clients/${result.data.clientId}`);
 }
 
 export async function editarClienteAction(

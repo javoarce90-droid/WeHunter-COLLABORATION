@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getActiveMembership } from "@/lib/auth/session";
+import type { WorkspaceType } from "@/lib/auth/session";
 import { getOwnProfile, getOrganization } from "@/features/recruiter/settings/data/settings.queries";
 import { obtenerKpis, type DashboardKpis } from "@/features/recruiter/dashboard/domain/obtener-kpis";
 import { getDashboardCounts } from "@/features/recruiter/dashboard/data/dashboard.queries";
@@ -13,6 +14,8 @@ import { KpiGrid, KpiGridSkeleton } from "@/features/recruiter/dashboard/ui/KpiG
 import { listRecentOpenJobs } from "@/features/recruiter/jobs/data/jobs.queries";
 import { getDashboardAgendaSummary } from "@/features/recruiter/interviews/data/interviews.queries";
 import { countStageTemplates } from "@/features/recruiter/pipeline-stages/data/job-stage-templates.queries";
+import { countClients } from "@/features/recruiter/clients/data/clients.queries";
+import { countMembersAndPendingInvitations } from "@/features/recruiter/team/data/team.queries";
 import { JOB_STATUS_META } from "@/features/recruiter/jobs/ui/status-meta";
 import { TYPE_LABELS, TYPE_BADGE, MODE_LABELS } from "@/features/recruiter/interviews/schema";
 
@@ -82,7 +85,11 @@ async function DashboardContent() {
       </div>
 
       {isDay1 ? (
-        <DashboardDay1 organizationId={membership.organizationId} kpis={kpis} />
+        <DashboardDay1
+          organizationId={membership.organizationId}
+          kpis={kpis}
+          workspaceType={membership.workspaceType}
+        />
       ) : (
         <DashboardDaily organizationId={membership.organizationId} kpis={kpis} />
       )}
@@ -225,13 +232,19 @@ type ChecklistItem = { title: string; description: string; href: string; done: b
 async function DashboardDay1({
   organizationId,
   kpis,
+  workspaceType,
 }: {
   organizationId: string;
   kpis: DashboardKpis;
+  workspaceType: WorkspaceType | null;
 }) {
-  const [stageTemplatesCount, org] = await Promise.all([
+  const isFreelance = workspaceType === "freelance";
+  const [stageTemplatesCount, org, teamOrClientsCount] = await Promise.all([
     countStageTemplates(organizationId),
     getOrganization(organizationId),
+    isFreelance
+      ? countClients(organizationId)
+      : countMembersAndPendingInvitations(organizationId),
   ]);
   const careerSiteConfigured = !!org?.branding?.description || !!org?.careerSiteCoverUrl;
 
@@ -248,6 +261,19 @@ async function DashboardDay1({
       href: "/settings/stages",
       done: stageTemplatesCount > 0,
     },
+    isFreelance
+      ? {
+          title: "Da de alta a tu primer cliente",
+          description: "Así vinculás tus búsquedas a la empresa para la que reclutás.",
+          href: "/clients/new",
+          done: teamOrClientsCount > 0,
+        }
+      : {
+          title: "Invitá a tu equipo",
+          description: "Sumá recruiters, sourcers o consultores externos a tu workspace.",
+          href: "/team",
+          done: teamOrClientsCount > 1,
+        },
     {
       title: "Creá tu primera búsqueda",
       description: "Con IA o manual — es lo primero que necesitás para recibir postulantes.",

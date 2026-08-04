@@ -70,4 +70,16 @@ describe("asignarRecruiterACliente", () => {
     expect(res).toMatchObject({ ok: false });
     expect(d.getClientById).not.toHaveBeenCalled();
   });
+
+  it("un recruiter no puede reasignar (solo owner/admin)", async () => {
+    const d = deps();
+    const res = await asignarRecruiterACliente(
+      { clientId: "client-1", membershipId: "member-1" },
+      { organizationId: "org-1", role: "recruiter" },
+      d,
+    );
+
+    expect(res).toMatchObject({ ok: false });
+    expect(d.getClientById).not.toHaveBeenCalled();
+  });
 });

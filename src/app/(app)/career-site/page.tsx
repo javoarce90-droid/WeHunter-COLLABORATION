@@ -14,7 +14,9 @@ export default async function CareerSitePage() {
   const org = await getOrganization(membership.organizationId);
   if (!org) notFound();
 
-  const coverUrl = org.careerSiteCoverUrl ? getCareerSiteCoverPublicUrl(org.careerSiteCoverUrl) : null;
+  const coverUrl = org.careerSiteCoverUrl
+    ? getCareerSiteCoverPublicUrl(org.careerSiteCoverUrl, org.updatedAt)
+    : null;
   const role = membership.role as OrgRole;
   const canEdit = role === "owner" || role === "admin";
 
@@ -44,7 +46,7 @@ export default async function CareerSitePage() {
 
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-bold text-text">Cómo se ve</h2>
-          <CareerSitePreview slug={org.slug} />
+          <CareerSitePreview slug={org.slug} version={org.updatedAt.getTime()} />
           <p className="text-xs leading-relaxed text-muted">
             Esta es la misma pantalla que ve el candidato — no es una maqueta aparte. &quot;Abrir
             Career Site&quot; te lleva a verla completa.

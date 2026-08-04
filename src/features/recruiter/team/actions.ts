@@ -12,7 +12,7 @@ import {
   invitarMiembro,
   actualizarMiembro,
   eliminarMiembro,
-  ASSIGNABLE_ROLES,
+  assignableRolesFor,
 } from "./domain/gestionar-equipo";
 import { aceptarInvitacion } from "./domain/aceptar-invitacion";
 import {
@@ -26,10 +26,12 @@ import {
   createMembership,
   markInvitationAccepted,
 } from "./data/team.mutations";
-import { getMembershipById, getInvitationForResend } from "./data/team.queries";
+import {
+  getMembershipById,
+  getInvitationForResend,
+  countMembersAndPendingInvitations,
+} from "./data/team.queries";
 import { sendInvitationEmail } from "./data/email-client";
-
-const ROLE_ENUM = ASSIGNABLE_ROLES as unknown as [string, ...string[]];
 
 /** URL base de la app a partir de los headers de la request (mismo patrón que
  *  `google-calendar/data/oauth-client.ts` y `app/auth/actions.ts`). */
@@ -45,29 +47,41 @@ export async function invitarMiembroAction(
   email: string,
   role: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  const [membership, user] = await Promise.all([getActiveMembership(), getCurrentUser()]);
+  if (!membership || !user) return { ok: false, error: "No autorizado." };
+
+  const roleEnum = assignableRolesFor(membership.workspaceType) as unknown as [
+    string,
+    ...string[],
+  ];
   const parsed = z
     .object({
       name: z.string().trim().min(2, "Ingresá el nombre completo."),
       email: z.string().email("Email inválido."),
-      role: z.enum(ROLE_ENUM),
+      role: z.enum(roleEnum),
     })
     .safeParse({ name, email, role });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
   }
 
-  const [membership, user] = await Promise.all([getActiveMembership(), getCurrentUser()]);
-  if (!membership || !user) return { ok: false, error: "No autorizado." };
+  const currentMemberCount = await countMembersAndPendingInvitations(membership.organizationId);
 
   const token = randomUUID();
   const result = await invitarMiembro(
     {
       name: parsed.data.name,
       email: parsed.data.email,
-      role: parsed.data.role as (typeof ASSIGNABLE_ROLES)[number],
+      role: parsed.data.role as ReturnType<typeof assignableRolesFor>[number],
       token,
     },
-    { userId: user.id, organizationId: membership.organizationId, role: membership.role },
+    {
+      userId: user.id,
+      organizationId: membership.organizationId,
+      role: membership.role,
+      workspaceType: membership.workspaceType,
+      currentMemberCount,
+    },
     {
       createInvitation: (data) =>
         insertInvitation({ organizationId: membership.organizationId, ...data }),
@@ -85,7 +99,7 @@ export async function invitarMiembroAction(
     to: parsed.data.email,
     inviterName: inviter?.fullName || inviter?.email || "Un miembro del equipo",
     organizationName: org?.name ?? "WeHunter",
-    role: parsed.data.role as (typeof ASSIGNABLE_ROLES)[number],
+    role: parsed.data.role as ReturnType<typeof assignableRolesFor>[number],
     acceptUrl: `${await appUrl()}/invite/aceptar?token=${token}`,
   });
 
@@ -125,25 +139,34 @@ export async function actualizarMiembroAction(
   membershipId: string,
   patch: { role?: string; status?: string },
 ): Promise<{ ok: boolean; error?: string }> {
+  const [membership, user] = await Promise.all([getActiveMembership(), getCurrentUser()]);
+  if (!membership || !user) return { ok: false, error: "No autorizado." };
+
+  const roleEnum = assignableRolesFor(membership.workspaceType) as unknown as [
+    string,
+    ...string[],
+  ];
   const parsed = z
     .object({
       membershipId: z.string().uuid(),
-      role: z.enum(ASSIGNABLE_ROLES as unknown as [string, ...string[]]).optional(),
+      role: z.enum(roleEnum).optional(),
       status: z.enum(["active", "inactive"]).optional(),
     })
     .safeParse({ membershipId, ...patch });
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
 
-  const [membership, user] = await Promise.all([getActiveMembership(), getCurrentUser()]);
-  if (!membership || !user) return { ok: false, error: "No autorizado." };
-
   const result = await actualizarMiembro(
     {
       membershipId: parsed.data.membershipId,
-      role: parsed.data.role as "admin" | "recruiter" | "consultant" | undefined,
+      role: parsed.data.role as ReturnType<typeof assignableRolesFor>[number] | undefined,
       status: parsed.data.status as "active" | "inactive" | undefined,
     },
-    { userId: user.id, organizationId: membership.organizationId, role: membership.role },
+    {
+      userId: user.id,
+      organizationId: membership.organizationId,
+      role: membership.role,
+      workspaceType: membership.workspaceType,
+    },
     { getMembership: getMembershipById, updateMembership },
   );
 
@@ -163,7 +186,12 @@ export async function eliminarMiembroAction(
 
   const result = await eliminarMiembro(
     { membershipId: parsed.data.membershipId },
-    { userId: user.id, organizationId: membership.organizationId, role: membership.role },
+    {
+      userId: user.id,
+      organizationId: membership.organizationId,
+      role: membership.role,
+      workspaceType: membership.workspaceType,
+    },
     { getMembership: getMembershipById, deleteMembership },
   );
 

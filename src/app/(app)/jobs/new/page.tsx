@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { JobCreationChoice } from "@/features/recruiter/jobs/ui/JobCreationChoice";
 
-export default function NewJobChoicePage() {
+export default async function NewJobChoicePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clientId?: string }>;
+}) {
+  const { clientId } = await searchParams;
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="mx-auto w-full max-w-2xl">
@@ -17,7 +22,7 @@ export default function NewJobChoicePage() {
           Se crea como borrador. La publicás cuando esté lista.
         </p>
       </div>
-      <JobCreationChoice />
+      <JobCreationChoice clientId={clientId} />
     </div>
   );
 }

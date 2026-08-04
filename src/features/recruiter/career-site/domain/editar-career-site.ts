@@ -14,6 +14,9 @@ export type EditarCareerSiteInput = {
   slug: string;
   branding: CareerSiteBranding;
   coverPath?: string | null; // path ya subido a Storage; null = sin cambio gestionado aparte
+  /** Logo del workspace — mismo campo que edita Configuración → Workspace (`organizations.logoUrl`),
+   *  se puede cambiar desde acá también para no obligar a ir a otra pantalla. */
+  logoPath?: string | null;
 };
 
 export type CareerSiteContext = { organizationId: string; role: OrgRole };
@@ -42,8 +45,9 @@ export async function editarCareerSite(
   }
 
   const patch: OrgPatch = { slug, careerSiteSettings: input.branding };
-  // Portada: solo se toca si vino un path nuevo (la subida se resuelve en la action).
+  // Portada y logo: solo se tocan si vino un path nuevo (la subida se resuelve en la action).
   if (input.coverPath) patch.careerSiteCoverUrl = input.coverPath;
+  if (input.logoPath) patch.logoUrl = input.logoPath;
 
   try {
     await deps.updateOrganization(ctx.organizationId, patch);

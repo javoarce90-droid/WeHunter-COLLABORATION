@@ -6,7 +6,7 @@ import { careerSiteInputSchema, IMAGE_ALLOWED_TYPES, IMAGE_MAX_BYTES } from "./s
 import { editarCareerSite } from "./domain/editar-career-site";
 import type { OrgRole } from "@/lib/auth/session";
 import { updateOrganization } from "@/features/recruiter/settings/data/settings.mutations";
-import { uploadCareerSiteCover } from "@/features/recruiter/settings/data/settings.storage";
+import { uploadCareerSiteCover, uploadOrgLogo } from "@/features/recruiter/settings/data/settings.storage";
 
 type ActionState = { error?: string; ok?: boolean };
 
@@ -49,11 +49,18 @@ export async function editarCareerSiteAction(
 
   const coverImage = readImage(formData.get("cover"));
   if ("error" in coverImage) return { error: coverImage.error };
+  const logoImage = readImage(formData.get("logo"));
+  if ("error" in logoImage) return { error: logoImage.error };
 
   let coverPath: string | null = null;
   if (coverImage.file) {
     const { path } = await uploadCareerSiteCover(membership.organizationId, coverImage.file);
     coverPath = path;
+  }
+  let logoPath: string | null = null;
+  if (logoImage.file) {
+    const { path } = await uploadOrgLogo(membership.organizationId, logoImage.file);
+    logoPath = path;
   }
 
   const { slug, linkedinUrl, instagramUrl, xUrl, facebookUrl, ...rest } = parsed.data;
@@ -69,6 +76,7 @@ export async function editarCareerSiteAction(
           : {}),
       },
       coverPath,
+      logoPath,
     },
     { organizationId: membership.organizationId, role: membership.role as OrgRole },
     { updateOrganization },

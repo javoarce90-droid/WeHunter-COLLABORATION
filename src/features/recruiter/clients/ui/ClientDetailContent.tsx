@@ -26,6 +26,7 @@ export function ClientDetailContent({
   appUrl,
   canManageClients,
   canManageJobs,
+  canAssignRecruiter,
 }: {
   client: Client;
   jobs: ClientJob[];
@@ -35,6 +36,7 @@ export function ClientDetailContent({
   appUrl: string;
   canManageClients: boolean;
   canManageJobs: boolean;
+  canAssignRecruiter: boolean;
 }) {
   return (
     <div className="flex flex-col gap-5">
@@ -55,7 +57,7 @@ export function ClientDetailContent({
         <div className="flex shrink-0 items-center gap-2">
           {canManageJobs && (
             <Link
-              href={`/jobs/new/manual?clientId=${client.id}`}
+              href={`/jobs/new?clientId=${client.id}`}
               className={buttonVariants({ variant: "primary", size: "sm" })}
             >
               Nueva búsqueda
@@ -72,7 +74,7 @@ export function ClientDetailContent({
         </div>
       </div>
 
-      <AssignedRecruiterControl clientId={client.id} recruiters={recruiters} canEdit={canManageClients} />
+      <AssignedRecruiterControl clientId={client.id} recruiters={recruiters} canEdit={canAssignRecruiter} />
 
       {client.notes && (
         <SectionCard title="Notas">

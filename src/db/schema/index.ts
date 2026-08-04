@@ -276,6 +276,9 @@ export const profiles = pgTable("profiles", {
   // reusan tal cual (mismo significado para candidato que para recruiter).
   headline: text("headline"), // puesto/título actual, ej "Frontend Senior"
   skills: text("skills").array(),
+  // Recruiter: si aparece listado en la Comunidad WeHunter (directorio de recruiters). No
+  // afecta accountType/candidato, es puramente de visibilidad pública del perfil recruiter.
+  visibleInCommunity: boolean("visible_in_community").notNull().default(true),
   // null = todavía no pasó (o saltó) el onboarding de candidato. No bloquea nada, solo decide
   // si al loguearse cae en /c/onboarding o directo al portal.
   candidateOnboardingCompletedAt: timestamp("candidate_onboarding_completed_at"),

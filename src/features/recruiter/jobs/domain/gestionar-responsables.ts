@@ -1,6 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can } from "@/lib/auth/roles";
-import type { OrgRole } from "@/lib/auth/session";
+import type { OrgRole, WorkspaceType } from "@/lib/auth/session";
 
 /**
  * Casos de uso: cambiar el responsable único de una búsqueda, y asignar/sacar su Sourcer
@@ -9,12 +8,30 @@ import type { OrgRole } from "@/lib/auth/session";
  */
 
 /** Responsable único: recruiter interno, consultor externo, u owner/admin llevándola ellos
- *  mismos — mismo criterio que ya usa `crearBusqueda` (auto-asignado a quien la crea). */
+ *  mismos — mismo criterio que ya usa `crearBusqueda` (auto-asignado a quien la crea). Esto es
+ *  elegibilidad del DESTINO (quién puede ser responsable) — no confundir con
+ *  `canAssignResponsable`, que es el permiso del ACTOR (quién puede cambiarlo). */
 export const RESPONSABLE_ROLES: OrgRole[] = ["owner", "admin", "recruiter", "consultant"];
+
+/** Cambiar el responsable de una búsqueda es más sensible que operarla — solo owner/admin.
+ *  En Freelance no hay a quién reasignarle (un único miembro posible), así que directamente
+ *  no se ofrece. */
+export function canAssignResponsable(role: OrgRole, workspaceType: WorkspaceType | null): boolean {
+  if (workspaceType === "freelance") return false;
+  return role === "owner" || role === "admin";
+}
+
+/** El Sourcer es más operativo — además de owner/admin, el recruiter también lo puede
+ *  asignar (a diferencia del responsable). Mismo motivo que arriba para excluir Freelance. */
+export function canAssignSourcer(role: OrgRole, workspaceType: WorkspaceType | null): boolean {
+  if (workspaceType === "freelance") return false;
+  return role === "owner" || role === "admin" || role === "recruiter";
+}
 
 export interface GestionarResponsablesCtx {
   organizationId: string | null;
   role: OrgRole | null;
+  workspaceType: WorkspaceType | null;
 }
 
 type EligibleMembership = {
@@ -47,7 +64,7 @@ export async function reasignarResponsable(
   if (!ctx.organizationId || !ctx.role) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!can(ctx.role, "jobs.manage")) {
+  if (!canAssignResponsable(ctx.role, ctx.workspaceType)) {
     return err("No tenés permisos para reasignar búsquedas.");
   }
 
@@ -86,7 +103,7 @@ export async function actualizarSourcer(
   if (!ctx.organizationId || !ctx.role) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!can(ctx.role, "jobs.manage")) {
+  if (!canAssignSourcer(ctx.role, ctx.workspaceType)) {
     return err("No tenés permisos para asignar el Sourcer.");
   }
 

@@ -317,7 +317,11 @@ export async function reasignarResponsableAction(
 
   const result = await reasignarResponsable(
     { jobId, membershipId },
-    { organizationId: membership.organizationId, role: membership.role },
+    {
+      organizationId: membership.organizationId,
+      role: membership.role,
+      workspaceType: membership.workspaceType,
+    },
     { getMembership: getMembershipById, updateAssignedTo: updateJobAssignedTo },
   );
   if (!result.ok) return { error: result.error };
@@ -338,7 +342,11 @@ export async function actualizarSourcerAction(
 
   const result = await actualizarSourcer(
     { jobId, membershipId },
-    { organizationId: membership.organizationId, role: membership.role },
+    {
+      organizationId: membership.organizationId,
+      role: membership.role,
+      workspaceType: membership.workspaceType,
+    },
     { getMembership: getMembershipById, updateSourcer: updateJobSourcer },
   );
   if (!result.ok) return { error: result.error };

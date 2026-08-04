@@ -22,16 +22,6 @@ export const workspaceIdentityInputSchema = z.object({
   name: z.string().trim().min(1, "El nombre del workspace es obligatorio.").max(120),
 });
 
-export const passwordInputSchema = z
-  .object({
-    password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres.").max(72),
-    confirm: z.string(),
-  })
-  .refine((d) => d.password === d.confirm, {
-    message: "Las contraseñas no coinciden.",
-    path: ["confirm"],
-  });
-
 // Restricciones de imagen (avatar / logo), validadas en la action antes de subir a Storage.
 export const IMAGE_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
 export const IMAGE_ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];

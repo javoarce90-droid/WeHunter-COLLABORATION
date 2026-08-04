@@ -2029,13 +2029,56 @@ footer {
   margin-bottom: 12px;
   font-size: 12px;
   color: var(--muted);
+  cursor: pointer;
 }
 .cf-captcha-box {
+  appearance: none;
+  -webkit-appearance: none;
   width: 20px;
   height: 20px;
+  margin: 0;
   border: 1.5px solid #ccc;
   border-radius: 4px;
   flex-shrink: 0;
+  cursor: pointer;
+  position: relative;
+}
+.cf-captcha-box:checked {
+  background: var(--purple);
+  border-color: var(--purple);
+}
+.cf-captcha-box:checked::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.cf-captcha-box:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: 2px;
+}
+.cf-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  text-align: right;
+}
+.cf-error {
+  font-size: 12px;
+  color: #d92d20;
+  margin-bottom: 10px;
+}
+.btn-pill:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-pill:disabled:hover {
+  background: var(--ink);
 }
 
 /* FOOTER FORM LAYOUT */

@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 import { actualizarPerfilAction } from "../actions";
 import type { OwnProfile } from "../data/settings.queries";
 
@@ -107,6 +108,12 @@ export function ProfileSection({
           placeholder="Un resumen breve sobre vos."
         />
       </Field>
+
+      <Checkbox
+        name="visibleInCommunity"
+        defaultChecked={profile?.visibleInCommunity ?? true}
+        label="Aparecer en la Comunidad WeHunter"
+      />
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending}>

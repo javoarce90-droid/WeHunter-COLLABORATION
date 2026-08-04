@@ -48,9 +48,19 @@ export function AiButton({
   );
 }
 
+/** Bandas del score de compatibilidad IA (0-100) — fuente única. `MatchCell` las reusa para
+ *  confianza/recomendación, no solo el color del anillo. */
+export type ScoreBand = "alta" | "media" | "baja";
+export function scoreBand(score: number): ScoreBand {
+  if (score >= 75) return "alta";
+  if (score >= 50) return "media";
+  return "baja";
+}
+
 function scoreColor(score: number): string {
-  if (score >= 75) return "var(--success)";
-  if (score >= 50) return "#EA580C"; // warning
+  const band = scoreBand(score);
+  if (band === "alta") return "var(--success)";
+  if (band === "media") return "#EA580C"; // warning
   return "var(--danger)";
 }
 

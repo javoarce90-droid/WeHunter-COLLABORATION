@@ -55,6 +55,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         email={user.email ?? ""}
         workspaces={memberships}
         activeOrganizationId={membership.organizationId}
+        role={membership.role}
+        workspaceType={membership.workspaceType}
         defaultCollapsed={sidebarCollapsed}
       />
       <AppChrome>

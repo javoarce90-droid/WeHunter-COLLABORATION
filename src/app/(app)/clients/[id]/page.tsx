@@ -9,6 +9,7 @@ import {
   listAssignableRecruiters,
 } from "@/features/recruiter/clients/data/clients.queries";
 import { listSharesByClient } from "@/features/recruiter/clients/data/client-shares.data";
+import { canAssignRecruiter } from "@/features/recruiter/clients/domain/asignar-recruiter-a-cliente";
 import { listRequisitionsByClient } from "@/features/recruiter/requisitions/data/requisitions.queries";
 import { ClientDetailContent } from "@/features/recruiter/clients/ui/ClientDetailContent";
 
@@ -56,6 +57,7 @@ export default async function ClientDetailPage({
         appUrl={appUrl}
         canManageClients={can(membership.role, "clients.manage")}
         canManageJobs={can(membership.role, "jobs.manage")}
+        canAssignRecruiter={canAssignRecruiter(membership.role)}
       />
     </div>
   );
