@@ -55,6 +55,31 @@ describe("puntuarPostulaciones", () => {
     expect(scores.full).toBeGreaterThan(scores.none);
   });
 
+  it("persiste redFlags, breakdown y strengths junto al score", async () => {
+    const deps = makeDeps();
+    await puntuarPostulaciones(
+      {
+        job: { title: "Backend", skills: ["node", "sql"] },
+        applications: [cand("app-1", ["node", "sql"])],
+      },
+      ctx,
+      deps,
+    );
+
+    const [, , , redFlags, breakdown, strengths] = vi.mocked(deps.saveScore).mock.calls[0]!;
+    expect(Array.isArray(redFlags)).toBe(true);
+    expect(breakdown).toEqual(
+      expect.objectContaining({
+        experiencia: expect.any(Number),
+        skillsTecnicos: expect.any(Number),
+        seniority: expect.any(Number),
+        idiomas: expect.any(Number),
+        ubicacion: expect.any(Number),
+      }),
+    );
+    expect(strengths.length).toBeGreaterThan(0);
+  });
+
   it("rechaza al consultor sin puntuar", async () => {
     const deps = makeDeps();
     const res = await puntuarPostulaciones(

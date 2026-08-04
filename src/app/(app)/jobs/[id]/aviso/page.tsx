@@ -86,7 +86,7 @@ export default async function JobPostingPreviewPage({
           <AgregarCandidatos
             jobId={job.id}
             poolCandidates={poolCandidates}
-            redirectAfterAddTo={`/jobs/${job.id}/pipeline`}
+            redirectAfterAddTo={`/jobs/${job.id}/postulados`}
           />
           <EstadoAvisoControl job={job} />
         </div>

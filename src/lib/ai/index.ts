@@ -6,6 +6,7 @@ export type {
   AiProvider,
   ScoreApplicationInput,
   ScoreApplicationResult,
+  ScoreBreakdown,
   DraftOfferInput,
   DraftJobPostingInput,
   DraftJobOfferInput,

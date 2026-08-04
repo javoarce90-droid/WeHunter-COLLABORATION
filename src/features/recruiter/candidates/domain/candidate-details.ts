@@ -8,6 +8,7 @@ export type CandidateSource =
   | "linkedin"
   | "referral"
   | "job_board"
+  | "portal"
   | "other";
 
 export interface CandidateDetailsInput {

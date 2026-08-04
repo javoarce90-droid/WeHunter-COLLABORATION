@@ -13,7 +13,8 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchInput } from "@/components/ui/search-input";
 import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
-import { AiScore, AiButton } from "@/components/ui/ai";
+import { AiButton } from "@/components/ui/ai";
+import { Tooltip } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/toast";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import type { CandidateSource } from "@/features/recruiter/candidates/domain/candidate-details";
@@ -25,16 +26,17 @@ import {
   DEFAULT_REJECTION_MESSAGE,
 } from "../schema";
 import type { RejectionReason } from "../schema";
-import type { PostuladoRow } from "../data/applications.queries";
+import type { PostuladoRow, StageHistoryEvent } from "../data/applications.queries";
+import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import {
-  marcarFavoritoAction,
   rechazarVariosAction,
   analizarPostuladosAction,
   pasarAlPipelineAction,
   guardarEnTalentPoolAction,
 } from "../actions";
 import { CriteriosChip } from "./CriteriosChip";
-import { ContactarDialog } from "./ContactarDialog";
+import { MatchCell } from "./MatchCell";
+import { AiAnalysisDialog } from "./AiAnalysisDialog";
 import { PostuladoDetailSheet, type ScreeningAnswerLine } from "./PostuladoDetailSheet";
 
 type Props = {
@@ -45,6 +47,8 @@ type Props = {
   screeningByApplication: Record<string, ScreeningAnswerLine[]>;
   /** Cuántos criterios definió el aviso. 0 = no se muestra la columna. */
   totalCriterios: number;
+  notesByApplication: Record<string, TimelineNote[]>;
+  stageEventsByApplication: Record<string, StageHistoryEvent[]>;
 };
 
 /** Foco visible estándar para botones de texto/íconos sin fondo (gap WCAG AA de PRODUCT.md). */
@@ -54,16 +58,13 @@ const focusRing =
 type SortKey = "candidate" | "estado" | "date" | "match" | "criterios";
 type SortDir = "asc" | "desc";
 
-/** Estado de triage de una postulación: es el eje sobre el que trabaja esta pantalla. */
+/** Estado de triage de una postulación: `listPostulados` ya solo trae "pendiente" (la bandeja
+ *  filtra en el query — ver applications.queries.ts), pero se sigue calculando acá para la
+ *  transición optimista: al clickear "Pasar al pipeline"/"Rechazar" el patch cambia
+ *  `pipelineEnteredAt`/`stage` en el cliente antes de que el server revalide, y la fila debe
+ *  ocultarse al toque sin esperar el round-trip. Guardar en Talent Pool NO es un estado de la
+ *  postulación (ver candidates.saved_to_pool): es una propiedad del candidato. */
 type Triage = "pendiente" | "pipeline" | "descartado";
-const TRIAGE_FILTERS = ["pendiente", "pipeline", "descartado", "todos"] as const;
-type TriageFilter = (typeof TRIAGE_FILTERS)[number];
-const TRIAGE_FILTER_LABELS: Record<TriageFilter, string> = {
-  pendiente: "Sin revisar",
-  pipeline: "En pipeline",
-  descartado: "Descartados",
-  todos: "Todos",
-};
 const TRIAGE_ORDER: Record<Triage, number> = { pendiente: 0, pipeline: 1, descartado: 2 };
 
 function triageDe(row: PostuladoRow): Triage {
@@ -71,11 +72,35 @@ function triageDe(row: PostuladoRow): Triage {
   return row.pipelineEnteredAt ? "pipeline" : "pendiente";
 }
 
-const dateFmt = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short", year: "numeric" });
+/** Origen de la postulación: auto-postulación vs. alta manual desde el pool. Es un filtro
+ *  aparte del triage — ambos ejes son independientes. */
+const ORIGIN_FILTERS = ["todos", "auto", "pool"] as const;
+type OriginFilter = (typeof ORIGIN_FILTERS)[number];
+const ORIGIN_FILTER_LABELS: Record<OriginFilter, string> = {
+  todos: "Todos",
+  auto: "Auto-postulados",
+  pool: "Del pool",
+};
+
+const dateFmt = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 
 function sourceLabel(source: string | null): string {
   if (!source) return "—";
   return CANDIDATE_SOURCE_LABELS[source as CandidateSource] ?? source;
+}
+
+function salaryLabel(amount: number | null, currency: string | null): string {
+  if (amount == null) return "—";
+  const formatted = new Intl.NumberFormat("es-AR").format(amount);
+  return currency ? `${formatted} ${currency}` : formatted;
+}
+
+function applicationCountLabel(count: number): string {
+  return `${count} búsqueda${count !== 1 ? "s" : ""}`;
 }
 
 export function PostuladosTable({
@@ -85,20 +110,19 @@ export function PostuladosTable({
   criteriosByApplication,
   screeningByApplication,
   totalCriterios,
+  notesByApplication,
+  stageEventsByApplication,
 }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
   // Transición aparte para el análisis IA: es la acción más lenta y su botón muestra loading
-  // propio, sin que las mutaciones optimistas (favorito/mover) queden atrapadas en ese estado.
+  // propio, sin que las mutaciones optimistas (mover, rechazar) queden atrapadas en ese estado.
   const [isAnalyzing, startAnalyze] = useTransition();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  // ids que se están por rechazar en el dialog abierto (null = cerrado). Individual y en
-  // lote comparten el mismo dialog; no reusa `selected` porque el individual (vía menú de
-  // fila) no debe tocar la selección de checkboxes.
+  // ids que se están por rechazar en el dialog abierto (null = cerrado).
   const [rejectTarget, setRejectTarget] = useState<Set<string> | null>(null);
   const [poolTarget, setPoolTarget] = useState<string[] | null>(null);
-  const [contactTarget, setContactTarget] = useState<string[] | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [aiDetailId, setAiDetailId] = useState<string | null>(null);
   const [reason, setReason] = useState<RejectionReason>(REJECTION_REASONS[0]);
   const [note, setNote] = useState("");
   const [poolNote, setPoolNote] = useState("");
@@ -107,27 +131,38 @@ export function PostuladosTable({
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "date", dir: "desc" });
 
   const [query, setQuery] = useState("");
-  const [triageFilter, setTriageFilter] = useState<TriageFilter>("pendiente");
+  const [originFilter, setOriginFilter] = useState<OriginFilter>("todos");
   const [soloCumplen, setSoloCumplen] = useState(false);
-  const [soloFavoritos, setSoloFavoritos] = useState(false);
 
   const [rows, applyPatch] = useOptimistic(
     postulados,
-    (state, patch: { id: string; changes: Partial<PostuladoRow> }) =>
-      state.map((r) => (r.id === patch.id ? { ...r, ...patch.changes } : r)),
+    (
+      state,
+      patch: {
+        id: string;
+        changes?: Partial<Omit<PostuladoRow, "candidate">>;
+        candidateChanges?: Partial<PostuladoRow["candidate"]>;
+      },
+    ) =>
+      state.map((r) =>
+        r.id === patch.id
+          ? {
+              ...r,
+              ...patch.changes,
+              candidate: { ...r.candidate, ...patch.candidateChanges },
+            }
+          : r,
+      ),
   );
-
-  const counts = useMemo(() => {
-    const c = { pendiente: 0, pipeline: 0, descartado: 0, todos: rows.length };
-    for (const r of rows) c[triageDe(r)] += 1;
-    return c;
-  }, [rows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
-      if (triageFilter !== "todos" && triageDe(r) !== triageFilter) return false;
-      if (soloFavoritos && !r.isFavorite) return false;
+      // Bandeja fija: `listPostulados` ya trae solo pendientes, esto es la ventana de
+      // transición optimista mientras se revalida (ver comentario de `Triage` arriba).
+      if (triageDe(r) !== "pendiente") return false;
+      if (originFilter === "auto" && !r.selfApplied) return false;
+      if (originFilter === "pool" && r.selfApplied) return false;
       if (soloCumplen) {
         const c = criteriosByApplication[r.id];
         if (!c || c.total === 0 || c.cumplidos < c.total) return false;
@@ -138,7 +173,7 @@ export function PostuladosTable({
       }
       return true;
     });
-  }, [rows, query, triageFilter, soloCumplen, soloFavoritos, criteriosByApplication]);
+  }, [rows, query, originFilter, soloCumplen, criteriosByApplication]);
 
   const sorted = useMemo(() => {
     const factor = sort.dir === "asc" ? 1 : -1;
@@ -170,49 +205,22 @@ export function PostuladosTable({
         title="Todavía no hay postulaciones"
         description={
           <>
-            Cuando alguien se postule al aviso va a aparecer acá para que lo revises y decidas
-            si pasa al <span className="font-semibold text-text">Pipeline</span>. También podés
-            sumar candidatos del pool directo al pipeline.
+            Cuando alguien se postule al aviso, o sumes un candidato del pool, va a aparecer
+            acá para que lo revises y decidas si pasa al{" "}
+            <span className="font-semibold text-text">Pipeline</span>.
           </>
         }
       />
     );
   }
 
-  const allSelected = sorted.length > 0 && sorted.every((r) => selected.has(r.id));
-  const someSelected = sorted.some((r) => selected.has(r.id));
   const detailRow = detailId ? (rows.find((r) => r.id === detailId) ?? null) : null;
-
-  function toggleOne(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-  function toggleAll() {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allSelected) sorted.forEach((r) => next.delete(r.id));
-      else sorted.forEach((r) => next.add(r.id));
-      return next;
-    });
-  }
+  const aiDetailRow = aiDetailId ? (rows.find((r) => r.id === aiDetailId) ?? null) : null;
 
   function setSortKey(key: SortKey) {
     setSort((prev) =>
       prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" },
     );
-  }
-
-  function onToggleFavorite(row: PostuladoRow) {
-    const next = !row.isFavorite;
-    startTransition(async () => {
-      applyPatch({ id: row.id, changes: { isFavorite: next } });
-      const res = await marcarFavoritoAction(row.id, next, jobId);
-      if (!res.ok) toast({ message: res.error ?? "No se pudo marcar.", variant: "danger" });
-    });
   }
 
   function onAnalizar() {
@@ -233,7 +241,6 @@ export function PostuladosTable({
     startTransition(async () => {
       ids.forEach((id) => applyPatch({ id, changes: { pipelineEnteredAt: new Date() } }));
       const res = await pasarAlPipelineAction({ jobId, applicationIds: ids });
-      setSelected(new Set());
       if (!res.ok) {
         toast({ message: res.error ?? "No se pudo avanzar.", variant: "danger" });
         return;
@@ -270,7 +277,6 @@ export function PostuladosTable({
         notifyCandidate,
         message: notifyCandidate ? message : undefined,
       });
-      setSelected(new Set());
       if (!res.ok) toast({ message: res.error ?? "No se pudo rechazar.", variant: "danger" });
       else
         toast({
@@ -294,13 +300,12 @@ export function PostuladosTable({
     const ids = poolTarget;
     setPoolTarget(null);
     startTransition(async () => {
-      ids.forEach((id) => applyPatch({ id, changes: { stage: "rejected" } }));
+      ids.forEach((id) => applyPatch({ id, candidateChanges: { savedToPool: true } }));
       const res = await guardarEnTalentPoolAction({
         jobId,
         applicationIds: ids,
         note: poolNote.trim() || undefined,
       });
-      setSelected(new Set());
       if (!res.ok) {
         toast({ message: res.error ?? "No se pudo guardar en el pool.", variant: "danger" });
         return;
@@ -315,82 +320,57 @@ export function PostuladosTable({
   }
 
   const showCriterios = totalCriterios > 0;
+  // El bulk analiza toda la bandeja (analizarPostuladosAction(jobId)), no solo lo filtrado/
+  // buscado en pantalla — por eso se chequea contra `rows` entero, no `filtered`/`sorted`.
+  const hayPendientesDeAnalizar = rows.some((r) => r.aiScore == null);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder="Buscar por nombre o email…"
-            aria-label="Buscar postulados"
-          />
-          <FilterChipGroup label="Filtrar postulados por estado">
-            {TRIAGE_FILTERS.map((key) => (
-              <FilterChip
-                key={key}
-                active={triageFilter === key}
-                count={counts[key]}
-                onClick={() => setTriageFilter(key)}
-              >
-                {TRIAGE_FILTER_LABELS[key]}
-              </FilterChip>
-            ))}
-          </FilterChipGroup>
-        </div>
-        <AiButton
-          onClick={onAnalizar}
-          loading={isAnalyzing}
-          title="Calcular compatibilidad de cada candidato con la búsqueda"
-        >
-          {isAnalyzing ? "Analizando…" : "Analizar con IA"}
-        </AiButton>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <FilterChipGroup label="Filtros adicionales">
-          {showCriterios && (
-            <FilterChip active={soloCumplen} onClick={() => setSoloCumplen((v) => !v)}>
-              Cumplen todos los criterios
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput
+          value={query}
+          onChange={setQuery}
+          placeholder="Buscar por nombre o email…"
+          aria-label="Buscar postulados"
+        />
+        <FilterChipGroup label="Filtrar postulados por origen">
+          {ORIGIN_FILTERS.map((key) => (
+            <FilterChip
+              key={key}
+              active={originFilter === key}
+              onClick={() => setOriginFilter(key)}
+            >
+              {ORIGIN_FILTER_LABELS[key]}
             </FilterChip>
-          )}
-          <FilterChip active={soloFavoritos} onClick={() => setSoloFavoritos((v) => !v)}>
-            Favoritos
-          </FilterChip>
+          ))}
         </FilterChipGroup>
-        <p className="text-sm text-muted">
-          {sorted.length} de {postulados.length} postulación
-          {postulados.length !== 1 ? "es" : ""}
-        </p>
+        {showCriterios && (
+          <FilterChipGroup label="Filtros adicionales">
+            <FilterChip active={soloCumplen} onClick={() => setSoloCumplen((v) => !v)}>
+              Cumplen criterios
+            </FilterChip>
+          </FilterChipGroup>
+        )}
+        {hayPendientesDeAnalizar ? (
+          <AiButton
+            onClick={onAnalizar}
+            loading={isAnalyzing}
+            title="Calcular compatibilidad de cada candidato con la búsqueda"
+            className="ml-auto"
+          >
+            {isAnalyzing ? "Analizando…" : "Analizar con IA"}
+          </AiButton>
+        ) : (
+          <Tooltip label="Ya se analizaron todas las postulaciones: no hay ninguna pendiente" className="ml-auto">
+            <AiButton disabled>Analizar con IA</AiButton>
+          </Tooltip>
+        )}
       </div>
 
-      {selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius)] border border-primary/30 bg-primary-light px-4 py-2.5">
-          <span className="mr-1 text-sm font-semibold text-primary-hover">
-            {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
-          </span>
-          <Button size="sm" variant="primary" onClick={() => onPasarAlPipeline([...selected])}>
-            Pasar al pipeline
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => setContactTarget([...selected])}>
-            Contactar
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => openPoolDialog([...selected])}>
-            Guardar en Talent Pool
-          </Button>
-          <Button size="sm" variant="destructive" onClick={() => openRejectDialog(selected)}>
-            Descartar
-          </Button>
-          <button
-            type="button"
-            onClick={() => setSelected(new Set())}
-            className={`rounded text-sm font-semibold text-muted hover:text-text ${focusRing}`}
-          >
-            Limpiar
-          </button>
-        </div>
-      )}
+      <p className="text-sm text-muted">
+        {sorted.length} de {postulados.length} postulación
+        {postulados.length !== 1 ? "es" : ""}
+      </p>
 
       {sorted.length === 0 ? (
         <EmptyState
@@ -402,76 +382,41 @@ export function PostuladosTable({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left">
-                <th className="w-10 py-2.5 pl-4">
-                  <Checkbox
-                    checked={allSelected}
-                    aria-label="Seleccionar todos"
-                    ref={(el) => {
-                      if (el) el.indeterminate = !allSelected && someSelected;
-                    }}
-                    onChange={toggleAll}
-                  />
-                </th>
-                <SortableTh label="Candidato" active={sort} sortKey="candidate" onSort={setSortKey} />
-                <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label md:table-cell">
+                <SortableTh
+                  label="Candidato"
+                  active={sort}
+                  sortKey="candidate"
+                  onSort={setSortKey}
+                  className="pl-4"
+                />
+                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                   Fuente
+                </th>
+                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                  Origen
                 </th>
                 {showCriterios && (
                   <SortableTh label="Criterios" active={sort} sortKey="criterios" onSort={setSortKey} />
                 )}
                 <SortableTh label="Match" active={sort} sortKey="match" onSort={setSortKey} />
+                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                  Salario pret.
+                </th>
                 <SortableTh label="Estado" active={sort} sortKey="estado" onSort={setSortKey} />
-                <SortableTh
-                  label="Postulado"
-                  active={sort}
-                  sortKey="date"
-                  onSort={setSortKey}
-                  className="hidden sm:table-cell"
-                />
+                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                  Postulaciones
+                </th>
+                <SortableTh label="Postulado" active={sort} sortKey="date" onSort={setSortKey} />
                 <th className="py-2.5 pr-4" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {sorted.map((row) => {
-                const isSelected = selected.has(row.id);
                 const triage = triageDe(row);
                 return (
-                  <tr
-                    key={row.id}
-                    className={[
-                      "transition-colors",
-                      isSelected ? "bg-[var(--selected-bg)]" : "hover:bg-bg",
-                    ].join(" ")}
-                  >
-                    <td className="py-2.5 pl-4">
-                      <Checkbox
-                        checked={isSelected}
-                        onChange={() => toggleOne(row.id)}
-                        aria-label={`Seleccionar ${row.candidate.fullName}`}
-                      />
-                    </td>
-                    <td className="py-2.5 pr-3">
+                  <tr key={row.id} className="transition-colors hover:bg-bg">
+                    <td className="py-2.5 pr-3 pl-4">
                       <div className="flex items-center gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => onToggleFavorite(row)}
-                          aria-label={row.isFavorite ? "Quitar de favoritos" : "Marcar favorito"}
-                          aria-pressed={row.isFavorite}
-                          className={`shrink-0 rounded text-muted transition-colors hover:text-warning ${focusRing}`}
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill={row.isFavorite ? "#EA580C" : "none"}
-                            stroke={row.isFavorite ? "#EA580C" : "currentColor"}
-                            strokeWidth="2"
-                            strokeLinejoin="round"
-                            aria-hidden
-                          >
-                            <path d="M12 2l2.9 6.3 6.8.7-5 4.6 1.4 6.7L12 17.8 5.9 20.9 7.3 14.2l-5-4.6 6.8-.7z" />
-                          </svg>
-                        </button>
                         <Avatar name={row.candidate.fullName} size="sm" />
                         <div className="min-w-0">
                           <button
@@ -481,16 +426,17 @@ export function PostuladosTable({
                           >
                             {row.candidate.fullName}
                           </button>
-                          {row.candidate.email && (
-                            <span className="block truncate text-xs text-muted">
-                              {row.candidate.email}
-                            </span>
-                          )}
+                          <span className="block truncate text-xs text-muted">
+                            {row.candidate.headline ?? row.candidate.email ?? "—"}
+                          </span>
                         </div>
                       </div>
                     </td>
-                    <td className="hidden py-2.5 pr-3 text-muted md:table-cell">
-                      {sourceLabel(row.candidate.source)}
+                    <td className="py-2.5 pr-3 text-muted">{sourceLabel(row.candidate.source)}</td>
+                    <td className="py-2.5 pr-3">
+                      <Badge variant={row.selfApplied ? "blue" : "primary"}>
+                        {row.selfApplied ? "Auto-postulado" : "Del pool"}
+                      </Badge>
                     </td>
                     {showCriterios && (
                       <td className="py-2.5 pr-3">
@@ -502,11 +448,14 @@ export function PostuladosTable({
                       </td>
                     )}
                     <td className="py-2.5 pr-3">
-                      {row.aiScore != null ? (
-                        <AiScore score={row.aiScore} size={28} detail={row.aiSummary} />
-                      ) : (
-                        <span className="text-xs text-muted">—</span>
-                      )}
+                      <MatchCell
+                        score={row.aiScore}
+                        summary={row.aiSummary}
+                        onOpenCopiloto={row.aiScore != null ? () => setAiDetailId(row.id) : undefined}
+                      />
+                    </td>
+                    <td className="py-2.5 pr-3 text-muted tabular-nums">
+                      {salaryLabel(row.expectedSalary, row.expectedSalaryCurrency)}
                     </td>
                     <td className="py-2.5 pr-3">
                       {triage === "descartado" ? (
@@ -517,7 +466,10 @@ export function PostuladosTable({
                         <Badge variant="new">Sin revisar</Badge>
                       )}
                     </td>
-                    <td className="hidden py-2.5 pr-3 text-muted tabular-nums sm:table-cell">
+                    <td className="py-2.5 pr-3 text-muted tabular-nums">
+                      {applicationCountLabel(row.applicationCount)}
+                    </td>
+                    <td className="py-2.5 pr-3 text-muted tabular-nums">
                       {dateFmt.format(row.createdAt)}
                     </td>
                     <td className="py-2.5 pr-4">
@@ -541,13 +493,21 @@ export function PostuladosTable({
                               Pasar al pipeline
                             </MenuItem>
                           )}
-                          <MenuItem onClick={() => setContactTarget([row.id])}>Contactar</MenuItem>
+                          {row.aiScore != null && (
+                            <MenuItem onClick={() => setAiDetailId(row.id)}>
+                              Ver análisis IA
+                            </MenuItem>
+                          )}
                           {triage !== "descartado" && (
                             <>
                               <MenuSeparator />
-                              <MenuItem onClick={() => openPoolDialog([row.id])}>
-                                Guardar en Talent Pool
-                              </MenuItem>
+                              {row.candidate.savedToPool ? (
+                                <MenuItem disabled>Ya es parte de tu pool</MenuItem>
+                              ) : (
+                                <MenuItem onClick={() => openPoolDialog([row.id])}>
+                                  Guardar en Talent Pool
+                                </MenuItem>
+                              )}
                               <MenuItem destructive onClick={() => openRejectDialog(new Set([row.id]))}>
                                 Descartar
                               </MenuItem>
@@ -565,23 +525,21 @@ export function PostuladosTable({
       )}
 
       <PostuladoDetailSheet
+        key={detailId ?? "closed"}
+        jobId={jobId}
         postulado={detailRow}
         criterios={detailRow ? (criteriosByApplication[detailRow.id] ?? null) : null}
         screening={detailRow ? (screeningByApplication[detailRow.id] ?? []) : []}
+        notes={detailRow ? (notesByApplication[detailRow.id] ?? []) : []}
+        stageEvents={detailRow ? (stageEventsByApplication[detailRow.id] ?? []) : []}
         onClose={() => setDetailId(null)}
         onPasarAlPipeline={(r) => onPasarAlPipeline([r.id])}
-        onContactar={(r) => setContactTarget([r.id])}
         onGuardarEnPool={(r) => openPoolDialog([r.id])}
         onDescartar={(r) => openRejectDialog(new Set([r.id]))}
+        onOpenCopiloto={(r) => setAiDetailId(r.id)}
       />
 
-      <ContactarDialog
-        target={contactTarget}
-        jobId={jobId}
-        jobTitle={jobTitle}
-        onClose={() => setContactTarget(null)}
-        onSent={() => setSelected(new Set())}
-      />
+      <AiAnalysisDialog postulado={aiDetailRow} onClose={() => setAiDetailId(null)} />
 
       <Dialog
         open={poolTarget != null}

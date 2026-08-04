@@ -26,6 +26,8 @@ export async function applyToJobRpc(args: {
   phone: string | null;
   coverNote: string | null;
   cvPath: string | null;
+  expectedSalary: number | null;
+  expectedSalaryCurrency: string | null;
   screeningAnswers: { questionId: string; value: string }[];
 }): Promise<ApplyOutcome> {
   const db = await getDb();
@@ -36,7 +38,8 @@ export async function applyToJobRpc(args: {
           sql`select apply_to_career_site_job(
             ${args.jobId}::uuid, ${args.fullName}, ${args.email},
             ${args.phone}, ${args.coverNote}, ${args.cvPath},
-            ${JSON.stringify(args.screeningAnswers)}::jsonb
+            ${JSON.stringify(args.screeningAnswers)}::jsonb,
+            ${args.expectedSalary}, ${args.expectedSalaryCurrency}
           ) as result`,
         ),
       "db.career-site.apply",

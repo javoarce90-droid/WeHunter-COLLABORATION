@@ -26,6 +26,16 @@ export type ScoreApplicationInput = {
   };
 };
 
+/** Desglose del match por categoría, 0–100 cada una. Mismo criterio que `score` (juicio de
+ *  la IA a partir de los mismos datos de entrada, no un dato duro medido aparte). */
+export type ScoreBreakdown = {
+  experiencia: number;
+  skillsTecnicos: number;
+  seniority: number;
+  idiomas: number;
+  ubicacion: number;
+};
+
 export type ScoreApplicationResult = {
   /** 0–100. Compatibilidad estimada del candidato con la búsqueda. */
   score: number;
@@ -33,6 +43,9 @@ export type ScoreApplicationResult = {
   summary: string;
   /** Señales de atención (ej. "sin CV", "sin skills coincidentes"). */
   redFlags: string[];
+  breakdown: ScoreBreakdown;
+  /** Puntos fuertes del candidato para este puesto (2–4 items). */
+  strengths: string[];
 };
 
 export type DraftOfferInput = {

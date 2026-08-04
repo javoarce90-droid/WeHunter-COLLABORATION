@@ -113,7 +113,7 @@ export function AgregarCandidatos({
         return;
       }
       const msg =
-        `${res.added} candidato${res.added !== 1 ? "s" : ""} al pipeline` +
+        `${res.added} candidato${res.added !== 1 ? "s" : ""} agregado${res.added !== 1 ? "s" : ""}, pendiente${res.added !== 1 ? "s" : ""} de revisión en Postulados` +
         (res.skipped ? ` · ${res.skipped} ya estaban` : "");
       toast({ message: msg, variant: "success" });
       close();

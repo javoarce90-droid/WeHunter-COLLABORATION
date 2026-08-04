@@ -1,8 +1,4 @@
-import type { RejectionReason } from "../schema";
-import { rechazarPostulacion } from "./rechazar-postulacion";
-import type { RechazarPostulacionDeps } from "./rechazar-postulacion";
-import type { ApplicationRow } from "./postular-candidato";
-import type { TalentState } from "@/features/recruiter/candidates/domain/cambiar-estado-talento";
+import type { InboxApplicationRow } from "./pasar-al-pipeline";
 import type { OrgRole } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 
@@ -10,51 +6,85 @@ import { can } from "@/lib/auth/roles";
 
 export type GuardarEnTalentPoolInput = {
   applicationId: string;
-  /** Nota interna del recruiter sobre por qué lo guarda (queda en el evento del descarte). */
+  /** Nota interna opcional sobre por qué se guarda. Queda como nota real del timeline de
+   *  esta postulación, visible en la ficha del candidato — no es un motivo de descarte. */
   note?: string;
 };
 
 export type GuardarEnTalentPoolContext = {
+  /** profileId real de quien ejecuta la acción — autoría de la nota, si se manda una. */
   userId: string;
   organizationId: string;
   role: OrgRole;
 };
 
-export type GuardarEnTalentPoolDeps = RechazarPostulacionDeps & {
-  setTalentState: (candidateId: string, talentState: TalentState) => Promise<void>;
+export type GuardarEnTalentPoolDeps = {
+  getApplicationById: (
+    applicationId: string,
+    organizationId: string,
+  ) => Promise<InboxApplicationRow | null>;
+  getCandidateSavedToPool: (
+    candidateId: string,
+    organizationId: string,
+  ) => Promise<boolean | null>;
+  setSavedToPool: (candidateId: string) => Promise<void>;
+  insertNote: (args: {
+    organizationId: string;
+    applicationId: string;
+    body: string;
+    createdBy: string;
+  }) => Promise<{ noteId: string }>;
 };
-
-/** Motivo con el que se cierra la postulación al guardar en el pool: no es un "no" al
- *  candidato, es un "no para esta búsqueda". */
-const MOTIVO: RejectionReason = "perfil_no_ajusta";
 
 // ---- Caso de uso ----
 
 /**
- * "Guardar en Talent Pool" desde la bandeja de Postulados: el candidato sale de ESTA búsqueda
- * pero queda marcado como talento disponible para futuras. Son dos efectos que van juntos —
- * si solo se descartara, se perdería la intención de reconsiderarlo; si solo se marcara, la
- * postulación quedaría abierta esperando una decisión que ya se tomó.
+ * "Guardar en Talent Pool": NO es un estado de la postulación ni de esta búsqueda — es una
+ * acción sobre el CANDIDATO. Lo suma al pool de talento del recruiter (reusable entre
+ * búsquedas), sin tocar `stage`, `pipelineEnteredAt` ni nada de esta postulación puntual.
  *
- * El orden importa: primero se cierra la postulación (es lo que puede fallar por reglas de
- * negocio — etapa de cierre, ya descartado) y recién después se marca el pool.
+ * La mayoría de los candidatos ya están en el pool desde que se cargan (`saved_to_pool`
+ * nace en `true` — cargarlo a mano YA es la acción de sumarlo). La única excepción es quien
+ * llega solo, sin que el recruiter haya hecho nada (Career Site/portal): nace en `false`
+ * hasta que alguien decide guardarlo. Por eso esta acción es un no-op con error si el
+ * candidato ya está adentro — no hay nada que "guardar" dos veces.
  */
 export async function guardarEnTalentPool(
   input: GuardarEnTalentPoolInput,
   ctx: GuardarEnTalentPoolContext,
   deps: GuardarEnTalentPoolDeps,
-): Promise<{ ok: true; data: ApplicationRow } | { ok: false; error: string }> {
+): Promise<{ ok: true; data: { candidateId: string } } | { ok: false; error: string }> {
   if (!can(ctx.role, "pipeline.move")) {
     return { ok: false, error: "Tu rol no permite gestionar el pool." };
   }
 
-  const cerrada = await rechazarPostulacion(
-    { applicationId: input.applicationId, reason: MOTIVO, note: input.note },
-    ctx,
-    deps,
-  );
-  if (!cerrada.ok) return cerrada;
+  const application = await deps.getApplicationById(input.applicationId, ctx.organizationId);
+  if (!application) {
+    return { ok: false, error: "Postulación no encontrada." };
+  }
 
-  await deps.setTalentState(cerrada.data.candidateId, "active");
-  return { ok: true, data: cerrada.data };
+  const savedToPool = await deps.getCandidateSavedToPool(
+    application.candidateId,
+    ctx.organizationId,
+  );
+  if (savedToPool == null) {
+    return { ok: false, error: "Candidato no encontrado." };
+  }
+  if (savedToPool) {
+    return { ok: false, error: "El candidato ya es parte de tu pool de candidatos." };
+  }
+
+  await deps.setSavedToPool(application.candidateId);
+
+  const note = input.note?.trim();
+  if (note) {
+    await deps.insertNote({
+      organizationId: ctx.organizationId,
+      applicationId: input.applicationId,
+      body: note,
+      createdBy: ctx.userId,
+    });
+  }
+
+  return { ok: true, data: { candidateId: application.candidateId } };
 }

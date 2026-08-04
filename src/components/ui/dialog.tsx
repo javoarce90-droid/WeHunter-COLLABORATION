@@ -11,6 +11,9 @@ interface DialogProps {
   title?: string;
   /** Header custom (reemplaza el título por defecto). */
   header?: ReactNode;
+  /** aria-label del `<dialog>` cuando el contenido no trae su propia barra de header visible
+   *  (ej. un header propio dentro de `children`, como el del Copiloto IA). Default: `title`. */
+  ariaLabel?: string;
   children: ReactNode;
   /** Ancho del sheet / max-width del modal. */
   className?: string;
@@ -27,6 +30,7 @@ export function Dialog({
   side = "right",
   title,
   header,
+  ariaLabel,
   children,
   className = "",
 }: DialogProps) {
@@ -54,7 +58,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      aria-label={title}
+      aria-label={ariaLabel ?? title}
       // Click en el backdrop (fuera del panel) cierra.
       onClick={(e) => {
         if (e.target === ref.current) onClose();

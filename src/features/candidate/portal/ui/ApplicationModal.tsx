@@ -49,6 +49,8 @@ export function ApplicationModal({
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const faltantes = obligatoriasSinResponder(questions, answers);
+  const [expectedSalary, setExpectedSalary] = useState("");
+  const [expectedSalaryCurrency, setExpectedSalaryCurrency] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -99,7 +101,10 @@ export function ApplicationModal({
   const enviarPostulacion = async () => {
     setIsSubmitting(true);
     setError("");
-    const result = await enviarPostulacionPortal(job, candidate, answers);
+    const result = await enviarPostulacionPortal(job, candidate, answers, {
+      expectedSalary,
+      expectedSalaryCurrency,
+    });
     setIsSubmitting(false);
     if (!result.ok) {
       if (hasScreening) setStep("screening");
@@ -295,6 +300,29 @@ export function ApplicationModal({
                   disabled={isSubmitting}
                   fieldClass={fieldClass}
                 />
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <Input
+                    label="Pretensión salarial (opcional)"
+                    type="number"
+                    min={0}
+                    disabled={isSubmitting}
+                    value={expectedSalary}
+                    onChange={(e) => setExpectedSalary(e.target.value)}
+                  />
+                </div>
+                <div className="w-24">
+                  <Input
+                    label="Moneda"
+                    maxLength={3}
+                    placeholder="USD"
+                    disabled={isSubmitting}
+                    value={expectedSalaryCurrency}
+                    onChange={(e) => setExpectedSalaryCurrency(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="flex gap-3 justify-end pt-2">

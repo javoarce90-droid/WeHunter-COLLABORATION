@@ -11,6 +11,7 @@ import {
   CV_MAX_BYTES,
   CV_ALLOWED_TYPES,
   screeningAnswersField,
+  expectedSalaryField,
 } from "@/features/candidate/applications/schema";
 
 export interface PortalApplyState {
@@ -66,9 +67,12 @@ export async function postularEnPortalAction(
 
   const answers = screeningAnswersField.safeParse(formData.get("screeningAnswers"));
   if (!answers.success) return { error: "Respuestas de screening inválidas." };
+  const expectedSalary = expectedSalaryField.safeParse(formData.get("expectedSalary"));
+  if (!expectedSalary.success) return { error: "Pretensión salarial inválida." };
 
   const phone = formData.get("phone");
   const linkedinUrl = formData.get("linkedinUrl");
+  const expectedSalaryCurrency = formData.get("expectedSalaryCurrency");
   const result = await postularDesdeCareerSite(
     {
       jobId,
@@ -78,6 +82,9 @@ export async function postularEnPortalAction(
       location: profile?.location ?? undefined,
       coverNote: typeof linkedinUrl === "string" && linkedinUrl ? `LinkedIn: ${linkedinUrl}` : undefined,
       cvPath,
+      expectedSalary: expectedSalary.data,
+      expectedSalaryCurrency:
+        typeof expectedSalaryCurrency === "string" ? expectedSalaryCurrency : undefined,
       screeningAnswers: answers.data,
     },
     { applyToJob: applyToJobRpc },

@@ -50,8 +50,20 @@ const SCORE_SCHEMA = {
     score: { type: Type.INTEGER },
     summary: { type: Type.STRING },
     redFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
+    breakdown: {
+      type: Type.OBJECT,
+      properties: {
+        experiencia: { type: Type.INTEGER },
+        skillsTecnicos: { type: Type.INTEGER },
+        seniority: { type: Type.INTEGER },
+        idiomas: { type: Type.INTEGER },
+        ubicacion: { type: Type.INTEGER },
+      },
+      required: ["experiencia", "skillsTecnicos", "seniority", "idiomas", "ubicacion"],
+    },
+    strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
   },
-  required: ["score", "summary", "redFlags"],
+  required: ["score", "summary", "redFlags", "breakdown", "strengths"],
 };
 
 test(
@@ -89,7 +101,12 @@ test(
       });
       const latency = Date.now() - t0;
 
-      const parsed = JSON.parse(res.text ?? "{}") as { score?: number; summary?: string; redFlags?: string[] };
+      const parsed = JSON.parse(res.text ?? "{}") as {
+        score?: number;
+        summary?: string;
+        redFlags?: string[];
+        strengths?: string[];
+      };
       const score = Number(parsed.score);
       const usage = res.usageMetadata;
       const inBand = c.band ? (score >= c.band[0] && score <= c.band[1] ? "sí" : "NO ⚠️") : "—";
@@ -101,6 +118,7 @@ test(
           `tok=${usage?.totalTokenCount ?? "?"} ${latency}ms`,
       );
       console.log(`    redFlags: ${(parsed.redFlags ?? []).join(" | ") || "—"}`);
+      console.log(`    strengths: ${(parsed.strengths ?? []).join(" | ") || "—"}`);
       console.log(`    resumen:  ${parsed.summary ?? "—"}\n`);
 
       const csv = (s: string) => `"${String(s).replace(/"/g, '""')}"`;

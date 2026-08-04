@@ -17,10 +17,7 @@ const makeDeps = (overrides?: Partial<PostularDeps>): PostularDeps => ({
   getJobById: vi.fn().mockResolvedValue({ id: "job-1", status: "open" }),
   getCandidateById: vi.fn().mockResolvedValue({ id: "cand-1" }),
   findExistingApplication: vi.fn().mockResolvedValue(null),
-  getActiveStages: vi
-    .fn()
-    .mockResolvedValue(["new", "screening", "interview", "offer", "hired", "rejected"]),
-  createApplication: vi.fn().mockResolvedValue(makeApp({ stage: "screening" })),
+  createApplication: vi.fn().mockResolvedValue(makeApp({ stage: "new" })),
   ...overrides,
 });
 
@@ -33,40 +30,18 @@ const ctx: PostularContext = {
 const input = { jobId: "job-1", candidateId: "cand-1" };
 
 describe("postularCandidato", () => {
-  it("suma al candidato directo al pipeline, en la primera etapa activa", async () => {
+  it("cae en la bandeja de Postulados, no directo al pipeline", async () => {
     const deps = makeDeps();
     const result = await postularCandidato(input, ctx, deps);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(deps.createApplication).toHaveBeenCalledWith(
-      expect.objectContaining({
-        jobId: "job-1",
-        candidateId: "cand-1",
-        stage: "screening",
-        pipelineEntered: true,
-      }),
-    );
-  });
-
-  it("no usa la bandeja ni el descarte como etapa de entrada", async () => {
-    const deps = makeDeps({
-      getActiveStages: vi.fn().mockResolvedValue(["new", "rejected", "interview"]),
+    expect(deps.createApplication).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      jobId: "job-1",
+      candidateId: "cand-1",
+      stage: "new",
     });
-    await postularCandidato(input, ctx, deps);
-
-    expect(deps.createApplication).toHaveBeenCalledWith(
-      expect.objectContaining({ stage: "interview" }),
-    );
-  });
-
-  it("cae a screening si la org no dejó ninguna etapa activa", async () => {
-    const deps = makeDeps({ getActiveStages: vi.fn().mockResolvedValue([]) });
-    await postularCandidato(input, ctx, deps);
-
-    expect(deps.createApplication).toHaveBeenCalledWith(
-      expect.objectContaining({ stage: "screening" }),
-    );
   });
 
   it("rechaza si el candidato ya está postulado al mismo job", async () => {

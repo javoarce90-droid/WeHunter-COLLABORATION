@@ -21,6 +21,20 @@ export async function setTalentState(
   );
 }
 
+/** Suma el candidato al pool de talento del recruiter (ver comentario en el schema:
+ *  `saved_to_pool`). No toca nada de ninguna postulación — es del candidato, no de un job. */
+export async function setSavedToPool(candidateId: string): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx
+        .update(candidates)
+        .set({ savedToPool: true, updatedAt: new Date() })
+        .where(eq(candidates.id, candidateId)),
+    "db.candidates.set-saved-to-pool",
+  );
+}
+
 export async function insertCandidate(
   args: {
     organizationId: string;

@@ -14,10 +14,6 @@ export type ApplicationRow = {
   updatedAt: Date;
 };
 
-/** Etapa de arranque si la org no dejó ninguna otra activa: el tablero siempre necesita una
- *  columna real donde poner al candidato que el recruiter acaba de sumar. */
-const FALLBACK_STAGE: ApplicationStage = "screening";
-
 export type PostularInput = {
   jobId: string;
   candidateId: string;
@@ -33,15 +29,12 @@ export type PostularDeps = {
   getJobById: (jobId: string, organizationId: string) => Promise<{ id: string; status: string } | null>;
   getCandidateById: (candidateId: string, organizationId: string) => Promise<{ id: string } | null>;
   findExistingApplication: (jobId: string, candidateId: string) => Promise<{ id: string } | null>;
-  /** Etapas activas del tablero, en orden: el candidato sumado por el recruiter entra en la primera. */
-  getActiveStages: (organizationId: string) => Promise<ApplicationStage[]>;
   /** `null` = conflicto de unicidad (carrera con otro insert simultáneo, ver applications.mutations). */
   createApplication: (data: {
     organizationId: string;
     jobId: string;
     candidateId: string;
     stage: ApplicationStage;
-    pipelineEntered?: boolean;
   }) => Promise<ApplicationRow | null>;
 };
 
@@ -78,15 +71,14 @@ export async function postularCandidato(
     return { ok: false, error: "El candidato ya está postulado a esta búsqueda." };
   }
 
-  const activeStages = (await deps.getActiveStages(ctx.organizationId)).filter(
-    (s) => s !== "new" && s !== "rejected",
-  );
+  // Cae en la bandeja de Postulados, igual que una auto-postulación: quien la agrega (sourcer
+  // o recruiter, sourcing desde el pool) no es necesariamente quien decide si entra al
+  // pipeline — esa decisión es del responsable de la búsqueda, vía pasarAlPipeline.
   const application = await deps.createApplication({
     organizationId: ctx.organizationId,
     jobId: input.jobId,
     candidateId: input.candidateId,
-    stage: activeStages[0] ?? FALLBACK_STAGE,
-    pipelineEntered: true,
+    stage: "new",
   });
   if (!application) {
     return { ok: false, error: "El candidato ya está postulado a esta búsqueda." };

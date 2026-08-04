@@ -1,4 +1,4 @@
-import { and, eq, ne, asc, desc, sql, isNotNull, inArray } from "drizzle-orm";
+import { and, eq, ne, asc, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   applications,
@@ -329,12 +329,32 @@ export type PostuladoRow = {
   stage: ApplicationStage;
   /** null = pendiente de decisión (sigue en la bandeja). */
   pipelineEnteredAt: Date | null;
-  isFavorite: boolean;
+  /** true = auto-postulación (Career Site/portal). false = alta manual desde el pool
+   *  (sourcer o recruiter). Es de ESTA postulación, no del candidato (ver comentario en el
+   *  schema, columna `applications.self_applied`). */
+  selfApplied: boolean;
   aiScore: number | null;
   aiSummary: string | null;
+  /** Señales de atención calculadas junto al score (ej. "sin CV"). [] = sin analizar o sin señales. */
+  aiRedFlags: string[];
+  /** Desglose del match por categoría (0–100 cada una). null = sin analizar todavía. */
+  aiBreakdown: {
+    experiencia: number;
+    skillsTecnicos: number;
+    seniority: number;
+    idiomas: number;
+    ubicacion: number;
+  } | null;
+  /** Puntos fuertes del candidato calculados junto al score. */
+  aiStrengths: string[];
   /** Mensaje que el propio candidato escribió al postularse. */
   coverNote: string | null;
+  /** Pretensión salarial declarada al postularse. Opcional, no siempre está. */
+  expectedSalary: number | null;
+  expectedSalaryCurrency: string | null;
   createdAt: Date;
+  /** A cuántas búsquedas de esta organización se postuló este candidato (incluida esta). */
+  applicationCount: number;
   candidate: {
     id: string;
     fullName: string;
@@ -342,12 +362,21 @@ export type PostuladoRow = {
     phone: string | null;
     cvUrl: string | null;
     source: string | null;
+    /** Puesto y última empresa, ej. "Frontend Senior @ Acme". */
+    headline: string | null;
+    /** Si ya es parte del pool de talento del recruiter (no es un estado de esta
+     *  postulación — ver candidates.saved_to_pool). Decide si se ofrece "Guardar en
+     *  Talent Pool" o si ya es redundante. */
+    savedToPool: boolean;
   };
 };
 
 /**
- * Postulados de una búsqueda para la tabla de triage. Trae fuente y favorito (que el
- * pipeline no necesita). Una query con join; ordena por favorito y fecha. Con límite.
+ * Postulados pendientes de decisión (bandeja) de una búsqueda, para la tabla de triage. Una
+ * vez que el responsable decide (pasa al pipeline o rechaza) deja de aparecer acá para
+ * siempre — filtrado en el propio query, no en el cliente (database.md #4). Trae fuente (que
+ * el pipeline no necesita) más `applicationCount` con una subquery correlacionada (sin query
+ * aparte por candidato — database.md #6). Una query con join; ordena por fecha. Con límite.
  */
 export async function listPostulados(
   jobId: string,
@@ -360,10 +389,15 @@ export async function listPostulados(
         id: applications.id,
         stage: applications.stage,
         pipelineEnteredAt: applications.pipelineEnteredAt,
-        isFavorite: applications.isFavorite,
+        selfApplied: applications.selfApplied,
         aiScore: applications.aiScore,
         aiSummary: applications.aiSummary,
+        aiRedFlags: applications.aiRedFlags,
+        aiBreakdown: applications.aiBreakdown,
+        aiStrengths: applications.aiStrengths,
         coverNote: applications.coverNote,
+        expectedSalary: applications.expectedSalary,
+        expectedSalaryCurrency: applications.expectedSalaryCurrency,
         createdAt: applications.createdAt,
         candidateId: candidates.id,
         candidateFullName: candidates.fullName,
@@ -371,6 +405,15 @@ export async function listPostulados(
         candidatePhone: candidates.phone,
         candidateCvUrl: candidates.cvUrl,
         candidateSource: candidates.source,
+        candidateHeadline: candidates.headline,
+        candidateSavedToPool: candidates.savedToPool,
+        // Subquery correlacionada (no ventana): la partición del `where jobId=X` de esta
+        // query siempre da 1 por candidato, no sirve para "a cuántas búsquedas se postuló".
+        // Sigue siendo UNA sola consulta a la base (database.md #3), no un round-trip extra.
+        applicationCount: sql<number>`(
+          select count(*)::int from ${applications} a2
+          where a2.candidate_id = ${candidates.id} and a2.organization_id = ${organizationId}
+        )`,
       })
       .from(applications)
       .innerJoin(candidates, eq(applications.candidateId, candidates.id))
@@ -378,9 +421,11 @@ export async function listPostulados(
         and(
           eq(applications.jobId, jobId),
           eq(applications.organizationId, organizationId),
+          isNull(applications.pipelineEnteredAt),
+          ne(applications.stage, "rejected"),
         ),
       )
-      .orderBy(desc(applications.isFavorite), desc(applications.createdAt))
+      .orderBy(desc(applications.createdAt))
       .limit(200),
     "db.applications.postulados",
   );
@@ -388,11 +433,17 @@ export async function listPostulados(
     id: r.id,
     stage: r.stage as ApplicationStage,
     pipelineEnteredAt: r.pipelineEnteredAt,
-    isFavorite: r.isFavorite,
+    selfApplied: r.selfApplied,
     aiScore: r.aiScore,
     aiSummary: r.aiSummary,
+    aiRedFlags: r.aiRedFlags ?? [],
+    aiBreakdown: r.aiBreakdown,
+    aiStrengths: r.aiStrengths ?? [],
     coverNote: r.coverNote,
+    expectedSalary: r.expectedSalary,
+    expectedSalaryCurrency: r.expectedSalaryCurrency,
     createdAt: r.createdAt,
+    applicationCount: Number(r.applicationCount),
     candidate: {
       id: r.candidateId,
       fullName: r.candidateFullName,
@@ -400,6 +451,8 @@ export async function listPostulados(
       phone: r.candidatePhone,
       cvUrl: r.candidateCvUrl,
       source: r.candidateSource,
+      savedToPool: r.candidateSavedToPool,
+      headline: r.candidateHeadline,
     },
   }));
 }

@@ -94,8 +94,25 @@ export class GeminiAiProvider implements AiProvider {
                 items: { type: Type.STRING },
                 description: "Señales de atención (ej. sin CV, sin skills coincidentes). Vacío si no hay.",
               },
+              breakdown: {
+                type: Type.OBJECT,
+                description: "Desglose del match por categoría, 0–100 cada una.",
+                properties: {
+                  experiencia: { type: Type.INTEGER },
+                  skillsTecnicos: { type: Type.INTEGER },
+                  seniority: { type: Type.INTEGER },
+                  idiomas: { type: Type.INTEGER },
+                  ubicacion: { type: Type.INTEGER },
+                },
+                required: ["experiencia", "skillsTecnicos", "seniority", "idiomas", "ubicacion"],
+              },
+              strengths: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "2 a 4 puntos fuertes concretos del candidato para este puesto.",
+              },
             },
-            required: ["score", "summary", "redFlags"],
+            required: ["score", "summary", "redFlags", "breakdown", "strengths"],
           },
         },
       });
@@ -105,7 +122,13 @@ export class GeminiAiProvider implements AiProvider {
       const parsed = JSON.parse(raw) as Partial<ScoreApplicationResult>;
 
       const score = Math.max(0, Math.min(100, Math.round(Number(parsed.score))));
-      if (!Number.isFinite(score) || typeof parsed.summary !== "string") {
+      const clampCat = (n: unknown) => Math.max(0, Math.min(100, Math.round(Number(n))));
+      if (
+        !Number.isFinite(score) ||
+        typeof parsed.summary !== "string" ||
+        !parsed.breakdown ||
+        !Number.isFinite(Number(parsed.breakdown.experiencia))
+      ) {
         throw new Error("Gemini devolvió un score con forma inesperada");
       }
 
@@ -114,6 +137,16 @@ export class GeminiAiProvider implements AiProvider {
         summary: parsed.summary,
         redFlags: Array.isArray(parsed.redFlags)
           ? parsed.redFlags.filter((f) => typeof f === "string")
+          : [],
+        breakdown: {
+          experiencia: clampCat(parsed.breakdown.experiencia),
+          skillsTecnicos: clampCat(parsed.breakdown.skillsTecnicos),
+          seniority: clampCat(parsed.breakdown.seniority),
+          idiomas: clampCat(parsed.breakdown.idiomas),
+          ubicacion: clampCat(parsed.breakdown.ubicacion),
+        },
+        strengths: Array.isArray(parsed.strengths)
+          ? parsed.strengths.filter((f) => typeof f === "string")
           : [],
       };
     } catch (err) {

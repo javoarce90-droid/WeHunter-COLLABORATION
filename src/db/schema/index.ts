@@ -161,12 +161,16 @@ export const requisitionStatus = pgEnum("requisition_status", ["pending", "appro
 // Motivo de la solicitud: crear un puesto nuevo, o cubrir uno que quedó vacante.
 export const requisitionReason = pgEnum("requisition_reason", ["new_position", "backfill"]);
 
-// De dónde salió el candidato. Trazabilidad de fuente del pool.
+// De dónde salió el candidato. Trazabilidad de fuente del pool. "portal" es la única que NO
+// elige el recruiter a mano: la setea el sistema cuando el candidato se postula solo (Career
+// Site o su propio portal) — ver apply_to_career_site_job. Excluida a propósito del selector
+// manual de CandidateForm.
 export const candidateSource = pgEnum("candidate_source", [
   "manual",
   "linkedin",
   "referral",
   "job_board",
+  "portal",
   "other",
 ]);
 
@@ -520,6 +524,12 @@ export const candidates = pgTable("candidates", {
   source: candidateSource("source"),
   // Estado operativo en el pool (lifecycle del candidato, no de una postulación).
   talentState: talentState("talent_state").notNull().default("active"),
+  // ¿El recruiter lo sumó a su pool de talento (reusable entre búsquedas)? true por defecto:
+  // cargarlo a mano YA es la acción de sumarlo. La única excepción es quien llega solo, sin
+  // que el recruiter haya hecho nada (Career Site/portal) — nace en false hasta que alguien
+  // decide guardarlo (ver apply_to_career_site_job y guardar-en-talent-pool.ts). No es un
+  // estado de la postulación: es del candidato, independiente de en qué búsqueda esté.
+  savedToPool: boolean("saved_to_pool").notNull().default(true),
   // Consentimiento de tratamiento de datos (GDPR-lite). null = no registrado.
   consentAcceptedAt: timestamp("consent_accepted_at"),
   ...timestamps,
@@ -652,21 +662,41 @@ export const applications = pgTable("applications", {
   // queda como espejo mientras se migran los consumidores que todavía lo leen.
   stageId: uuid("stage_id").references(() => jobStages.id, { onDelete: "restrict" }),
   pipelineEnteredAt: timestamp("pipeline_entered_at"),
+  // Origen de ESTA postulación puntual: true = auto-postulación (Career Site o portal),
+  // seteado por apply_to_career_site_job. false = alta manual desde el pool (sourcer o
+  // recruiter). No se puede derivar de `candidates.source` (es del candidato, se fija una
+  // sola vez al crear su fila) — el mismo candidato "portal" puede después ser postulado a
+  // mano por un sourcer a otra búsqueda, y esa segunda postulación no es auto-postulación.
+  selfApplied: boolean("self_applied").notNull().default(false),
   // Cuándo entró a la etapa actual. Reemplaza la derivación por `application_events` ⋈ enum
   // (incorrecta para dos etapas custom que comparten el mismo `legacyStage`) — se resetea en
   // cada movimiento de etapa.
   stageEnteredAt: timestamp("stage_entered_at").defaultNow().notNull(),
-  // Marcador liviano de favorito/destacado para el triage de postulados. No es el shortlist
-  // (que es la selección formal que se comparte con la empresa): es una estrella del recruiter.
-  isFavorite: boolean("is_favorite").notNull().default(false),
   // Resultado de IA (mock por ahora) persistido para que la UI sea real. null = sin analizar.
   aiScore: integer("ai_score"), // 0–100, compatibilidad estimada con la búsqueda
   aiSummary: text("ai_summary"), // resumen corto del match
+  // Señales de atención (ej. "sin CV"). Ya las calculaba AiProvider.scoreApplication pero se
+  // descartaban sin persistir — es lo que alimenta "A validar / riesgos" del Copiloto IA.
+  aiRedFlags: text("ai_red_flags").array(),
+  // Desglose del match por categoría (0–100 cada una), para el tab "Completo" del Copiloto IA.
+  aiBreakdown: jsonb("ai_breakdown").$type<{
+    experiencia: number;
+    skillsTecnicos: number;
+    seniority: number;
+    idiomas: number;
+    ubicacion: number;
+  }>(),
+  // Puntos fuertes del candidato para este puesto, calculados junto con el score.
+  aiStrengths: text("ai_strengths").array(),
   // Nota interna del reclutador sobre el candidato en este proceso. No visible para la empresa.
   notes: text("notes"),
   // Mensaje que el propio candidato adjuntó al postularse (Career Site). Distinto de `notes`:
   // ese es privado del reclutador, esto lo escribe el candidato y es visible para el reclutador.
   coverNote: text("cover_note"),
+  // Pretensión salarial que el candidato declaró al postularse. Opcional, no se pide. Es del
+  // momento de ESTA postulación (no de `candidates`): la expectativa puede variar según el rol.
+  expectedSalary: integer("expected_salary"),
+  expectedSalaryCurrency: text("expected_salary_currency"),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("applications_org_idx").on(t.organizationId),
