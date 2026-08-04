@@ -1,13 +1,11 @@
-import { AiScore } from "@/components/ui/ai";
+import { AiScore, scoreBand, type ScoreBand } from "@/components/ui/ai";
 
 /** Confianza y recomendación se derivan del mismo score de compatibilidad (no son datos
- *  separados que calcule la IA hoy) — mismas bandas que ya usa `scoreColor` en `ai.tsx`.
+ *  separados que calcule la IA hoy) — mismas bandas que `scoreBand` de `ai.tsx` (fuente única).
  *  Compartidas por la tabla de Postulados, su ficha de detalle y el modal del Copiloto IA. */
-export type Confidence = "alta" | "media" | "baja";
+export type Confidence = ScoreBand;
 export function matchConfidence(score: number): Confidence {
-  if (score >= 75) return "alta";
-  if (score >= 50) return "media";
-  return "baja";
+  return scoreBand(score);
 }
 export const CONFIDENCE_LABELS: Record<Confidence, string> = { alta: "Alta", media: "Media", baja: "Baja" };
 export const CONFIDENCE_TONE: Record<Confidence, string> = {
@@ -17,10 +15,13 @@ export const CONFIDENCE_TONE: Record<Confidence, string> = {
 };
 
 export type Recommendation = "avanzar" | "revisar" | "descartar";
+const RECOMMENDATION_BY_BAND: Record<ScoreBand, Recommendation> = {
+  alta: "avanzar",
+  media: "revisar",
+  baja: "descartar",
+};
 export function matchRecommendation(score: number): Recommendation {
-  if (score >= 75) return "avanzar";
-  if (score >= 50) return "revisar";
-  return "descartar";
+  return RECOMMENDATION_BY_BAND[scoreBand(score)];
 }
 export const RECOMMENDATION_LABELS: Record<Recommendation, string> = {
   avanzar: "Avanzar",

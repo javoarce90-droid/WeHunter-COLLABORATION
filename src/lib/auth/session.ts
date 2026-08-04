@@ -2,10 +2,18 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getAuth, getDb } from "@/db/client";
-import { accountType, memberships, orgRole, organizations, profiles } from "@/db/schema";
+import {
+  accountType,
+  memberships,
+  orgRole,
+  organizations,
+  profiles,
+  workspaceType,
+} from "@/db/schema";
 
 export type OrgRole = (typeof orgRole.enumValues)[number];
 export type AccountType = (typeof accountType.enumValues)[number];
+export type WorkspaceType = (typeof workspaceType.enumValues)[number];
 
 /** Cuál de las memberships del usuario está viendo. Ver `getActiveMembership`. */
 export const ACTIVE_ORG_COOKIE = "wh.active_org";
@@ -25,6 +33,9 @@ export interface ActiveMembership {
   role: OrgRole;
   /** Cliente al que este recruiter está atado en exclusiva. null = sin asignación. */
   assignedClientId: string | null;
+  /** Cómo usa el workspace (freelance/team/enterprise) — null en orgs creadas antes de que
+   *  existiera el paso. Decide plan (límite de miembros) y qué rol/etiqueta se muestra. */
+  workspaceType: WorkspaceType | null;
 }
 
 /**
@@ -60,6 +71,7 @@ export const getMyMemberships = cache(async (): Promise<ActiveMembership[]> => {
           organizationSlug: organizations.slug,
           role: memberships.role,
           assignedClientId: memberships.assignedClientId,
+          workspaceType: organizations.workspaceType,
         })
         .from(memberships)
         .innerJoin(organizations, eq(memberships.organizationId, organizations.id))

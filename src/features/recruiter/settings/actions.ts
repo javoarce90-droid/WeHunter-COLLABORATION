@@ -3,12 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getActiveMembership, getCurrentUser, ACTIVE_ORG_COOKIE } from "@/lib/auth/session";
 import {
   profileInputSchema,
   workspaceIdentityInputSchema,
-  passwordInputSchema,
   IMAGE_ALLOWED_TYPES,
   IMAGE_MAX_BYTES,
 } from "./schema";
@@ -73,34 +71,12 @@ export async function actualizarPerfilAction(
     location: parsed.data.location ?? null,
     linkedinUrl: parsed.data.linkedinUrl ?? null,
     bio: parsed.data.bio ?? null,
+    // Checkbox nativo: si no viene en el FormData es porque está destildado.
+    visibleInCommunity: formData.get("visibleInCommunity") === "on",
     ...(avatarUrl ? { avatarUrl } : {}),
   });
 
   revalidatePath("/settings");
-  return { ok: true };
-}
-
-// ---- Contraseña (Supabase Auth) ----
-
-export async function cambiarContrasenaAction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const parsed = passwordInputSchema.safeParse({
-    password: formData.get("password"),
-    confirm: formData.get("confirm"),
-  });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
-  }
-
-  const user = await getCurrentUser();
-  if (!user) return { error: "No autorizado." };
-
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) return { error: "No se pudo actualizar la contraseña. Probá de nuevo." };
-
   return { ok: true };
 }
 

@@ -85,7 +85,7 @@ export const ROLE_LABELS: Record<OrgRole, string> = {
   recruiter: "Recruiter",
   sourcer: "Sourcer",
   consultant: "Consultor externo",
-  hiring_manager: "Cliente / Hiring Manager",
+  hiring_manager: "Hiring Manager",
   viewer: "Viewer",
 };
 

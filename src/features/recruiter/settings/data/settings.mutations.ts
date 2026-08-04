@@ -10,6 +10,7 @@ export interface ProfilePatch {
   linkedinUrl?: string | null;
   bio?: string | null;
   avatarUrl?: string | null;
+  visibleInCommunity?: boolean;
 }
 
 /** Actualiza el perfil del usuario actual. RLS: la política own_profile_update solo deja el propio. */

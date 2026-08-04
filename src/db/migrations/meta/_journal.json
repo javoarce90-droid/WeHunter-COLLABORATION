@@ -596,6 +596,27 @@
       "when": 1785715515031,
       "tag": "0084_tiny_microbe",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1785780929783,
+      "tag": "0085_memberships_admin_can_update",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1785801818123,
+      "tag": "0086_get_career_site_updated_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1785802239040,
+      "tag": "0087_next_valkyrie",
+      "breakpoints": true
     }
   ]
 }

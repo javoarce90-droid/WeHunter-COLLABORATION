@@ -26,6 +26,14 @@ export interface CrearClienteDeps {
     notes: string | null;
     createdBy: string;
   }): Promise<{ clientId: string }>;
+  /** Si la org tiene un solo miembro activo, no hay elección real de recruiter que ofrecer:
+   *  se lo asigna directo (Freelance siempre, o un Team recién creado). */
+  getSoleActiveMembershipId(organizationId: string): Promise<string | null>;
+  assignRecruiterToClient(
+    organizationId: string,
+    clientId: string,
+    membershipId: string,
+  ): Promise<void>;
 }
 
 export async function crearCliente(
@@ -53,6 +61,11 @@ export async function crearCliente(
     notes: input.notes?.trim() || null,
     createdBy: ctx.userId,
   });
+
+  const soleMembershipId = await deps.getSoleActiveMembershipId(ctx.organizationId);
+  if (soleMembershipId) {
+    await deps.assignRecruiterToClient(ctx.organizationId, clientId, soleMembershipId);
+  }
 
   return ok({ clientId });
 }

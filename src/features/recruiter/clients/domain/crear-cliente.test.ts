@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { crearCliente, type CrearClienteDeps } from "./crear-cliente";
 
-const deps = (clientId = "client-1"): CrearClienteDeps => ({
+const deps = (clientId = "client-1", soleMembershipId: string | null = null): CrearClienteDeps => ({
   insertClient: vi.fn(async () => ({ clientId })),
+  getSoleActiveMembershipId: vi.fn(async () => soleMembershipId),
+  assignRecruiterToClient: vi.fn(async () => {}),
 });
 const ctx = { userId: "u1", organizationId: "org-1", role: "recruiter" as const };
 
@@ -47,5 +49,12 @@ describe("crearCliente", () => {
       notes: null,
       createdBy: "u1",
     });
+    expect(d.assignRecruiterToClient).not.toHaveBeenCalled();
+  });
+
+  it("auto-asigna al único miembro activo de la org como recruiter", async () => {
+    const d = deps("client-9", "membership-1");
+    await crearCliente({ name: "Acme Corp" }, ctx, d);
+    expect(d.assignRecruiterToClient).toHaveBeenCalledWith("org-1", "client-9", "membership-1");
   });
 });

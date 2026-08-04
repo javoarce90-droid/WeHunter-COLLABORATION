@@ -1,4 +1,4 @@
-import { and, eq, desc, sql } from "drizzle-orm";
+import { and, count, eq, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { clients, jobs, memberships, profiles, requisitions, clientShares, type Client } from "@/db/schema";
 
@@ -6,11 +6,25 @@ import { clients, jobs, memberships, profiles, requisitions, clientShares, type 
 
 const LIST_LIMIT = 100;
 
+/** Cuántos clientes tiene la org — usado por el checklist de Inicio (Freelance), no hace
+ *  falta traer las filas completas para eso. */
+export async function countClients(organizationId: string): Promise<number> {
+  const db = await getDb();
+  const [row] = await db.rls(
+    (tx) =>
+      tx.select({ n: count() }).from(clients).where(eq(clients.organizationId, organizationId)),
+    "db.clients.count",
+  );
+  return row?.n ?? 0;
+}
+
 export type ClientWithStats = Client & {
   jobCount: number;
   requisitionCount: number;
   /** Si tiene al menos un link de acceso activo (ni revocado ni vencido). */
   hasActiveShare: boolean;
+  /** Nombre del recruiter asignado en exclusiva, si hay alguno. */
+  assignedRecruiterName: string | null;
 };
 
 /** Listado de clientes con sus contadores (búsquedas, solicitudes, si tiene link de acceso
@@ -36,6 +50,12 @@ export async function listClientsWithStats(
               and ${clientShares.revokedAt} is null
               and (${clientShares.expiresAt} is null or ${clientShares.expiresAt} > now())
           )`,
+          assignedRecruiterName: sql<string | null>`(
+            select ${profiles.fullName} from ${memberships}
+            inner join ${profiles} on ${profiles.id} = ${memberships.profileId}
+            where ${memberships.assignedClientId} = ${clients.id}
+            limit 1
+          )`,
         })
         .from(clients)
         .leftJoin(jobs, eq(jobs.clientId, clients.id))
@@ -45,11 +65,12 @@ export async function listClientsWithStats(
         .limit(LIST_LIMIT),
     "db.clients.list-with-stats",
   );
-  return rows.map(({ client, jobCount, requisitionCount, hasActiveShare }) => ({
+  return rows.map(({ client, jobCount, requisitionCount, hasActiveShare, assignedRecruiterName }) => ({
     ...client,
     jobCount,
     requisitionCount,
     hasActiveShare,
+    assignedRecruiterName,
   }));
 }
 

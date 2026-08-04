@@ -30,12 +30,6 @@ export default async function RequisitionsPage() {
       </div>
 
       <RequisitionsList requisitions={requisitions} canReview={can(membership.role, "requisitions.review")} />
-
-      <p className="max-w-[80ch] text-xs text-muted">
-        Una solicitud siempre nace de un cliente: no hay solicitudes &quot;sueltas&quot;. El
-        cliente la carga desde su link, sin cuenta. Aprobarla la convierte en una búsqueda
-        del ATS, ya vinculada a ese cliente.
-      </p>
     </div>
   );
 }

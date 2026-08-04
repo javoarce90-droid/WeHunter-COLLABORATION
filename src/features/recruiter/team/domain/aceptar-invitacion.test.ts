@@ -71,6 +71,20 @@ describe("aceptarInvitacion", () => {
     expect(d.markInvitationAccepted).toHaveBeenCalledWith("inv-1");
   });
 
+  it("respeta el rol de la invitación (no recruiter por default)", async () => {
+    const d = deps({
+      getInvitationByToken: vi.fn().mockResolvedValue({ ...pending, role: "consultant" }),
+      findProfileByEmail: vi.fn().mockResolvedValue({ id: "profile-existente" }),
+    });
+    const r = await aceptarInvitacion({ token: "x" }, d);
+    expect(r.ok).toBe(true);
+    expect(d.createMembership).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      profileId: "profile-existente",
+      role: "consultant",
+    });
+  });
+
   it("perfil nuevo sin contraseña: rechaza", async () => {
     const d = deps();
     const r = await aceptarInvitacion({ token: "x" }, d);

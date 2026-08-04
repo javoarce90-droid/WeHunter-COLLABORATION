@@ -27,6 +27,7 @@ export default async function TeamPage() {
         invitations={invitations}
         currentRole={membership.role as OrgRole}
         currentUserId={user.id}
+        workspaceType={membership.workspaceType}
       />
     </div>
   );

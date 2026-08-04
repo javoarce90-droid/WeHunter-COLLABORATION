@@ -24,7 +24,9 @@ export function AssignedRecruiterControl({ clientId, recruiters, canEdit }: Prop
   );
   const formRef = useRef<HTMLFormElement>(null);
 
-  if (!canEdit) {
+  // Sin elección real que ofrecer (0 o 1 recruiter posible): texto plano, aunque el usuario
+  // pueda editar clientes en general.
+  if (!canEdit || recruiters.length <= 1) {
     return (
       <p className="text-sm text-text">
         <span className="font-semibold text-muted">Recruiter asignado:</span>{" "}
