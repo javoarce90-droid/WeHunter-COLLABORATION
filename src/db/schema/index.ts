@@ -251,6 +251,10 @@ export const organizations = pgTable("organizations", {
     website?: string;
     social?: { linkedin?: string; instagram?: string; x?: string; facebook?: string };
   }>(),
+  // Se setea una única vez cuando el checklist de setup de Inicio llega a 100% (ver
+  // features/recruiter/dashboard). null = todavía no completó todo. Evita recalcular el
+  // progreso en cada navegación una vez terminado.
+  setupChecklistCompletedAt: timestamp("setup_checklist_completed_at"),
   ...timestamps,
 }, (t) => ({
   slugIdx: uniqueIndex("organizations_slug_idx").on(t.slug),

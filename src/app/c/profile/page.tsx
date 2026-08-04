@@ -90,7 +90,7 @@ export default async function CandidateProfilePage() {
         </div>
 
         {completitud.percent < 100 && (
-          <div className="flex flex-col gap-2 rounded-[var(--radius)] border border-primary/20 bg-primary/5 p-4 shadow-[var(--shadow)]">
+          <div className="flex flex-col gap-2 rounded-[var(--radius)] border border-primary/20 bg-primary/5 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] animate-pop-in">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-text">
                 Tu perfil está {completitud.percent}% completo.
@@ -112,7 +112,7 @@ export default async function CandidateProfilePage() {
         )}
 
         {/* Hero de perfil */}
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-surface border border-border rounded-[var(--radius)] shadow-[var(--shadow)] p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 bg-surface border border-border/80 rounded-[var(--radius)] shadow-[0_1px_3px_rgba(0,0,0,0.06),0_4px_12px_rgba(0,0,0,0.03)] p-6 animate-pop-in">
           <div className="flex min-w-0 items-center gap-3">
             <Avatar name={candidate.fullName || candidate.email} size="lg" />
             <div className="min-w-0">
@@ -141,7 +141,7 @@ export default async function CandidateProfilePage() {
         </div>
 
         {/* Datos + currículum */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-start">
           <CandidateProfileForm
             initialFullName={candidate.fullName ?? ""}
             initialEmail={candidate.email}

@@ -36,6 +36,10 @@ export interface ActiveMembership {
   /** Cómo usa el workspace (freelance/team/enterprise) — null en orgs creadas antes de que
    *  existiera el paso. Decide plan (límite de miembros) y qué rol/etiqueta se muestra. */
   workspaceType: WorkspaceType | null;
+  /** null = todavía no terminó el checklist de setup de Inicio. Ver features/recruiter/dashboard
+   *  — el widget flotante y el checklist de Inicio dejan de consultarse una vez que esto se
+   *  setea (evita recalcular progreso en cada navegación). */
+  organizationSetupCompletedAt: Date | null;
 }
 
 /**
@@ -72,6 +76,7 @@ export const getMyMemberships = cache(async (): Promise<ActiveMembership[]> => {
           role: memberships.role,
           assignedClientId: memberships.assignedClientId,
           workspaceType: organizations.workspaceType,
+          organizationSetupCompletedAt: organizations.setupChecklistCompletedAt,
         })
         .from(memberships)
         .innerJoin(organizations, eq(memberships.organizationId, organizations.id))
