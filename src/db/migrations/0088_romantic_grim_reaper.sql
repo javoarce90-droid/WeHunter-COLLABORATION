@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "setup_checklist_completed_at" timestamp;

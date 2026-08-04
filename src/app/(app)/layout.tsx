@@ -16,6 +16,7 @@ import {
   NotificationBellLoader,
   NotificationBellFallback,
 } from "@/features/recruiter/notifications/ui/NotificationBellLoader";
+import { SetupChecklistWidgetLoader } from "@/features/recruiter/dashboard/ui/SetupChecklistWidgetLoader";
 
 /**
  * Shell de las pantallas del reclutador (rutas protegidas). Resuelve el contexto base:
@@ -79,6 +80,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <main className="flex-1 overflow-auto p-6">{children}</main>
         </div>
       </AppChrome>
+      <Suspense fallback={null}>
+        <SetupChecklistWidgetLoader
+          organizationId={membership.organizationId}
+          workspaceType={membership.workspaceType}
+          setupCompletedAt={membership.organizationSetupCompletedAt}
+        />
+      </Suspense>
     </div>
   );
 }
