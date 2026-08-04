@@ -35,6 +35,7 @@ export function JobStageSettingsPanel({ jobId, stages, open, onClose }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
+  const [newSla, setNewSla] = useState("");
 
   const [optimisticStages, applyUpdate] = useOptimistic(
     stages,
@@ -98,10 +99,15 @@ export function JobStageSettingsPanel({ jobId, stages, open, onClose }: Props) {
   function agregar() {
     const name = newName.trim();
     if (name.length < 2) return;
+    const slaDays = newSla.trim() === "" ? null : parseInt(newSla, 10);
+    if (slaDays !== null && (isNaN(slaDays) || slaDays < 1)) return;
     startTransition(async () => {
-      const res = await agregarEtapaAction(jobId, name);
+      const res = await agregarEtapaAction(jobId, name, slaDays);
       withErrorToast(res);
-      if (res.ok) setNewName("");
+      if (res.ok) {
+        setNewName("");
+        setNewSla("");
+      }
     });
   }
 
@@ -115,7 +121,7 @@ export function JobStageSettingsPanel({ jobId, stages, open, onClose }: Props) {
         <p className="font-display text-base font-bold text-text">Etapas de esta búsqueda</p>
       }
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         <p className="mb-3 text-xs text-muted">
           Estas etapas y su SLA son propias de esta búsqueda: cambiarlas no afecta a las demás.
         </p>
@@ -126,7 +132,7 @@ export function JobStageSettingsPanel({ jobId, stages, open, onClose }: Props) {
           return (
             <div
               key={stage.id}
-              className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-2"
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5"
             >
               <span
                 className="h-2 w-2 shrink-0 rounded-full"
@@ -185,8 +191,27 @@ export function JobStageSettingsPanel({ jobId, stages, open, onClose }: Props) {
             aria-label="Nombre de la nueva etapa"
             className="min-w-0 flex-1 rounded-[var(--radius)] border border-border bg-bg px-2.5 py-1.5 text-sm text-text focus:border-primary focus:outline-none"
           />
+          <div className="flex shrink-0 items-center gap-1">
+            <input
+              type="number"
+              min={1}
+              value={newSla}
+              onChange={(e) => setNewSla(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && agregar()}
+              placeholder="—"
+              aria-label="SLA en días de la nueva etapa"
+              className="w-10 rounded border border-border bg-bg px-1.5 py-1.5 text-center text-xs text-text focus:border-primary focus:outline-none"
+            />
+            <span className="text-[10px] text-muted">días</span>
+          </div>
           <Button type="button" variant="secondary" size="sm" onClick={agregar}>
             Agregar
+          </Button>
+        </div>
+
+        <div className="mt-4 border-t border-border pt-3">
+          <Button type="button" variant="primary" className="w-full" onClick={onClose}>
+            Listo
           </Button>
         </div>
       </div>
@@ -256,7 +281,7 @@ function SlaInput({
         className="w-10 rounded border border-border bg-bg px-1.5 py-0.5 text-center text-xs text-text focus:border-primary focus:outline-none"
         aria-label="SLA en días"
       />
-      <span className="text-[10px] text-muted">d</span>
+      <span className="text-[10px] text-muted">días</span>
     </div>
   );
 }

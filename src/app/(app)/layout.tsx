@@ -77,7 +77,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               </form>
             </div>
           </header>
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          {/* pb-24 extra: deja lugar al widget flotante de setup (esquina inferior derecha,
+              fixed) mientras puede estar visible — evita que tape contenido pegado abajo. */}
+          <main
+            className={[
+              "flex-1 overflow-auto p-6",
+              !membership.organizationSetupCompletedAt && "pb-24",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {children}
+          </main>
         </div>
       </AppChrome>
       <Suspense fallback={null}>

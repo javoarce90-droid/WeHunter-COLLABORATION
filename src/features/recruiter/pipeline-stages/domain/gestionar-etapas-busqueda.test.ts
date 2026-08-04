@@ -70,6 +70,38 @@ describe("agregarEtapa", () => {
     expect(res).toMatchObject({ ok: false });
     expect(d.listStages).not.toHaveBeenCalled();
   });
+
+  it("acepta un SLA opcional en el mismo paso", async () => {
+    const d = deps();
+    const res = await agregarEtapa(
+      { jobId: "job-1", name: "Challenge Técnico", slaDays: 3 },
+      ctx,
+      d,
+    );
+
+    expect(res.ok).toBe(true);
+    expect(d.insertStage).toHaveBeenCalledWith(expect.objectContaining({ slaDays: 3 }));
+  });
+
+  it("sin SLA sigue funcionando como antes (queda null)", async () => {
+    const d = deps();
+    const res = await agregarEtapa({ jobId: "job-1", name: "Challenge Técnico" }, ctx, d);
+
+    expect(res.ok).toBe(true);
+    expect(d.insertStage).toHaveBeenCalledWith(expect.objectContaining({ slaDays: null }));
+  });
+
+  it("rechaza un SLA menor a 1 día al agregar", async () => {
+    const d = deps();
+    const res = await agregarEtapa(
+      { jobId: "job-1", name: "Challenge Técnico", slaDays: 0 },
+      ctx,
+      d,
+    );
+
+    expect(res).toMatchObject({ ok: false });
+    expect(d.insertStage).not.toHaveBeenCalled();
+  });
 });
 
 describe("renombrarEtapa", () => {

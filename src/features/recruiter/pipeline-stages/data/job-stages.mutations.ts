@@ -12,6 +12,7 @@ export async function insertJobStage(args: {
   jobId: string;
   name: string;
   position: number;
+  slaDays?: number | null;
 }): Promise<{ id: string }> {
   const db = await getDb();
   const id = await db.rls(async (tx) => {
@@ -28,6 +29,7 @@ export async function insertJobStage(args: {
         name: args.name,
         position: args.position,
         kind: "in_process",
+        slaDays: args.slaDays ?? null,
       })
       .returning({ id: jobStages.id });
 

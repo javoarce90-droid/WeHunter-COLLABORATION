@@ -34,11 +34,12 @@ export type AgregarEtapaDeps = {
     jobId: string;
     name: string;
     position: number;
+    slaDays?: number | null;
   }) => Promise<{ id: string }>;
 };
 
 export async function agregarEtapa(
-  input: { jobId: string; name: string },
+  input: { jobId: string; name: string; slaDays?: number | null },
   ctx: EtapasCtx,
   deps: AgregarEtapaDeps,
 ): Promise<Result<{ stageId: string }>> {
@@ -49,6 +50,9 @@ export async function agregarEtapa(
   const name = input.name.trim();
   if (name.length < 2) return err("El nombre de la etapa es demasiado corto.");
   if (name.length > MAX_NOMBRE) return err(`El nombre no puede superar los ${MAX_NOMBRE} caracteres.`);
+  if (input.slaDays != null && input.slaDays < 1) {
+    return err("El SLA tiene que ser de al menos 1 día.");
+  }
 
   const stages = await deps.listStages(input.jobId, ctx.organizationId);
   if (stages.length === 0) return err("Búsqueda no encontrada.");
@@ -69,6 +73,7 @@ export async function agregarEtapa(
     jobId: input.jobId,
     name,
     position,
+    slaDays: input.slaDays ?? null,
   });
   return ok({ stageId: id });
 }
