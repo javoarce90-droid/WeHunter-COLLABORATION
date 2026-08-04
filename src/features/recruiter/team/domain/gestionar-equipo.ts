@@ -1,8 +1,9 @@
-export type { OrgRole } from "@/lib/auth/session";
-import type { OrgRole } from "@/lib/auth/session";
+export type { OrgRole, WorkspaceType } from "@/lib/auth/session";
+import type { OrgRole, WorkspaceType } from "@/lib/auth/session";
 export type MembershipStatus = "active" | "inactive";
 
-/** Roles que se pueden invitar/asignar (el owner es único, no se asigna). */
+/** Roles que se pueden invitar/asignar (el owner es único, no se asigna). Ojo: no todos están
+ *  disponibles en todos los workspaces — ver `assignableRolesFor`. */
 export const ASSIGNABLE_ROLES: OrgRole[] = [
   "admin",
   "recruiter",
@@ -12,6 +13,31 @@ export const ASSIGNABLE_ROLES: OrgRole[] = [
   "viewer",
 ];
 
+/** `hiring_manager` solo tiene sentido en workspaces "Represento a una empresa" (Enterprise) —
+ *  en Freelance/Team ese rol ni se ofrece. */
+export function assignableRolesFor(workspaceType: WorkspaceType | null): OrgRole[] {
+  if (workspaceType === "enterprise") return ASSIGNABLE_ROLES;
+  return ASSIGNABLE_ROLES.filter((r) => r !== "hiring_manager");
+}
+
+export const MAX_TEAM_MEMBERS = 5;
+
+/** Plan Freelancer (workspace "freelance") es de un solo usuario, sin invitaciones. Los demás
+ *  (Team/Enterprise, y orgs legado sin workspaceType) comparten el mismo tope de plan Team. */
+export function maxMembersFor(workspaceType: WorkspaceType | null): number {
+  return workspaceType === "freelance" ? 1 : MAX_TEAM_MEMBERS;
+}
+
+/** `currentMemberCount` = miembros activos + invitaciones pendientes (cuentan para el tope,
+ *  así no se lo esquiva mandando de más). El owner ya está incluido en ese conteo desde que
+ *  se crea la organización. */
+export function canInviteMore(
+  workspaceType: WorkspaceType | null,
+  currentMemberCount: number,
+): boolean {
+  return currentMemberCount < maxMembersFor(workspaceType);
+}
+
 function canManageTeam(role: OrgRole): boolean {
   return role === "owner" || role === "admin";
 }
@@ -19,7 +45,13 @@ function canManageTeam(role: OrgRole): boolean {
 // ---- Invitar ----
 
 export type InvitarInput = { name: string; email: string; role: OrgRole; token: string };
-export type TeamContext = { userId: string; organizationId: string; role: OrgRole };
+export type TeamContext = {
+  userId: string;
+  organizationId: string;
+  role: OrgRole;
+  workspaceType: WorkspaceType | null;
+};
+export type InvitarContext = TeamContext & { currentMemberCount: number };
 
 export type InvitarDeps = {
   createInvitation: (data: {
@@ -32,16 +64,25 @@ export type InvitarDeps = {
 
 export async function invitarMiembro(
   input: InvitarInput,
-  ctx: TeamContext,
+  ctx: InvitarContext,
   deps: InvitarDeps,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!canManageTeam(ctx.role)) {
     return { ok: false, error: "Solo el owner o un admin pueden invitar al equipo." };
   }
+  if (!canInviteMore(ctx.workspaceType, ctx.currentMemberCount)) {
+    return {
+      ok: false,
+      error:
+        ctx.workspaceType === "freelance"
+          ? "Tu plan no incluye invitar miembros al equipo."
+          : `Llegaste al límite de ${MAX_TEAM_MEMBERS} miembros de tu plan.`,
+    };
+  }
   if (input.name.trim().length < 2) {
     return { ok: false, error: "Ingresá el nombre completo de la persona invitada." };
   }
-  if (!ASSIGNABLE_ROLES.includes(input.role)) {
+  if (!assignableRolesFor(ctx.workspaceType).includes(input.role)) {
     return { ok: false, error: "Rol inválido para una invitación." };
   }
   await deps.createInvitation({
@@ -88,7 +129,7 @@ export async function actualizarMiembro(
   if (target.role === "owner") {
     return { ok: false, error: "No se puede modificar al owner." };
   }
-  if (input.role && !ASSIGNABLE_ROLES.includes(input.role)) {
+  if (input.role && !assignableRolesFor(ctx.workspaceType).includes(input.role)) {
     return { ok: false, error: "No se puede asignar ese rol." };
   }
   if (input.status === "inactive" && target.profileId === ctx.userId) {

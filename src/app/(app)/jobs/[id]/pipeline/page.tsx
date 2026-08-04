@@ -2,12 +2,10 @@ import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import {
   listApplicationsByJob,
-  listCandidateIdsByJob,
   getJobStageCounts,
   listStageEventsByJob,
   type StageHistoryEvent,
 } from "@/features/recruiter/applications/data/applications.queries";
-import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
@@ -18,7 +16,6 @@ import {
 } from "@/features/recruiter/screening/data/screening.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import { PipelineView } from "@/features/recruiter/applications/ui/PipelineView";
-import { AgregarCandidatos } from "@/features/recruiter/applications/ui/AgregarCandidatos";
 import { JobStageSettingsButton } from "@/features/recruiter/pipeline-stages/ui/JobStageSettingsButton";
 
 interface Props {
@@ -31,20 +28,9 @@ export default async function PipelinePage({ params }: Props) {
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [
-    applications,
-    candidates,
-    interviews,
-    notes,
-    stages,
-    stageEvents,
-    members,
-    screeningAnswers,
-    counts,
-    candidateIdsEnLaBusqueda,
-  ] = await Promise.all([
+  const [applications, interviews, notes, stages, stageEvents, members, screeningAnswers, counts] =
+    await Promise.all([
       listApplicationsByJob(jobId, membership.organizationId),
-      listCandidates(membership.organizationId),
       listInterviewsByJob(jobId, membership.organizationId),
       listNotesByJob(jobId, membership.organizationId),
       listJobStages(jobId, membership.organizationId),
@@ -52,17 +38,10 @@ export default async function PipelinePage({ params }: Props) {
       listMembers(membership.organizationId),
       listScreeningAnswersByJob(jobId, membership.organizationId),
       getJobStageCounts(jobId, membership.organizationId),
-      listCandidateIdsByJob(jobId, membership.organizationId),
     ]);
   const teamMembers = members
     .filter((m) => m.status === "active")
     .map((m) => ({ profileId: m.profileId, name: m.name, email: m.email }));
-
-  // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
-  const postuladosIds = new Set(candidateIdsEnLaBusqueda);
-  const poolCandidates = candidates
-    .filter((c) => !postuladosIds.has(c.id))
-    .map((c) => ({ id: c.id, fullName: c.fullName, email: c.email }));
 
   const interviewsByApplication = interviews.reduce<Record<string, InterviewRow[]>>(
     (acc, it) => {
@@ -101,12 +80,7 @@ export default async function PipelinePage({ params }: Props) {
       stageEventsByApplication={stageEventsByApplication}
       screeningAnswersByApplication={screeningAnswersByApplication}
       stages={stages}
-      actions={
-        <>
-          <JobStageSettingsButton jobId={jobId} stages={stages} />
-          <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
-        </>
-      }
+      actions={<JobStageSettingsButton jobId={jobId} stages={stages} />}
     />
   );
 }

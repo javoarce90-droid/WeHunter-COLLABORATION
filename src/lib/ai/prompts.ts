@@ -40,7 +40,12 @@ export const prompts = {
     return {
       system:
         "Sos un reclutador técnico senior. Evaluás compatibilidad candidato↔búsqueda de forma " +
-        "objetiva y concisa, en español rioplatense. Penalizá la falta de skills clave o de CV.",
+        "objetiva y concisa, en español rioplatense. Penalizá la falta de skills clave o de CV. " +
+        "Además del score general, desglosá tu evaluación en 5 categorías (experiencia, skills " +
+        "técnicos, seniority, idiomas, ubicación) y listá 2 a 4 fortalezas concretas del " +
+        "candidato para este puesto puntual — si falta información para juzgar alguna " +
+        "categoría (ej. idiomas o ubicación sin datos), estimala de forma conservadora en vez " +
+        "de inventar certeza.",
       user:
         `Búsqueda: ${role}\n` +
         `Skills requeridas: ${list(job.skills, "no especificadas")}\n\n` +

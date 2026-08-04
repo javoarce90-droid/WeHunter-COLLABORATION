@@ -56,9 +56,11 @@ export const solicitarBusquedaSchema = z.object({
   position: z.preprocess(emptyToUndef, z.string().trim().max(120).optional()),
   jobArea: z.preprocess(emptyToUndef, jobAreaSchema.optional()),
   location: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
-  modality: z.preprocess(emptyToUndef, jobModalitySchema.optional()),
-  seniority: z.preprocess(emptyToUndef, jobSenioritySchema.optional()),
-  employmentType: z.preprocess(emptyToUndef, employmentTypeSchema.optional()),
+  // Obligatorios: sin esto el recruiter recibe una solicitud casi vacía y tiene que volver
+  // a preguntarle al cliente lo básico antes de poder aprobarla.
+  modality: z.preprocess(emptyToUndef, jobModalitySchema),
+  seniority: z.preprocess(emptyToUndef, jobSenioritySchema),
+  employmentType: z.preprocess(emptyToUndef, employmentTypeSchema),
   skills: skillsField,
   budget: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
   estimatedStartDate: z.preprocess(emptyToUndef, z.string().max(10).optional()),

@@ -90,6 +90,12 @@ export function uploadCareerSiteCover(
 
 // Bucket público: la URL se arma por convención, sin llamar a Storage (a diferencia de las
 // signed URLs de los buckets privados, no hay nada que firmar ni ningún round-trip que hacer).
-export function getCareerSiteCoverPublicUrl(path: string): string {
-  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${CAREER_SITE_MEDIA_BUCKET}/${path}`;
+// `version` (ej. `organizations.updatedAt`) cache-bustea la URL — el bucket es público y
+// Supabase Storage cachea el objeto (default max-age 3600s) en un path fijo por org, así que
+// sin esto el navegador sigue mostrando la portada vieja después de subir una nueva.
+export function getCareerSiteCoverPublicUrl(path: string, version?: Date | string): string {
+  const base = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${CAREER_SITE_MEDIA_BUCKET}/${path}`;
+  if (!version) return base;
+  const v = version instanceof Date ? version.getTime() : version;
+  return `${base}?v=${encodeURIComponent(v)}`;
 }

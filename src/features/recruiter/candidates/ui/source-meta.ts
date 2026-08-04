@@ -6,5 +6,6 @@ export const CANDIDATE_SOURCE_LABELS: Record<CandidateSource, string> = {
   linkedin: "LinkedIn",
   referral: "Referido",
   job_board: "Portal de empleo",
+  portal: "Portal",
   other: "Otro",
 };

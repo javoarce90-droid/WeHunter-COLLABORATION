@@ -23,7 +23,7 @@ const ROLE_INVITE_COPY: Record<OrgRole, { subject: string; body: string }> = {
     body: "gestionar los candidatos de las búsquedas que te asignen",
   },
   hiring_manager: {
-    subject: "Te invitaron como Cliente / Hiring Manager",
+    subject: "Te invitaron como Hiring Manager",
     body: "ver y decidir sobre los candidatos que te compartan",
   },
   viewer: {

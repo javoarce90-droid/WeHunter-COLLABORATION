@@ -13,6 +13,7 @@ export interface OwnProfile {
   linkedinUrl: string | null;
   bio: string | null;
   createdAt: Date; // "miembro desde"
+  visibleInCommunity: boolean;
 }
 
 /** Perfil (extendido) del usuario actual (RLS: solo el propio). */
@@ -32,6 +33,7 @@ export async function getOwnProfile(): Promise<OwnProfile | null> {
           linkedinUrl: profiles.linkedinUrl,
           bio: profiles.bio,
           createdAt: profiles.createdAt,
+          visibleInCommunity: profiles.visibleInCommunity,
         })
         .from(profiles)
         .where(eq(profiles.id, db.userId!))
@@ -48,6 +50,8 @@ export interface OrgSettings {
   logoUrl: string | null;
   careerSiteCoverUrl: string | null;
   branding: CareerSiteBranding | null;
+  /** Para cache-busting de assets (portada) y para saber cuándo remontar el preview en vivo. */
+  updatedAt: Date;
 }
 
 /** Datos del workspace activo, incluido su Career Site (RLS: solo orgs del usuario). */
@@ -63,6 +67,7 @@ export async function getOrganization(organizationId: string): Promise<OrgSettin
           logoUrl: organizations.logoUrl,
           careerSiteCoverUrl: organizations.careerSiteCoverUrl,
           careerSiteSettings: organizations.careerSiteSettings,
+          updatedAt: organizations.updatedAt,
         })
         .from(organizations)
         .where(eq(organizations.id, organizationId))
@@ -78,5 +83,6 @@ export async function getOrganization(organizationId: string): Promise<OrgSettin
     logoUrl: row.logoUrl,
     careerSiteCoverUrl: row.careerSiteCoverUrl,
     branding: (row.careerSiteSettings as CareerSiteBranding | null) ?? null,
+    updatedAt: row.updatedAt,
   };
 }

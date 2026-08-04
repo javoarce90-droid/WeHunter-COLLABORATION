@@ -6,13 +6,18 @@ import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getActiveMembership } from "@/lib/auth/session";
+import type { WorkspaceType } from "@/lib/auth/session";
 import { getOwnProfile, getOrganization } from "@/features/recruiter/settings/data/settings.queries";
 import { obtenerKpis, type DashboardKpis } from "@/features/recruiter/dashboard/domain/obtener-kpis";
 import { getDashboardCounts } from "@/features/recruiter/dashboard/data/dashboard.queries";
+import { calcularProgresoSetup } from "@/features/recruiter/dashboard/domain/calcular-progreso-setup";
+import { ChecklistItemRow } from "@/features/recruiter/dashboard/ui/ChecklistItemRow";
 import { KpiGrid, KpiGridSkeleton } from "@/features/recruiter/dashboard/ui/KpiGrid";
 import { listRecentOpenJobs } from "@/features/recruiter/jobs/data/jobs.queries";
 import { getDashboardAgendaSummary } from "@/features/recruiter/interviews/data/interviews.queries";
 import { countStageTemplates } from "@/features/recruiter/pipeline-stages/data/job-stage-templates.queries";
+import { countClients } from "@/features/recruiter/clients/data/clients.queries";
+import { countMembersAndPendingInvitations } from "@/features/recruiter/team/data/team.queries";
 import { JOB_STATUS_META } from "@/features/recruiter/jobs/ui/status-meta";
 import { TYPE_LABELS, TYPE_BADGE, MODE_LABELS } from "@/features/recruiter/interviews/schema";
 
@@ -82,7 +87,11 @@ async function DashboardContent() {
       </div>
 
       {isDay1 ? (
-        <DashboardDay1 organizationId={membership.organizationId} kpis={kpis} />
+        <DashboardDay1
+          organizationId={membership.organizationId}
+          kpis={kpis}
+          workspaceType={membership.workspaceType}
+        />
       ) : (
         <DashboardDaily organizationId={membership.organizationId} kpis={kpis} />
       )}
@@ -219,49 +228,40 @@ async function DashboardDaily({
   );
 }
 
-type ChecklistItem = { title: string; description: string; href: string; done: boolean };
-
-/** Día 1: sin búsquedas todavía. Checklist de setup en vez de KPIs vacíos. */
+/**
+ * Día 1: sin búsquedas todavía. Checklist de setup en vez de KPIs vacíos.
+ * `jobsCount`/`candidatesCount` se arman con los `kpis` que ya trajo `DashboardContent` (no se
+ * repite esa transacción) — el resto (career site, etapas, equipo/clientes) sí es propio de
+ * este checklist y no lo trae `obtenerKpis`. La definición de los items/umbrales vive en
+ * `calcularProgresoSetup`, misma función que usa el widget flotante global.
+ */
 async function DashboardDay1({
   organizationId,
   kpis,
+  workspaceType,
 }: {
   organizationId: string;
   kpis: DashboardKpis;
+  workspaceType: WorkspaceType | null;
 }) {
-  const [stageTemplatesCount, org] = await Promise.all([
+  const [stageTemplatesCount, org, teamOrClientsCount] = await Promise.all([
     countStageTemplates(organizationId),
     getOrganization(organizationId),
+    workspaceType === "freelance"
+      ? countClients(organizationId)
+      : countMembersAndPendingInvitations(organizationId),
   ]);
-  const careerSiteConfigured = !!org?.branding?.description || !!org?.careerSiteCoverUrl;
 
-  const items: ChecklistItem[] = [
+  const progreso = calcularProgresoSetup(
     {
-      title: "Configurá tu career site",
-      description: "Así es como te verán quienes se postulen a tus búsquedas.",
-      href: "/career-site",
-      done: careerSiteConfigured,
+      careerSiteConfigured: !!org?.branding?.description || !!org?.careerSiteCoverUrl,
+      stageTemplatesCount,
+      teamOrClientsCount,
+      jobsCount: kpis.busquedasTotales,
+      candidatesCount: kpis.candidatosEnPool,
     },
-    {
-      title: "Configurá las etapas de tu pipeline",
-      description: "Vienen con un default, pero podés ajustarlas antes de tu primera búsqueda.",
-      href: "/settings/stages",
-      done: stageTemplatesCount > 0,
-    },
-    {
-      title: "Creá tu primera búsqueda",
-      description: "Con IA o manual — es lo primero que necesitás para recibir postulantes.",
-      href: "/jobs/new",
-      done: false,
-    },
-    {
-      title: "Cargá tus primeros candidatos",
-      description: "Manual, importado o desde tu pool.",
-      href: "/candidates",
-      done: kpis.candidatosEnPool > 0,
-    },
-  ];
-  const done = items.filter((i) => i.done).length;
+    workspaceType,
+  );
 
   return (
     <>
@@ -269,38 +269,13 @@ async function DashboardDay1({
         title="Configurá tu cuenta"
         action={
           <span className="text-xs font-semibold text-muted">
-            {done}/{items.length} listo
+            {progreso.done}/{progreso.total} listo
           </span>
         }
         bodyClassName="flex flex-col gap-1"
       >
-        {items.map((item) => (
-          <Link
-            key={item.title}
-            href={item.href}
-            className="flex items-start gap-3 rounded-[var(--radius)] px-2 py-2.5 transition-colors hover:bg-bg"
-          >
-            <span
-              className={[
-                "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border text-[10px] font-bold",
-                item.done ? "border-primary bg-primary text-white" : "border-border text-transparent",
-              ].join(" ")}
-              aria-hidden
-            >
-              ✓
-            </span>
-            <span>
-              <span
-                className={[
-                  "block text-sm font-semibold",
-                  item.done ? "text-muted line-through" : "text-text",
-                ].join(" ")}
-              >
-                {item.title}
-              </span>
-              <span className="mt-0.5 block text-xs text-muted">{item.description}</span>
-            </span>
-          </Link>
+        {progreso.items.map((item) => (
+          <ChecklistItemRow key={item.title} item={item} />
         ))}
       </SectionCard>
 

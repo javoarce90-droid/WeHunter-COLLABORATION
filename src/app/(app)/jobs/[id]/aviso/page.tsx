@@ -12,7 +12,6 @@ import {
   AREA_LABELS,
 } from "@/features/recruiter/jobs/ui/field-meta";
 import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
-import { EstadoAvisoControl } from "@/features/recruiter/jobs/ui/EstadoAvisoControl";
 
 function formatSalary(
   min: number | null,
@@ -86,9 +85,8 @@ export default async function JobPostingPreviewPage({
           <AgregarCandidatos
             jobId={job.id}
             poolCandidates={poolCandidates}
-            redirectAfterAddTo={`/jobs/${job.id}/pipeline`}
+            redirectAfterAddTo={`/jobs/${job.id}/postulados`}
           />
-          <EstadoAvisoControl job={job} />
         </div>
       </div>
 

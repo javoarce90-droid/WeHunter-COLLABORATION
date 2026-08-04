@@ -1,4 +1,4 @@
-import { and, eq, desc } from "drizzle-orm";
+import { and, count, eq, desc } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { memberships, profiles, invitations } from "@/db/schema";
 import type { OrgRole, MembershipStatus } from "../domain/gestionar-equipo";
@@ -36,6 +36,47 @@ export async function listMembers(organizationId: string): Promise<MemberRow[]> 
     role: r.role as OrgRole,
     status: r.status as MembershipStatus,
   }));
+}
+
+/** Membership activo único de la org, sin importar el rol — usado para auto-asignar cuando no
+ *  hay elección real (Freelance siempre, o un Team que todavía tiene un solo miembro). */
+export async function getSoleActiveMembershipId(organizationId: string): Promise<string | null> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ id: memberships.id })
+        .from(memberships)
+        .where(and(eq(memberships.organizationId, organizationId), eq(memberships.status, "active")))
+        .limit(2),
+    "db.team.sole-active-membership",
+  );
+  return rows.length === 1 ? rows[0]!.id : null;
+}
+
+/** Miembros activos + invitaciones pendientes de la org — lo que cuenta para el tope de plan
+ *  (`canInviteMore`). Dos `count()` en la misma transacción, no dos `db.rls()` separados. */
+export async function countMembersAndPendingInvitations(organizationId: string): Promise<number> {
+  const db = await getDb();
+  const [membersCount, pendingCount] = await db.rls(
+    (tx) =>
+      Promise.all([
+        tx
+          .select({ n: count() })
+          .from(memberships)
+          .where(eq(memberships.organizationId, organizationId))
+          .then((r) => r[0]?.n ?? 0),
+        tx
+          .select({ n: count() })
+          .from(invitations)
+          .where(
+            and(eq(invitations.organizationId, organizationId), eq(invitations.status, "pending")),
+          )
+          .then((r) => r[0]?.n ?? 0),
+      ]),
+    "db.team.count-members",
+  );
+  return membersCount + pendingCount;
 }
 
 export type InvitationRow = {

@@ -512,6 +512,118 @@
       "when": 1785633407031,
       "tag": "0072_org_owner_can_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1785678572386,
+      "tag": "0073_dusty_madame_web",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1785678572387,
+      "tag": "0074_apply_to_career_site_job_expected_salary",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1785679511633,
+      "tag": "0075_remarkable_bushwacker",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1785681091428,
+      "tag": "0076_low_prowler",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1785681091429,
+      "tag": "0077_apply_to_career_site_job_source_portal",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1785686528607,
+      "tag": "0078_mute_madame_masque",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1785687645347,
+      "tag": "0079_lyrical_silver_centurion",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1785687645348,
+      "tag": "0080_apply_to_career_site_job_saved_to_pool",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1785708716248,
+      "tag": "0081_groovy_dagger",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1785708745604,
+      "tag": "0082_apply_to_career_site_job_self_applied",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1785710527443,
+      "tag": "0083_drop_stale_apply_to_career_site_job_overload",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1785715515031,
+      "tag": "0084_tiny_microbe",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1785780929783,
+      "tag": "0085_memberships_admin_can_update",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1785801818123,
+      "tag": "0086_get_career_site_updated_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1785802239040,
+      "tag": "0087_next_valkyrie",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1785863645250,
+      "tag": "0088_romantic_grim_reaper",
+      "breakpoints": true
     }
   ]
 }

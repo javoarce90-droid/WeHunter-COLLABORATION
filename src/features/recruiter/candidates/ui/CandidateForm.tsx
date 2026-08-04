@@ -66,6 +66,11 @@ export function CandidateForm({
   const linkProfileRef = useRef<HTMLInputElement>(null);
   const skipProfileLinkRef = useRef<HTMLInputElement>(null);
 
+  // Únicos campos obligatorios (email solo al crear): trackeados para deshabilitar el submit.
+  const [fullNameValue, setFullNameValue] = useState(defaults?.fullName ?? "");
+  const [emailValue, setEmailValue] = useState(defaults?.email ?? "");
+  const missingRequired = !fullNameValue.trim() || (!candidateId && !emailValue.trim());
+
   // Chequeo de email en vivo
   const [liveCheck, setLiveCheck] = useState<VerificarCandidatoPorEmailResult>({});
   const [checkingEmail, setCheckingEmail] = useState(false);
@@ -157,27 +162,29 @@ export function CandidateForm({
             </CardHeader>
             <CardContent className="p-5 flex flex-col gap-4">
               <Input
-                label="Nombre completo"
+                label="Nombre completo *"
                 name="fullName"
                 type="text"
                 placeholder="Ej: Ada Lovelace"
                 defaultValue={defaults?.fullName ?? ""}
                 required
                 autoFocus
+                onChange={(e) => setFullNameValue(e.target.value)}
               />
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input
-                  label={candidateId ? "Email (opcional)" : "Email"}
+                  label={candidateId ? "Email (opcional)" : "Email *"}
                   name="email"
                   type="email"
                   placeholder="ada@ejemplo.com"
                   defaultValue={defaults?.email ?? ""}
                   required={!candidateId}
                   onBlur={onEmailBlur}
-                  onChange={() => {
+                  onChange={(e) => {
                     lastCheckedEmail.current = "";
                     setLiveCheck({});
+                    setEmailValue(e.target.value);
                   }}
                 />
                 <Input
@@ -287,11 +294,15 @@ export function CandidateForm({
                     className={selectClass}
                   >
                     <option value="">Sin especificar</option>
-                    {Object.entries(CANDIDATE_SOURCE_LABELS).map(([v, l]) => (
-                      <option key={v} value={v}>
-                        {l}
-                      </option>
-                    ))}
+                    {Object.entries(CANDIDATE_SOURCE_LABELS)
+                      // "portal" la setea el sistema cuando el candidato se postula solo —
+                      // no es una fuente que el recruiter elija al cargarlo a mano.
+                      .filter(([v]) => v !== "portal")
+                      .map(([v, l]) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
                   </select>
                 </label>
               </div>
@@ -414,7 +425,13 @@ export function CandidateForm({
         <Link href={cancelHref} className="text-sm font-semibold text-muted hover:text-text transition-colors">
           Cancelar
         </Link>
-        <Button type="submit" loading={pending || checkingEmail} size="default" className="font-bold px-8 py-2.5 shadow-sm">
+        <Button
+          type="submit"
+          disabled={missingRequired}
+          loading={pending || checkingEmail}
+          size="default"
+          className="font-bold px-8 py-2.5 shadow-sm"
+        >
           {pending ? "Guardando…" : checkingEmail ? "Revisando…" : submitLabel}
         </Button>
       </div>

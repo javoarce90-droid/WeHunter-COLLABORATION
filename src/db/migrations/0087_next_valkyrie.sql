@@ -1,0 +1,1 @@
+ALTER TABLE "profiles" ADD COLUMN "visible_in_community" boolean DEFAULT true NOT NULL;

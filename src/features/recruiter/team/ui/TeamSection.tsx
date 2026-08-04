@@ -19,7 +19,13 @@ import {
   reenviarInvitacionAction,
   eliminarMiembroAction,
 } from "../actions";
-import { ASSIGNABLE_ROLES, type OrgRole } from "../domain/gestionar-equipo";
+import {
+  assignableRolesFor,
+  canInviteMore,
+  MAX_TEAM_MEMBERS,
+  type OrgRole,
+  type WorkspaceType,
+} from "../domain/gestionar-equipo";
 import { ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_BADGE } from "@/lib/auth/roles";
 import type { MemberRow, InvitationRow } from "../data/team.queries";
 
@@ -28,17 +34,26 @@ export function TeamSection({
   invitations,
   currentRole,
   currentUserId,
+  workspaceType,
 }: {
   members: MemberRow[];
   invitations: InvitationRow[];
   currentRole: OrgRole;
   currentUserId: string;
+  workspaceType: WorkspaceType | null;
 }) {
   const toast = useToast();
   const [, start] = useTransition();
   const [inviteOpen, setInviteOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<MemberRow | null>(null);
   const canManage = currentRole === "owner" || currentRole === "admin";
+  const assignableRoles = assignableRolesFor(workspaceType);
+  const totalMembers = members.length + invitations.length;
+  const canInvite = canInviteMore(workspaceType, totalMembers);
+  const isFreelance = workspaceType === "freelance";
+  const inviteDisabledReason = isFreelance
+    ? "Tu plan Freelancer no incluye invitar miembros al equipo."
+    : `Llegaste al límite de ${MAX_TEAM_MEMBERS} miembros de tu plan (incluye invitaciones pendientes).`;
 
   function invitar(data: { name: string; email: string; role: OrgRole }) {
     start(async () => {
@@ -87,15 +102,41 @@ export function TeamSection({
 
   return (
     <div className="flex flex-col gap-5">
+      {isFreelance && (
+        <div className="flex items-center gap-2.5 rounded-[var(--radius)] border border-[#DBEAFE] bg-[#EEF2FF] px-3.5 py-2.5 text-xs text-[#1E40AF]">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="shrink-0"
+            aria-hidden
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 8v5M12 16h.01" />
+          </svg>
+          Tu plan Freelancer es de un solo usuario. Para sumar miembros a tu equipo, pasate a un
+          plan Team.
+        </div>
+      )}
       <SectionCard
         title="Miembros"
         flush
         action={
-          canManage && (
+          canManage &&
+          (canInvite ? (
             <Button size="sm" onClick={() => setInviteOpen(true)}>
               Invitar miembro
             </Button>
-          )
+          ) : (
+            <Tooltip label={inviteDisabledReason}>
+              <Button size="sm" disabled>
+                Invitar miembro
+              </Button>
+            </Tooltip>
+          ))
         }
       >
         <div className="overflow-x-auto">
@@ -147,7 +188,7 @@ export function TeamSection({
                             }
                           >
                             <MenuLabel>Cambiar rol</MenuLabel>
-                            {ASSIGNABLE_ROLES.filter((r) => r !== m.role).map((r) => (
+                            {assignableRoles.filter((r) => r !== m.role).map((r) => (
                               <MenuItem key={r} onClick={() => actualizar(m, { role: r })}>
                                 {ROLE_LABELS[r]}
                               </MenuItem>
@@ -219,6 +260,7 @@ export function TeamSection({
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onSubmit={invitar}
+        assignableRoles={assignableRoles}
       />
       <ConfirmDeleteMemberDialog
         member={confirmDelete}
@@ -233,10 +275,12 @@ function InviteMemberDialog({
   open,
   onClose,
   onSubmit,
+  assignableRoles,
 }: {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: { name: string; email: string; role: OrgRole }) => void;
+  assignableRoles: OrgRole[];
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -288,7 +332,7 @@ function InviteMemberDialog({
             </Tooltip>
           </div>
           <Select value={role} onChange={(e) => setRole(e.target.value as OrgRole)}>
-            {ASSIGNABLE_ROLES.map((r) => (
+            {assignableRoles.map((r) => (
               <option key={r} value={r}>{ROLE_LABELS[r]}</option>
             ))}
           </Select>

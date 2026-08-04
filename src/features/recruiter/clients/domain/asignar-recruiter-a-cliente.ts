@@ -1,5 +1,4 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 
 /**
@@ -8,6 +7,13 @@ import type { OrgRole } from "@/lib/auth/session";
  * nuevo limpia cualquier otro membership que tuviera ese mismo `clientId` (mismo criterio
  * que un responsable único de recurso).
  */
+
+/** Reasignar el recruiter exclusivo de un cliente es más sensible que editar el cliente en
+ *  sí (nombre, notas, etc.) — solo owner/admin, a diferencia de `clients.manage` que también
+ *  tiene el recruiter. */
+export function canAssignRecruiter(role: OrgRole): boolean {
+  return role === "owner" || role === "admin";
+}
 
 export interface AsignarRecruiterAClienteInput {
   clientId: string;
@@ -40,8 +46,8 @@ export async function asignarRecruiterACliente(
   if (!ctx.organizationId || !ctx.role) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!can(ctx.role, "clients.manage")) {
-    return err("No tenés permisos para gestionar clientes.");
+  if (!canAssignRecruiter(ctx.role)) {
+    return err("No tenés permisos para reasignar el recruiter de un cliente.");
   }
 
   const client = await deps.getClientById(input.clientId, ctx.organizationId);

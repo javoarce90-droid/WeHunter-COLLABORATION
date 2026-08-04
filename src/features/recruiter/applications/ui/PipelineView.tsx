@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
+import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
 import { useToast } from "@/lib/toast";
 import { analizarPostulacionAction, moverAEtapaAction } from "../actions";
 import type {
@@ -47,6 +48,7 @@ type Props = {
 
 type Move = { applicationId: string; toStage: JobStage };
 type SortKey = "name" | "days" | "match";
+type StatusFilter = "todos" | "riesgo" | "vencidos";
 
 const noop = () => {};
 
@@ -148,8 +150,7 @@ export function PipelineView({
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [riskOnly, setRiskOnly] = useState(false);
-  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
 
@@ -282,12 +283,12 @@ export function PipelineView({
   function cardsFor(stageId: string): ApplicationWithCandidate[] {
     let cards = grouped[stageId] ?? [];
     if (q) cards = cards.filter(matchesQuery);
-    if (riskOnly) cards = cards.filter(isAtRisk);
-    if (overdueOnly) cards = cards.filter(isOverdue);
+    if (statusFilter === "riesgo") cards = cards.filter(isAtRisk);
+    if (statusFilter === "vencidos") cards = cards.filter(isOverdue);
     return sortCards(cards);
   }
 
-  const anyFilterActive = riskOnly || overdueOnly || q.length > 0;
+  const anyFilterActive = statusFilter !== "todos" || q.length > 0;
 
   // La bandeja ("Postulados") no es columna del tablero — eso es Postulados.
   const visibleStages = [...stages]
@@ -305,69 +306,64 @@ export function PipelineView({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="text-sm font-semibold text-text">
-          {applications.length} candidato{applications.length !== 1 ? "s" : ""} en proceso
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           {!isEmpty && (
             <>
               <SearchInput
                 value={query}
                 onChange={setQuery}
-                placeholder="Buscar candidato…"
+                placeholder="Buscar candidato por nombre"
                 aria-label="Buscar candidato en el pipeline"
-                className="max-w-[180px]"
+                className="max-w-[200px]"
               />
-              <select
-                value={sortKey}
-                onChange={(e) => setSortKey(e.target.value as SortKey)}
-                aria-label="Ordenar candidatos"
-                className="rounded-[var(--radius)] border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
-              >
-                <option value="name">Nombre</option>
-                <option value="days">Más días en la etapa</option>
-                <option value="match">Match</option>
-              </select>
-              <button
-                type="button"
-                aria-pressed={riskOnly}
-                onClick={() => setRiskOnly((v) => !v)}
-                className={[
-                  "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-3 py-1.5 text-xs font-semibold outline-none transition-[transform,color,background-color,border-color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]",
-                  riskOnly
-                    ? "border-transparent bg-[#FEF3C7] text-[#92400E]"
-                    : "border-border bg-surface text-muted hover:text-text",
-                ].join(" ")}
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
-                  <path d="M6 0.5 11.5 11h-11L6 .5Zm-.6 4v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
-                </svg>
-                Solo en riesgo
-                <span className="tabular-nums">({atRiskCount})</span>
-              </button>
-              <button
-                type="button"
-                aria-pressed={overdueOnly}
-                onClick={() => setOverdueOnly((v) => !v)}
-                className={[
-                  "inline-flex items-center gap-1.5 rounded-[var(--radius)] border px-3 py-1.5 text-xs font-semibold outline-none transition-[transform,color,background-color,border-color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]",
-                  overdueOnly
-                    ? "border-transparent bg-[#FEE2E2] text-[#991B1B]"
-                    : "border-border bg-surface text-muted hover:text-text",
-                ].join(" ")}
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
-                  <path d="M6 0.5 11.5 11h-11L6 .5Zm-.6 4v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
-                </svg>
-                Vencidos
-                <span className="tabular-nums">({overdueCount})</span>
-              </button>
+              <FilterChipGroup label="Filtrar por estado del SLA">
+                <FilterChip active={statusFilter === "todos"} onClick={() => setStatusFilter("todos")}>
+                  Todos
+                </FilterChip>
+                <FilterChip
+                  active={statusFilter === "riesgo"}
+                  count={atRiskCount}
+                  onClick={() => setStatusFilter("riesgo")}
+                >
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" aria-hidden>
+                    <path d="M6 0.5 11.5 11h-11L6 .5Z" />
+                    <path d="M6 4.5v3M6 9v.01" strokeLinecap="round" />
+                  </svg>
+                  En riesgo
+                </FilterChip>
+                <FilterChip
+                  active={statusFilter === "vencidos"}
+                  count={overdueCount}
+                  onClick={() => setStatusFilter("vencidos")}
+                >
+                  <span className="h-2 w-2 rounded-full bg-danger" aria-hidden />
+                  Vencidos
+                </FilterChip>
+              </FilterChipGroup>
             </>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {!isEmpty && (
+            <select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value as SortKey)}
+              aria-label="Ordenar candidatos"
+              className="rounded-[var(--radius)] border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-text outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+            >
+              <option value="name">Nombre</option>
+              <option value="days">Más días en la etapa</option>
+              <option value="match">Match</option>
+            </select>
           )}
           {actions}
         </div>
       </div>
+
+      <p className="text-sm font-semibold text-text">
+        {applications.length} candidato{applications.length !== 1 ? "s" : ""} en proceso
+      </p>
 
       {isEmpty ? (
         <EmptyState
@@ -399,7 +395,7 @@ export function PipelineView({
           description={
             q
               ? "Ningún candidato coincide con la búsqueda."
-              : overdueOnly
+              : statusFilter === "vencidos"
                 ? "Nadie tiene el SLA vencido en la etapa donde está hoy."
                 : "Nadie está cerca de vencer su SLA en la etapa donde está hoy."
           }

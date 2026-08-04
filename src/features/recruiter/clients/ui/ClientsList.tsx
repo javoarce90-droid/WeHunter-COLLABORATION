@@ -2,14 +2,21 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { ClientWithStats } from "../data/clients.queries";
+import type { ClientsCopy } from "../copy";
 
-export function ClientsList({ clients }: { clients: ClientWithStats[] }) {
+export function ClientsList({
+  clients,
+  copy,
+}: {
+  clients: ClientWithStats[];
+  copy: ClientsCopy;
+}) {
   if (clients.length === 0) {
     return (
       <EmptyState
-        title="Todavía no tenés clientes"
-        description="Cargá tus empresas cliente para vincular búsquedas y organizar tu cartera."
-        action={{ label: "Agregar cliente", href: "/clients/new" }}
+        title={copy.emptyTitle}
+        description={copy.emptyDescription}
+        action={{ label: copy.addButtonLabel, href: "/clients/new" }}
       />
     );
   }
@@ -20,7 +27,7 @@ export function ClientsList({ clients }: { clients: ClientWithStats[] }) {
         <thead>
           <tr className="border-b border-border text-left">
             <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-label">
-              Cliente
+              {copy.tableHeader}
             </th>
             <th className="hidden px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label sm:table-cell">
               Contacto
@@ -30,6 +37,9 @@ export function ClientsList({ clients }: { clients: ClientWithStats[] }) {
             </th>
             <th className="hidden px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label md:table-cell">
               Solicitudes
+            </th>
+            <th className="hidden px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label lg:table-cell">
+              Recruiter asignado
             </th>
             <th className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-label">
               Link de acceso
@@ -59,6 +69,16 @@ export function ClientsList({ clients }: { clients: ClientWithStats[] }) {
               <td className="px-3 py-3 tabular-nums text-muted">{client.jobCount || "—"}</td>
               <td className="hidden px-3 py-3 tabular-nums text-muted md:table-cell">
                 {client.requisitionCount || "—"}
+              </td>
+              <td className="hidden px-3 py-3 lg:table-cell">
+                {client.assignedRecruiterName ? (
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Avatar name={client.assignedRecruiterName} size="sm" />
+                    <span className="truncate text-text">{client.assignedRecruiterName}</span>
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted">Sin asignar</span>
+                )}
               </td>
               <td className="px-4 py-3">
                 {client.hasActiveShare ? (

@@ -8,6 +8,8 @@ import {
   WorkspaceSwitcher,
   type WorkspaceOption,
 } from "@/features/recruiter/workspace-switcher/ui/WorkspaceSwitcher";
+import { can, type Capability } from "@/lib/auth/roles";
+import type { OrgRole, WorkspaceType } from "@/lib/auth/session";
 
 /**
  * Barra lateral del workspace del reclutador. Identidad visual heredada de la demo
@@ -22,33 +24,45 @@ const COOKIE_KEY = "wh.sidebar.collapsed";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 type IconProps = { className?: string };
-type NavItem = { href: string; label: string; Icon: (p: IconProps) => React.ReactElement };
+type NavItem = {
+  href: string;
+  label: string;
+  Icon: (p: IconProps) => React.ReactElement;
+  /** Si se define, el item se oculta cuando el rol activo no tiene esta capacidad (`can()`
+   *  en `@/lib/auth/roles`). Sin `capability` = visible para cualquier rol de la org (hoy es
+   *  el caso de Inicio, Reportes, Career Site, Equipo y Configuración: ninguna acción de
+   *  dominio de esas áreas está gateada por capability todavía). */
+  capability?: Capability;
+};
 type NavGroup = { label?: string; items: NavItem[] };
 
 /** Agrupada igual que el prototipo validado con la clienta: Inicio suelto arriba, después
- *  las mismas 10 opciones de siempre repartidas en 5 grupos temáticos. */
+ *  las mismas 10 opciones de siempre repartidas en 5 grupos temáticos. La `capability` de
+ *  cada item espeja el chequeo real que ya hace su caso de uso de dominio (ej. `jobs.manage`
+ *  en `crear-busqueda.ts`) — no inventa restricciones nuevas, solo evita mostrar una sección
+ *  entera a un rol que va a chocar con "no tenés permisos" en cuanto intente algo ahí. */
 const NAV_GROUPS: NavGroup[] = [
   { items: [{ href: "/dashboard", label: "Inicio", Icon: DashboardIcon }] },
   {
     label: "Reclutamiento",
     items: [
-      { href: "/jobs", label: "Búsquedas", Icon: BriefcaseIcon },
-      { href: "/candidates", label: "Candidatos", Icon: UsersIcon },
-      { href: "/sourcing", label: "Sourcing", Icon: SearchIcon },
+      { href: "/jobs", label: "Búsquedas", Icon: BriefcaseIcon, capability: "jobs.manage" },
+      { href: "/candidates", label: "Candidatos", Icon: UsersIcon, capability: "candidates.manage" },
+      { href: "/sourcing", label: "Sourcing", Icon: SearchIcon, capability: "candidates.manage" },
     ],
   },
   {
     label: "Relaciones",
     items: [
-      { href: "/clients", label: "Clientes", Icon: BuildingIcon },
-      { href: "/requisitions", label: "Solicitudes", Icon: InboxIcon },
+      { href: "/clients", label: "Clientes", Icon: BuildingIcon, capability: "clients.manage" },
+      { href: "/requisitions", label: "Solicitudes", Icon: InboxIcon, capability: "requisitions.review" },
     ],
   },
   {
     label: "Comunicación",
     items: [
-      { href: "/agenda", label: "Agenda", Icon: CalendarIcon },
-      { href: "/messages", label: "Mensajes", Icon: ChatIcon },
+      { href: "/agenda", label: "Agenda", Icon: CalendarIcon, capability: "interviews.manage" },
+      { href: "/messages", label: "Mensajes", Icon: ChatIcon, capability: "messaging.send" },
     ],
   },
   { label: "Análisis", items: [{ href: "/reports", label: "Reportes", Icon: ChartIcon }] },
@@ -66,15 +80,32 @@ export function Sidebar({
   email,
   workspaces,
   activeOrganizationId,
+  role,
+  workspaceType,
   defaultCollapsed = false,
 }: {
   email: string;
   workspaces: WorkspaceOption[];
   activeOrganizationId: string;
+  role: OrgRole;
+  workspaceType: WorkspaceType | null;
   defaultCollapsed?: boolean;
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
+  // "Clientes" es el mismo módulo técnico para los tres tipos de workspace — en Enterprise se
+  // etiqueta "Hiring Manager" (empresa contratante interna, no cliente externo de consultora).
+  const navGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items
+      .filter((item) => !item.capability || can(role, item.capability))
+      .map((item) =>
+        item.href === "/clients" && workspaceType === "enterprise"
+          ? { ...item, label: "Hiring Manager" }
+          : item,
+      ),
+  })).filter((group) => group.items.length > 0);
 
   function toggle() {
     setCollapsed((prev) => {
@@ -115,11 +146,11 @@ export function Sidebar({
       </div>
 
       {/* Navegación, agrupada por tema */}
-      <nav className="no-scrollbar flex-1 overflow-y-auto p-2.5" aria-label="Navegación principal">
-        {NAV_GROUPS.map((group, gi) => (
-          <div key={group.label ?? gi} className={gi > 0 ? "mt-1" : undefined}>
+      <nav className="no-scrollbar flex-1 overflow-y-auto p-2" aria-label="Navegación principal">
+        {navGroups.map((group, gi) => (
+          <div key={group.label ?? gi} className={gi > 0 ? "mt-0.5" : undefined}>
             {group.label && !collapsed && (
-              <div className="px-2.5 pb-1 pt-3 text-[10px] font-bold tracking-[0.1em] text-white/40 uppercase">
+              <div className="px-2.5 pb-0.5 pt-1.5 text-[10px] font-bold tracking-[0.1em] text-white/40 uppercase">
                 {group.label}
               </div>
             )}
@@ -132,7 +163,7 @@ export function Sidebar({
                   aria-current={active ? "page" : undefined}
                   title={collapsed ? label : undefined}
                   className={[
-                    "mb-0.5 flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-colors",
+                    "mb-0.5 flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
                     collapsed ? "justify-center" : "",
                     active
                       ? "bg-[rgba(var(--primary-rgb),0.22)] text-white"
@@ -154,7 +185,7 @@ export function Sidebar({
       </nav>
 
       {/* Workspace activo + colapsar */}
-      <div className="border-t border-white/10 p-2.5">
+      <div className="border-t border-white/10 p-2">
         <div className="mb-1">
           <WorkspaceSwitcher
             email={email}
