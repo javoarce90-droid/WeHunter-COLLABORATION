@@ -43,8 +43,24 @@ export type ApplicationWithCandidate = {
   stageKind: StageKind | null;
   /** Cuándo entró a la etapa actual — resetea en cada movimiento. */
   stageEnteredAt: Date;
+  /** Siempre no-null acá (el query filtra por esto) — se mantiene por paridad de shape con
+   *  `PostuladoRow`, así el sheet de detalle es el mismo componente en ambas vistas. */
+  pipelineEnteredAt: Date | null;
+  selfApplied: boolean;
   aiScore: number | null;
   aiSummary: string | null;
+  aiRedFlags: string[];
+  aiBreakdown: {
+    experiencia: number;
+    skillsTecnicos: number;
+    seniority: number;
+    idiomas: number;
+    ubicacion: number;
+  } | null;
+  aiStrengths: string[];
+  coverNote: string | null;
+  expectedSalary: number | null;
+  expectedSalaryCurrency: string | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -52,7 +68,14 @@ export type ApplicationWithCandidate = {
     id: string;
     fullName: string;
     email: string | null;
+    phone: string | null;
     cvUrl: string | null;
+    source: string | null;
+    headline: string | null;
+    savedToPool: boolean;
+    location: string | null;
+    skills: string[] | null;
+    linkedinUrl: string | null;
   };
 };
 
@@ -78,15 +101,30 @@ export async function listApplicationsByJob(
           stageId: applications.stageId,
           stageKind: jobStages.kind,
           stageEnteredAt: applications.stageEnteredAt,
+          pipelineEnteredAt: applications.pipelineEnteredAt,
+          selfApplied: applications.selfApplied,
           aiScore: applications.aiScore,
           aiSummary: applications.aiSummary,
+          aiRedFlags: applications.aiRedFlags,
+          aiBreakdown: applications.aiBreakdown,
+          aiStrengths: applications.aiStrengths,
+          coverNote: applications.coverNote,
+          expectedSalary: applications.expectedSalary,
+          expectedSalaryCurrency: applications.expectedSalaryCurrency,
           notes: applications.notes,
           createdAt: applications.createdAt,
           updatedAt: applications.updatedAt,
           candidateId2: candidates.id,
           candidateFullName: candidates.fullName,
           candidateEmail: candidates.email,
+          candidatePhone: candidates.phone,
           candidateCvUrl: candidates.cvUrl,
+          candidateSource: candidates.source,
+          candidateHeadline: candidates.headline,
+          candidateSavedToPool: candidates.savedToPool,
+          candidateLocation: candidates.location,
+          candidateSkills: candidates.skills,
+          candidateLinkedinUrl: candidates.linkedinUrl,
         })
         .from(applications)
         .innerJoin(candidates, eq(applications.candidateId, candidates.id))
@@ -109,8 +147,16 @@ export async function listApplicationsByJob(
     stageId: r.stageId,
     stageKind: r.stageKind as StageKind | null,
     stageEnteredAt: r.stageEnteredAt,
+    pipelineEnteredAt: r.pipelineEnteredAt,
+    selfApplied: r.selfApplied,
     aiScore: r.aiScore,
     aiSummary: r.aiSummary,
+    aiRedFlags: r.aiRedFlags ?? [],
+    aiBreakdown: r.aiBreakdown,
+    aiStrengths: r.aiStrengths ?? [],
+    coverNote: r.coverNote,
+    expectedSalary: r.expectedSalary,
+    expectedSalaryCurrency: r.expectedSalaryCurrency,
     notes: r.notes,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -118,7 +164,14 @@ export async function listApplicationsByJob(
       id: r.candidateId2,
       fullName: r.candidateFullName,
       email: r.candidateEmail,
+      phone: r.candidatePhone,
       cvUrl: r.candidateCvUrl,
+      source: r.candidateSource,
+      headline: r.candidateHeadline,
+      savedToPool: r.candidateSavedToPool,
+      location: r.candidateLocation,
+      skills: r.candidateSkills,
+      linkedinUrl: r.candidateLinkedinUrl,
     },
   }));
 }

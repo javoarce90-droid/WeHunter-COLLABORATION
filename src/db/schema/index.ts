@@ -545,6 +545,50 @@ export const candidates = pgTable("candidates", {
   profileIdx: index("candidates_profile_idx").on(t.profileId),
 }));
 
+// Etiquetas libres que el reclutador arma para catalogar candidatos (ej. "Top perfil",
+// "Bilingüe"). Compartidas dentro de la org: se reusan entre candidatos por nombre, no se
+// duplican. El dedupe case-insensitive lo hace el domain al buscar-o-crear.
+export const tags = pgTable(
+  "tags",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    orgIdx: index("tags_org_idx").on(t.organizationId),
+    uniqueOrgName: uniqueIndex("tags_org_name_idx").on(t.organizationId, t.name),
+  }),
+);
+
+// Vínculo candidato-etiqueta (muchos a muchos). Cuelga del candidato, no de una postulación:
+// una etiqueta describe a la persona ("quién es"), no el estado de un proceso puntual.
+export const candidateTags = pgTable(
+  "candidate_tags",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    candidateId: uuid("candidate_id")
+      .references(() => candidates.id, { onDelete: "cascade" })
+      .notNull(),
+    tagId: uuid("tag_id")
+      .references(() => tags.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    orgIdx: index("candidate_tags_org_idx").on(t.organizationId),
+    candidateIdx: index("candidate_tags_candidate_idx").on(t.candidateId),
+    tagIdx: index("candidate_tags_tag_idx").on(t.tagId),
+    uniquePair: uniqueIndex("candidate_tags_unique").on(t.candidateId, t.tagId),
+  }),
+);
+
 // Las 3 tablas de currículum (experiencia/educación/certificaciones) comparten el mismo
 // modelo de dueño: cada fila es O de un profile_id (currículum global, autoservicio del
 // candidato) O de un candidate_id (nota de sourcing del recruiter en su pool, por
@@ -1151,6 +1195,8 @@ export type ScreeningQuestion = typeof screeningQuestions.$inferSelect;
 export type ScreeningAnswer = typeof screeningAnswers.$inferSelect;
 export type Interview = typeof interviews.$inferSelect;
 export type Note = typeof notes.$inferSelect;
+export type Tag = typeof tags.$inferSelect;
+export type CandidateTag = typeof candidateTags.$inferSelect;
 export type ApplicationEvent = typeof applicationEvents.$inferSelect;
 export type Offer = typeof offers.$inferSelect;
 export type MessageTemplate = typeof messageTemplates.$inferSelect;
