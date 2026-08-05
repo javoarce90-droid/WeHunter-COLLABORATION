@@ -80,9 +80,11 @@ export function Dialog({
         ].join(" ")}
       >
         {(header || title) && (
-          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-4">
             {header ?? (
-              <h2 className="font-display text-base font-bold text-text">{title}</h2>
+              <h2 className="font-display text-base font-bold text-text">
+                {title}
+              </h2>
             )}
             <button
               type="button"
@@ -90,7 +92,16 @@ export function Dialog({
               aria-label="Cerrar"
               className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-bg hover:text-text"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden
+              >
                 <path d="m4 4 8 8M12 4l-8 8" />
               </svg>
             </button>

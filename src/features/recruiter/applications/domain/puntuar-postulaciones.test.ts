@@ -7,7 +7,14 @@ const ctx: PuntuarContext = { organizationId: "org-1", role: "recruiter" };
 
 const cand = (id: string, skills: string[] | null = null) => ({
   id,
-  candidate: { id: `c-${id}`, skills, summary: null, source: null, hasCv: true },
+  candidate: {
+    id: `c-${id}`,
+    skills,
+    summary: null,
+    source: null,
+    experience: [],
+    education: [],
+  },
 });
 
 const makeDeps = (over?: Partial<PuntuarDeps>): PuntuarDeps => ({
@@ -66,7 +73,8 @@ describe("puntuarPostulaciones", () => {
       deps,
     );
 
-    const [, , , redFlags, breakdown, strengths] = vi.mocked(deps.saveScore).mock.calls[0]!;
+    const [, , , redFlags, breakdown, strengths] = vi.mocked(deps.saveScore)
+      .mock.calls[0]!;
     expect(Array.isArray(redFlags)).toBe(true);
     expect(breakdown).toEqual(
       expect.objectContaining({

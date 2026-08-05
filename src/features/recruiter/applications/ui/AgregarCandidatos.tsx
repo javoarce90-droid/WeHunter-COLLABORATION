@@ -123,7 +123,12 @@ export function AgregarCandidatos({
 
   return (
     <>
-      <Button type="button" size="sm" onClick={() => setOpen(true)}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        onClick={() => setOpen(true)}
+      >
         + Agregar candidatos
       </Button>
 
@@ -168,7 +173,7 @@ export function AgregarCandidatos({
               <div
                 role="group"
                 aria-label="Candidatos del pool"
-                className="flex max-h-[50vh] flex-col gap-0.5 overflow-y-auto"
+                className="flex max-h-[50vh] flex-col gap-1 overflow-y-auto"
               >
                 {filtered.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted">
@@ -357,7 +362,7 @@ function NuevoCandidatoForm({
       )}
 
       {shownDuplicate ? (
-        <div className="rounded-[var(--radius)] border border-warning/40 bg-[#FEF3C7] px-3 py-2.5 text-xs text-[#92400E]">
+        <div className="rounded-[var(--radius)] border border-warning/40 bg-[#FEF3C7] px-3 py-3 text-xs text-[#92400E]">
           <p>
             Ya existe un candidato con ese{" "}
             {shownDuplicate.matchedBy === "email" ? "email" : "LinkedIn"}:{" "}
@@ -382,7 +387,7 @@ function NuevoCandidatoForm({
           </div>
         </div>
       ) : shownProfileMatch ? (
-        <div className="rounded-[var(--radius)] border border-warning/40 bg-[#FEF3C7] px-3 py-2.5 text-xs text-[#92400E]">
+        <div className="rounded-[var(--radius)] border border-warning/40 bg-[#FEF3C7] px-3 py-3 text-xs text-[#92400E]">
           <p>Ya existe una cuenta de WeHunter registrada con este email.</p>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <button
@@ -409,7 +414,12 @@ function NuevoCandidatoForm({
         placeholder="React, TypeScript, Node"
       />
 
-      <Select label="Fuente (opcional)" id="source" name="source" defaultValue="">
+      <Select
+        label="Fuente (opcional)"
+        id="source"
+        name="source"
+        defaultValue=""
+      >
         <option value="">Sin especificar</option>
         {Object.entries(CANDIDATE_SOURCE_LABELS).map(([value, label]) => (
           <option key={value} value={value}>
@@ -453,7 +463,7 @@ function TabButton({
       onClick={onClick}
       aria-pressed={active}
       className={[
-        "flex-1 rounded-[calc(var(--radius)-2px)] px-3 py-1.5 text-sm font-semibold transition-colors",
+        "flex-1 rounded-[calc(var(--radius)-2px)] px-3 py-2 text-sm font-semibold transition-colors",
         active
           ? "bg-surface text-text shadow-sm"
           : "text-muted hover:text-text",

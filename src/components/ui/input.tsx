@@ -16,7 +16,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
  */
 export function fieldClasses(hasError = false): string {
   return [
-    "w-full rounded-[var(--radius)] border bg-bg px-3 py-2.5 text-sm text-text outline-none transition-colors",
+    "w-full rounded-[var(--radius)] border bg-bg px-3 py-3 text-sm text-text outline-none transition-colors",
     "focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]",
     hasError
       ? "border-danger focus:border-danger focus:ring-[var(--focus-ring-danger)]"
@@ -47,7 +47,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             type={isPassword ? (visible ? "text" : "password") : type}
-            className={[fieldClasses(!!error), isPassword ? "pr-10" : "", className].join(" ")}
+            className={[
+              fieldClasses(!!error),
+              isPassword ? "pr-10" : "",
+              className,
+            ].join(" ")}
             {...props}
           />
           {isPassword && (
@@ -59,9 +63,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
               aria-pressed={visible}
               onClick={() => setVisible((v) => !v)}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2"
+              className="absolute right-2 top-1/2 -translate-y-1/2"
             >
-              {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {visible ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </IconButton>
           )}
         </div>

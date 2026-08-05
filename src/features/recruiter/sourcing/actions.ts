@@ -11,6 +11,12 @@ import {
   SOURCING_PLATFORMS,
   type SourcingResult,
 } from "./domain/sourcing";
+import {
+  sourcearParaBusqueda,
+  type ScoredLinkedInCandidate,
+} from "./domain/sourcear-para-busqueda";
+import { getJobById } from "../jobs/data/jobs.queries";
+import { getAiProvider } from "@/lib/ai";
 import { can } from "@/lib/auth/roles";
 
 const querySchema = z.object({
@@ -25,7 +31,12 @@ export async function buscarSourcingAction(input: {
   location: string | null;
   seniority: string | null;
   platforms: string[];
-}): Promise<{ ok: boolean; boolean?: string; results?: SourcingResult[]; error?: string }> {
+}): Promise<{
+  ok: boolean;
+  boolean?: string;
+  results?: SourcingResult[];
+  error?: string;
+}> {
   const parsed = querySchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Query inválida." };
 
@@ -84,16 +95,18 @@ const linkedinQuerySchema = z.object({
   query: z.string().trim().min(1, "Ingresá un término de búsqueda"),
 });
 
-export async function buscarLinkedinAction(input: {
-  query: string;
-}): Promise<{
+export async function buscarLinkedinAction(input: { query: string }): Promise<{
   ok: boolean;
   candidates?: import("./domain/linkedin-search").LinkedInCandidateResult[];
   isLiveApi?: boolean;
   error?: string;
 }> {
   const parsed = linkedinQuerySchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Query inválida." };
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Query inválida.",
+    };
 
   const membership = await getActiveMembership();
   if (!membership) return { ok: false, error: "No autorizado." };
@@ -108,5 +121,46 @@ export async function buscarLinkedinAction(input: {
   return { ok: true, candidates: res.candidates, isLiveApi: res.isLiveApi };
 }
 
+/**
+ * Sourcing con IA de un clic desde Postulados (ítem 9.4): busca en LinkedIn usando el contexto
+ * de la búsqueda (puesto, skills, seniority, ubicación), sin que el recruiter tipee nada, y
+ * scorea cada resultado con IA — solo devuelve los que matchean 60% o más, hasta 10.
+ */
+export async function sourcearParaBusquedaAction(jobId: string): Promise<{
+  ok: boolean;
+  results?: ScoredLinkedInCandidate[];
+  isLiveApi?: boolean;
+  error?: string;
+}> {
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { ok: false, error: "Tu rol no permite usar sourcing." };
+  }
 
+  const job = await getJobById(jobId, membership.organizationId);
+  if (!job) return { ok: false, error: "Búsqueda no encontrada." };
 
+  const { searchLinkedInCandidates } = await import("./domain/linkedin-search");
+  const provider = getAiProvider();
+
+  const result = await sourcearParaBusqueda(
+    {
+      title: job.title,
+      position: job.position,
+      skills: job.skills,
+      seniority: job.seniority,
+      location: job.location,
+      objectives: job.objectives,
+      requirements: job.requirements,
+      responsibilities: job.responsibilities,
+    },
+    {
+      search: (query) => searchLinkedInCandidates({ query }),
+      scoreApplication: (input) => provider.scoreApplication(input),
+    },
+  );
+
+  if (!result.ok) return { ok: false, error: result.error };
+  return { ok: true, results: result.results, isLiveApi: result.isLiveApi };
+}
