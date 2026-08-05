@@ -17,6 +17,10 @@ interface DialogProps {
   children: ReactNode;
   /** Ancho del sheet / max-width del modal. */
   className?: string;
+  /** Override del max-width del `<dialog>` exterior en modo `center` (ej. "max-w-3xl") — el
+   *  `className` de arriba solo llega al wrapper interior, no alcanza para ensanchar el modal
+   *  más allá del `max-w-lg` por defecto. No aplica al sheet lateral. */
+  maxWidthClassName?: string;
 }
 
 /**
@@ -33,6 +37,7 @@ export function Dialog({
   ariaLabel,
   children,
   className = "",
+  maxWidthClassName,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -67,7 +72,7 @@ export function Dialog({
         "bg-transparent p-0 text-text backdrop:bg-[rgba(15,10,26,0.45)] backdrop:animate-fade-in",
         isSheet
           ? "m-0 ml-auto h-dvh max-h-dvh w-full max-w-[440px]"
-          : "m-auto w-full max-w-lg rounded-[var(--radius)]",
+          : `m-auto w-full ${maxWidthClassName ?? "max-w-lg"} rounded-[var(--radius)]`,
       ].join(" ")}
     >
       <div

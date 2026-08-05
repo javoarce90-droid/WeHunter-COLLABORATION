@@ -80,7 +80,7 @@ export default async function PipelinePage({ params }: Props) {
       stageEventsByApplication={stageEventsByApplication}
       screeningAnswersByApplication={screeningAnswersByApplication}
       stages={stages}
-      actions={<JobStageSettingsButton jobId={jobId} stages={stages} />}
+      actions={<JobStageSettingsButton key="stage-settings" jobId={jobId} stages={stages} />}
     />
   );
 }

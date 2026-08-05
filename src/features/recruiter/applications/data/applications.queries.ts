@@ -403,6 +403,9 @@ export type PostuladoRow = {
      *  postulación — ver candidates.saved_to_pool). Decide si se ofrece "Guardar en
      *  Talent Pool" o si ya es redundante. */
     savedToPool: boolean;
+    location: string | null;
+    skills: string[] | null;
+    linkedinUrl: string | null;
   };
 };
 
@@ -443,6 +446,9 @@ export async function listPostulados(
           candidateSource: candidates.source,
           candidateHeadline: candidates.headline,
           candidateSavedToPool: candidates.savedToPool,
+          candidateLocation: candidates.location,
+          candidateSkills: candidates.skills,
+          candidateLinkedinUrl: candidates.linkedinUrl,
           // Subquery correlacionada (no ventana): la partición del `where jobId=X` de esta
           // query siempre da 1 por candidato, no sirve para "a cuántas búsquedas se postuló".
           // Sigue siendo UNA sola consulta a la base (database.md #3), no un round-trip extra.
@@ -489,6 +495,9 @@ export async function listPostulados(
       source: r.candidateSource,
       savedToPool: r.candidateSavedToPool,
       headline: r.candidateHeadline,
+      location: r.candidateLocation,
+      skills: r.candidateSkills,
+      linkedinUrl: r.candidateLinkedinUrl,
     },
   }));
 }

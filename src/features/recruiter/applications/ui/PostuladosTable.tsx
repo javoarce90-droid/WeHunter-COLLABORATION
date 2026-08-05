@@ -19,6 +19,10 @@ import { useToast } from "@/lib/toast";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import { AgregarCandidatos } from "./AgregarCandidatos";
 import { SourcingIADialog } from "./SourcingIADialog";
+import {
+  CompareCandidatesDialog,
+  type CompareSubject,
+} from "../../sourcing/ui/CompareCandidatesDialog";
 import type { CandidateSource } from "@/features/recruiter/candidates/domain/candidate-details";
 import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import {
@@ -141,6 +145,10 @@ export function PostuladosTable({
   const [poolTarget, setPoolTarget] = useState<string[] | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [aiDetailId, setAiDetailId] = useState<string | null>(null);
+  // Selección múltiple — habilita "Comparar" (solo con 2) y "Pasar al pipeline" en lote.
+  // Reject y pool ya aceptan varios ids también, pero no están conectados a esto todavía.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
   const [reason, setReason] = useState<RejectionReason>(REJECTION_REASONS[0]);
   const [note, setNote] = useState("");
   const [poolNote, setPoolNote] = useState("");
@@ -222,6 +230,48 @@ export function PostuladosTable({
       return cmp * factor;
     });
   }, [filtered, sort, criteriosByApplication]);
+
+  const allVisibleSelected = sorted.length > 0 && sorted.every((r) => selected.has(r.id));
+  const someVisibleSelected = sorted.some((r) => selected.has(r.id));
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) sorted.forEach((r) => next.delete(r.id));
+      else sorted.forEach((r) => next.add(r.id));
+      return next;
+    });
+  }
+
+  function toCompareSubject(row: PostuladoRow): CompareSubject {
+    return {
+      name: row.candidate.fullName,
+      headline: row.candidate.headline ?? "",
+      location: row.candidate.location,
+      skills: row.candidate.skills ?? [],
+      linkedinUrl: row.candidate.linkedinUrl,
+      match:
+        row.aiScore != null
+          ? {
+              score: row.aiScore,
+              summary: row.aiSummary,
+              breakdown: row.aiBreakdown,
+              strengths: row.aiStrengths,
+              redFlags: row.aiRedFlags,
+            }
+          : null,
+    };
+  }
+  const compareA = compareIds ? (rows.find((r) => r.id === compareIds[0]) ?? null) : null;
+  const compareB = compareIds ? (rows.find((r) => r.id === compareIds[1]) ?? null) : null;
 
   const detailRow = detailId
     ? (rows.find((r) => r.id === detailId) ?? null)
@@ -467,6 +517,40 @@ export function PostuladosTable({
             />
           </div>
 
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius)] border border-primary/30 bg-primary-light px-4 py-2.5">
+              <span className="text-sm font-semibold text-primary-hover">
+                {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
+              </span>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const ids = [...selected];
+                  setSelected(new Set());
+                  onPasarAlPipeline(ids);
+                }}
+              >
+                Pasar {selected.size} al pipeline
+              </Button>
+              {selected.size === 2 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCompareIds([...selected] as [string, string])}
+                >
+                  Comparar
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="text-sm font-semibold text-muted hover:text-text"
+              >
+                Deseleccionar todo
+              </button>
+            </div>
+          )}
+
           {sorted.length === 0 ? (
             <EmptyState
               title="Ninguna postulación coincide"
@@ -477,12 +561,21 @@ export function PostuladosTable({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left">
+                    <th className="w-10 py-3 pl-4">
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        aria-label="Seleccionar todos"
+                        ref={(el) => {
+                          if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected;
+                        }}
+                        onChange={toggleAll}
+                      />
+                    </th>
                     <SortableTh
                       label="Candidato"
                       active={sort}
                       sortKey="candidate"
                       onSort={setSortKey}
-                      className="pl-4"
                     />
                     <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                       Fuente
@@ -531,9 +624,19 @@ export function PostuladosTable({
                     return (
                       <tr
                         key={row.id}
-                        className="transition-colors hover:bg-bg"
+                        className={[
+                          "transition-colors",
+                          selected.has(row.id) ? "bg-[var(--selected-bg)]" : "hover:bg-bg",
+                        ].join(" ")}
                       >
-                        <td className="py-3 pr-3 pl-4">
+                        <td className="py-3 pl-4">
+                          <Checkbox
+                            checked={selected.has(row.id)}
+                            onChange={() => toggleOne(row.id)}
+                            aria-label={`Seleccionar ${row.candidate.fullName}`}
+                          />
+                        </td>
+                        <td className="py-3 pr-3">
                           <div className="flex items-center gap-3">
                             <Avatar name={row.candidate.fullName} size="sm" />
                             <div className="min-w-0">
@@ -706,6 +809,13 @@ export function PostuladosTable({
       <AiAnalysisDialog
         subject={aiDetailSubject}
         onClose={() => setAiDetailId(null)}
+      />
+
+      <CompareCandidatesDialog
+        open={compareIds !== null}
+        onClose={() => setCompareIds(null)}
+        a={compareA ? toCompareSubject(compareA) : null}
+        b={compareB ? toCompareSubject(compareB) : null}
       />
 
       <Dialog

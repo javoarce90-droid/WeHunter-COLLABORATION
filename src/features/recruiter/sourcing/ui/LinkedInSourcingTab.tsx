@@ -13,6 +13,7 @@ import {
 } from "../actions";
 import { importarSourcingResultadoAction } from "../../applications/actions";
 import { AiAnalysisDialog } from "../../applications/ui/AiAnalysisDialog";
+import { CompareCandidatesDialog } from "./CompareCandidatesDialog";
 import { SourcingCandidateCard } from "./SourcingCandidateCard";
 import { SOURCING_MANUAL_SCORE_CAP } from "../domain/sourcear-para-busqueda";
 import type { LinkedInCandidateResult } from "../domain/linkedin-search";
@@ -56,6 +57,7 @@ export function LinkedInSourcingTab({ jobs }: Props) {
   const [attemptedPairs, setAttemptedPairs] = useState<Set<string>>(new Set());
   const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
   const [searching, startSearch] = useTransition();
 
   function pairKey(candidateId: string, jobId: string) {
@@ -79,6 +81,7 @@ export function LinkedInSourcingTab({ jobs }: Props) {
       setSelected(new Set());
       setScores({});
       setAttemptedPairs(new Set());
+      setCompareIds(null);
     });
   }
 
@@ -90,6 +93,7 @@ export function LinkedInSourcingTab({ jobs }: Props) {
     setSelected(new Set());
     setScores({});
     setAttemptedPairs(new Set());
+    setCompareIds(null);
   }
 
   async function importarUno(c: LinkedInCandidateResult) {
@@ -264,6 +268,33 @@ export function LinkedInSourcingTab({ jobs }: Props) {
   const detailScored =
     detailCandidate && detailJobId ? scores[pairKey(detailCandidate.id, detailJobId)] : undefined;
 
+  function toCompareSubject(c: LinkedInCandidateResult) {
+    const jobId = jobByCandidate[c.id] ?? "";
+    const scored = jobId ? scores[pairKey(c.id, jobId)] : undefined;
+    return {
+      name: c.name,
+      headline: c.headline,
+      location: c.location,
+      skills: c.skills,
+      linkedinUrl: c.linkedinUrl,
+      match: scored
+        ? {
+            score: scored.score,
+            summary: scored.summary,
+            breakdown: scored.breakdown,
+            strengths: scored.strengths,
+            redFlags: scored.redFlags,
+          }
+        : null,
+    };
+  }
+  const compareA = compareIds
+    ? (candidates?.find((c) => c.id === compareIds[0]) ?? null)
+    : null;
+  const compareB = compareIds
+    ? (candidates?.find((c) => c.id === compareIds[1]) ?? null)
+    : null;
+
   return (
     <div className="flex flex-col gap-5">
       {/* Buscador unificado */}
@@ -363,6 +394,15 @@ export function LinkedInSourcingTab({ jobs }: Props) {
               <span className="text-sm font-semibold text-primary-hover">
                 {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
               </span>
+              {selected.size === 2 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCompareIds([...selected] as [string, string])}
+                >
+                  Comparar
+                </Button>
+              )}
               <Button
                 size="sm"
                 onClick={importarSeleccionados}
@@ -458,6 +498,13 @@ export function LinkedInSourcingTab({ jobs }: Props) {
                 : null
             }
             onClose={() => setDetailId(null)}
+          />
+
+          <CompareCandidatesDialog
+            open={compareIds !== null}
+            onClose={() => setCompareIds(null)}
+            a={compareA ? toCompareSubject(compareA) : null}
+            b={compareB ? toCompareSubject(compareB) : null}
           />
         </div>
       )}

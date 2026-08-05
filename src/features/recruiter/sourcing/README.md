@@ -163,6 +163,45 @@ summary, breakdown, strengths, redFlags`), así que el mismo "Copiloto de reclut
 existía en Postulados se reusa tal cual en Sourcing, sin duplicar el desglose por categoría ni
 las listas de fortalezas/riesgos.
 
+### Comparar candidatos
+
+Última pieza del backlog de Sourcing — no había ningún patrón de comparación en la app, se
+diseñó desde cero. Se dispara desde la barra de selección (arriba): el botón **"Comparar"**
+aparece solo cuando `selected.size === 2` exactamente (la selección en sí no tiene tope, sigue
+sirviendo para bulk import/omit con cualquier cantidad — el tope de 2 es específico de esta
+acción). Al click, `CompareCandidatesDialog.tsx` (`sourcing/ui/`) muestra a los dos candidatos
+en columnas lado a lado (`grid-cols-1 sm:grid-cols-2`, apila en mobile): datos básicos (avatar,
+headline, ubicación, skills, link a LinkedIn) y, si el candidato ya tiene score calculado, el
+match completo — `MatchCell` + desglose por categoría + fortalezas/riesgos. En Sourcing con IA
+el match siempre está; en Sourcing Manual solo si el reclutador ya eligió una búsqueda para ese
+candidato puntual (score post-hoc, ver arriba) — si no, esa columna muestra una nota en vez del
+match, en lugar de dejar el hueco vacío o forzar un scoring que el reclutador no pidió.
+
+**Cero componente de match nuevo**: `MatchBreakdown` y `MatchHighlights` (las barras por
+categoría y las listas de fortalezas/riesgos) se extrajeron como named exports de
+`AiAnalysisDialog.tsx` — antes vivían inline ahí, ahora las usan tanto ese diálogo como
+`CompareCandidatesDialog`, mismo lenguaje visual, un solo lugar que lo dibuja.
+
+**Ajuste al `Dialog` compartido** (`src/components/ui/dialog.tsx`): el modal centrado tenía el
+`max-width` hardcodeado en `max-w-lg` en el `<dialog>` exterior — el `className` que recibía el
+componente solo llegaba al wrapper interior, así que ningún caller podía pedir algo más ancho.
+Se agregó `maxWidthClassName` (opcional, default `max-w-lg`, no toca el sheet lateral) para que
+`CompareCandidatesDialog` pueda pedir `max-w-3xl` sin romper ningún uso existente — todos los
+demás diálogos centrados siguen exactamente igual porque no pasan ese prop.
+
+**También se usa desde Postulados** (`PostuladosTable.tsx`, `features/recruiter/applications/ui/`):
+mismo componente, mismo criterio de "Comparar" solo con 2 seleccionados. La barra de selección
+ahí es nueva — Postulados no tenía ningún mecanismo de selección múltiple antes de esto — y
+además de "Comparar" ya conecta **"Pasar N al pipeline" en lote**, reusando
+`onPasarAlPipeline(ids: string[])` tal cual (ya soportaba varios ids desde antes, solo hacía
+falta una barra que se los pasara). Reject y guardar en pool siguen sin bulk conectado — sus
+actions también aceptan varios ids, queda como próximo paso si hace falta. `CompareSubject.
+linkedinUrl` y `match.breakdown` son nullable porque un postulado puede no venir de LinkedIn, o
+no tener "Analizar con IA" corrido todavía — Sourcing sigue pasando ambos siempre presentes, sin
+cambios ahí. `listPostulados` (en `applications/data/applications.queries.ts`) suma
+`location`/`skills`/`linkedinUrl` al select para tener con qué armar la comparación (antes no
+los traía).
+
 ---
 
 ## 🔑 Variables de Entorno (`.env.local`)
@@ -192,3 +231,10 @@ las listas de fortalezas/riesgos.
    selección → "Importar/Sumar N seleccionados" o "Omitir seleccionados" → confirmar que los
    que se importan quedan marcados y desaparecen de la selección, y que "Seleccionar todos"
    alterna correctamente.
+6. **Comparar candidatos**: tildar exactamente 2 → aparece el botón "Comparar" en la barra
+   (tildar un 3ro y confirmar que desaparece) → click → diálogo con las dos columnas lado a
+   lado. En Sourcing Manual, comparar un candidato con búsqueda elegida (con match) y otro sin
+   elegir ninguna (sin match) → confirmar que esa columna muestra la nota en vez del match.
+7. **Postulados**: mismo flujo de Comparar (2 tildados → botón → diálogo) más "Pasar N al
+   pipeline" en lote (cualquier cantidad ≥1) → confirmar que las filas pasadas desaparecen de
+   la bandeja y el toast muestra cuántas se hicieron / saltaron.

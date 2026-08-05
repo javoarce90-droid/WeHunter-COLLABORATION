@@ -8,6 +8,7 @@ import { useToast } from "@/lib/toast";
 import { sourcearParaBusquedaAction } from "../actions";
 import { importarSourcingResultadoAction } from "../../applications/actions";
 import { AiAnalysisDialog } from "../../applications/ui/AiAnalysisDialog";
+import { CompareCandidatesDialog } from "./CompareCandidatesDialog";
 import { SourcingCandidateCard } from "./SourcingCandidateCard";
 import type { ScoredLinkedInCandidate } from "../domain/sourcear-para-busqueda";
 
@@ -37,6 +38,7 @@ export function AiJobSourcingResults({ jobId }: Props) {
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
 
   function buscar() {
     if (results !== null) return; // hay que limpiar antes de buscar de nuevo
@@ -53,6 +55,7 @@ export function AiJobSourcingResults({ jobId }: Props) {
       setIsLiveApi(res.isLiveApi ?? false);
       setDecisions({});
       setSelected(new Set());
+      setCompareIds(null);
     });
   }
 
@@ -61,6 +64,7 @@ export function AiJobSourcingResults({ jobId }: Props) {
     setDecisions({});
     setIsLiveApi(true);
     setSelected(new Set());
+    setCompareIds(null);
   }
 
   async function importarUno(c: ScoredLinkedInCandidate) {
@@ -172,6 +176,23 @@ export function AiJobSourcingResults({ jobId }: Props) {
     ? (results?.find((c) => c.id === detailId) ?? null)
     : null;
 
+  function toCompareSubject(c: ScoredLinkedInCandidate) {
+    return {
+      name: c.name,
+      headline: c.headline,
+      location: c.location,
+      skills: c.skills,
+      linkedinUrl: c.linkedinUrl,
+      match: { score: c.score, summary: c.summary, breakdown: c.breakdown, strengths: c.strengths, redFlags: c.redFlags },
+    };
+  }
+  const compareA = compareIds
+    ? (results?.find((c) => c.id === compareIds[0]) ?? null)
+    : null;
+  const compareB = compareIds
+    ? (results?.find((c) => c.id === compareIds[1]) ?? null)
+    : null;
+
   if (results === null) {
     return (
       <div className="flex flex-col items-center gap-4 py-8 text-center">
@@ -246,6 +267,15 @@ export function AiJobSourcingResults({ jobId }: Props) {
           <span className="text-sm font-semibold text-primary-hover">
             {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
           </span>
+          {selected.size === 2 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setCompareIds([...selected] as [string, string])}
+            >
+              Comparar
+            </Button>
+          )}
           <Button
             size="sm"
             onClick={agregarYPostularSeleccionados}
@@ -320,6 +350,13 @@ export function AiJobSourcingResults({ jobId }: Props) {
             : null
         }
         onClose={() => setDetailId(null)}
+      />
+
+      <CompareCandidatesDialog
+        open={compareIds !== null}
+        onClose={() => setCompareIds(null)}
+        a={compareA ? toCompareSubject(compareA) : null}
+        b={compareB ? toCompareSubject(compareB) : null}
       />
     </div>
   );

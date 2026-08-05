@@ -42,6 +42,69 @@ const BREAKDOWN_LABELS: Record<(typeof BREAKDOWN_ORDER)[number], string> = {
   ubicacion: "Ubicación",
 };
 
+/** Barras de desglose del match por categoría. Compartido por `AiAnalysisDialog` y
+ *  `CompareCandidatesDialog` (sourcing) — el mismo lenguaje visual de match, un solo lugar. */
+export function MatchBreakdown({ breakdown }: { breakdown: ScoreBreakdown }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs font-bold uppercase tracking-wide text-label">Desglose del match</p>
+      {BREAKDOWN_ORDER.map((key) => (
+        <div key={key} className="flex flex-col gap-1">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text">{BREAKDOWN_LABELS[key]}</span>
+            <span className="font-semibold text-text tabular-nums">{breakdown[key]}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+            <div className="h-full rounded-full bg-success" style={{ width: `${breakdown[key]}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Fortalezas (✓ verde) y riesgos/a-validar (⚠ ámbar) de la IA. Compartido igual que
+ *  `MatchBreakdown`. */
+export function MatchHighlights({
+  strengths,
+  redFlags,
+}: {
+  strengths: string[];
+  redFlags: string[];
+}) {
+  return (
+    <>
+      {strengths.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-bold uppercase tracking-wide text-label">Fortalezas</p>
+          <ul className="flex flex-col gap-1">
+            {strengths.map((s) => (
+              <li key={s} className="flex items-start gap-1.5 text-sm text-text/80">
+                <span className="mt-0.5 text-success" aria-hidden>✓</span>
+                {s}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {redFlags.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-bold uppercase tracking-wide text-label">A validar / riesgos</p>
+          <ul className="flex flex-col gap-1">
+            {redFlags.map((f) => (
+              <li key={f} className="flex items-start gap-1.5 text-sm text-text/80">
+                <span className="mt-0.5 text-warning" aria-hidden>⚠</span>
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
 /**
  * Copiloto de Reclutamiento: mismo modal del prototipo, con lo que hoy calcula la IA real
  * (score, resumen, desglose por categoría, fortalezas y riesgos — ver AiProvider.scoreApplication).
@@ -134,53 +197,8 @@ export function AiAnalysisDialog({ subject, onClose }: Props) {
 
           {tab === "completo" && (
             <>
-              {aiBreakdown && (
-                <div className="flex flex-col gap-3">
-                  <p className="text-xs font-bold uppercase tracking-wide text-label">Desglose del match</p>
-                  {BREAKDOWN_ORDER.map((key) => (
-                    <div key={key} className="flex flex-col gap-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-text">{BREAKDOWN_LABELS[key]}</span>
-                        <span className="font-semibold text-text tabular-nums">{aiBreakdown[key]}%</span>
-                      </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-                        <div
-                          className="h-full rounded-full bg-success"
-                          style={{ width: `${aiBreakdown[key]}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {aiStrengths.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <p className="text-xs font-bold uppercase tracking-wide text-label">Fortalezas</p>
-                  <ul className="flex flex-col gap-1">
-                    {aiStrengths.map((s) => (
-                      <li key={s} className="flex items-start gap-1.5 text-sm text-text/80">
-                        <span className="mt-0.5 text-success" aria-hidden>✓</span>
-                        {s}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {aiRedFlags.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <p className="text-xs font-bold uppercase tracking-wide text-label">A validar / riesgos</p>
-                  <ul className="flex flex-col gap-1">
-                    {aiRedFlags.map((f) => (
-                      <li key={f} className="flex items-start gap-1.5 text-sm text-text/80">
-                        <span className="mt-0.5 text-warning" aria-hidden>⚠</span>
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {aiBreakdown && <MatchBreakdown breakdown={aiBreakdown} />}
+              <MatchHighlights strengths={aiStrengths} redFlags={aiRedFlags} />
             </>
           )}
         </div>
