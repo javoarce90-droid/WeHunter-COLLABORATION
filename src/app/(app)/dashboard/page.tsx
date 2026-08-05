@@ -258,8 +258,8 @@ async function DashboardDaily({
 /**
  * Día 1: sin búsquedas todavía. Checklist de setup en vez de KPIs vacíos — pero el checklist
  * es de configuración inicial del workspace, así que solo tiene sentido para Owner/Admin
- * (docs/BACKLOG.md, punto 8). El resto ve un estado vacío simple: todavía no hay accionables
- * propios por rol diseñados para este caso (queda como follow-up, ver BACKLOG.md).
+ * (docs/BACKLOG.md, punto 8). El resto ve accionables propios de su rol en su lugar
+ * (`DashboardDay1RoleActions`) en vez del mismo estado vacío genérico para todos.
  */
 async function DashboardDay1({
   organizationId,
@@ -296,6 +296,8 @@ async function DashboardDay1({
         </SectionCard>
       )}
 
+      {!showSetupChecklist && <DashboardDay1RoleActions role={role} />}
+
       <SectionCard title="Tus búsquedas activas">
         <p className="py-6 text-center text-sm text-muted">
           Todavía no creaste ninguna búsqueda.
@@ -303,6 +305,57 @@ async function DashboardDay1({
       </SectionCard>
     </>
   );
+}
+
+/** Accionables propios por rol para el Día 1 (sin checklist de setup). Sourcer y Consultor
+ *  ya pueden sourcear sin que exista ninguna búsqueda todavía (`/sourcing` no depende de
+ *  tener jobs). HM no tiene todavía pantalla propia de "cargar solicitud" (ver BACKLOG.md
+ *  punto 3), así que por ahora solo se le ofrece conectar su agenda, igual que al Consultor.
+ *  Viewer no tiene ninguna capability (`CAPABILITIES.viewer: []`) — sin CTA, solo contexto. */
+function DashboardDay1RoleActions({ role }: { role: OrgRole }) {
+  if (role === "sourcer" || role === "consultant") {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <ActionCard
+          href="/sourcing"
+          title="Empezá a sourcear"
+          description="Buscá y cargá candidatos a tu Talent Pool."
+          icon={<SearchIcon />}
+        />
+        {role === "consultant" && (
+          <ActionCard
+            href="/settings"
+            title="Conectá tu agenda"
+            description="Sincronizá Google Calendar para coordinar entrevistas."
+            icon={<CalendarIcon />}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (role === "hiring_manager") {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <ActionCard
+          href="/settings"
+          title="Conectá tu agenda"
+          description="Sincronizá Google Calendar para coordinar entrevistas."
+          icon={<CalendarIcon />}
+        />
+      </div>
+    );
+  }
+
+  if (role === "viewer") {
+    return (
+      <p className="text-sm text-muted">
+        Tu acceso es de solo lectura: vas a ver la actividad del equipo a medida que se cargue.
+      </p>
+    );
+  }
+
+  return null;
 }
 
 function ActionCard({
@@ -359,6 +412,15 @@ function InboxIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M22 12h-6l-2 3h-4l-2-3H2" />
       <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
     </svg>
   );
 }
