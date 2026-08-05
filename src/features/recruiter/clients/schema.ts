@@ -30,6 +30,12 @@ export const clientInputSchema = z.object({
     emptyToUndef,
     z.string().trim().max(2000, "Las notas son demasiado largas.").optional(),
   ),
+  // Elegido a mano en el alta cuando hay más de un candidato posible (owner/admin/recruiter).
+  // Se revalida server-side contra la org real en el dominio, esto solo chequea la forma.
+  assignedMembershipId: z.preprocess(
+    emptyToUndef,
+    z.string().uuid("Responsable inválido.").optional(),
+  ),
 });
 
 export type ClientInput = z.infer<typeof clientInputSchema>;
