@@ -473,6 +473,13 @@ export const requisitions = pgTable("requisitions", {
     .notNull(),
   clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
   createdByProfileId: uuid("created_by_profile_id").references(() => profiles.id),
+  // A qué recruiter le asignó el Hiring Manager su propia solicitud (camino HM, solo aplica
+  // cuando createdByProfileId está seteado). Ese recruiter es quien la revisa — nunca el HM
+  // que la cargó. Resuelve también el scoping de Solicitudes para recruiter en Enterprise
+  // (ver isEnterpriseAssignedScoped en roles.ts).
+  assignedToMembershipId: uuid("assigned_to_membership_id").references(() => memberships.id, {
+    onDelete: "set null",
+  }),
   status: requisitionStatus("status").notNull().default("pending"),
   reason: requisitionReason("reason").notNull(),
   budget: text("budget"), // texto libre (sin moneda estructurada, v1)
@@ -499,6 +506,7 @@ export const requisitions = pgTable("requisitions", {
 }, (t) => ({
   orgIdx: index("requisitions_org_idx").on(t.organizationId),
   clientIdx: index("requisitions_client_idx").on(t.clientId),
+  assignedToIdx: index("requisitions_assigned_to_idx").on(t.assignedToMembershipId),
   statusIdx: index("requisitions_status_idx").on(t.organizationId, t.status),
   sourceCheck: check(
     "requisitions_source_check",
@@ -1134,6 +1142,9 @@ export const shortlistCandidates = pgTable("shortlist_candidates", {
 
 // Token de acceso para que la empresa revise un shortlist sin tener cuenta.
 // El acceso real se sirve por funciones SECURITY DEFINER que validan el token (ver migración).
+// `sharedWithMembershipId` es la otra forma de compartir: un Hiring Manager interno (tiene
+// cuenta y sesión propia, no necesita token) — igual se genera un `token` para no aflojar esa
+// constraint, pero esa fila nunca se resuelve por link, se resuelve por membership+RLS.
 export const shortlistShares = pgTable("shortlist_shares", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -1143,6 +1154,9 @@ export const shortlistShares = pgTable("shortlist_shares", {
     .references(() => shortlists.id, { onDelete: "cascade" })
     .notNull(),
   token: text("token").notNull(),
+  sharedWithMembershipId: uuid("shared_with_membership_id").references(() => memberships.id, {
+    onDelete: "cascade",
+  }),
   expiresAt: timestamp("expires_at"), // null = sin vencimiento
   revokedAt: timestamp("revoked_at"), // null = activo
   createdBy: uuid("created_by").references(() => profiles.id),
@@ -1150,6 +1164,7 @@ export const shortlistShares = pgTable("shortlist_shares", {
 }, (t) => ({
   orgIdx: index("shortlist_shares_org_idx").on(t.organizationId),
   tokenIdx: uniqueIndex("shortlist_shares_token_idx").on(t.token),
+  sharedWithIdx: index("shortlist_shares_shared_with_idx").on(t.sharedWithMembershipId),
 }));
 
 // Feedback de la empresa sobre un candidato del shortlist. Una decisión por candidato

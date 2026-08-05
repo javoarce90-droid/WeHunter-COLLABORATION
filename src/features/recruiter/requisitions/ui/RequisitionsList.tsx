@@ -16,15 +16,25 @@ const dateFormatter = new Intl.DateTimeFormat("es-AR", {
 export function RequisitionsList({
   requisitions,
   canReview,
+  canCreate,
 }: {
   requisitions: RequisitionListRow[];
   canReview: boolean;
+  /** Hiring Manager: puede cargar solicitudes propias — cambia el empty state para
+   *  ofrecerle crear la primera en vez de mandarlo a Clientes (no lo ve). */
+  canCreate: boolean;
 }) {
   if (requisitions.length === 0) {
-    return (
+    return canCreate ? (
+      <EmptyState
+        title="Todavía no cargaste ninguna solicitud"
+        description="Contale al equipo de reclutamiento qué perfil necesitás. Elegís quién la revisa y seguís el estado acá mismo."
+        action={{ label: "Nueva solicitud", href: "/requisitions/new" }}
+      />
+    ) : (
       <EmptyState
         title="Todavía no hay solicitudes"
-        description="Cuando un cliente pida una búsqueda desde su portal, la vas a ver acá para revisarla. Generá el enlace del portal desde la ficha del cliente."
+        description="Cuando un cliente o un Hiring Manager pida una búsqueda, la vas a ver acá para revisarla. Generá el enlace del portal desde la ficha del cliente."
         action={{ label: "Ir a Clientes", href: "/clients" }}
       />
     );
@@ -39,7 +49,7 @@ export function RequisitionsList({
               Solicitud
             </th>
             <th className="hidden px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label sm:table-cell">
-              Cliente
+              Solicitante
             </th>
             <th className="hidden px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-label md:table-cell">
               Motivo
@@ -78,10 +88,10 @@ export function RequisitionsList({
                   </Link>
                 </td>
                 <td className="hidden px-3 py-3 sm:table-cell">
-                  {r.clientName ? (
+                  {r.clientName || r.requestedByName ? (
                     <div className="flex min-w-0 items-center gap-2">
-                      <Avatar name={r.clientName} size="sm" />
-                      <span className="truncate text-text">{r.clientName}</span>
+                      <Avatar name={(r.clientName || r.requestedByName)!} size="sm" />
+                      <span className="truncate text-text">{r.clientName ?? r.requestedByName}</span>
                     </div>
                   ) : (
                     <span className="text-muted">—</span>

@@ -21,8 +21,11 @@ import type { OrgRole, WorkspaceType } from "./session";
  *   - Subtabs dentro de una búsqueda puntual para Sourcer (solo Detalle+Postulados) —
  *     hoy `stages.configure`/`offers.manage`/`shortlists.manage` no están conectados
  *     todavía a botones concretos de esas pantallas, solo a la matriz.
- *   - La experiencia propia del Hiring Manager (cargar solicitud "como si cargara",
- *     feedback de shortlist compartida) — construir esas pantallas es aparte.
+ *
+ * La experiencia propia del Hiring Manager (cargar solicitud, feedback de shortlist
+ * compartida) se construyó 2026-08-05 — ver `requisitions.create`/`shortlists.feedback`
+ * y los helpers `isRequesterScoped`/`isEnterpriseAssignedScoped`/`canReviewRequisitions`
+ * más abajo.
  */
 
 export type Capability =
@@ -36,6 +39,8 @@ export type Capability =
   | "shortlists.manage"
   | "clients.manage"
   | "requisitions.review"
+  | "requisitions.create"
+  | "shortlists.feedback"
   | "stages.configure"
   | "settings.stages_template"
   | "offers.manage"
@@ -60,6 +65,8 @@ const ALL: Capability[] = [
   "shortlists.manage",
   "clients.manage",
   "requisitions.review",
+  "requisitions.create",
+  "shortlists.feedback",
   "stages.configure",
   "settings.stages_template",
   "offers.manage",
@@ -131,12 +138,17 @@ const CAPABILITIES: Record<OrgRole, readonly Capability[]> = {
   // Carga solicitudes, da feedback de shortlist compartida, ve y opera Agenda y Sourcing,
   // ve Búsquedas y Candidatos. Único rol (además de owner/admin) con acceso a la plantilla
   // de etapas en Configuración. Sin Equipo, Career Site, Plan y Facturación ni comunidad.
+  // `requisitions.review` acá NO habilita aprobar/rechazar (ver `canReviewRequisitions`):
+  // el HM "carga, no revisa" — la capability solo gatea que vea la pantalla de Solicitudes,
+  // acotada a las suyas. `requisitions.create` es la que de verdad le pertenece solo a él.
   hiring_manager: [
     "jobs.view",
     "candidates.manage",
     "interviews.manage",
     "sourcing.use",
     "requisitions.review",
+    "requisitions.create",
+    "shortlists.feedback",
     "settings.stages_template",
     "ai.use",
   ],
@@ -186,6 +198,36 @@ export function isAssignmentScoped(role: OrgRole): boolean {
  */
 export function isClientScoped(role: OrgRole, workspaceType: WorkspaceType | null): boolean {
   return role === "recruiter" && workspaceType === "team";
+}
+
+/**
+ * Recruiter en workspace ENTERPRISE ve, en Solicitudes, solo las que le asignó un Hiring
+ * Manager (`requisitions.assignedToMembershipId`) — contraparte de `isClientScoped` para
+ * Team. Cierra el punto pendiente de la especificación 2026-08-04 ("el HM elige un
+ * recruiter al crear la solicitud").
+ */
+export function isEnterpriseAssignedScoped(
+  role: OrgRole,
+  workspaceType: WorkspaceType | null,
+): boolean {
+  return role === "recruiter" && workspaceType === "enterprise";
+}
+
+/** El HM ve /requisitions acotado a las que ÉL cargó (`requisitions.createdByProfileId`) —
+ *  "ve solicitudes, pero como si cargara", no una bandeja de revisión. */
+export function isRequesterScoped(role: OrgRole): boolean {
+  return role === "hiring_manager";
+}
+
+/**
+ * Quién puede de verdad aprobar/rechazar una solicitud — distinto de `can(role,
+ * "requisitions.review")`, que el HM también tiene (esa capability solo gatea que VEA la
+ * pantalla). El HM nunca revisa, ni siquiera la suya propia: la revisa el recruiter que él
+ * mismo eligió al cargarla. Se chequea acá Y dentro de aprobar/rechazar-requisition.ts
+ * (defensa en profundidad, no solo la UI).
+ */
+export function canReviewRequisitions(role: OrgRole): boolean {
+  return can(role, "requisitions.review") && role !== "hiring_manager";
 }
 
 export const ROLE_LABELS: Record<OrgRole, string> = {
