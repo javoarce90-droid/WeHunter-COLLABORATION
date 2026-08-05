@@ -50,11 +50,11 @@ describe("eliminarEntrevista", () => {
     expect(deps.deleteInterview).not.toHaveBeenCalled();
   });
 
-  it("rechaza si el rol es consultant", async () => {
+  it("rechaza si el rol es viewer", async () => {
     const deps = makeDeps();
     const result = await eliminarEntrevista(
       { interviewId: "int-1" },
-      { ...ctx, role: "consultant" },
+      { ...ctx, role: "viewer" },
       deps,
     );
     expect(result.ok).toBe(false);

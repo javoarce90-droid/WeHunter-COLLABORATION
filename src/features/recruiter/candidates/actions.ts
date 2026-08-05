@@ -20,6 +20,8 @@ import {
   verificarCandidatoPorEmail,
   type VerificarCandidatoPorEmailResult,
 } from "./domain/verificar-candidato-por-email";
+import { agregarEtiqueta } from "./domain/agregar-etiqueta";
+import { quitarEtiqueta } from "./domain/quitar-etiqueta";
 import type { DuplicateCandidateMatch } from "./domain/duplicate-keys";
 import {
   insertCandidate,
@@ -27,6 +29,8 @@ import {
   setTalentState,
 } from "./data/candidates.mutations";
 import { getCandidateById, findDuplicateCandidate } from "./data/candidates.queries";
+import { findTagByName } from "./data/tags.queries";
+import { insertTag, linkCandidateTag, unlinkCandidateTag } from "./data/tags.mutations";
 import { findLinkableProfile } from "./data/profile-link.queries";
 import {
   uploadCandidateCv,
@@ -149,6 +153,49 @@ export async function cambiarEstadoTalentoAction(
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath("/candidates");
+  return { ok: true };
+}
+
+export async function agregarEtiquetaAction(input: {
+  candidateId: string;
+  tagName: string;
+  /** Solo para revalidar la vista desde donde se abrió el diálogo (pipeline/postulados). */
+  jobId?: string;
+}): Promise<{ ok: boolean; error?: string; tagId?: string; name?: string }> {
+  const membership = await getActiveMembership();
+  const result = await agregarEtiqueta(
+    { candidateId: input.candidateId, tagName: input.tagName },
+    { organizationId: membership?.organizationId ?? null, role: membership?.role ?? null },
+    { getCandidateById, findTagByName, insertTag, linkCandidateTag },
+  );
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/candidates");
+  if (input.jobId) {
+    revalidatePath(`/jobs/${input.jobId}/pipeline`);
+    revalidatePath(`/jobs/${input.jobId}/postulados`);
+  }
+  return { ok: true, tagId: result.data.tagId, name: result.data.name };
+}
+
+export async function quitarEtiquetaAction(input: {
+  candidateId: string;
+  tagId: string;
+  jobId?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const membership = await getActiveMembership();
+  const result = await quitarEtiqueta(
+    { candidateId: input.candidateId, tagId: input.tagId },
+    { organizationId: membership?.organizationId ?? null, role: membership?.role ?? null },
+    { getCandidateById, unlinkCandidateTag },
+  );
+  if (!result.ok) return { ok: false, error: result.error };
+
+  revalidatePath("/candidates");
+  if (input.jobId) {
+    revalidatePath(`/jobs/${input.jobId}/pipeline`);
+    revalidatePath(`/jobs/${input.jobId}/postulados`);
+  }
   return { ok: true };
 }
 

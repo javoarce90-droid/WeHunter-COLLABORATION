@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can } from "@/lib/auth/roles";
+import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 
 /**
@@ -10,10 +10,16 @@ import type { OrgRole } from "@/lib/auth/session";
 export interface RegistrarCompartidaBusquedaCtx {
   organizationId: string | null;
   role: OrgRole | null;
+  /** Roles acotados por asignación (ver `isAssignmentScoped`) solo la propia. */
+  membershipId: string | null;
 }
 
 export interface RegistrarCompartidaBusquedaDeps {
-  incrementShareCount(jobId: string, organizationId: string): Promise<void>;
+  incrementShareCount(
+    jobId: string,
+    organizationId: string,
+    scopeToMembershipId?: string,
+  ): Promise<void>;
 }
 
 export async function registrarCompartidaBusqueda(
@@ -28,6 +34,7 @@ export async function registrarCompartidaBusqueda(
     return err("No tenés permisos para gestionar búsquedas.");
   }
 
-  await deps.incrementShareCount(input.jobId, ctx.organizationId);
+  const scope = isAssignmentScoped(ctx.role) ? (ctx.membershipId ?? undefined) : undefined;
+  await deps.incrementShareCount(input.jobId, ctx.organizationId, scope);
   return ok(undefined);
 }

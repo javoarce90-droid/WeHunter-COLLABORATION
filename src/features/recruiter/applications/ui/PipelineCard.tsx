@@ -24,6 +24,11 @@ type Props = {
   onOpen: (applicationId: string) => void;
   /** Analiza esta postulación puntual con IA. Se omite (no se muestra el botón) si no se pasa. */
   onAnalizar?: (applicationId: string) => void;
+  onScheduleInterview: (applicationId: string) => void;
+  onSendEmail: (applicationId: string) => void;
+  onSendWhatsapp: (applicationId: string) => void;
+  onAddTag: (applicationId: string) => void;
+  onAddNote: (applicationId: string) => void;
   analyzing?: boolean;
   slaDays?: number | null;
   /** true cuando se usa dentro de DragOverlay — deshabilita el drag y los handlers. */
@@ -48,6 +53,11 @@ export function PipelineCard({
   onMoveStage,
   onOpen,
   onAnalizar,
+  onScheduleInterview,
+  onSendEmail,
+  onSendWhatsapp,
+  onAddTag,
+  onAddNote,
   analyzing = false,
   slaDays,
   isDragOverlay = false,
@@ -143,29 +153,43 @@ export function PipelineCard({
         )}
 
         {!terminal && !isDragOverlay && (
-          <Menu
-            align="end"
-            trigger={
-              <IconButton
-                aria-label="Más opciones"
-                size="sm"
-                variant="ghost"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                  <circle cx="8" cy="3" r="1.4" />
-                  <circle cx="8" cy="8" r="1.4" />
-                  <circle cx="8" cy="13" r="1.4" />
-                </svg>
-              </IconButton>
-            }
-          >
-            <MenuItem onClick={() => onOpen(application.id)}>Ver ficha</MenuItem>
-            {application.aiScore != null && onAnalizar && (
-              <MenuItem onClick={() => onAnalizar(application.id)}>Re-analizar con IA</MenuItem>
-            )}
-          </Menu>
+          // El wrapper (no el trigger) frena la propagación: el toggle del popover lo abre
+          // el <span> interno de Menu, que está ENTRE este wrapper y el trigger — si el
+          // stopPropagation fuera en el trigger, mataría el evento antes de llegar a ese
+          // <span> y el menú nunca abriría (bug real que esto corrige).
+          <span onClick={(e) => e.stopPropagation()}>
+            <Menu
+              align="end"
+              trigger={
+                <IconButton
+                  aria-label="Más opciones"
+                  size="sm"
+                  variant="ghost"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                    <circle cx="8" cy="3" r="1.4" />
+                    <circle cx="8" cy="8" r="1.4" />
+                    <circle cx="8" cy="13" r="1.4" />
+                  </svg>
+                </IconButton>
+              }
+            >
+              <MenuItem onClick={() => onOpen(application.id)}>Ver ficha</MenuItem>
+              {application.aiScore != null && onAnalizar && (
+                <MenuItem onClick={() => onAnalizar(application.id)}>
+                  Re-analizar con IA
+                </MenuItem>
+              )}
+              <MenuItem onClick={() => onScheduleInterview(application.id)}>
+                Agendar entrevista
+              </MenuItem>
+              <MenuItem onClick={() => onSendEmail(application.id)}>Enviar email</MenuItem>
+              <MenuItem onClick={() => onSendWhatsapp(application.id)}>Enviar WhatsApp</MenuItem>
+              <MenuItem onClick={() => onAddTag(application.id)}>Agregar etiqueta</MenuItem>
+              <MenuItem onClick={() => onAddNote(application.id)}>Agregar nota</MenuItem>
+            </Menu>
+          </span>
         )}
       </div>
 

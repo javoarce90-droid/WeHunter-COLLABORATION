@@ -28,7 +28,11 @@ export async function guardarScreeningAction(
   const result = await definirPreguntasScreening(
     jobId,
     parsed.data,
-    { organizationId: membership?.organizationId ?? null, role: membership?.role ?? null },
+    {
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+      membershipId: membership?.id ?? null,
+    },
     { getJob: getJobById, syncQuestions: syncScreeningQuestions },
   );
 

@@ -7,11 +7,11 @@ const deps = (updated = true): EditarCandidatoDeps => ({
 const ctx = { organizationId: "org-1", role: "recruiter" as const };
 
 describe("editarCandidato", () => {
-  it("rechaza al consultor", async () => {
+  it("rechaza al viewer", async () => {
     const d = deps();
     const res = await editarCandidato(
       { candidateId: "cand-1", fullName: "Ada Lovelace" },
-      { ...ctx, role: "consultant" },
+      { ...ctx, role: "viewer" },
       d,
     );
     expect(res.ok).toBe(false);

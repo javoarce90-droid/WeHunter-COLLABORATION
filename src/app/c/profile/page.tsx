@@ -44,7 +44,7 @@ export default async function CandidateProfilePage() {
       <header className="bg-sidebar text-white shadow-md border-b border-sidebar-alt/30">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/portal" className="flex items-center gap-2">
-            <WehunterLogo variant="white" height={22} />
+            <WehunterLogo variant="white" height={22} priority />
             <span className="text-xs bg-primary px-2 py-0.5 rounded font-sans font-normal">Talento</span>
           </Link>
 

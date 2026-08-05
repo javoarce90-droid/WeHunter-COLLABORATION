@@ -1,4 +1,9 @@
-import type { AiProvider, ScoreBreakdown } from "@/lib/ai";
+import type {
+  AiProvider,
+  ScoreBreakdown,
+  CandidateExperienceInput,
+  CandidateEducationInput,
+} from "@/lib/ai";
 import type { OrgRole } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 
@@ -7,11 +12,19 @@ export type ScoringCandidate = {
   skills: string[] | null;
   summary: string | null;
   source: string | null;
-  hasCv: boolean;
+  experience: CandidateExperienceInput[];
+  education: CandidateEducationInput[];
 };
 
 export type PuntuarInput = {
-  job: { title: string; position?: string | null; skills: string[] | null };
+  job: {
+    title: string;
+    position?: string | null;
+    skills: string[] | null;
+    objectives?: string | null;
+    requirements?: string | null;
+    responsibilities?: string | null;
+  };
   applications: { id: string; candidate: ScoringCandidate }[];
 };
 

@@ -2,9 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { definirPreguntasScreening } from "./definir-preguntas-screening";
 import type { DefinirPreguntasScreeningDeps, ScreeningQuestionInput } from "./definir-preguntas-screening";
 
-const ctx = { organizationId: "org-1", role: "recruiter" as const };
+const ctx = { organizationId: "org-1", role: "recruiter" as const, membershipId: "m1" };
 const deps = (overrides: Partial<DefinirPreguntasScreeningDeps> = {}): DefinirPreguntasScreeningDeps => ({
-  getJob: vi.fn().mockResolvedValue({ id: "job-1" }),
+  getJob: vi.fn().mockResolvedValue({ id: "job-1", assignedTo: "m1", sourcerId: null }),
   syncQuestions: vi.fn().mockResolvedValue(undefined),
   ...overrides,
 });
@@ -14,7 +14,12 @@ const yesNo: ScreeningQuestionInput = { type: "yes_no", label: "¿Tenés visa?",
 describe("definirPreguntasScreening", () => {
   it("rechaza sin organization/rol", async () => {
     const d = deps();
-    const res = await definirPreguntasScreening("job-1", [yesNo], { organizationId: null, role: null }, d);
+    const res = await definirPreguntasScreening(
+      "job-1",
+      [yesNo],
+      { organizationId: null, role: null, membershipId: null },
+      d,
+    );
     expect(res.ok).toBe(false);
     expect(d.syncQuestions).not.toHaveBeenCalled();
   });
@@ -28,6 +33,15 @@ describe("definirPreguntasScreening", () => {
 
   it("rechaza si la búsqueda no pertenece a la org", async () => {
     const d = deps({ getJob: vi.fn().mockResolvedValue(null) });
+    const res = await definirPreguntasScreening("job-1", [yesNo], ctx, d);
+    expect(res.ok).toBe(false);
+    expect(d.syncQuestions).not.toHaveBeenCalled();
+  });
+
+  it("rechaza a un recruiter que no es responsable ni sourcer de la búsqueda", async () => {
+    const d = deps({
+      getJob: vi.fn().mockResolvedValue({ id: "job-1", assignedTo: "otro", sourcerId: null }),
+    });
     const res = await definirPreguntasScreening("job-1", [yesNo], ctx, d);
     expect(res.ok).toBe(false);
     expect(d.syncQuestions).not.toHaveBeenCalled();

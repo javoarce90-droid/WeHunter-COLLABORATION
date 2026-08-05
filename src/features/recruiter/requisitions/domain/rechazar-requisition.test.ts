@@ -66,4 +66,13 @@ describe("rechazarRequisition", () => {
     expect(result.error).toMatch(/permisos/i);
     expect(deps.rejectRequisition).not.toHaveBeenCalled();
   });
+
+  it("el Hiring Manager nunca rechaza, ni siquiera la suya propia (carga, no revisa)", async () => {
+    const deps = makeDeps();
+    const result = await rechazarRequisition(input, { ...ctx, role: "hiring_manager" }, deps);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatch(/permisos/i);
+    expect(deps.rejectRequisition).not.toHaveBeenCalled();
+  });
 });

@@ -46,7 +46,15 @@ function FilterTabs({
   );
 }
 
-function JobRow({ job, orgSlug }: { job: JobWithStats; orgSlug: string | null }) {
+function JobRow({
+  job,
+  orgSlug,
+  canManage,
+}: {
+  job: JobWithStats;
+  orgSlug: string | null;
+  canManage: boolean;
+}) {
   const meta = JOB_STATUS_META[job.status];
   const router = useRouter();
   const toast = useToast();
@@ -126,41 +134,47 @@ function JobRow({ job, orgSlug }: { job: JobWithStats; orgSlug: string | null })
             <span className="text-xs text-muted">{job.assigneeName.split(" ")[0]}</span>
           </div>
         )}
-        <Menu
-          align="end"
-          trigger={
-            <IconButton aria-label={`Acciones de ${job.title}`} size="sm" variant="ghost">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                <circle cx="8" cy="3" r="1.4" />
-                <circle cx="8" cy="8" r="1.4" />
-                <circle cx="8" cy="13" r="1.4" />
-              </svg>
-            </IconButton>
-          }
-        >
-          {STATUS_ACTIONS[job.status].length > 0 && (
-            <>
-              <MenuLabel>Cambiar estado</MenuLabel>
-              {STATUS_ACTIONS[job.status].map((a) => (
-                <MenuItem
-                  key={a.to}
-                  onClick={() => (a.to === "open" ? setConfirmPublish(true) : cambiarEstado(a.to))}
-                  destructive={a.to === "closed" || a.to === "archived"}
-                >
-                  {a.label}
-                </MenuItem>
-              ))}
-              <MenuSeparator />
-            </>
-          )}
-          <MenuItem onClick={() => router.push(`/jobs/${job.id}/edit`)}>Editar</MenuItem>
-          <MenuItem onClick={duplicar}>Duplicar</MenuItem>
-          {job.status === "open" && (
-            <MenuItem onClick={copiarLink} disabled={!orgSlug}>
-              Compartir / Copiar link
-            </MenuItem>
-          )}
-        </Menu>
+        {(canManage || job.status === "open") && (
+          <Menu
+            align="end"
+            trigger={
+              <IconButton aria-label={`Acciones de ${job.title}`} size="sm" variant="ghost">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                  <circle cx="8" cy="3" r="1.4" />
+                  <circle cx="8" cy="8" r="1.4" />
+                  <circle cx="8" cy="13" r="1.4" />
+                </svg>
+              </IconButton>
+            }
+          >
+            {canManage && STATUS_ACTIONS[job.status].length > 0 && (
+              <>
+                <MenuLabel>Cambiar estado</MenuLabel>
+                {STATUS_ACTIONS[job.status].map((a) => (
+                  <MenuItem
+                    key={a.to}
+                    onClick={() => (a.to === "open" ? setConfirmPublish(true) : cambiarEstado(a.to))}
+                    destructive={a.to === "closed" || a.to === "archived"}
+                  >
+                    {a.label}
+                  </MenuItem>
+                ))}
+                <MenuSeparator />
+              </>
+            )}
+            {canManage && (
+              <>
+                <MenuItem onClick={() => router.push(`/jobs/${job.id}/edit`)}>Editar</MenuItem>
+                <MenuItem onClick={duplicar}>Duplicar</MenuItem>
+              </>
+            )}
+            {job.status === "open" && (
+              <MenuItem onClick={copiarLink} disabled={!orgSlug}>
+                Compartir / Copiar link
+              </MenuItem>
+            )}
+          </Menu>
+        )}
         <PublishConfirmDialog
           open={confirmPublish}
           onClose={() => setConfirmPublish(false)}
@@ -172,22 +186,25 @@ function JobRow({ job, orgSlug }: { job: JobWithStats; orgSlug: string | null })
   );
 }
 
-function EmptyAllState() {
+function EmptyAllState({ canManage }: { canManage: boolean }) {
   return (
     <div className="rounded-[var(--radius)] border border-dashed border-primary/25 bg-bg px-6 py-14 text-center">
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-light text-primary">
         <PlusGlyph />
       </div>
       <h3 className="mt-4 font-display text-base font-bold text-text">
-        Creá tu primera búsqueda
+        {canManage ? "Creá tu primera búsqueda" : "Todavía no tenés búsquedas asignadas"}
       </h3>
       <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
-        Una búsqueda es el punto de partida: definila y empezá a sumar candidatos a
-        su pipeline.
+        {canManage
+          ? "Una búsqueda es el punto de partida: definila y empezá a sumar candidatos a su pipeline."
+          : "Cuando te asignen una como responsable o sourcer, va a aparecer acá."}
       </p>
-      <Link href="/jobs/new" className={buttonVariants({ variant: "primary", className: "mt-5" })}>
-        Crear búsqueda
-      </Link>
+      {canManage && (
+        <Link href="/jobs/new" className={buttonVariants({ variant: "primary", className: "mt-5" })}>
+          Crear búsqueda
+        </Link>
+      )}
     </div>
   );
 }
@@ -233,16 +250,18 @@ export function JobsList({
   jobs,
   filter,
   orgSlug,
+  canManage,
 }: {
   jobs: JobWithStats[];
   filter: JobFilter;
   orgSlug: string | null;
+  canManage: boolean;
 }) {
   const [query, setQuery] = useState("");
 
   // Sin búsquedas en absoluto → estado de activación (enseña qué es una búsqueda).
   if (jobs.length === 0) {
-    return <EmptyAllState />;
+    return <EmptyAllState canManage={canManage} />;
   }
 
   // "Todas" incluye las archivadas — el filtro "Archivadas" sigue estando para verlas solas.
@@ -297,7 +316,7 @@ export function JobsList({
       ) : (
         <div className="animate-fade-in divide-y divide-border overflow-hidden rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
           {visible.map((job) => (
-            <JobRow key={job.id} job={job} orgSlug={orgSlug} />
+            <JobRow key={job.id} job={job} orgSlug={orgSlug} canManage={canManage} />
           ))}
         </div>
       )}

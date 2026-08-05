@@ -4,7 +4,7 @@ import { editarBusqueda, type EditarBusquedaDeps } from "./editar-busqueda";
 const deps = (updated = true): EditarBusquedaDeps => ({
   updateJobFields: vi.fn(async () => ({ updated })),
 });
-const ctx = { organizationId: "org-1", role: "recruiter" as const };
+const ctx = { organizationId: "org-1", role: "recruiter" as const, membershipId: "m1" };
 
 describe("editarBusqueda", () => {
   it("rechaza al consultor", async () => {
@@ -42,6 +42,22 @@ describe("editarBusqueda", () => {
       "j1",
       "org-1",
       expect.objectContaining({ title: "Backend Eng", description: "remoto" }),
+      "m1",
+    );
+  });
+
+  it("owner/admin no quedan acotados a una búsqueda asignada (sin scope)", async () => {
+    const d = deps();
+    await editarBusqueda(
+      { jobId: "j1", title: "Backend Eng" },
+      { ...ctx, role: "owner" },
+      d,
+    );
+    expect(d.updateJobFields).toHaveBeenCalledWith(
+      "j1",
+      "org-1",
+      expect.objectContaining({ title: "Backend Eng" }),
+      undefined,
     );
   });
 });

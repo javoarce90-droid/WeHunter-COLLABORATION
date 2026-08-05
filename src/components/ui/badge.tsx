@@ -37,8 +37,15 @@ const stageClasses: Record<StageVariant, string> = {
 };
 
 const stageKeys = new Set<string>([
-  "new", "screening", "interview", "interview_hr", "interview_tech",
-  "interview_client", "offer", "hired", "rejected",
+  "new",
+  "screening",
+  "interview",
+  "interview_hr",
+  "interview_tech",
+  "interview_client",
+  "offer",
+  "hired",
+  "rejected",
 ]);
 
 export function Badge({
@@ -54,7 +61,7 @@ export function Badge({
   return (
     <span
       className={[
-        "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold",
+        "inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold",
         colorClass,
         className,
       ].join(" ")}

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
+import { isAssignmentScoped } from "@/lib/auth/roles";
 import {
   getJobById,
   getJobAssignees,
@@ -39,6 +40,15 @@ export default async function JobLayout({
 
   const job = await getJobById(id, membership.organizationId);
   if (!job) notFound();
+  // Autorización primaria (database.md): un rol acotado por asignación no entra a una
+  // búsqueda que no es la suya ni por URL directa, no solo se le oculta del listado.
+  if (
+    isAssignmentScoped(membership.role) &&
+    job.assignedTo !== membership.id &&
+    job.sourcerId !== membership.id
+  ) {
+    notFound();
+  }
 
   const [assignees, members, orgSlug] = await Promise.all([
     getJobAssignees(id, membership.organizationId),

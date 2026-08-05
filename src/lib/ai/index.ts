@@ -7,6 +7,8 @@ export type {
   ScoreApplicationInput,
   ScoreApplicationResult,
   ScoreBreakdown,
+  CandidateExperienceInput,
+  CandidateEducationInput,
   DraftOfferInput,
   DraftJobPostingInput,
   DraftJobOfferInput,

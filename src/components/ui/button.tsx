@@ -11,8 +11,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary:
-    "bg-primary text-white hover:bg-primary-hover disabled:opacity-50",
+  primary: "bg-primary text-white hover:bg-primary-hover disabled:opacity-50",
   secondary:
     "border border-border bg-surface text-text hover:bg-bg disabled:opacity-50",
   ghost:
@@ -22,8 +21,8 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  default: "px-4 py-2.5 text-sm",
-  sm: "px-2.5 py-1.5 text-xs",
+  default: "px-4 py-3 text-sm",
+  sm: "px-3 py-2 text-xs",
 };
 
 export function buttonVariants({
@@ -32,7 +31,7 @@ export function buttonVariants({
   className = "",
 }: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}) {
   return [
-    "relative inline-flex items-center justify-center gap-1.5 rounded-[var(--radius)] font-semibold",
+    "relative inline-flex items-center justify-center gap-2 rounded-[var(--radius)] font-semibold",
     "outline-none transition-[transform,color,background-color,border-color,box-shadow] duration-150 ease-out",
     "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] active:scale-[0.98]",
     variantClasses[variant],
@@ -42,7 +41,18 @@ export function buttonVariants({
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = "primary", size = "default", loading = false, className = "", children, disabled, ...props }, ref) => (
+  (
+    {
+      variant = "primary",
+      size = "default",
+      loading = false,
+      className = "",
+      children,
+      disabled,
+      ...props
+    },
+    ref,
+  ) => (
     <button
       ref={ref}
       className={buttonVariants({ variant, size, className })}
@@ -55,7 +65,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           <Spinner />
         </span>
       )}
-      <span className={loading ? "contents invisible" : "contents"}>{children}</span>
+      <span className={loading ? "contents invisible" : "contents"}>
+        {children}
+      </span>
     </button>
   ),
 );

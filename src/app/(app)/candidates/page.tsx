@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { getActiveMembership } from "@/lib/auth/session";
+import { isAssignmentScoped } from "@/lib/auth/roles";
 import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listJobs } from "@/features/recruiter/jobs/data/jobs.queries";
 import { CandidatesList } from "@/features/recruiter/candidates/ui/CandidatesList";
@@ -37,7 +38,10 @@ async function CandidatesSection() {
   // Candidatos + búsquedas (para la acción masiva "postular a búsqueda") en paralelo.
   const [candidates, jobs] = await Promise.all([
     listCandidates(membership.organizationId),
-    listJobs(membership.organizationId),
+    listJobs(
+      membership.organizationId,
+      isAssignmentScoped(membership.role) ? membership.id : undefined,
+    ),
   ]);
   return (
     <CandidatesList

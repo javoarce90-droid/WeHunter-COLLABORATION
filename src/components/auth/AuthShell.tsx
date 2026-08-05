@@ -12,7 +12,7 @@ export function AuthShell({ tagline, children }: { tagline: string; children: Re
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <Link href="/" className="inline-block">
-            <WehunterLogo variant="white" height={36} />
+            <WehunterLogo variant="white" height={36} priority />
           </Link>
           <p className="mt-2 text-sm text-white/60">{tagline}</p>
         </div>

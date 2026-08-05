@@ -3,6 +3,7 @@ import { and, eq, desc, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db/client";
 import { jobs, applications, organizations, memberships, profiles, type Job } from "@/db/schema";
+import { assignedToMembership } from "./job-scope";
 
 /** Lecturas de búsquedas. Cliente RLS; además filtramos por organizationId activa. */
 
@@ -16,7 +17,10 @@ export type JobListItem = Pick<
   "id" | "title" | "status" | "createdAt" | "updatedAt"
 >;
 
-export async function listJobs(organizationId: string): Promise<JobListItem[]> {
+export async function listJobs(
+  organizationId: string,
+  scopeToMembershipId?: string,
+): Promise<JobListItem[]> {
   const db = await getDb();
   return db.rls(
     (tx) =>
@@ -29,7 +33,12 @@ export async function listJobs(organizationId: string): Promise<JobListItem[]> {
           updatedAt: jobs.updatedAt,
         })
         .from(jobs)
-        .where(eq(jobs.organizationId, organizationId))
+        .where(
+          and(
+            eq(jobs.organizationId, organizationId),
+            scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined,
+          ),
+        )
         .orderBy(desc(jobs.createdAt))
         .limit(LIST_LIMIT),
     "db.jobs.list",
@@ -59,6 +68,7 @@ export type JobWithStats = JobListItem & {
  */
 export async function listJobsWithStats(
   organizationId: string,
+  scopeToMembershipId?: string,
 ): Promise<JobWithStats[]> {
   const db = await getDb();
   return db.rls(
@@ -84,7 +94,12 @@ export async function listJobsWithStats(
         .leftJoin(applications, eq(applications.jobId, jobs.id))
         .innerJoin(memberships, eq(memberships.id, jobs.assignedTo))
         .innerJoin(profiles, eq(profiles.id, memberships.profileId))
-        .where(eq(jobs.organizationId, organizationId))
+        .where(
+          and(
+            eq(jobs.organizationId, organizationId),
+            scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined,
+          ),
+        )
         .groupBy(jobs.id, profiles.fullName)
         .orderBy(desc(jobs.createdAt))
         .limit(LIST_LIMIT),
@@ -106,6 +121,7 @@ export type RecentOpenJob = {
 export async function listRecentOpenJobs(
   organizationId: string,
   limitN = 3,
+  scopeToMembershipId?: string,
 ): Promise<RecentOpenJob[]> {
   const db = await getDb();
   return db.rls(
@@ -124,7 +140,13 @@ export async function listRecentOpenJobs(
         })
         .from(jobs)
         .leftJoin(applications, eq(applications.jobId, jobs.id))
-        .where(and(eq(jobs.organizationId, organizationId), eq(jobs.status, "open")))
+        .where(
+          and(
+            eq(jobs.organizationId, organizationId),
+            eq(jobs.status, "open"),
+            scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined,
+          ),
+        )
         .groupBy(jobs.id)
         .orderBy(desc(jobs.updatedAt))
         .limit(limitN),
@@ -205,13 +227,20 @@ export async function getJobAssignees(
 export async function getJobStatus(
   jobId: string,
   organizationId: string,
+  scopeToMembershipId?: string,
 ): Promise<Job["status"] | null> {
   const db = await getDb();
   const rows = await db.rls((tx) =>
     tx
       .select({ status: jobs.status })
       .from(jobs)
-      .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
+      .where(
+        and(
+          eq(jobs.id, jobId),
+          eq(jobs.organizationId, organizationId),
+          scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined,
+        ),
+      )
       .limit(1),
     "db.jobs.get-status",
   );

@@ -5,8 +5,10 @@ import {
   shortlists,
   shortlistCandidates,
   shortlistShares,
+  shortlistFeedback,
   applications,
 } from "@/db/schema";
+import type { FeedbackDecision } from "@/features/company/shortlist-review/domain/registrar-feedback";
 
 /** Escrituras de shortlists. Cliente RLS; el organizationId acota a la org activa. */
 
@@ -94,6 +96,63 @@ export async function createShare(args: {
     "db.shortlists.share.create",
   );
   return { shareId: rows[0]!.id, token: args.token };
+}
+
+/** Compartir interno con un Hiring Manager (sin token real): sigue generando uno igual
+ *  para no aflojar la constraint NOT NULL/unique de la columna, pero nunca se expone. */
+export async function createShareForMembership(args: {
+  organizationId: string;
+  shortlistId: string;
+  token: string;
+  sharedWithMembershipId: string;
+  createdBy: string;
+}): Promise<{ shareId: string }> {
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .insert(shortlistShares)
+      .values({
+        organizationId: args.organizationId,
+        shortlistId: args.shortlistId,
+        token: args.token,
+        sharedWithMembershipId: args.sharedWithMembershipId,
+        createdBy: args.createdBy,
+      })
+      .returning({ id: shortlistShares.id }),
+    "db.shortlists.share.create-for-membership",
+  );
+  return { shareId: rows[0]!.id };
+}
+
+/** Feedback interno del HM (con sesión, vía RLS) — a diferencia de `submit_shortlist_feedback`
+ *  (función SECURITY DEFINER del camino Cliente por token), acá no hace falta bypass: el HM
+ *  ya está autenticado y la policy `tenant_isolation` alcanza. Mismo upsert de una decisión
+ *  por candidato (constraint única en `shortlist_candidate_id`, compartida con el otro camino). */
+export async function upsertShortlistFeedbackDirect(args: {
+  organizationId: string;
+  shortlistCandidateId: string;
+  shareId: string;
+  decision: FeedbackDecision;
+  comment: string | null;
+}): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx
+        .insert(shortlistFeedback)
+        .values({
+          organizationId: args.organizationId,
+          shortlistCandidateId: args.shortlistCandidateId,
+          shareId: args.shareId,
+          decision: args.decision,
+          comment: args.comment,
+        })
+        .onConflictDoUpdate({
+          target: shortlistFeedback.shortlistCandidateId,
+          set: { shareId: args.shareId, decision: args.decision, comment: args.comment, updatedAt: new Date() },
+        }),
+    "db.shortlists.feedback.upsert-direct",
+  );
 }
 
 export async function revokeShare(

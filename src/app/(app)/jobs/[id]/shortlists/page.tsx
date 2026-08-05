@@ -8,6 +8,7 @@ import {
   listShortlistCandidates,
   listSharesByShortlist,
 } from "@/features/recruiter/shortlists/data/shortlists.queries";
+import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { CrearShortlistForm } from "@/features/recruiter/shortlists/ui/CrearShortlistForm";
 import { ShortlistCard } from "@/features/recruiter/shortlists/ui/ShortlistCard";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -29,9 +30,12 @@ export default async function ShortlistsPage({ params }: Props) {
   const proto = reqHeaders.get("x-forwarded-proto") ?? "http";
   const appUrl = host ? `${proto}://${host}` : "";
 
-  const [applications, summaries] = await Promise.all([
+  const [applications, summaries, members] = await Promise.all([
     listApplicationsByJob(jobId, membership.organizationId),
     listShortlistsByJob(jobId, membership.organizationId),
+    membership.workspaceType === "enterprise"
+      ? listMembers(membership.organizationId)
+      : Promise.resolve([]),
   ]);
 
   const candidateOptions = applications.map((a) => ({
@@ -39,6 +43,11 @@ export default async function ShortlistsPage({ params }: Props) {
     fullName: a.candidate.fullName,
     stage: STAGE_LABELS[a.stage],
   }));
+
+  // Compartir con HM solo existe en Enterprise (§9) — ahí es donde el rol tiene sentido.
+  const hmOptions = members
+    .filter((m) => m.status === "active" && m.role === "hiring_manager")
+    .map((m) => ({ membershipId: m.membershipId, name: m.name ?? m.email }));
 
   // Para cada shortlist, traemos candidatos (con feedback) y sus enlaces.
   const shortlists = await Promise.all(
@@ -76,6 +85,7 @@ export default async function ShortlistsPage({ params }: Props) {
               candidates={sl.candidates}
               shares={sl.shares}
               appUrl={appUrl}
+              hmOptions={hmOptions}
             />
           ))}
         </div>

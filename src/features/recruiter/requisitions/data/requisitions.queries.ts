@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { clients, requisitions, type Requisition } from "@/db/schema";
+import { clients, profiles, requisitions, type Requisition } from "@/db/schema";
 
 /** Lecturas de solicitudes de búsqueda (§17). Cliente RLS; filtramos por organization activa. */
 
@@ -18,12 +18,28 @@ export type RequisitionListRow = {
   estimatedStartDate: string | null;
   createdAt: Date;
   clientName: string | null;
+  /** Nombre de quien la cargó, cuando es un Hiring Manager interno (createdByProfileId).
+   *  null en el camino Cliente (ahí lo que importa es `clientName`). */
+  requestedByName: string | null;
+};
+
+/** A lo sumo UNA de las tres claves va seteada por rol — ver `isClientScoped`,
+ *  `isEnterpriseAssignedScoped` e `isRequesterScoped` en `@/lib/auth/roles`. `null` explícito
+ *  en cualquiera (scoping aplica pero el actor no tiene el dato — ej. recruiter Team sin
+ *  cliente asignado) devuelve vacío sin ir a la base. */
+export type RequisitionsScope = {
+  clientId?: string | null;
+  assignedToMembershipId?: string | null;
+  createdByProfileId?: string | null;
 };
 
 /** Bandeja de solicitudes con el nombre del cliente (una query, sin N+1). */
 export async function listRequisitions(
   organizationId: string,
+  scope?: RequisitionsScope,
 ): Promise<RequisitionListRow[]> {
+  if (scope && Object.values(scope).some((v) => v === null)) return [];
+
   const db = await getDb();
   return db.rls(
     (tx) =>
@@ -40,10 +56,23 @@ export async function listRequisitions(
           estimatedStartDate: requisitions.estimatedStartDate,
           createdAt: requisitions.createdAt,
           clientName: clients.name,
+          requestedByName: profiles.fullName,
         })
         .from(requisitions)
         .leftJoin(clients, eq(requisitions.clientId, clients.id))
-        .where(eq(requisitions.organizationId, organizationId))
+        .leftJoin(profiles, eq(requisitions.createdByProfileId, profiles.id))
+        .where(
+          and(
+            eq(requisitions.organizationId, organizationId),
+            scope?.clientId ? eq(requisitions.clientId, scope.clientId) : undefined,
+            scope?.assignedToMembershipId
+              ? eq(requisitions.assignedToMembershipId, scope.assignedToMembershipId)
+              : undefined,
+            scope?.createdByProfileId
+              ? eq(requisitions.createdByProfileId, scope.createdByProfileId)
+              : undefined,
+          ),
+        )
         .orderBy(desc(requisitions.createdAt))
         .limit(LIST_LIMIT),
     "db.requisitions.list",

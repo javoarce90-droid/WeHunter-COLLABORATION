@@ -1,4 +1,4 @@
-import { and, eq, desc, inArray, count } from "drizzle-orm";
+import { and, eq, desc, inArray, isNull, count } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   shortlists,
@@ -7,6 +7,9 @@ import {
   shortlistFeedback,
   applications,
   candidates,
+  memberships,
+  profiles,
+  jobs,
 } from "@/db/schema";
 import type { ApplicationStage } from "@/features/recruiter/applications/schema";
 import type { FeedbackDecision } from "@/features/company/shortlist-review/domain/registrar-feedback";
@@ -119,6 +122,9 @@ export type ShareRow = {
   expiresAt: Date | null;
   revokedAt: Date | null;
   createdAt: Date;
+  /** Seteado solo en el share interno a un Hiring Manager (no en el link externo al Cliente). */
+  sharedWithMembershipId: string | null;
+  sharedWithName: string | null;
 };
 
 export async function listSharesByShortlist(
@@ -135,8 +141,12 @@ export async function listSharesByShortlist(
         expiresAt: shortlistShares.expiresAt,
         revokedAt: shortlistShares.revokedAt,
         createdAt: shortlistShares.createdAt,
+        sharedWithMembershipId: shortlistShares.sharedWithMembershipId,
+        sharedWithName: profiles.fullName,
       })
       .from(shortlistShares)
+      .leftJoin(memberships, eq(shortlistShares.sharedWithMembershipId, memberships.id))
+      .leftJoin(profiles, eq(memberships.profileId, profiles.id))
       .where(
         and(
           eq(shortlistShares.shortlistId, shortlistId),
@@ -146,6 +156,109 @@ export async function listSharesByShortlist(
       .orderBy(desc(shortlistShares.createdAt)),
     "db.shortlists.shares.list",
   );
+}
+
+export type SharedShortlistSummary = {
+  shortlistId: string;
+  shortlistName: string;
+  jobId: string;
+  jobTitle: string;
+  sharedAt: Date;
+};
+
+/** Shortlists compartidos internamente CON este Hiring Manager (vista propia, sin token) —
+ *  ver `compartirConHM`. Una fila por share activo (no revocado). */
+export async function listShortlistsSharedWithMembership(
+  membershipId: string,
+  organizationId: string,
+): Promise<SharedShortlistSummary[]> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          shortlistId: shortlists.id,
+          shortlistName: shortlists.name,
+          jobId: shortlists.jobId,
+          jobTitle: jobs.title,
+          sharedAt: shortlistShares.createdAt,
+        })
+        .from(shortlistShares)
+        .innerJoin(shortlists, eq(shortlistShares.shortlistId, shortlists.id))
+        .innerJoin(jobs, eq(shortlists.jobId, jobs.id))
+        .where(
+          and(
+            eq(shortlistShares.sharedWithMembershipId, membershipId),
+            eq(shortlistShares.organizationId, organizationId),
+            isNull(shortlistShares.revokedAt),
+          ),
+        )
+        .orderBy(desc(shortlistShares.createdAt)),
+    "db.shortlists.shared-with-membership",
+  );
+  return rows;
+}
+
+/** Gate del detalle de un shortlist compartido: existe y sigue activo (no revocado) para
+ *  ESTE membership puntual. Trae el título de la búsqueda para la cabecera de la pantalla. */
+export async function getSharedShortlistForMembership(
+  shortlistId: string,
+  membershipId: string,
+  organizationId: string,
+): Promise<{ shortlistId: string; name: string; jobId: string; jobTitle: string } | null> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          shortlistId: shortlists.id,
+          name: shortlists.name,
+          jobId: shortlists.jobId,
+          jobTitle: jobs.title,
+        })
+        .from(shortlistShares)
+        .innerJoin(shortlists, eq(shortlistShares.shortlistId, shortlists.id))
+        .innerJoin(jobs, eq(shortlists.jobId, jobs.id))
+        .where(
+          and(
+            eq(shortlistShares.shortlistId, shortlistId),
+            eq(shortlistShares.sharedWithMembershipId, membershipId),
+            eq(shortlistShares.organizationId, organizationId),
+            isNull(shortlistShares.revokedAt),
+          ),
+        )
+        .limit(1),
+    "db.shortlists.shared-detail",
+  );
+  return rows[0] ?? null;
+}
+
+/** Confirma que ESTE shortlistCandidateId está en un shortlist compartido (activo) con ESTE
+ *  membership — autorización de `registrarFeedbackInterno` antes de escribir. */
+export async function getActiveShareForCandidate(args: {
+  shortlistCandidateId: string;
+  membershipId: string;
+  organizationId: string;
+}): Promise<{ shareId: string } | null> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ shareId: shortlistShares.id })
+        .from(shortlistCandidates)
+        .innerJoin(shortlistShares, eq(shortlistCandidates.shortlistId, shortlistShares.shortlistId))
+        .where(
+          and(
+            eq(shortlistCandidates.id, args.shortlistCandidateId),
+            eq(shortlistShares.sharedWithMembershipId, args.membershipId),
+            eq(shortlistCandidates.organizationId, args.organizationId),
+            isNull(shortlistShares.revokedAt),
+          ),
+        )
+        .limit(1),
+    "db.shortlists.active-share-for-candidate",
+  );
+  return rows[0] ?? null;
 }
 
 export type ShortlistCandidateWithFeedback = {

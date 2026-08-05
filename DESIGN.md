@@ -4,40 +4,40 @@
 
 ### Palette
 
-| Token | Valor | Uso |
-|---|---|---|
-| `--primary` | `#7B2FDB` | Acción principal, foco, links activos |
-| `--primary-hover` | `#6626B8` | Hover de botones y elementos primarios |
-| `--primary-light` | `#F3EDFC` | Fondos suaves purple, badges, chips |
-| `--sidebar` | `#1C1533` | Sidebar dark navy |
-| `--sidebar-mid` | `#251B42` | Secciones internas del sidebar |
-| `--sidebar-alt` | `#2A2147` | Items activos del sidebar |
-| `--surface` | `#FFFFFF` | Cards, modales, áreas de contenido |
-| `--bg` | `#F7F8FA` | Fondo general de la app |
-| `--border` | `#E5E7EB` | Bordes de cards, inputs, separadores |
-| `--text` | `#0F0A1A` | Texto principal |
-| `--muted` | `#6B6578` | Labels, metadata, texto secundario |
-| `--ai` | `#9D6DF1` | Elementos de IA, gradientes purple claro |
-| `--success` | `#059669` | Estados positivos, hired, confirmaciones |
-| `--warning` | `#EA580C` | Alertas, offer stage, urgente |
-| `--danger` | `#DC2626` | Errores, rejected, acciones destructivas |
+| Token             | Valor     | Uso                                      |
+| ----------------- | --------- | ---------------------------------------- |
+| `--primary`       | `#7B2FDB` | Acción principal, foco, links activos    |
+| `--primary-hover` | `#6626B8` | Hover de botones y elementos primarios   |
+| `--primary-light` | `#F3EDFC` | Fondos suaves purple, badges, chips      |
+| `--sidebar`       | `#1C1533` | Sidebar dark navy                        |
+| `--sidebar-mid`   | `#251B42` | Secciones internas del sidebar           |
+| `--sidebar-alt`   | `#2A2147` | Items activos del sidebar                |
+| `--surface`       | `#FFFFFF` | Cards, modales, áreas de contenido       |
+| `--bg`            | `#F7F8FA` | Fondo general de la app                  |
+| `--border`        | `#E5E7EB` | Bordes de cards, inputs, separadores     |
+| `--text`          | `#0F0A1A` | Texto principal                          |
+| `--muted`         | `#6B6578` | Labels, metadata, texto secundario       |
+| `--ai`            | `#9D6DF1` | Elementos de IA, gradientes purple claro |
+| `--success`       | `#059669` | Estados positivos, hired, confirmaciones |
+| `--warning`       | `#EA580C` | Alertas, offer stage, urgente            |
+| `--danger`        | `#DC2626` | Errores, rejected, acciones destructivas |
 
 ### Semántica de stages del pipeline
 
-| Stage | Color fondo | Color texto |
-|---|---|---|
-| `new` | `#F3F4F6` | `#374151` |
-| `screening` | `#DBEAFE` | `#1E40AF` |
-| `interview` | `#FEF3C7` | `#92400E` |
-| `offer` | `#F3EDFC` | `#6626B8` |
-| `hired` | `#D1FAE5` | `#065F46` |
-| `rejected` | `#FEE2E2` | `#991B1B` |
+| Stage       | Color fondo | Color texto |
+| ----------- | ----------- | ----------- |
+| `new`       | `#F3F4F6`   | `#374151`   |
+| `screening` | `#DBEAFE`   | `#1E40AF`   |
+| `interview` | `#FEF3C7`   | `#92400E`   |
+| `offer`     | `#F3EDFC`   | `#6626B8`   |
+| `hired`     | `#D1FAE5`   | `#065F46`   |
+| `rejected`  | `#FEE2E2`   | `#991B1B`   |
 
 ## Typography
 
-| Variable | Fuente | Uso |
-|---|---|---|
-| `--font-sans` / `--font-inter` | Inter | Body, UI, labels, inputs |
+| Variable                                 | Fuente            | Uso                         |
+| ---------------------------------------- | ----------------- | --------------------------- |
+| `--font-sans` / `--font-inter`           | Inter             | Body, UI, labels, inputs    |
 | `--font-display` / `--font-plus-jakarta` | Plus Jakarta Sans | Headings, page titles, logo |
 
 - **Body base**: 14px / line-height 1.5 / Inter
@@ -47,16 +47,20 @@
 
 ### Escala de tamaños típicos
 
-| Contexto | Size | Weight |
-|---|---|---|
-| Page title | 22–26px | 700 |
-| Section heading | 16–18px | 700 |
-| Card title | 14–15px | 700 |
-| Body / default | 13–14px | 400–500 |
+| Contexto        | Size    | Weight  |
+| --------------- | ------- | ------- |
+| Page title      | 22–26px | 700     |
+| Section heading | 16–18px | 700     |
+| Card title      | 14–15px | 700     |
+| Body / default  | 13–14px | 400–500 |
 | Label / caption | 11–12px | 500–600 |
 
 ## Spacing & Layout
 
+- **Escala de spacing**: solo pasos ENTEROS de Tailwind (múltiplos de 4px: `1`=4px, `2`=8px,
+  `3`=12px, `4`=16px, `5`=20px, `6`=24px...). Nada de medios pasos (`py-2.5`, `gap-1.5`,
+  `px-3.5`, `mb-0.5`) — rompen el ritmo y quedan apretados. Al tocar un componente que todavía
+  tenga un medio paso, redondear hacia arriba al entero siguiente (más aire, nunca menos).
 - **Border radius**: `10px` (`--radius`) en cards, inputs, botones. `8px` en elementos secundarios. `999px` en badges pill y chips.
 - **Shadow**: `0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.04)`
 - **Sidebar width**: `260px`
@@ -76,10 +80,10 @@ Variantes: `primary` · `secondary` · `ghost` · `destructive` · `sm`
 <Button variant="ghost" size="sm">Ver más</Button>
 ```
 
-- Primary: `bg-primary text-white hover:bg-primary-hover`, `rounded-[var(--radius)]`, `px-4 py-2.5 text-sm font-semibold`
+- Primary: `bg-primary text-white hover:bg-primary-hover`, `rounded-[var(--radius)]`, `px-4 py-3 text-sm font-semibold`
 - Secondary: `border border-border bg-surface text-text hover:bg-bg`
 - Ghost: `bg-transparent text-muted border border-border hover:bg-bg`
-- Sm: `px-2.5 py-1.5 text-xs`
+- Sm: `px-3 py-2 text-xs`
 
 Estados (todos los botones): `hover` por variante · `focus-visible` ring `--focus-ring` (`--focus-ring-danger` en destructive) · `active:scale-[0.98]` (feedback táctil) · `disabled:opacity-50` · `loading` (prop) que bloquea el botón y muestra `<Spinner>` inline preservando el ancho. Para forms con server action, usar `SubmitButton` (deriva `loading` de `useFormStatus`). `Spinner` es solo para acciones puntuales; para carga de contenido va `Skeleton`.
 

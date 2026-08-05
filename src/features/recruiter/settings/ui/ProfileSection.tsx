@@ -31,10 +31,16 @@ export function ProfileSection({
   profile,
   email,
   hasAvatar,
+  showCommunityCheckbox = true,
 }: {
   profile: OwnProfile | null;
   email: string;
   hasAvatar: boolean;
+  /** Sourcer y Hiring Manager no pueden aparecer en la Comunidad (docs/BACKLOG.md). Al
+   *  ocultar el checkbox, el submit manda `visibleInCommunity: false` igual (el action lee
+   *  `formData.get("visibleInCommunity") === "on"` — ausente = false), así que también
+   *  corrige el valor si ya estaba en true de antes. */
+  showCommunityCheckbox?: boolean;
 }) {
   const [state, dispatch, pending] = useActionState(actualizarPerfilAction, {});
   const fileRef = useRef<HTMLInputElement>(null);
@@ -109,11 +115,13 @@ export function ProfileSection({
         />
       </Field>
 
-      <Checkbox
-        name="visibleInCommunity"
-        defaultChecked={profile?.visibleInCommunity ?? true}
-        label="Aparecer en la Comunidad WeHunter"
-      />
+      {showCommunityCheckbox && (
+        <Checkbox
+          name="visibleInCommunity"
+          defaultChecked={profile?.visibleInCommunity ?? true}
+          label="Aparecer en la Comunidad WeHunter"
+        />
+      )}
 
       <div className="flex items-center gap-3">
         <Button type="submit" disabled={pending}>

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 import { listStageTemplates } from "@/features/recruiter/pipeline-stages/data/job-stage-templates.queries";
 import { StageTemplateEditor } from "@/features/recruiter/pipeline-stages/ui/StageTemplateEditor";
 import { SettingsSection } from "@/features/recruiter/settings/ui/SettingsSection";
@@ -14,6 +15,7 @@ import { SettingsSection } from "@/features/recruiter/settings/ui/SettingsSectio
 export default async function SettingsStagesPage() {
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!user || !membership) notFound();
+  if (!can(membership.role, "settings.stages_template")) notFound();
 
   const stages = await listStageTemplates(membership.organizationId);
 

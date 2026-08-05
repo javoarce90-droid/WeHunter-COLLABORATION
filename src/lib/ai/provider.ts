@@ -1,4 +1,7 @@
-import type { EmploymentType, JobModality } from "@/features/recruiter/jobs/domain/job-details";
+import type {
+  EmploymentType,
+  JobModality,
+} from "@/features/recruiter/jobs/domain/job-details";
 
 /**
  * Interfaz del proveedor de IA. La app SIEMPRE habla con esta interfaz, nunca con un modelo
@@ -9,13 +12,26 @@ import type { EmploymentType, JobModality } from "@/features/recruiter/jobs/doma
  * "lista para enchufar un modelo después".
  */
 
+export type CandidateExperienceInput = {
+  position: string;
+  company: string;
+  description: string | null;
+};
+
+export type CandidateEducationInput = {
+  degree: string;
+  institution: string;
+  fieldOfStudy: string | null;
+};
+
 export type ScoreApplicationInput = {
   candidate: {
     id: string;
     skills: string[] | null;
     summary: string | null;
     source: string | null;
-    hasCv: boolean;
+    experience: CandidateExperienceInput[];
+    education: CandidateEducationInput[];
   };
   job: {
     /** Nombre/headline de la búsqueda. */
@@ -23,6 +39,9 @@ export type ScoreApplicationInput = {
     /** Puesto real (rol canónico); cuando existe, la IA prioriza esto sobre `title`. */
     position?: string | null;
     skills: string[] | null;
+    objectives?: string | null;
+    requirements?: string | null;
+    responsibilities?: string | null;
   };
 };
 
@@ -41,7 +60,8 @@ export type ScoreApplicationResult = {
   score: number;
   /** Resumen corto del match (1–2 frases). */
   summary: string;
-  /** Señales de atención (ej. "sin CV", "sin skills coincidentes"). */
+  /** Señales de atención (ej. "perfil sin información cargada", "sin skills coincidentes").
+   *  Nunca por falta de CV: no es una señal de compatibilidad. */
   redFlags: string[];
   breakdown: ScoreBreakdown;
   /** Puntos fuertes del candidato para este puesto (2–4 items). */
@@ -197,12 +217,18 @@ export type DraftCandidateProfile = {
 };
 
 export interface AiProvider {
-  scoreApplication(input: ScoreApplicationInput): Promise<ScoreApplicationResult>;
+  scoreApplication(
+    input: ScoreApplicationInput,
+  ): Promise<ScoreApplicationResult>;
   draftOffer(input: DraftOfferInput): Promise<string>;
   draftJobPosting(input: DraftJobPostingInput): Promise<string>;
   draftJobOffer(input: DraftJobOfferInput): Promise<DraftJobOffer>;
-  draftScreeningQuestions(input: DraftScreeningQuestionsInput): Promise<DraftScreeningQuestion[]>;
-  draftCandidateProfile(input: DraftCandidateProfileInput): Promise<DraftCandidateProfile>;
+  draftScreeningQuestions(
+    input: DraftScreeningQuestionsInput,
+  ): Promise<DraftScreeningQuestion[]>;
+  draftCandidateProfile(
+    input: DraftCandidateProfileInput,
+  ): Promise<DraftCandidateProfile>;
   interviewGuide(input: InterviewGuideInput): Promise<string[]>;
   reportInsights(input: ReportInsightsInput): Promise<string>;
 }

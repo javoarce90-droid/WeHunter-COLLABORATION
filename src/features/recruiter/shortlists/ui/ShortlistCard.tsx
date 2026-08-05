@@ -7,7 +7,7 @@ import type {
   ShortlistCandidateWithFeedback,
   ShareRow,
 } from "../data/shortlists.queries";
-import { ShareControls } from "./ShareControls";
+import { ShareControls, type HMOption } from "./ShareControls";
 
 type Props = {
   shortlistId: string;
@@ -16,6 +16,7 @@ type Props = {
   candidates: ShortlistCandidateWithFeedback[];
   shares: ShareRow[];
   appUrl: string;
+  hmOptions: HMOption[];
 };
 
 const FEEDBACK_META: Record<
@@ -27,7 +28,7 @@ const FEEDBACK_META: Record<
   maybe: { label: "Quizás", variant: "warning" },
 };
 
-export function ShortlistCard({ shortlistId, jobId, name, candidates, shares, appUrl }: Props) {
+export function ShortlistCard({ shortlistId, jobId, name, candidates, shares, appUrl, hmOptions }: Props) {
   return (
     <Card>
       <div className="flex flex-col gap-3 p-4">
@@ -66,7 +67,13 @@ export function ShortlistCard({ shortlistId, jobId, name, candidates, shares, ap
           })}
         </ul>
 
-        <ShareControls shortlistId={shortlistId} jobId={jobId} shares={shares} appUrl={appUrl} />
+        <ShareControls
+          shortlistId={shortlistId}
+          jobId={jobId}
+          shares={shares}
+          appUrl={appUrl}
+          hmOptions={hmOptions}
+        />
       </div>
     </Card>
   );

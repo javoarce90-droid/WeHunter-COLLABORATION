@@ -96,7 +96,7 @@ export function PricingPage() {
           <span>Volver</span>
         </Link>
         <Link href="/">
-          <WehunterLogo height={26} />
+          <WehunterLogo height={26} priority />
         </Link>
         <Link href={CONTACT_HREF} className="demo-btn">
           Solicitar Demo

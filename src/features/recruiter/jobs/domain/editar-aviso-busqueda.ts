@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can } from "@/lib/auth/roles";
+import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import { cleanAvisoSection, cleanBenefits, type Benefit } from "./job-details";
 
@@ -22,6 +22,8 @@ export interface EditarAvisoBusquedaInput {
 export interface EditarAvisoBusquedaCtx {
   organizationId: string | null;
   role: OrgRole | null;
+  /** Roles acotados por asignación (ver `isAssignmentScoped`) solo editan lo propio. */
+  membershipId: string | null;
 }
 
 export interface EditarAvisoBusquedaDeps {
@@ -34,6 +36,7 @@ export interface EditarAvisoBusquedaDeps {
       responsibilities: string | null;
       benefits: Benefit[] | null;
     },
+    scopeToMembershipId?: string,
   ): Promise<{ updated: boolean }>;
 }
 
@@ -49,12 +52,18 @@ export async function editarAvisoBusqueda(
     return err("No tenés permisos para editar búsquedas.");
   }
 
-  const { updated } = await deps.updateJobAvisoFields(input.jobId, ctx.organizationId, {
-    objectives: cleanAvisoSection("objectives")(input.objectives),
-    requirements: cleanAvisoSection("requirements")(input.requirements),
-    responsibilities: cleanAvisoSection("responsibilities")(input.responsibilities),
-    benefits: cleanBenefits(input.benefits),
-  });
+  const scope = isAssignmentScoped(ctx.role) ? (ctx.membershipId ?? undefined) : undefined;
+  const { updated } = await deps.updateJobAvisoFields(
+    input.jobId,
+    ctx.organizationId,
+    {
+      objectives: cleanAvisoSection("objectives")(input.objectives),
+      requirements: cleanAvisoSection("requirements")(input.requirements),
+      responsibilities: cleanAvisoSection("responsibilities")(input.responsibilities),
+      benefits: cleanBenefits(input.benefits),
+    },
+    scope,
+  );
   if (!updated) {
     return err("La búsqueda no existe.");
   }

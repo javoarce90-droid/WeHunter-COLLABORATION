@@ -34,11 +34,17 @@ export function SectionCard({
         className,
       ].join(" ")}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
-        <h2 className="flex items-center gap-1.5 text-sm font-bold text-text">{title}</h2>
+      <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-text">
+          {title}
+        </h2>
         {action}
       </div>
-      <div className={[flush ? "" : "px-5 py-4", bodyClassName].filter(Boolean).join(" ")}>
+      <div
+        className={[flush ? "" : "px-5 py-4", bodyClassName]
+          .filter(Boolean)
+          .join(" ")}
+      >
         {children}
       </div>
     </section>

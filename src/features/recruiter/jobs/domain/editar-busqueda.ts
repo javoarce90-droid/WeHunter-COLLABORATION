@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can } from "@/lib/auth/roles";
+import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import {
   normalizeJobDetails,
@@ -18,6 +18,8 @@ export interface EditarBusquedaInput extends JobDetailsInput {
 export interface EditarBusquedaCtx {
   organizationId: string | null;
   role: OrgRole | null;
+  /** Roles acotados por asignación (ver `isAssignmentScoped`) solo editan lo propio. */
+  membershipId: string | null;
 }
 
 export interface EditarBusquedaDeps {
@@ -25,6 +27,7 @@ export interface EditarBusquedaDeps {
     jobId: string,
     organizationId: string,
     fields: { title: string; description: string | null } & JobDetails,
+    scopeToMembershipId?: string,
   ): Promise<{ updated: boolean }>;
 }
 
@@ -45,11 +48,17 @@ export async function editarBusqueda(
     return err("El título de la búsqueda es demasiado corto.");
   }
 
-  const { updated } = await deps.updateJobFields(input.jobId, ctx.organizationId, {
-    title,
-    description: input.description?.trim() || null,
-    ...normalizeJobDetails(input),
-  });
+  const scope = isAssignmentScoped(ctx.role) ? (ctx.membershipId ?? undefined) : undefined;
+  const { updated } = await deps.updateJobFields(
+    input.jobId,
+    ctx.organizationId,
+    {
+      title,
+      description: input.description?.trim() || null,
+      ...normalizeJobDetails(input),
+    },
+    scope,
+  );
   if (!updated) {
     return err("La búsqueda no existe.");
   }

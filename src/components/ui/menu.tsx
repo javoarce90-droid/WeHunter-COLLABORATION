@@ -22,7 +22,12 @@ interface MenuProps {
  * ningún `overflow:hidden` de las columnas del pipeline — guía impeccable), light-dismiss y
  * Esc gratis. Posicionado con JS (fixed) respecto del trigger.
  */
-export function Menu({ trigger, children, align = "end", className = "" }: MenuProps) {
+export function Menu({
+  trigger,
+  children,
+  align = "end",
+  className = "",
+}: MenuProps) {
   const anchorRef = useRef<HTMLSpanElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -42,7 +47,10 @@ export function Menu({ trigger, children, align = "end", className = "" }: MenuP
       : `${Math.round(r.bottom + 4)}px`;
     const left = align === "end" ? r.right - pop.offsetWidth : r.left;
     // Clamp al viewport para no desbordar a la derecha.
-    const clamped = Math.max(8, Math.min(left, window.innerWidth - pop.offsetWidth - 8));
+    const clamped = Math.max(
+      8,
+      Math.min(left, window.innerWidth - pop.offsetWidth - 8),
+    );
     pop.style.left = `${Math.round(clamped)}px`;
   }
 
@@ -127,7 +135,7 @@ export function MenuItem({
       type="button"
       role="menuitem"
       className={[
-        "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] font-medium transition-colors",
+        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[13px] font-medium transition-colors",
         "outline-none focus-visible:bg-bg disabled:opacity-50",
         destructive
           ? "text-danger hover:bg-danger/10"
@@ -136,7 +144,11 @@ export function MenuItem({
       ].join(" ")}
       {...props}
     >
-      {icon && <span className="grid h-4 w-4 shrink-0 place-items-center text-muted">{icon}</span>}
+      {icon && (
+        <span className="grid h-4 w-4 shrink-0 place-items-center text-muted">
+          {icon}
+        </span>
+      )}
       {children}
     </button>
   );
@@ -144,7 +156,7 @@ export function MenuItem({
 
 export function MenuLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-label">
+    <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-label">
       {children}
     </p>
   );

@@ -29,7 +29,11 @@ import {
   listApplicationsByCandidate,
   type CandidateApplication,
 } from "./data/applications.queries";
-import { debeNotificarCandidato, toStepperStage, ESTADO_VISIBLE_LABELS } from "@/features/candidate/portal/domain/gestionar-postulacion";
+import {
+  debeNotificarCandidato,
+  toStepperStage,
+  ESTADO_VISIBLE_LABELS,
+} from "@/features/candidate/portal/domain/gestionar-postulacion";
 import { notifyProfile } from "../notifications/data/notifications.mutations";
 import {
   insertApplication,
@@ -38,22 +42,32 @@ import {
   saveApplicationScore,
   moveToStage,
 } from "./data/applications.mutations";
-import { isStageActive, getActiveStages } from "../pipeline-stages/data/pipeline-stages.queries";
+import {
+  isStageActive,
+  getActiveStages,
+} from "../pipeline-stages/data/pipeline-stages.queries";
 import { getJobStage } from "../pipeline-stages/data/job-stages.queries";
 import { legacyStageFor } from "./domain/mover-a-etapa";
-import { getCandidateById, findDuplicateCandidate } from "../candidates/data/candidates.queries";
+import {
+  getCandidateById,
+  findDuplicateCandidate,
+} from "../candidates/data/candidates.queries";
 import { getCandidateResume } from "../candidates/data/resume.queries";
 import { setSavedToPool } from "../candidates/data/candidates.mutations";
 import { findLinkableProfile } from "../candidates/data/profile-link.queries";
 import { getLinkedCandidateProfile } from "../candidates/data/linked-profile.queries";
 import { getJobById } from "../jobs/data/jobs.queries";
+import { can } from "@/lib/auth/roles";
 import { candidateCreateInputSchema } from "../candidates/schema";
 import { cargarCandidato } from "../candidates/domain/cargar-candidato";
 import type { DuplicateCandidateMatch } from "../candidates/domain/duplicate-keys";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
 import { enviarMensaje } from "../messaging/domain/enviar-mensaje";
 import { MESSAGE_CHANNELS } from "../messaging/schema";
-import { ensureThread, recordOutbound } from "../messaging/data/messaging.mutations";
+import {
+  ensureThread,
+  recordOutbound,
+} from "../messaging/data/messaging.mutations";
 import { insertNote } from "../notes/data/notes.mutations";
 import { getAiProvider } from "@/lib/ai";
 
@@ -88,7 +102,8 @@ export async function postularCandidatoAction(
       role: membership.role,
     },
     {
-      getJobById: (jobId, organizationId) => getJobForPipeline(jobId, organizationId),
+      getJobById: (jobId, organizationId) =>
+        getJobForPipeline(jobId, organizationId),
       getCandidateById: (candidateId, organizationId) =>
         getCandidateById(candidateId, organizationId),
       findExistingApplication: (jobId, candidateId) =>
@@ -139,7 +154,8 @@ export async function postularVariosAction(
     role: membership.role,
   };
   const deps = {
-    getJobById: (id: string, organizationId: string) => getJobForPipeline(id, organizationId),
+    getJobById: (id: string, organizationId: string) =>
+      getJobForPipeline(id, organizationId),
     getCandidateById: (id: string, organizationId: string) =>
       getCandidateById(id, organizationId),
     findExistingApplication: (jId: string, cId: string) =>
@@ -162,7 +178,10 @@ export async function postularVariosAction(
 
   // Nada entró y todos fallaron → propagamos el primer motivo como error.
   if (added === 0) {
-    return { ok: false, error: firstError ?? "No se pudo postular a los candidatos." };
+    return {
+      ok: false,
+      error: firstError ?? "No se pudo postular a los candidatos.",
+    };
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);
@@ -206,26 +225,115 @@ export async function crearYPostularCandidatoAction(
     { findDuplicateCandidate, findLinkableProfile, insertCandidate },
   );
   if (!created.ok) {
-    return { error: created.error, duplicate: created.duplicate, profileMatch: created.profileMatch };
+    return {
+      error: created.error,
+      duplicate: created.duplicate,
+      profileMatch: created.profileMatch,
+    };
   }
 
   // 2. Postular a la búsqueda. Mismo caso de uso (y deps) que el postular del pool.
   const postulado = await postularCandidato(
     { jobId, candidateId: created.data.candidateId },
-    { userId: "", organizationId: membership.organizationId, role: membership.role },
+    {
+      userId: "",
+      organizationId: membership.organizationId,
+      role: membership.role,
+    },
     {
       getJobById: (id, organizationId) => getJobForPipeline(id, organizationId),
-      getCandidateById: (id, organizationId) => getCandidateById(id, organizationId),
+      getCandidateById: (id, organizationId) =>
+        getCandidateById(id, organizationId),
       findExistingApplication: (jId, cId) => findExistingApplication(jId, cId),
       createApplication: insertApplication,
     },
   );
   if (!postulado.ok) {
-    return { error: `Candidato creado en el pool, pero no se pudo postular: ${postulado.error}` };
+    return {
+      error: `Candidato creado en el pool, pero no se pudo postular: ${postulado.error}`,
+    };
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);
   return {};
+}
+
+const importarSourcingResultadoSchema = z.object({
+  jobId: z.string().uuid("ID de búsqueda inválido."),
+  name: z.string().trim().min(1),
+  headline: z.string().nullable(),
+  location: z.string().nullable(),
+  skills: z.array(z.string()),
+  linkedinUrl: z.string().trim().min(1),
+  summary: z.string().nullable().optional(),
+});
+
+/**
+ * Suma al pool y postula en un paso a un candidato encontrado por "Sourcing con IA" desde
+ * Postulados (ítem 9.4). A diferencia de `crearYPostularCandidatoAction`, el candidato viene
+ * de LinkedIn (sin email) — no se puede reusar `cargarCandidato`, que exige email siempre. Se
+ * dedupea por `linkedinUrl`: si el recruiter vuelve a correr sourcing y aparece el mismo
+ * perfil, se postula al candidato ya existente en vez de duplicarlo en el pool.
+ */
+export async function importarSourcingResultadoAction(input: {
+  jobId: string;
+  name: string;
+  headline: string | null;
+  location: string | null;
+  skills: string[];
+  linkedinUrl: string;
+  summary?: string | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const parsed = importarSourcingResultadoSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Datos inválidos." };
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { ok: false, error: "Tu rol no permite usar sourcing." };
+  }
+
+  const duplicate = await findDuplicateCandidate(membership.organizationId, {
+    linkedinUrl: parsed.data.linkedinUrl,
+  });
+
+  const candidateId = duplicate
+    ? duplicate.id
+    : (
+        await insertCandidate({
+          organizationId: membership.organizationId,
+          fullName: parsed.data.name,
+          email: null,
+          cvUrl: null,
+          headline: parsed.data.headline,
+          location: parsed.data.location,
+          linkedinUrl: parsed.data.linkedinUrl,
+          summary: parsed.data.summary ?? null,
+          skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
+          source: "linkedin",
+          phone: null,
+        })
+      ).candidateId;
+
+  const postulado = await postularCandidato(
+    { jobId: parsed.data.jobId, candidateId },
+    {
+      userId: "",
+      organizationId: membership.organizationId,
+      role: membership.role,
+    },
+    {
+      getJobById: (id, organizationId) => getJobForPipeline(id, organizationId),
+      getCandidateById: (id, organizationId) =>
+        getCandidateById(id, organizationId),
+      findExistingApplication: (jId, cId) => findExistingApplication(jId, cId),
+      createApplication: insertApplication,
+    },
+  );
+  if (!postulado.ok) return { ok: false, error: postulado.error };
+
+  revalidatePath(`/jobs/${parsed.data.jobId}/postulados`);
+  return { ok: true };
 }
 
 export async function moverEtapaAction(
@@ -245,7 +353,10 @@ export async function moverEtapaAction(
     return { error: "No autorizado." };
   }
 
-  const application = await getApplicationForMove(parsed.data.applicationId, membership.organizationId);
+  const application = await getApplicationForMove(
+    parsed.data.applicationId,
+    membership.organizationId,
+  );
   if (!application) {
     return { error: "Postulación no encontrada." };
   }
@@ -268,15 +379,22 @@ export async function moverEtapaAction(
     return { error: result.error };
   }
 
-  if (application.candidateProfileId && debeNotificarCandidato(application.stage, result.data.stage)) {
+  if (
+    application.candidateProfileId &&
+    debeNotificarCandidato(application.stage, result.data.stage)
+  ) {
     // Aviso al candidato: efecto secundario no crítico, no debe hacer fallar un cambio de
     // etapa que ya se persistió (mismo criterio que enviarMensaje en rechazarVariosAction).
     try {
-      await notifyProfile(membership.organizationId, application.candidateProfileId, {
-        type: "candidate_status",
-        title: `Tu postulación a "${application.jobTitle}" pasó a "${ESTADO_VISIBLE_LABELS[toStepperStage(result.data.stage)]}"`,
-        link: "/portal/mis-postulaciones",
-      });
+      await notifyProfile(
+        membership.organizationId,
+        application.candidateProfileId,
+        {
+          type: "candidate_status",
+          title: `Tu postulación a "${application.jobTitle}" pasó a "${ESTADO_VISIBLE_LABELS[toStepperStage(result.data.stage)]}"`,
+          link: "/portal/mis-postulaciones",
+        },
+      );
     } catch {
       // no-op: el cambio de etapa ya se aplicó, un fallo al notificar no debe revertirlo.
     }
@@ -309,7 +427,10 @@ export async function moverAEtapaAction(
     return { error: "No autorizado." };
   }
 
-  const application = await getApplicationForStageMove(parsed.data.applicationId, membership.organizationId);
+  const application = await getApplicationForStageMove(
+    parsed.data.applicationId,
+    membership.organizationId,
+  );
   if (!application) {
     return { error: "Postulación no encontrada." };
   }
@@ -333,18 +454,25 @@ export async function moverAEtapaAction(
   }
 
   if (application.candidateProfileId) {
-    const targetStage = await getJobStage(parsed.data.toStageId, membership.organizationId);
+    const targetStage = await getJobStage(
+      parsed.data.toStageId,
+      membership.organizationId,
+    );
     if (targetStage) {
       const toLegacyStage = legacyStageFor(targetStage);
       if (debeNotificarCandidato(application.stage, toLegacyStage)) {
         // Aviso al candidato: efecto secundario no crítico, no debe hacer fallar un cambio de
         // etapa que ya se persistió (mismo criterio que moverEtapaAction).
         try {
-          await notifyProfile(membership.organizationId, application.candidateProfileId, {
-            type: "candidate_status",
-            title: `Tu postulación a "${application.jobTitle}" pasó a "${ESTADO_VISIBLE_LABELS[toStepperStage(toLegacyStage)]}"`,
-            link: "/portal/mis-postulaciones",
-          });
+          await notifyProfile(
+            membership.organizationId,
+            application.candidateProfileId,
+            {
+              type: "candidate_status",
+              title: `Tu postulación a "${application.jobTitle}" pasó a "${ESTADO_VISIBLE_LABELS[toStepperStage(toLegacyStage)]}"`,
+              link: "/portal/mis-postulaciones",
+            },
+          );
         } catch {
           // no-op
         }
@@ -397,7 +525,17 @@ export async function analizarPostuladosAction(
   }
 
   const result = await puntuarPostulaciones(
-    { job: { title: job.title, position: job.position, skills: job.skills }, applications },
+    {
+      job: {
+        title: job.title,
+        position: job.position,
+        skills: job.skills,
+        objectives: job.objectives,
+        requirements: job.requirements,
+        responsibilities: job.responsibilities,
+      },
+      applications,
+    },
     { organizationId: membership.organizationId, role: membership.role },
     { provider: getAiProvider(), saveScore: saveApplicationScore },
   );
@@ -420,7 +558,10 @@ export async function analizarPostulacionAction(
   const membership = await getActiveMembership();
   if (!membership) return { ok: false, error: "No autorizado." };
 
-  const application = await getApplicationById(applicationId, membership.organizationId);
+  const application = await getApplicationById(
+    applicationId,
+    membership.organizationId,
+  );
   if (!application) return { ok: false, error: "Postulación no encontrada." };
 
   const [job, candidate] = await Promise.all([
@@ -429,22 +570,57 @@ export async function analizarPostulacionAction(
   ]);
   if (!job || !candidate) return { ok: false, error: "Datos no encontrados." };
 
-  // Para candidatos vinculados, profiles es la fuente de verdad de bio/skills/CV para el
-  // scoring — sin tocar candidates.summary/skills/cvUrl (eso lo lee la ficha, separada a propósito).
-  const linkedProfile = candidate.profileId ? await getLinkedCandidateProfile(candidate.id) : null;
+  // Para candidatos vinculados, profiles es la fuente de verdad de bio/skills para el scoring —
+  // sin tocar candidates.summary/skills (eso lo lee la ficha, separada a propósito). Para
+  // candidatos sin vincular, la experiencia/educación vive en `candidate_*` (carga manual del
+  // recruiter, mismo query que ya usa la ficha/copiloto) — nunca las dos fuentes a la vez.
+  const [linkedProfile, resume] = await Promise.all([
+    candidate.profileId
+      ? getLinkedCandidateProfile(candidate.id)
+      : Promise.resolve(null),
+    candidate.profileId
+      ? Promise.resolve(null)
+      : getCandidateResume(candidate.id),
+  ]);
 
   const result = await puntuarPostulaciones(
     {
-      job: { title: job.title, position: job.position, skills: job.skills },
+      job: {
+        title: job.title,
+        position: job.position,
+        skills: job.skills,
+        objectives: job.objectives,
+        requirements: job.requirements,
+        responsibilities: job.responsibilities,
+      },
       applications: [
         {
           id: application.id,
           candidate: {
             id: candidate.id,
-            skills: candidate.skills?.length ? candidate.skills : linkedProfile?.skills ?? null,
+            skills: candidate.skills?.length
+              ? candidate.skills
+              : (linkedProfile?.skills ?? null),
             summary: candidate.summary ?? linkedProfile?.bio ?? null,
             source: candidate.source,
-            hasCv: candidate.cvUrl != null || linkedProfile?.cvUrl != null,
+            experience: (
+              linkedProfile?.experiences ??
+              resume?.experiences ??
+              []
+            ).map((e) => ({
+              position: e.position,
+              company: e.company,
+              description: e.description,
+            })),
+            education: (
+              linkedProfile?.education ??
+              resume?.education ??
+              []
+            ).map((e) => ({
+              degree: e.degree,
+              institution: e.institution,
+              fieldOfStudy: e.fieldOfStudy,
+            })),
           },
         },
       ],
@@ -481,14 +657,19 @@ const accionMasivaSchema = z.object({
  * de un solo id, igual que `rechazarVariosAction`). Tolerante: las que ya estaban en el
  * pipeline se cuentan como saltadas, no hacen fallar al resto del lote.
  */
-export async function pasarAlPipelineAction(
-  input: { jobId: string; applicationIds: string[]; toStage?: string },
-): Promise<AccionMasivaResult> {
+export async function pasarAlPipelineAction(input: {
+  jobId: string;
+  applicationIds: string[];
+  toStage?: string;
+}): Promise<AccionMasivaResult> {
   const parsed = accionMasivaSchema
     .extend({ toStage: z.enum(APPLICATION_STAGES).optional() })
     .safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+    };
   }
   const { jobId, applicationIds, toStage } = parsed.data;
 
@@ -519,7 +700,10 @@ export async function pasarAlPipelineAction(
   }
 
   if (hechas === 0) {
-    return { ok: false, error: firstError ?? "No se pudo avanzar a los candidatos." };
+    return {
+      ok: false,
+      error: firstError ?? "No se pudo avanzar a los candidatos.",
+    };
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);
@@ -532,18 +716,26 @@ export async function pasarAlPipelineAction(
  * es una acción sobre el CANDIDATO, no un estado de esta postulación — no toca `stage` ni
  * `pipelineEnteredAt`. Los que ya son parte del pool se cuentan como saltados, no error.
  */
-export async function guardarEnTalentPoolAction(
-  input: { jobId: string; applicationIds: string[]; note?: string },
-): Promise<AccionMasivaResult> {
+export async function guardarEnTalentPoolAction(input: {
+  jobId: string;
+  applicationIds: string[];
+  note?: string;
+}): Promise<AccionMasivaResult> {
   const parsed = accionMasivaSchema
     .extend({ note: z.string().trim().max(500).optional() })
     .safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+    };
   }
   const { jobId, applicationIds, note } = parsed.data;
 
-  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+  ]);
   if (!membership) return { ok: false, error: "No autorizado." };
 
   const ctx = {
@@ -553,7 +745,10 @@ export async function guardarEnTalentPoolAction(
   };
   const deps = {
     getApplicationById,
-    getCandidateSavedToPool: async (candidateId: string, organizationId: string) => {
+    getCandidateSavedToPool: async (
+      candidateId: string,
+      organizationId: string,
+    ) => {
       const candidate = await getCandidateById(candidateId, organizationId);
       return candidate ? candidate.savedToPool : null;
     },
@@ -574,7 +769,10 @@ export async function guardarEnTalentPoolAction(
   }
 
   if (hechas === 0) {
-    return { ok: false, error: firstError ?? "No se pudo guardar en el Talent Pool." };
+    return {
+      ok: false,
+      error: firstError ?? "No se pudo guardar en el Talent Pool.",
+    };
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);
@@ -603,7 +801,10 @@ export async function contactarPostuladosAction(input: {
     })
     .safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+    };
   }
   const { jobId, applicationIds, channel, body } = parsed.data;
 
@@ -614,7 +815,10 @@ export async function contactarPostuladosAction(input: {
   const job = await getJobById(jobId, org);
   if (!job) return { ok: false, error: "Búsqueda no encontrada." };
 
-  const destinatarios = await listCandidatesForApplications(applicationIds, org);
+  const destinatarios = await listCandidatesForApplications(
+    applicationIds,
+    org,
+  );
 
   let hechas = 0;
   let saltadas = applicationIds.length - destinatarios.length;
@@ -660,8 +864,14 @@ export type RechazarPostulacionesInput = {
 
 /** Reemplaza {{candidato}} y {{puesto}} en el mensaje editable. Cada candidato del lote
  *  recibe su propio nombre; el puesto es el mismo para todo el job. */
-function personalizeMessage(template: string, candidateName: string, jobTitle: string): string {
-  return template.replaceAll("{{candidato}}", candidateName).replaceAll("{{puesto}}", jobTitle);
+function personalizeMessage(
+  template: string,
+  candidateName: string,
+  jobTitle: string,
+): string {
+  return template
+    .replaceAll("{{candidato}}", candidateName)
+    .replaceAll("{{puesto}}", jobTitle);
 }
 
 /**
@@ -674,12 +884,22 @@ function personalizeMessage(template: string, candidateName: string, jobTitle: s
  */
 export async function rechazarVariosAction(
   input: RechazarPostulacionesInput,
-): Promise<{ ok: boolean; rejected?: number; skipped?: number; notified?: number; error?: string }> {
+): Promise<{
+  ok: boolean;
+  rejected?: number;
+  skipped?: number;
+  notified?: number;
+  error?: string;
+}> {
   const parsed = rechazarPostulacionesSchema.safeParse(input);
   if (!parsed.success) {
-    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+    };
   }
-  const { jobId, applicationIds, reason, note, notifyCandidate, message } = parsed.data;
+  const { jobId, applicationIds, reason, note, notifyCandidate, message } =
+    parsed.data;
 
   const membership = await getActiveMembership();
   if (!membership) return { ok: false, error: "No autorizado." };
@@ -695,13 +915,19 @@ export async function rechazarVariosAction(
     updateApplicationStage,
   };
 
-  const job = notifyCandidate ? await getJobById(jobId, membership.organizationId) : null;
+  const job = notifyCandidate
+    ? await getJobById(jobId, membership.organizationId)
+    : null;
 
   let rejected = 0;
   let skipped = 0;
   let notified = 0;
   for (const applicationId of applicationIds) {
-    const res = await rechazarPostulacion({ applicationId, reason, note }, ctx, deps);
+    const res = await rechazarPostulacion(
+      { applicationId, reason, note },
+      ctx,
+      deps,
+    );
     if (!res.ok) {
       skipped += 1;
       continue;
@@ -709,7 +935,10 @@ export async function rechazarVariosAction(
     rejected += 1;
 
     if (notifyCandidate && job && message) {
-      const candidate = await getCandidateById(res.data.candidateId, membership.organizationId);
+      const candidate = await getCandidateById(
+        res.data.candidateId,
+        membership.organizationId,
+      );
       if (!candidate) continue;
       const body = personalizeMessage(message, candidate.fullName, job.title);
       const sent = await enviarMensaje(
@@ -717,8 +946,10 @@ export async function rechazarVariosAction(
         { organizationId: membership.organizationId, role: membership.role },
         {
           getCandidate: getCandidateById,
-          ensureThread: (cId, ch) => ensureThread(membership.organizationId, cId, ch),
-          recordOutbound: (threadId, b) => recordOutbound(membership.organizationId, threadId, b),
+          ensureThread: (cId, ch) =>
+            ensureThread(membership.organizationId, cId, ch),
+          recordOutbound: (threadId, b) =>
+            recordOutbound(membership.organizationId, threadId, b),
         },
       );
       if (sent.ok) notified += 1;
@@ -726,12 +957,21 @@ export async function rechazarVariosAction(
   }
 
   if (rejected === 0) {
-    return { ok: false, error: "No se pudo rechazar (¿ya estaban descartados o en etapa terminal?)." };
+    return {
+      ok: false,
+      error:
+        "No se pudo rechazar (¿ya estaban descartados o en etapa terminal?).",
+    };
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);
   revalidatePath(`/jobs/${jobId}/pipeline`);
-  return { ok: true, rejected, skipped, notified: notifyCandidate ? notified : undefined };
+  return {
+    ok: true,
+    rejected,
+    skipped,
+    notified: notifyCandidate ? notified : undefined,
+  };
 }
 
 export type FichaCandidatoData = {
@@ -757,7 +997,9 @@ export type FichaCandidatoData = {
  */
 export async function getFichaCandidatoAction(
   candidateId: string,
-): Promise<{ ok: true; data: FichaCandidatoData } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; data: FichaCandidatoData } | { ok: false; error: string }
+> {
   const membership = await getActiveMembership();
   if (!membership) return { ok: false, error: "No autorizado." };
 

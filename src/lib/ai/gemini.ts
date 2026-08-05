@@ -27,7 +27,10 @@ import type {
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";
-import { EMPLOYMENT_LABELS, MODALITY_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
+import {
+  EMPLOYMENT_LABELS,
+  MODALITY_LABELS,
+} from "@/features/recruiter/jobs/ui/field-meta";
 
 const EMPLOYMENT_TYPES = new Set(Object.keys(EMPLOYMENT_LABELS));
 const MODALITIES = new Set(Object.keys(MODALITY_LABELS));
@@ -59,7 +62,10 @@ export class GeminiAiProvider implements AiProvider {
   }
 
   /** Texto plano: systemInstruction fija rol/tono, el modelo devuelve solo el cuerpo. */
-  private async generateText(prompt: { system: string; user: string }): Promise<string> {
+  private async generateText(prompt: {
+    system: string;
+    user: string;
+  }): Promise<string> {
     const res = await this.client.models.generateContent({
       model: this.model,
       contents: prompt.user,
@@ -70,7 +76,9 @@ export class GeminiAiProvider implements AiProvider {
     return text;
   }
 
-  async scoreApplication(input: ScoreApplicationInput): Promise<ScoreApplicationResult> {
+  async scoreApplication(
+    input: ScoreApplicationInput,
+  ): Promise<ScoreApplicationResult> {
     const prompt = prompts.scoreApplication(input);
     try {
       const res = await this.client.models.generateContent({
@@ -94,11 +102,13 @@ export class GeminiAiProvider implements AiProvider {
               redFlags: {
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
-                description: "Señales de atención (ej. sin CV, sin skills coincidentes). Vacío si no hay.",
+                description:
+                  "Señales de atención (ej. perfil sin información cargada, sin skills coincidentes). Vacío si no hay. Nunca marques la falta de CV como señal de atención.",
               },
               breakdown: {
                 type: Type.OBJECT,
-                description: "Desglose del match por categoría, 0–100 cada una.",
+                description:
+                  "Desglose del match por categoría, 0–100 cada una.",
                 properties: {
                   experiencia: { type: Type.INTEGER },
                   skillsTecnicos: { type: Type.INTEGER },
@@ -106,15 +116,28 @@ export class GeminiAiProvider implements AiProvider {
                   idiomas: { type: Type.INTEGER },
                   ubicacion: { type: Type.INTEGER },
                 },
-                required: ["experiencia", "skillsTecnicos", "seniority", "idiomas", "ubicacion"],
+                required: [
+                  "experiencia",
+                  "skillsTecnicos",
+                  "seniority",
+                  "idiomas",
+                  "ubicacion",
+                ],
               },
               strengths: {
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
-                description: "2 a 4 puntos fuertes concretos del candidato para este puesto.",
+                description:
+                  "2 a 4 puntos fuertes concretos del candidato para este puesto.",
               },
             },
-            required: ["score", "summary", "redFlags", "breakdown", "strengths"],
+            required: [
+              "score",
+              "summary",
+              "redFlags",
+              "breakdown",
+              "strengths",
+            ],
           },
         },
       });
@@ -123,8 +146,12 @@ export class GeminiAiProvider implements AiProvider {
       if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
       const parsed = JSON.parse(raw) as Partial<ScoreApplicationResult>;
 
-      const score = Math.max(0, Math.min(100, Math.round(Number(parsed.score))));
-      const clampCat = (n: unknown) => Math.max(0, Math.min(100, Math.round(Number(n))));
+      const score = Math.max(
+        0,
+        Math.min(100, Math.round(Number(parsed.score))),
+      );
+      const clampCat = (n: unknown) =>
+        Math.max(0, Math.min(100, Math.round(Number(n))));
       if (
         !Number.isFinite(score) ||
         typeof parsed.summary !== "string" ||
@@ -188,11 +215,26 @@ export class GeminiAiProvider implements AiProvider {
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              position: { type: Type.STRING, description: "Puesto real a cubrir." },
-              jobArea: { type: Type.STRING, description: "Slug del área/sector del catálogo." },
-              objectives: { type: Type.STRING, description: "Objetivos del puesto, Markdown." },
-              requirements: { type: Type.STRING, description: "Requisitos, Markdown." },
-              responsibilities: { type: Type.STRING, description: "Responsabilidades, Markdown." },
+              position: {
+                type: Type.STRING,
+                description: "Puesto real a cubrir.",
+              },
+              jobArea: {
+                type: Type.STRING,
+                description: "Slug del área/sector del catálogo.",
+              },
+              objectives: {
+                type: Type.STRING,
+                description: "Objetivos del puesto, Markdown.",
+              },
+              requirements: {
+                type: Type.STRING,
+                description: "Requisitos, Markdown.",
+              },
+              responsibilities: {
+                type: Type.STRING,
+                description: "Responsabilidades, Markdown.",
+              },
               benefits: {
                 type: Type.ARRAY,
                 items: {
@@ -204,7 +246,10 @@ export class GeminiAiProvider implements AiProvider {
                   required: ["name", "description"],
                 },
               },
-              vacancies: { type: Type.INTEGER, description: "Cantidad de vacantes (≥1)." },
+              vacancies: {
+                type: Type.INTEGER,
+                description: "Cantidad de vacantes (≥1).",
+              },
               skills: { type: Type.ARRAY, items: { type: Type.STRING } },
             },
             required: [
@@ -229,23 +274,31 @@ export class GeminiAiProvider implements AiProvider {
 
       const benefits = Array.isArray(parsed.benefits)
         ? parsed.benefits
-            .filter((b): b is { name: string; description: string } =>
-              !!b && typeof b.name === "string" && typeof b.description === "string",
+            .filter(
+              (b): b is { name: string; description: string } =>
+                !!b &&
+                typeof b.name === "string" &&
+                typeof b.description === "string",
             )
             .map((b) => ({ name: b.name, description: b.description }))
         : [];
       const vacancies =
-        Number.isFinite(Number(parsed.vacancies)) && Number(parsed.vacancies) >= 1
+        Number.isFinite(Number(parsed.vacancies)) &&
+        Number(parsed.vacancies) >= 1
           ? Math.round(Number(parsed.vacancies))
           : 1;
 
       return {
         position: parsed.position.trim(),
         jobArea: typeof parsed.jobArea === "string" ? parsed.jobArea : null,
-        objectives: typeof parsed.objectives === "string" ? parsed.objectives : "",
-        requirements: typeof parsed.requirements === "string" ? parsed.requirements : "",
+        objectives:
+          typeof parsed.objectives === "string" ? parsed.objectives : "",
+        requirements:
+          typeof parsed.requirements === "string" ? parsed.requirements : "",
         responsibilities:
-          typeof parsed.responsibilities === "string" ? parsed.responsibilities : "",
+          typeof parsed.responsibilities === "string"
+            ? parsed.responsibilities
+            : "",
         benefits,
         vacancies,
         skills: Array.isArray(parsed.skills)
@@ -282,7 +335,10 @@ export class GeminiAiProvider implements AiProvider {
                 },
                 options: { type: Type.ARRAY, items: { type: Type.STRING } },
                 isCriterion: { type: Type.BOOLEAN },
-                expectedValues: { type: Type.ARRAY, items: { type: Type.STRING } },
+                expectedValues: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                },
                 minValue: { type: Type.NUMBER },
                 maxValue: { type: Type.NUMBER },
               },
@@ -295,13 +351,21 @@ export class GeminiAiProvider implements AiProvider {
       const raw = res.text?.trim();
       if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
       const parsed = JSON.parse(raw) as unknown;
-      if (!Array.isArray(parsed)) throw new Error("Gemini devolvió una forma inesperada");
+      if (!Array.isArray(parsed))
+        throw new Error("Gemini devolvió una forma inesperada");
 
-      const VALID_TYPES = new Set(["yes_no", "text", "number", "multiple_choice"]);
+      const VALID_TYPES = new Set([
+        "yes_no",
+        "text",
+        "number",
+        "multiple_choice",
+      ]);
       return parsed
         .filter(
           (q): q is Record<string, unknown> =>
-            !!q && typeof q === "object" && typeof (q as Record<string, unknown>).label === "string",
+            !!q &&
+            typeof q === "object" &&
+            typeof (q as Record<string, unknown>).label === "string",
         )
         .filter((q) => VALID_TYPES.has(String(q.type)))
         .map((q) => ({
@@ -337,10 +401,16 @@ export class GeminiAiProvider implements AiProvider {
       const res = await this.client.models.generateContent({
         model: this.model,
         contents: createUserContent([prompt.user]),
-        config: { systemInstruction: prompt.system, temperature: 0.1, tools: [{ urlContext: {} }] },
+        config: {
+          systemInstruction: prompt.system,
+          temperature: 0.1,
+          tools: [{ urlContext: {} }],
+        },
       });
 
-      const retrievalStatus = res.candidates?.[0]?.urlContextMetadata?.urlMetadata?.[0]?.urlRetrievalStatus;
+      const retrievalStatus =
+        res.candidates?.[0]?.urlContextMetadata?.urlMetadata?.[0]
+          ?.urlRetrievalStatus;
       const text = res.text?.trim() || null;
       if (retrievalStatus !== "URL_RETRIEVAL_STATUS_SUCCESS" || !text) {
         return { text: null, status: "failed" };
@@ -369,7 +439,10 @@ export class GeminiAiProvider implements AiProvider {
 
     try {
       const parts: Part[] = [];
-      if (input.cvFile) parts.push(createPartFromBase64(input.cvFile.base64, input.cvFile.mimeType));
+      if (input.cvFile)
+        parts.push(
+          createPartFromBase64(input.cvFile.base64, input.cvFile.mimeType),
+        );
       parts.push(createPartFromText(prompt.user));
 
       const res = await this.client.models.generateContent({
@@ -435,7 +508,14 @@ export class GeminiAiProvider implements AiProvider {
                 },
               },
             },
-            required: ["headline", "summary", "skills", "workExperiences", "education", "certifications"],
+            required: [
+              "headline",
+              "summary",
+              "skills",
+              "workExperiences",
+              "education",
+              "certifications",
+            ],
           },
         },
       });
@@ -453,14 +533,17 @@ export class GeminiAiProvider implements AiProvider {
         headline: parsed.headline.trim(),
         location: str(parsed.location),
         linkedinUrl: str(parsed.linkedinUrl) ?? input.linkedinUrl ?? null,
-        summary: typeof parsed.summary === "string" ? parsed.summary.trim() : "",
+        summary:
+          typeof parsed.summary === "string" ? parsed.summary.trim() : "",
         skills: Array.isArray(parsed.skills)
           ? parsed.skills.filter((s): s is string => typeof s === "string")
           : [],
         workExperiences: parseWorkExperiences(parsed.workExperiences),
         education: parseEducation(parsed.education),
         certifications: parseCertifications(parsed.certifications),
-        ...(input.linkedinUrl ? { linkedinFetchStatus: linkedinFetch?.status ?? "failed" } : {}),
+        ...(input.linkedinUrl
+          ? { linkedinFetchStatus: linkedinFetch?.status ?? "failed" }
+          : {}),
       };
     } catch (err) {
       logFallback("draftCandidateProfile", err);
@@ -498,7 +581,8 @@ export class GeminiAiProvider implements AiProvider {
       const questions = Array.isArray(parsed.questions)
         ? parsed.questions.filter((q): q is string => typeof q === "string")
         : [];
-      if (questions.length === 0) throw new Error("Gemini no devolvió preguntas");
+      if (questions.length === 0)
+        throw new Error("Gemini no devolvió preguntas");
       return questions;
     } catch (err) {
       logFallback("interviewGuide", err);
@@ -518,7 +602,10 @@ export class GeminiAiProvider implements AiProvider {
 
 function logFallback(op: string, err: unknown) {
   // No rompemos el flujo: registramos y caemos al mock. En dev esto ayuda a detectar el problema.
-  console.warn(`[ai/gemini] ${op} falló, usando fallback mock:`, err instanceof Error ? err.message : err);
+  console.warn(
+    `[ai/gemini] ${op} falló, usando fallback mock:`,
+    err instanceof Error ? err.message : err,
+  );
 }
 
 // Gemini a veces devuelve el string literal "null" en vez de JSON null para campos STRING sin
@@ -529,7 +616,9 @@ const str = (v: unknown): string | null => {
   return trimmed && trimmed.toLowerCase() !== "null" ? trimmed : null;
 };
 const strArray = (v: unknown): string[] =>
-  Array.isArray(v) ? v.filter((s): s is string => typeof s === "string" && s.trim().length > 0) : [];
+  Array.isArray(v)
+    ? v.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    : [];
 
 function parseWorkExperiences(raw: unknown): DraftWorkExperience[] {
   if (!Array.isArray(raw)) return [];
@@ -545,7 +634,9 @@ function parseWorkExperiences(raw: unknown): DraftWorkExperience[] {
       employmentType: EMPLOYMENT_TYPES.has(String(e.employmentType))
         ? (e.employmentType as DraftWorkExperience["employmentType"])
         : null,
-      modality: MODALITIES.has(String(e.modality)) ? (e.modality as DraftWorkExperience["modality"]) : null,
+      modality: MODALITIES.has(String(e.modality))
+        ? (e.modality as DraftWorkExperience["modality"])
+        : null,
       skills: strArray(e.skills),
     }));
 }

@@ -84,9 +84,9 @@ describe("actualizarEntrevista", () => {
     expect(result.error).toMatch(/no encontrada/i);
   });
 
-  it("rechaza si el rol es consultant", async () => {
+  it("rechaza si el rol es viewer", async () => {
     const deps = makeDeps();
-    const result = await actualizarEntrevista(input, { ...ctx, role: "consultant" }, deps);
+    const result = await actualizarEntrevista(input, { ...ctx, role: "viewer" }, deps);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatch(/no permite/i);

@@ -5,6 +5,7 @@ import { listStageTemplates } from "../../pipeline-stages/data/job-stage-templat
 import { buildJobStagesFromTemplate } from "../../pipeline-stages/schema";
 import { buildDefaultStageTemplate } from "../../pipeline-stages/domain/gestionar-plantilla-etapas";
 import type { JobDetails } from "../domain/job-details";
+import { assignedToMembership } from "./job-scope";
 
 /** Escrituras de búsquedas. Cliente RLS; el organizationId acota a la org activa. */
 
@@ -110,13 +111,20 @@ export async function updateJobFields(
   jobId: string,
   organizationId: string,
   fields: { title: string; description: string | null } & JobDetails,
+  scopeToMembershipId?: string,
 ): Promise<{ updated: boolean }> {
   const db = await getDb();
   const rows = await db.rls((tx) =>
     tx
       .update(jobs)
       .set({ ...fields, updatedAt: new Date() })
-      .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
+      .where(
+        and(
+          eq(jobs.id, jobId),
+          eq(jobs.organizationId, organizationId),
+          scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined,
+        ),
+      )
       .returning({ id: jobs.id }),
     "db.jobs.update-fields",
   );
@@ -132,6 +140,7 @@ export async function updateJobAvisoFields(
     responsibilities: string | null;
     benefits: { name: string; description: string }[] | null;
   },
+  scopeToMembershipId?: string,
 ): Promise<{ updated: boolean }> {
   const db = await getDb();
   const rows = await db.rls(
@@ -139,21 +148,37 @@ export async function updateJobAvisoFields(
       tx
         .update(jobs)
         .set({ ...fields, updatedAt: new Date() })
-        .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
+        .where(
+          and(
+            eq(jobs.id, jobId),
+            eq(jobs.organizationId, organizationId),
+            scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined,
+          ),
+        )
         .returning({ id: jobs.id }),
     "db.jobs.update-aviso-fields",
   );
   return { updated: rows.length > 0 };
 }
 
-export async function incrementShareCount(jobId: string, organizationId: string): Promise<void> {
+export async function incrementShareCount(
+  jobId: string,
+  organizationId: string,
+  scopeToMembershipId?: string,
+): Promise<void> {
   const db = await getDb();
   await db.rls(
     (tx) =>
       tx
         .update(jobs)
         .set({ shareCount: sql`${jobs.shareCount} + 1` })
-        .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId))),
+        .where(
+          and(
+            eq(jobs.id, jobId),
+            eq(jobs.organizationId, organizationId),
+            scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined,
+          ),
+        ),
     "db.jobs.increment-share-count",
   );
 }

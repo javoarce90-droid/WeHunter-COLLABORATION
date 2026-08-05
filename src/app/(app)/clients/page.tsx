@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { listClientsWithStats } from "@/features/recruiter/clients/data/clients.queries";
 import { ClientsList } from "@/features/recruiter/clients/ui/ClientsList";
@@ -9,6 +10,10 @@ import { ListSkeleton } from "@/components/ui/list-skeleton";
 /** El shell (título + acción) pinta al instante; el listado se streamea. */
 export default async function ClientsPage() {
   const membership = await getActiveMembership();
+  // En Enterprise no hay "clientes" externos: el módulo (CRM + magic link sin cuenta) queda
+  // superado por el rol real `hiring_manager` (docs/BACKLOG.md, punto 2 de la especificación
+  // 2026-08-04) — no solo se oculta del nav, la ruta deja de existir.
+  if (membership?.workspaceType === "enterprise") notFound();
   const copy = getClientsCopy(membership?.workspaceType ?? null);
 
   return (

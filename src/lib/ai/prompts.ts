@@ -34,27 +34,67 @@ export type DraftCandidateProfilePromptInput = {
 const list = (xs: string[] | null | undefined, fallback: string) =>
   xs && xs.length > 0 ? xs.join(", ") : fallback;
 
+const listExperience = (
+  xs: ScoreApplicationInput["candidate"]["experience"],
+) =>
+  xs.length > 0
+    ? xs
+        .map(
+          (e) =>
+            `  · ${e.position} en ${e.company}${e.description ? ` — ${e.description}` : ""}`,
+        )
+        .join("\n")
+    : "  (sin experiencia cargada)";
+
+const listEducation = (xs: ScoreApplicationInput["candidate"]["education"]) =>
+  xs.length > 0
+    ? xs
+        .map(
+          (e) =>
+            `  · ${e.degree} — ${e.institution}${e.fieldOfStudy ? ` (${e.fieldOfStudy})` : ""}`,
+        )
+        .join("\n")
+    : "  (sin educación cargada)";
+
 export const prompts = {
   scoreApplication({ candidate, job }: ScoreApplicationInput): Prompt {
     // El rol canónico es `position`; `title` es el headline. Priorizamos el puesto real.
     const role = job.position?.trim() || job.title;
+    const profileIsThin =
+      (!candidate.skills || candidate.skills.length === 0) &&
+      candidate.experience.length === 0 &&
+      candidate.education.length === 0;
     return {
       system:
         "Sos un reclutador técnico senior. Evaluás compatibilidad candidato↔búsqueda de forma " +
-        "objetiva y concisa, en español rioplatense. Penalizá la falta de skills clave o de CV. " +
-        "Además del score general, desglosá tu evaluación en 5 categorías (experiencia, skills " +
-        "técnicos, seniority, idiomas, ubicación) y listá 2 a 4 fortalezas concretas del " +
-        "candidato para este puesto puntual — si falta información para juzgar alguna " +
-        "categoría (ej. idiomas o ubicación sin datos), estimala de forma conservadora en vez " +
-        "de inventar certeza.",
+        "objetiva y concisa, en español rioplatense, comparando SOLO dos cosas: lo que pide la " +
+        "búsqueda (skills, objetivos, requisitos, responsabilidades) contra el perfil del " +
+        "candidato (skills, experiencia, educación). NUNCA penalices por falta de CV cargado — " +
+        "no es una señal de compatibilidad, es un detalle de carga de datos. Si el perfil del " +
+        "candidato está vacío o tiene muy poca información para evaluar el match (sin skills, " +
+        "sin experiencia, sin educación), decilo explícitamente en el resumen y reflejalo en un " +
+        "score más bajo por falta de datos para confirmar el match — no asumas competencia sin " +
+        "evidencia. Además del score general, desglosá tu evaluación en 5 categorías " +
+        "(experiencia, skills técnicos, seniority, idiomas, ubicación) y listá 2 a 4 fortalezas " +
+        "concretas del candidato para este puesto puntual — si falta información para juzgar " +
+        "alguna categoría (ej. idiomas o ubicación sin datos), estimala de forma conservadora en " +
+        "vez de inventar certeza.",
       user:
         `Búsqueda: ${role}\n` +
-        `Skills requeridas: ${list(job.skills, "no especificadas")}\n\n` +
+        `Skills requeridas: ${list(job.skills, "no especificadas")}\n` +
+        `Objetivos: ${job.objectives?.trim() || "no especificados"}\n` +
+        `Requisitos: ${job.requirements?.trim() || "no especificados"}\n` +
+        `Responsabilidades: ${job.responsibilities?.trim() || "no especificadas"}\n\n` +
         `Candidato:\n` +
         `- Skills: ${list(candidate.skills, "no especificadas")}\n` +
-        `- Resumen: ${candidate.summary ?? "sin resumen"}\n` +
+        `- Experiencia:\n${listExperience(candidate.experience)}\n` +
+        `- Educación:\n${listEducation(candidate.education)}\n` +
+        `- Resumen/bio: ${candidate.summary ?? "sin resumen"}\n` +
         `- Fuente: ${candidate.source ?? "desconocida"}\n` +
-        `- CV cargado: ${candidate.hasCv ? "sí" : "no"}\n\n` +
+        (profileIsThin
+          ? "\nOJO: el perfil de este candidato tiene muy poca información cargada — aclaralo " +
+            "en el resumen y no asumas compatibilidad que no se puede confirmar con estos datos.\n"
+          : "\n") +
         `Evaluá la compatibilidad del candidato con la búsqueda.`,
     };
   },
@@ -72,7 +112,13 @@ export const prompts = {
     };
   },
 
-  draftJobPosting({ title, skills, seniority, location, modality }: DraftJobPostingInput): Prompt {
+  draftJobPosting({
+    title,
+    skills,
+    seniority,
+    location,
+    modality,
+  }: DraftJobPostingInput): Prompt {
     const ctx = [seniority, modality, location].filter(Boolean).join(" · ");
     return {
       system:
@@ -84,7 +130,13 @@ export const prompts = {
     };
   },
 
-  draftJobOffer({ name, brief, modality, seniority, workDay }: DraftJobOfferInput): Prompt {
+  draftJobOffer({
+    name,
+    brief,
+    modality,
+    seniority,
+    workDay,
+  }: DraftJobOfferInput): Prompt {
     const ctx = [seniority, modality, workDay].filter(Boolean).join(" · ");
     return {
       system:
@@ -141,12 +193,18 @@ export const prompts = {
       user:
         `Búsqueda: "${title}"\n` +
         (skills?.length ? `Skills buscadas: ${skills.join(", ")}\n` : "") +
-        (contenido ? `\n${contenido}\n` : "\n(sin más contenido cargado todavía)\n") +
+        (contenido
+          ? `\n${contenido}\n`
+          : "\n(sin más contenido cargado todavía)\n") +
         `\nSugerí las preguntas de screening para esta búsqueda.`,
     };
   },
 
-  draftCandidateProfile({ hasCvFile, linkedinText, linkedinFetchFailed }: DraftCandidateProfilePromptInput): Prompt {
+  draftCandidateProfile({
+    hasCvFile,
+    linkedinText,
+    linkedinFetchFailed,
+  }: DraftCandidateProfilePromptInput): Prompt {
     const sources = [
       hasCvFile ? "un CV en PDF adjunto" : null,
       linkedinText ? "el texto transcripto de un perfil de LinkedIn" : null,
@@ -163,7 +221,9 @@ export const prompts = {
       user:
         `Extraé el perfil de esta persona a partir de ${sources.join(" y ") || "el material adjunto"}` +
         `:\n\n` +
-        (linkedinText ? `Texto del perfil de LinkedIn:\n"""\n${linkedinText}\n"""\n\n` : "") +
+        (linkedinText
+          ? `Texto del perfil de LinkedIn:\n"""\n${linkedinText}\n"""\n\n`
+          : "") +
         (linkedinFetchFailed
           ? `No se pudo obtener contenido de la URL de LinkedIn provista; ignorala por completo, ` +
             `no inventes nada a partir de ella.\n\n`
@@ -214,7 +274,11 @@ export const prompts = {
     };
   },
 
-  interviewGuide({ candidateName, jobTitle, skills }: InterviewGuideInput): Prompt {
+  interviewGuide({
+    candidateName,
+    jobTitle,
+    skills,
+  }: InterviewGuideInput): Prompt {
     return {
       system:
         "Sos un entrevistador experto. Generás preguntas abiertas, mezcla de técnicas y " +
@@ -226,7 +290,13 @@ export const prompts = {
     };
   },
 
-  reportInsights({ jobTitle, total, hired, timeToHireDays, topSource }: ReportInsightsInput): Prompt {
+  reportInsights({
+    jobTitle,
+    total,
+    hired,
+    timeToHireDays,
+    topSource,
+  }: ReportInsightsInput): Prompt {
     return {
       system:
         "Sos un analista de reclutamiento. Resumís el rendimiento de una búsqueda con insights " +

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
+import { canReviewRequisitions } from "@/lib/auth/roles";
 import { getRequisitionById } from "@/features/recruiter/requisitions/data/requisitions.queries";
 import { RequisitionReviewForm } from "@/features/recruiter/requisitions/ui/RequisitionReviewForm";
 import {
@@ -113,12 +114,14 @@ export default async function RequisitionDetailPage({
 
       <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
         <h2 className="mb-3 text-sm font-bold text-text">Revisión</h2>
-        {requisition.status === "pending" ? (
+        {requisition.status === "pending" && canReviewRequisitions(membership.role) ? (
           <RequisitionReviewForm requisitionId={requisition.id} />
         ) : (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-muted">
-              {status.label}
+              {requisition.status === "pending"
+                ? "Esperando revisión."
+                : status.label}
               {requisition.reviewedAt
                 ? ` el ${dateFormatter.format(requisition.reviewedAt)}`
                 : ""}

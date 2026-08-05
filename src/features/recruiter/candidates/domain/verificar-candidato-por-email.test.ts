@@ -22,11 +22,11 @@ describe("verificarCandidatoPorEmail", () => {
     expect(d.findDuplicateCandidate).not.toHaveBeenCalled();
   });
 
-  it("no revisa nada para el consultor", async () => {
+  it("no revisa nada para el viewer", async () => {
     const d = deps();
     const res = await verificarCandidatoPorEmail(
       "ada@example.com",
-      { ...ctx, role: "consultant" },
+      { ...ctx, role: "viewer" },
       d,
     );
     expect(res).toEqual({});

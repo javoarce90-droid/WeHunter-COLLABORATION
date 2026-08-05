@@ -16,9 +16,15 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
 import { useToast } from "@/lib/toast";
-import { analizarPostulacionAction, moverAEtapaAction } from "../actions";
+import {
+  analizarPostulacionAction,
+  moverAEtapaAction,
+  guardarEnTalentPoolAction,
+} from "../actions";
+import { legacyStageFor } from "../domain/mover-a-etapa";
 import type {
   ApplicationWithCandidate,
+  PostuladoRow,
   StageHistoryEvent,
 } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
@@ -26,13 +32,21 @@ import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/Interv
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import type { JobStage } from "@/features/recruiter/pipeline-stages/schema";
 import { isClosingKind } from "@/features/recruiter/pipeline-stages/schema";
-import type { ScreeningAnswerRow } from "@/features/recruiter/screening/data/screening.queries";
+import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import { PipelineCard } from "./PipelineCard";
-import { PipelineDetailSheet } from "./PipelineDetailSheet";
+import { PostuladoDetailSheet, type ScreeningAnswerLine } from "./PostuladoDetailSheet";
+import { AiAnalysisDialog, type AiAnalysisSubject } from "./AiAnalysisDialog";
+import { ScheduleInterviewDialog } from "./ScheduleInterviewDialog";
+import { AddNoteDialog } from "./AddNoteDialog";
+import { SendWhatsappDialog } from "./SendWhatsappDialog";
+import { ContactarDialog } from "./ContactarDialog";
+import { TagsDialog } from "@/features/recruiter/candidates/ui/TagsDialog";
+import type { CandidateTagRow } from "@/features/recruiter/candidates/data/tags.queries";
 import { KIND_DOT, getSlaStatus } from "./stage-visual";
 
 type Props = {
   jobId: string;
+  jobTitle: string;
   applications: ApplicationWithCandidate[];
   /** Postulaciones que siguen en la bandeja: el tablero vacío ofrece ir a revisarlas. */
   pendientes: number;
@@ -40,11 +54,42 @@ type Props = {
   teamMembers: TeamMemberOption[];
   notesByApplication: Record<string, TimelineNote[]>;
   stageEventsByApplication: Record<string, StageHistoryEvent[]>;
-  screeningAnswersByApplication: Record<string, ScreeningAnswerRow[]>;
+  criteriosByApplication: Record<string, CriteriosEvaluados>;
+  screeningByApplication: Record<string, ScreeningAnswerLine[]>;
+  tagsByCandidate: Record<string, CandidateTagRow[]>;
   /** Etapas propias de esta búsqueda (job_stages), en orden. */
   stages: JobStage[];
   actions?: ReactNode;
 };
+
+/** Adapta una card del tablero al shape que espera el sheet de detalle compartido con
+ *  Postulados (mismo componente, ver `.claude`/pedido del usuario: unificar la ficha). */
+function toPostuladoRow(app: ApplicationWithCandidate): PostuladoRow {
+  return {
+    id: app.id,
+    stage: app.stage,
+    pipelineEnteredAt: app.pipelineEnteredAt,
+    selfApplied: app.selfApplied,
+    aiScore: app.aiScore,
+    aiSummary: app.aiSummary,
+    aiRedFlags: app.aiRedFlags,
+    aiBreakdown: app.aiBreakdown,
+    aiStrengths: app.aiStrengths,
+    coverNote: app.coverNote,
+    expectedSalary: app.expectedSalary,
+    expectedSalaryCurrency: app.expectedSalaryCurrency,
+    createdAt: app.createdAt,
+    // No se usa en el sheet de detalle (solo en la fila de la tabla de Postulados) — evita
+    // traer la subquery correlacionada de listApplicationsByJob solo para este dato muerto.
+    applicationCount: 0,
+    candidate: app.candidate,
+  };
+}
+
+/** Qué diálogo de acción rápida está abierto (menú de 3 puntos de una card), si alguno. */
+type QuickDialog =
+  | { kind: "interview" | "email" | "whatsapp" | "tags" | "note"; applicationId: string }
+  | null;
 
 type Move = { applicationId: string; toStage: JobStage };
 type SortKey = "name" | "days" | "match";
@@ -63,6 +108,11 @@ type ColumnProps = {
   onMoveStage: (applicationId: string, toStageId: string) => void;
   onOpen: (id: string) => void;
   onAnalizar: (applicationId: string) => void;
+  onScheduleInterview: (applicationId: string) => void;
+  onSendEmail: (applicationId: string) => void;
+  onSendWhatsapp: (applicationId: string) => void;
+  onAddTag: (applicationId: string) => void;
+  onAddNote: (applicationId: string) => void;
   analyzingIds: Set<string>;
 };
 
@@ -75,6 +125,11 @@ function PipelineColumn({
   onMoveStage,
   onOpen,
   onAnalizar,
+  onScheduleInterview,
+  onSendEmail,
+  onSendWhatsapp,
+  onAddTag,
+  onAddNote,
   analyzingIds,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
@@ -121,6 +176,11 @@ function PipelineColumn({
               onMoveStage={onMoveStage}
               onOpen={onOpen}
               onAnalizar={onAnalizar}
+              onScheduleInterview={onScheduleInterview}
+              onSendEmail={onSendEmail}
+              onSendWhatsapp={onSendWhatsapp}
+              onAddTag={onAddTag}
+              onAddNote={onAddNote}
               analyzing={analyzingIds.has(app.id)}
               slaDays={stage.slaDays}
             />
@@ -135,13 +195,16 @@ function PipelineColumn({
 
 export function PipelineView({
   jobId,
+  jobTitle,
   applications,
   pendientes,
   interviewsByApplication,
   teamMembers,
   notesByApplication,
   stageEventsByApplication,
-  screeningAnswersByApplication,
+  criteriosByApplication,
+  screeningByApplication,
+  tagsByCandidate,
   stages,
   actions,
 }: Props) {
@@ -149,10 +212,21 @@ export function PipelineView({
   const [, startTransition] = useTransition();
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [aiDetailId, setAiDetailId] = useState<string | null>(null);
+  const [quickDialog, setQuickDialog] = useState<QuickDialog>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
+
+  const onScheduleInterview = (applicationId: string) =>
+    setQuickDialog({ kind: "interview", applicationId });
+  const onSendEmail = (applicationId: string) => setQuickDialog({ kind: "email", applicationId });
+  const onSendWhatsapp = (applicationId: string) =>
+    setQuickDialog({ kind: "whatsapp", applicationId });
+  const onAddTag = (applicationId: string) => setQuickDialog({ kind: "tags", applicationId });
+  const onAddNote = (applicationId: string) => setQuickDialog({ kind: "note", applicationId });
+  const closeQuickDialog = () => setQuickDialog(null);
 
   function onAnalizar(applicationId: string) {
     setAnalyzingIds((s) => new Set(s).add(applicationId));
@@ -182,6 +256,11 @@ export function PipelineView({
               stageId: move.toStage.id,
               stageKind: move.toStage.kind,
               stageEnteredAt: new Date(),
+              // El sheet unificado con Postulados muestra el badge de estado a partir de
+              // `stage` (el enum legacy), no de `stageId` — sin este espejo optimista queda
+              // desactualizado hasta el revalidate del server (mismo mirror que hace
+              // `moveToStage` server-side vía `legacyStageFor`).
+              stage: legacyStageFor(move.toStage),
             }
           : a,
       ),
@@ -223,6 +302,38 @@ export function PipelineView({
               },
       });
     });
+  }
+
+  function onGuardarEnPool(row: PostuladoRow) {
+    startTransition(async () => {
+      const res = await guardarEnTalentPoolAction({ jobId, applicationIds: [row.id] });
+      if (!res.ok) {
+        toast({
+          message: res.error ?? "No se pudo guardar en el Talent Pool.",
+          variant: "danger",
+        });
+        return;
+      }
+      toast({
+        message: `${row.candidate.fullName} guardado en el Talent Pool`,
+        variant: "success",
+      });
+    });
+  }
+
+  // "Descartar" desde el sheet unificado hace lo mismo que elegir la etapa Descartado en
+  // "Cambiar etapa" — no duplicamos el flujo de motivo/notificación de Postulados acá, ya
+  // que en Pipeline mover a esa etapa YA es la forma establecida de rechazar.
+  function onDescartarDesdeSheet(row: PostuladoRow) {
+    const rejectedStage = stages.find((s) => s.kind === "rejected");
+    if (!rejectedStage) {
+      toast({
+        message: "Esta búsqueda no tiene una etapa de descarte configurada.",
+        variant: "danger",
+      });
+      return;
+    }
+    onMoveStage(row.id, rejectedStage.id);
   }
 
   function handleDragStart({ active }: DragStartEvent) {
@@ -301,6 +412,24 @@ export function PipelineView({
     : null;
   const draggingStage = draggingApp?.stageId ? stageById.get(draggingApp.stageId) : undefined;
   const selected = optimisticApps.find((a) => a.id === selectedId) ?? null;
+  const selectedPostulado = selected ? toPostuladoRow(selected) : null;
+  const quickApp = quickDialog
+    ? (optimisticApps.find((a) => a.id === quickDialog.applicationId) ?? null)
+    : null;
+
+  const aiDetailApp = aiDetailId ? optimisticApps.find((a) => a.id === aiDetailId) : undefined;
+  const aiDetailSubject: AiAnalysisSubject | null =
+    aiDetailApp && aiDetailApp.aiScore != null
+      ? {
+          name: aiDetailApp.candidate.fullName,
+          headline: aiDetailApp.candidate.headline,
+          score: aiDetailApp.aiScore,
+          summary: aiDetailApp.aiSummary,
+          breakdown: aiDetailApp.aiBreakdown,
+          strengths: aiDetailApp.aiStrengths,
+          redFlags: aiDetailApp.aiRedFlags,
+        }
+      : null;
 
   const isEmpty = applications.length === 0;
 
@@ -420,6 +549,11 @@ export function PipelineView({
                 onMoveStage={onMoveStage}
                 onOpen={setSelectedId}
                 onAnalizar={onAnalizar}
+                onScheduleInterview={onScheduleInterview}
+                onSendEmail={onSendEmail}
+                onSendWhatsapp={onSendWhatsapp}
+                onAddTag={onAddTag}
+                onAddNote={onAddNote}
                 analyzingIds={analyzingIds}
               />
             ))}
@@ -435,6 +569,11 @@ export function PipelineView({
                 noteCount={notesByApplication[draggingApp.id]?.length ?? 0}
                 onMoveStage={noop}
                 onOpen={noop}
+                onScheduleInterview={noop}
+                onSendEmail={noop}
+                onSendWhatsapp={noop}
+                onAddTag={noop}
+                onAddNote={noop}
                 isDragOverlay
               />
             ) : null}
@@ -442,22 +581,77 @@ export function PipelineView({
         </DndContext>
       )}
 
-      <PipelineDetailSheet
-        application={selected}
-        stages={visibleStages}
-        interviews={
-          selected ? (interviewsByApplication[selected.id] ?? []) : []
-        }
+      {selected && (
+        <PostuladoDetailSheet
+          key={selected.id}
+          jobId={jobId}
+          postulado={selectedPostulado}
+          criterios={criteriosByApplication[selected.id] ?? null}
+          screening={screeningByApplication[selected.id] ?? []}
+          notes={notesByApplication[selected.id] ?? []}
+          stageEvents={stageEventsByApplication[selected.id] ?? []}
+          onClose={() => setSelectedId(null)}
+          onPasarAlPipeline={noop}
+          onGuardarEnPool={onGuardarEnPool}
+          onDescartar={onDescartarDesdeSheet}
+          onOpenCopiloto={(row) => setAiDetailId(row.id)}
+          stageProps={{
+            stages: visibleStages,
+            currentStageId: selected.stageId,
+            onMoveStage,
+          }}
+        />
+      )}
+
+      <AiAnalysisDialog subject={aiDetailSubject} onClose={() => setAiDetailId(null)} />
+
+      <ScheduleInterviewDialog
+        key={quickDialog?.kind === "interview" ? quickDialog.applicationId : "interview-closed"}
+        applicationId={quickDialog?.kind === "interview" ? quickDialog.applicationId : null}
+        jobId={jobId}
+        candidateName={quickApp?.candidate.fullName ?? ""}
+        interviews={quickApp ? (interviewsByApplication[quickApp.id] ?? []) : []}
         teamMembers={teamMembers}
-        notes={selected ? (notesByApplication[selected.id] ?? []) : []}
-        stageEvents={
-          selected ? (stageEventsByApplication[selected.id] ?? []) : []
+        onClose={closeQuickDialog}
+      />
+
+      <AddNoteDialog
+        key={quickDialog?.kind === "note" ? quickDialog.applicationId : "note-closed"}
+        applicationId={quickDialog?.kind === "note" ? quickDialog.applicationId : null}
+        jobId={jobId}
+        candidateName={quickApp?.candidate.fullName ?? ""}
+        notes={quickApp ? (notesByApplication[quickApp.id] ?? []) : []}
+        onClose={closeQuickDialog}
+      />
+
+      <ContactarDialog
+        key={quickDialog?.kind === "email" ? quickDialog.applicationId : "email-closed"}
+        target={quickDialog?.kind === "email" ? [quickDialog.applicationId] : null}
+        jobId={jobId}
+        jobTitle={jobTitle}
+        fixedChannel="email"
+        onClose={closeQuickDialog}
+        onSent={closeQuickDialog}
+      />
+
+      <SendWhatsappDialog
+        key={quickDialog?.kind === "whatsapp" ? quickDialog.applicationId : "whatsapp-closed"}
+        target={
+          quickDialog?.kind === "whatsapp" && quickApp
+            ? { candidateName: quickApp.candidate.fullName, phone: quickApp.candidate.phone }
+            : null
         }
-        screeningAnswers={
-          selected ? (screeningAnswersByApplication[selected.id] ?? []) : []
-        }
-        onMoveStage={onMoveStage}
-        onClose={() => setSelectedId(null)}
+        jobTitle={jobTitle}
+        onClose={closeQuickDialog}
+      />
+
+      <TagsDialog
+        key={quickDialog?.kind === "tags" ? quickDialog.applicationId : "tags-closed"}
+        candidateId={quickDialog?.kind === "tags" ? (quickApp?.candidate.id ?? null) : null}
+        candidateName={quickApp?.candidate.fullName ?? ""}
+        jobId={jobId}
+        tags={quickApp ? (tagsByCandidate[quickApp.candidate.id] ?? []) : []}
+        onClose={closeQuickDialog}
       />
     </div>
   );

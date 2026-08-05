@@ -1,15 +1,24 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterChip } from "@/components/ui/filter-chip";
 import { useToast } from "@/lib/toast";
-import { ExternalLink, Search } from "lucide-react";
-import { buscarLinkedinAction, importarSourcingAction } from "../actions";
+import { Search } from "lucide-react";
+import {
+  buscarLinkedinAction,
+  importarSourcingAction,
+  scorearCandidatoSourcingAction,
+} from "../actions";
+import { importarSourcingResultadoAction } from "../../applications/actions";
+import { AiAnalysisDialog } from "../../applications/ui/AiAnalysisDialog";
+import { CompareCandidatesDialog } from "./CompareCandidatesDialog";
+import { SourcingCandidateCard } from "./SourcingCandidateCard";
+import { SOURCING_MANUAL_SCORE_CAP } from "../domain/sourcear-para-busqueda";
 import type { LinkedInCandidateResult } from "../domain/linkedin-search";
+import type { ScoredLinkedInCandidate } from "../domain/sourcear-para-busqueda";
+import type { SourcingJobOption } from "./SourcingView";
 
 const SUGGESTIONS = [
   "backend engineer supabase python",
@@ -19,18 +28,44 @@ const SUGGESTIONS = [
 ];
 
 const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-bg px-3.5 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+  "w-full rounded-[var(--radius)] border border-border bg-bg px-3.5 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-50";
 
-type Decision = "pending" | "in" | "out" | "imported";
+type Decision = "pending" | "out" | "imported";
+type ImportedVia = "pool" | "postulado";
 
-export function LinkedInSourcingTab() {
+type Props = {
+  jobs: SourcingJobOption[];
+};
+
+export function LinkedInSourcingTab({ jobs }: Props) {
   const toast = useToast();
   const [query, setQuery] = useState("");
   const [candidates, setCandidates] = useState<LinkedInCandidateResult[] | null>(null);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const [importedVia, setImportedVia] = useState<Record<string, ImportedVia>>({});
+  // Búsqueda elegida por candidato (no por tab) — cada resultado puede postular a una
+  // distinta, o a ninguna y quedar solo en el pool.
+  const [jobByCandidate, setJobByCandidate] = useState<Record<string, string>>({});
+  // Ids en curso de importación — uno solo si es individual, varios si es en lote.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Score post-hoc por par candidato+búsqueda (ver domain/sourcear-para-busqueda.ts). `scores`
+  // guarda los resultados ya calculados; `attemptedPairs` es el gate de "una vez por par" y la
+  // base del tope por tanda (SOURCING_MANUAL_SCORE_CAP) — incluye también los que fallaron, no
+  // se reintenta un par ya intentado.
+  const [scores, setScores] = useState<Record<string, ScoredLinkedInCandidate>>({});
+  const [attemptedPairs, setAttemptedPairs] = useState<Set<string>>(new Set());
+  const [scoringIds, setScoringIds] = useState<Set<string>>(new Set());
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
   const [searching, startSearch] = useTransition();
 
+  function pairKey(candidateId: string, jobId: string) {
+    return `${candidateId}::${jobId}`;
+  }
+
   function buscar(searchQuery?: string) {
+    if (candidates !== null) return; // hay que limpiar antes de buscar de nuevo
     const q = searchQuery ?? query;
     if (!q.trim()) return;
 
@@ -43,31 +78,222 @@ export function LinkedInSourcingTab() {
       }
       setCandidates(res.candidates);
       setDecisions({});
+      setSelected(new Set());
+      setScores({});
+      setAttemptedPairs(new Set());
+      setCompareIds(null);
     });
   }
 
-  function decide(c: LinkedInCandidateResult, decision: Decision) {
-    if (decision === "in") {
-      startSearch(async () => {
-        const res = await importarSourcingAction({
+  function limpiar() {
+    setCandidates(null);
+    setDecisions({});
+    setImportedVia({});
+    setJobByCandidate({});
+    setSelected(new Set());
+    setScores({});
+    setAttemptedPairs(new Set());
+    setCompareIds(null);
+  }
+
+  async function importarUno(c: LinkedInCandidateResult) {
+    const jobId = jobByCandidate[c.id] ?? "";
+    const res = jobId
+      ? await importarSourcingResultadoAction({
+          jobId,
           name: c.name,
           headline: c.headline,
           location: c.location,
           skills: c.skills,
-          platform: c.platform,
+          linkedinUrl: c.linkedinUrl,
+          summary: c.snippet,
+        })
+      : await importarSourcingAction({
+          name: c.name,
+          headline: c.headline,
+          location: c.location,
+          skills: c.skills,
           linkedinUrl: c.linkedinUrl,
         });
-        if (!res.ok) {
-          toast({ message: res.error ?? "No se pudo importar el candidato.", variant: "danger" });
-          return;
-        }
-        setDecisions((d) => ({ ...d, [c.id]: "imported" }));
-        toast({ message: `${c.name} importado al pool de WeHunter`, variant: "success" });
-      });
-    } else {
-      setDecisions((d) => ({ ...d, [c.id]: decision }));
-    }
+    return { id: c.id, name: c.name, ok: res.ok, error: res.error, via: jobId ? "postulado" as const : "pool" as const };
   }
+
+  function importar(c: LinkedInCandidateResult) {
+    setPendingIds((s) => new Set(s).add(c.id));
+    startSearch(async () => {
+      const res = await importarUno(c);
+      setPendingIds((s) => {
+        const next = new Set(s);
+        next.delete(c.id);
+        return next;
+      });
+      if (!res.ok) {
+        toast({ message: res.error ?? "No se pudo importar el candidato.", variant: "danger" });
+        return;
+      }
+      setDecisions((d) => ({ ...d, [c.id]: "imported" }));
+      setImportedVia((d) => ({ ...d, [c.id]: res.via }));
+      toast({
+        message:
+          res.via === "postulado"
+            ? `${c.name} se sumó al pool y quedó postulado`
+            : `${c.name} importado al pool de WeHunter`,
+        variant: "success",
+      });
+    });
+  }
+
+  function importarSeleccionados() {
+    const targets = (candidates ?? []).filter((c) => selected.has(c.id));
+    if (targets.length === 0) return;
+    setPendingIds((s) => new Set([...s, ...targets.map((c) => c.id)]));
+    startSearch(async () => {
+      const outcomes = await Promise.all(targets.map((c) => importarUno(c)));
+      const succeeded = outcomes.filter((o) => o.ok);
+      const failed = outcomes.filter((o) => !o.ok);
+
+      setPendingIds((s) => {
+        const next = new Set(s);
+        targets.forEach((c) => next.delete(c.id));
+        return next;
+      });
+      if (succeeded.length > 0) {
+        setDecisions((d) => {
+          const next = { ...d };
+          succeeded.forEach((o) => (next[o.id] = "imported"));
+          return next;
+        });
+        setImportedVia((d) => {
+          const next = { ...d };
+          succeeded.forEach((o) => (next[o.id] = o.via));
+          return next;
+        });
+      }
+      setSelected((s) => {
+        const next = new Set(s);
+        succeeded.forEach((o) => next.delete(o.id));
+        return next;
+      });
+
+      if (failed.length === 0) {
+        toast({
+          message: `${succeeded.length} candidato${succeeded.length === 1 ? "" : "s"} importado${succeeded.length === 1 ? "" : "s"}`,
+          variant: "success",
+        });
+      } else {
+        toast({
+          message: `${succeeded.length} de ${outcomes.length} importados — ${failed.length} no se pudo${failed.length === 1 ? "" : "n"} importar, quedan en la lista para reintentar`,
+          variant: succeeded.length > 0 ? "success" : "danger",
+        });
+      }
+    });
+  }
+
+  function omitir(c: LinkedInCandidateResult) {
+    setDecisions((d) => ({ ...d, [c.id]: "out" }));
+    setSelected((s) => {
+      const next = new Set(s);
+      next.delete(c.id);
+      return next;
+    });
+  }
+
+  function omitirSeleccionados() {
+    setDecisions((d) => {
+      const next = { ...d };
+      selected.forEach((id) => (next[id] = "out"));
+      return next;
+    });
+    setSelected(new Set());
+  }
+
+  function toggleSeleccionado(id: string) {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function onJobChange(c: LinkedInCandidateResult, newJobId: string) {
+    setJobByCandidate((m) => ({ ...m, [c.id]: newJobId }));
+    if (!newJobId) return; // "solo pool": nada que scorear
+
+    const key = pairKey(c.id, newJobId);
+    if (attemptedPairs.has(key)) return; // ya se intentó este par, no se reintenta solo
+
+    if (attemptedPairs.size >= SOURCING_MANUAL_SCORE_CAP) {
+      toast({
+        message: `Llegaste al límite de ${SOURCING_MANUAL_SCORE_CAP} análisis automáticos para esta tanda — igual podés postular sin el %.`,
+      });
+      return;
+    }
+
+    setAttemptedPairs((s) => new Set(s).add(key));
+    setScoringIds((s) => new Set(s).add(c.id));
+    scorearCandidatoSourcingAction({
+      jobId: newJobId,
+      candidate: {
+        id: c.id,
+        name: c.name,
+        headline: c.headline,
+        location: c.location,
+        skills: c.skills,
+        linkedinUrl: c.linkedinUrl,
+        snippet: c.snippet,
+      },
+    }).then((res) => {
+      setScoringIds((s) => {
+        const next = new Set(s);
+        next.delete(c.id);
+        return next;
+      });
+      if (res.ok && res.result) {
+        setScores((s) => ({ ...s, [key]: res.result! }));
+      }
+    });
+  }
+
+  const pendingCandidates = (candidates ?? []).filter(
+    (c) => (decisions[c.id] ?? "pending") === "pending",
+  );
+  const allPendingSelected =
+    pendingCandidates.length > 0 && pendingCandidates.every((c) => selected.has(c.id));
+
+  const detailCandidate = detailId
+    ? (candidates?.find((c) => c.id === detailId) ?? null)
+    : null;
+  const detailJobId = detailCandidate ? (jobByCandidate[detailCandidate.id] ?? "") : "";
+  const detailScored =
+    detailCandidate && detailJobId ? scores[pairKey(detailCandidate.id, detailJobId)] : undefined;
+
+  function toCompareSubject(c: LinkedInCandidateResult) {
+    const jobId = jobByCandidate[c.id] ?? "";
+    const scored = jobId ? scores[pairKey(c.id, jobId)] : undefined;
+    return {
+      name: c.name,
+      headline: c.headline,
+      location: c.location,
+      skills: c.skills,
+      linkedinUrl: c.linkedinUrl,
+      match: scored
+        ? {
+            score: scored.score,
+            summary: scored.summary,
+            breakdown: scored.breakdown,
+            strengths: scored.strengths,
+            redFlags: scored.redFlags,
+          }
+        : null,
+    };
+  }
+  const compareA = compareIds
+    ? (candidates?.find((c) => c.id === compareIds[0]) ?? null)
+    : null;
+  const compareB = compareIds
+    ? (candidates?.find((c) => c.id === compareIds[1]) ?? null)
+    : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -90,10 +316,15 @@ export function LinkedInSourcingTab() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Ej: Backend Engineer Python Supabase"
+                disabled={candidates !== null}
                 className={fieldClass}
               />
             </div>
-            <Button type="submit" disabled={searching || !query.trim()} className="shrink-0 gap-2">
+            <Button
+              type="submit"
+              disabled={searching || !query.trim() || candidates !== null}
+              className="shrink-0 gap-2"
+            >
               <Search className="h-4 w-4" />
               {searching ? "Buscando…" : "Buscar en LinkedIn"}
             </Button>
@@ -108,6 +339,7 @@ export function LinkedInSourcingTab() {
               key={s}
               active={query === s}
               onClick={() => {
+                if (candidates !== null) return;
                 setQuery(s);
                 buscar(s);
               }}
@@ -120,95 +352,162 @@ export function LinkedInSourcingTab() {
 
       {/* Resultados de la búsqueda */}
       {candidates === null ? null : candidates.length === 0 ? (
-        <EmptyState
-          title="Sin resultados"
-          description="No se encontraron perfiles coincidentes. Probá ajustar los términos de búsqueda."
-        />
+        <div className="flex flex-col items-center gap-4">
+          <EmptyState
+            title="Sin resultados"
+            description="No se encontraron perfiles coincidentes. Probá ajustar los términos de búsqueda."
+          />
+          <Button variant="secondary" size="sm" onClick={limpiar}>
+            Limpiar
+          </Button>
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between px-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
             <span className="text-xs font-semibold text-muted">
               {candidates.length} candidato{candidates.length === 1 ? "" : "s"} en LinkedIn
             </span>
+            <div className="flex items-center gap-3">
+              {pendingCandidates.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelected(
+                      allPendingSelected
+                        ? new Set()
+                        : new Set(pendingCandidates.map((c) => c.id)),
+                    )
+                  }
+                  className="text-xs font-semibold text-primary hover:text-primary-hover"
+                >
+                  {allPendingSelected ? "Deseleccionar todos" : "Seleccionar todos"}
+                </button>
+              )}
+              <Button variant="secondary" size="sm" onClick={limpiar}>
+                Limpiar
+              </Button>
+            </div>
           </div>
+
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius)] border border-primary/30 bg-primary-light px-4 py-2.5">
+              <span className="text-sm font-semibold text-primary-hover">
+                {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
+              </span>
+              {selected.size === 2 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCompareIds([...selected] as [string, string])}
+                >
+                  Comparar
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={importarSeleccionados}
+                loading={pendingIds.size > 0}
+                title="Cada candidato usa la búsqueda que elegiste en su propia card, o queda en el pool si no elegiste ninguna"
+              >
+                Importar {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
+              </Button>
+              <button
+                type="button"
+                onClick={omitirSeleccionados}
+                className="text-sm font-semibold text-muted hover:text-danger"
+              >
+                Omitir seleccionados
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="text-sm font-semibold text-muted hover:text-text"
+              >
+                Deseleccionar todo
+              </button>
+            </div>
+          )}
 
           {candidates.map((c) => {
             const decision = decisions[c.id] ?? "pending";
             if (decision === "out") return null;
             const imported = decision === "imported";
+            const jobId = jobByCandidate[c.id] ?? "";
+            const scored = jobId ? scores[pairKey(c.id, jobId)] : undefined;
 
             return (
-              <div
+              <SourcingCandidateCard
                 key={c.id}
-                className="flex flex-col gap-4 rounded-[var(--radius)] border border-border bg-surface p-4 shadow-[var(--shadow)] sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                  <Avatar name={c.name} size="md" />
-                  <div className="flex flex-col gap-1 min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-base font-semibold text-text">{c.name}</span>
-                      <Badge variant="muted">LinkedIn</Badge>
-                    </div>
-
-                    <p className="text-xs font-medium text-text">{c.headline}</p>
-
-                    {c.location && (
-                      <p className="text-xs text-muted">{c.location}</p>
-                    )}
-
-                    {c.snippet && (
-                      <p className="text-xs text-muted line-clamp-2 mt-1 bg-bg/60 p-2.5 rounded-[var(--radius)] border border-border/40 font-normal">
-                        {c.snippet}
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {c.skills.map((s) => (
-                        <span
-                          key={s}
-                          className="rounded-md bg-bg px-2 py-0.5 text-[11px] font-medium text-text border border-border/40"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border sm:border-t-0 sm:pt-0 shrink-0">
-                  <a
-                    href={c.linkedinUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-border bg-bg px-3 py-1.5 text-xs font-medium text-text hover:bg-surface hover:text-primary transition-colors"
-                  >
-                    Ver perfil
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-
-                  {imported ? (
-                    <Badge variant="success">En el pool ✓</Badge>
-                  ) : (
-                    <>
-                      <Button size="sm" onClick={() => decide(c, "in")} disabled={searching}>
-                        Importar al pool
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => decide(c, "out")}
-                        className="rounded-lg px-2.5 py-1 text-xs font-semibold text-muted hover:text-danger"
-                      >
-                        Omitir
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
+                name={c.name}
+                headline={c.headline}
+                location={c.location}
+                skills={c.skills}
+                linkedinUrl={c.linkedinUrl}
+                snippet={c.snippet}
+                match={
+                  scored
+                    ? {
+                        score: scored.score,
+                        summary: scored.summary,
+                        onOpenDetail: () => setDetailId(c.id),
+                      }
+                    : null
+                }
+                matchLoading={scoringIds.has(c.id)}
+                jobPicker={
+                  jobs.length > 0
+                    ? {
+                        jobs,
+                        value: jobId,
+                        onChange: (newJobId) => onJobChange(c, newJobId),
+                      }
+                    : undefined
+                }
+                selectable={
+                  imported
+                    ? null
+                    : { checked: selected.has(c.id), onToggle: () => toggleSeleccionado(c.id) }
+                }
+                imported={imported}
+                importedLabel={
+                  importedVia[c.id] === "postulado"
+                    ? "En el pool y postulado ✓"
+                    : "En el pool ✓"
+                }
+                primaryActionLabel={jobId ? "Importar y postular" : "Importar al pool"}
+                onPrimaryAction={() => importar(c)}
+                primaryActionLoading={pendingIds.has(c.id)}
+                primaryActionDisabled={pendingIds.size > 0 && !pendingIds.has(c.id)}
+                onOmit={() => omitir(c)}
+              />
             );
           })}
+
+          <AiAnalysisDialog
+            subject={
+              detailScored
+                ? {
+                    name: detailScored.name,
+                    headline: detailScored.headline,
+                    score: detailScored.score,
+                    summary: detailScored.summary,
+                    breakdown: detailScored.breakdown,
+                    strengths: detailScored.strengths,
+                    redFlags: detailScored.redFlags,
+                  }
+                : null
+            }
+            onClose={() => setDetailId(null)}
+          />
+
+          <CompareCandidatesDialog
+            open={compareIds !== null}
+            onClose={() => setCompareIds(null)}
+            a={compareA ? toCompareSubject(compareA) : null}
+            b={compareB ? toCompareSubject(compareB) : null}
+          />
         </div>
       )}
     </div>
   );
 }
-

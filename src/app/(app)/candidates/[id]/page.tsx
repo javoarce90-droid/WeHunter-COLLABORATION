@@ -26,6 +26,7 @@ import { AiScore } from "@/components/ui/ai";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
 import { normalizeIfUncapitalized } from "@/lib/text";
+import { waHref } from "@/features/recruiter/candidates/ui/whatsapp";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
@@ -61,11 +62,7 @@ export default async function CandidateDetailPage({
     { label: "En el pool desde", value: dateFmt.format(candidate.createdAt) },
   ];
 
-  // wa.me solo acepta dígitos (código de país + número, sin "+" ni separadores). El teléfono
-  // es texto libre cargado por el recruiter — hacemos un best-effort, no validamos formato.
-  const whatsappHref = candidate.phone
-    ? `https://wa.me/${candidate.phone.replace(/\D/g, "")}`
-    : null;
+  const whatsappHref = candidate.phone ? waHref(candidate.phone) : null;
 
   return (
     <div className="flex flex-col gap-5">
