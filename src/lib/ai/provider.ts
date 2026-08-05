@@ -91,6 +91,34 @@ export type DraftJobOffer = {
   skills: string[];
 };
 
+/**
+ * Sugerencias de preguntas de screening a partir del contenido ya cargado del aviso (mismos
+ * campos que `AvisoEditor` ya edita) — el recruiter revisa y elige cuáles agregar, nunca se
+ * guardan directo. `type` espeja `ScreeningQuestionType` del dominio (yes_no/text/number/
+ * multiple_choice) pero como `string` acá para no acoplar `lib/ai` a una feature.
+ */
+export type DraftScreeningQuestionsInput = {
+  title: string;
+  objectives: string | null;
+  requirements: string | null;
+  responsibilities: string | null;
+  skills: string[] | null;
+};
+
+export type DraftScreeningQuestion = {
+  label: string;
+  /** "yes_no" | "text" | "number" | "multiple_choice" */
+  type: string;
+  /** Solo para multiple_choice. */
+  options?: string[];
+  isCriterion: boolean;
+  /** Respuestas válidas esperadas (yes_no/multiple_choice), cuando isCriterion. */
+  expectedValues?: string[];
+  /** Rango válido (number), cuando isCriterion. */
+  minValue?: number | null;
+  maxValue?: number | null;
+};
+
 export type InterviewGuideInput = {
   candidateName: string;
   jobTitle: string;
@@ -173,6 +201,7 @@ export interface AiProvider {
   draftOffer(input: DraftOfferInput): Promise<string>;
   draftJobPosting(input: DraftJobPostingInput): Promise<string>;
   draftJobOffer(input: DraftJobOfferInput): Promise<DraftJobOffer>;
+  draftScreeningQuestions(input: DraftScreeningQuestionsInput): Promise<DraftScreeningQuestion[]>;
   draftCandidateProfile(input: DraftCandidateProfileInput): Promise<DraftCandidateProfile>;
   interviewGuide(input: InterviewGuideInput): Promise<string[]>;
   reportInsights(input: ReportInsightsInput): Promise<string>;

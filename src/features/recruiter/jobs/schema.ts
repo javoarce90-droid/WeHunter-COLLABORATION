@@ -164,3 +164,13 @@ export const jobInputSchema = z.object({
 export const jobStatusSchema = z.enum(["draft", "open", "paused", "closed", "archived"]);
 
 export type JobInput = z.infer<typeof jobInputSchema>;
+
+// Edición angosta desde la tab Aviso: solo el contenido del aviso, no el resto de la búsqueda
+// (ver editar-aviso-busqueda.ts — por qué no reusa jobInputSchema completo).
+export const editarAvisoBusquedaSchema = z.object({
+  jobId: z.string().uuid("Búsqueda inválida."),
+  objectives: markdownField(5000),
+  requirements: markdownField(5000),
+  responsibilities: markdownField(5000),
+  benefits: benefitsField,
+});

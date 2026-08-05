@@ -6,6 +6,8 @@ import type {
   DraftJobPostingInput,
   DraftJobOfferInput,
   DraftJobOffer,
+  DraftScreeningQuestionsInput,
+  DraftScreeningQuestion,
   DraftCandidateProfileInput,
   DraftCandidateProfile,
   InterviewGuideInput,
@@ -175,6 +177,42 @@ export class MockAiProvider implements AiProvider {
       vacancies: 1,
       skills,
     };
+  }
+
+  async draftScreeningQuestions(
+    input: DraftScreeningQuestionsInput,
+  ): Promise<DraftScreeningQuestion[]> {
+    const skill = input.skills?.[0] ?? null;
+    return [
+      {
+        label: `¿Cuántos años de experiencia tenés en un rol como "${input.title.trim() || "este"}"?`,
+        type: "number",
+        isCriterion: true,
+        minValue: 2,
+        maxValue: null,
+      },
+      {
+        label: "¿Tenés disponibilidad para incorporarte en las próximas semanas?",
+        type: "yes_no",
+        isCriterion: true,
+        expectedValues: ["Sí"],
+      },
+      ...(skill
+        ? [
+            {
+              label: `¿Cuál es tu nivel de experiencia con ${skill}?`,
+              type: "multiple_choice",
+              options: ["Básico", "Intermedio", "Avanzado"],
+              isCriterion: false,
+            } satisfies DraftScreeningQuestion,
+          ]
+        : []),
+      {
+        label: "Contanos brevemente por qué te interesa esta búsqueda.",
+        type: "text",
+        isCriterion: false,
+      },
+    ];
   }
 
   async draftCandidateProfile(
