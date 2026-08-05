@@ -1,4 +1,8 @@
-import { type InputHTMLAttributes, forwardRef, useId } from "react";
+"use client";
+
+import { type InputHTMLAttributes, forwardRef, useId, useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { IconButton } from "./icon-button";
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -25,9 +29,11 @@ export function fieldClasses(hasError = false): string {
 export const fieldLabelClass = "text-xs font-semibold text-muted";
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className = "", ...props }, ref) => {
+  ({ label, error, className = "", type, ...props }, ref) => {
     const id = useId();
     const inputId = props.id ?? id;
+    const [visible, setVisible] = useState(false);
+    const isPassword = type === "password";
 
     return (
       <div className="flex flex-col gap-1">
@@ -36,12 +42,29 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             {label}
           </label>
         )}
-        <input
-          ref={ref}
-          id={inputId}
-          className={[fieldClasses(!!error), className].join(" ")}
-          {...props}
-        />
+        <div className="relative">
+          <input
+            ref={ref}
+            id={inputId}
+            type={isPassword ? (visible ? "text" : "password") : type}
+            className={[fieldClasses(!!error), isPassword ? "pr-10" : "", className].join(" ")}
+            {...props}
+          />
+          {isPassword && (
+            <IconButton
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={props.disabled}
+              aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+              aria-pressed={visible}
+              onClick={() => setVisible((v) => !v)}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2"
+            >
+              {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </IconButton>
+          )}
+        </div>
         {error && <p className="text-xs text-danger">{error}</p>}
       </div>
     );
