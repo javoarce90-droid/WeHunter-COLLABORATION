@@ -68,3 +68,7 @@ export const solicitarBusquedaSchema = z.object({
   requirements: markdownField(5000),
   responsibilities: markdownField(5000),
 });
+
+export const editarSolicitudSchema = solicitarBusquedaSchema.extend({
+  requisitionId: z.string().uuid("Solicitud inválida."),
+});

@@ -66,3 +66,44 @@ export async function createRequisitionRpc(args: {
     return null;
   }
 }
+
+/** Detalle completo de una solicitud (todos los campos editables + estado/revisión). */
+export type ClientRequisitionDetail = RequisitionDraft & {
+  id: string;
+  status: RequisitionStatus;
+  reviewNote: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+};
+
+export async function getClientRequisitionDetail(
+  token: string,
+  requisitionId: string,
+): Promise<ClientRequisitionDetail | null> {
+  const rows = await admin.execute<{ result: ClientRequisitionDetail | null }>(
+    sql`select get_client_requisition(${token}, ${requisitionId}::uuid) as result`,
+  );
+  return rows[0]?.result ?? null;
+}
+
+/**
+ * Actualiza una solicitud a nombre del cliente del token. `false` = no se pudo (token
+ * inválido, id de otro cliente, o la solicitud ya fue revisada) — la función SQL no lanza
+ * excepción en ese caso, solo actualiza 0 filas (a diferencia de create, acá "no corresponde"
+ * es un resultado normal, no un error de programación).
+ */
+export async function updateRequisitionRpc(args: {
+  token: string;
+  requisitionId: string;
+  draft: RequisitionDraft;
+}): Promise<boolean> {
+  try {
+    const rows = await admin.execute<{ ok: boolean }>(
+      sql`select update_client_requisition(${args.token}, ${args.requisitionId}::uuid, ${JSON.stringify(args.draft)}::json) as ok`,
+    );
+    return rows[0]?.ok ?? false;
+  } catch {
+    // Token inválido/vencido: la función lanza excepción (mismo caso que createRequisitionRpc).
+    return false;
+  }
+}
