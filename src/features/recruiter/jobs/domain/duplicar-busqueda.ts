@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can } from "@/lib/auth/roles";
+import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import type { Job } from "@/db/schema";
 import type { JobDetails } from "./job-details";
@@ -44,6 +44,13 @@ export async function duplicarBusqueda(
 
   const original = await deps.getJobById(input.jobId, ctx.organizationId);
   if (!original) {
+    return err("La búsqueda no existe.");
+  }
+  if (
+    isAssignmentScoped(ctx.role) &&
+    original.assignedTo !== ctx.membershipId &&
+    original.sourcerId !== ctx.membershipId
+  ) {
     return err("La búsqueda no existe.");
   }
 

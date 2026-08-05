@@ -4,7 +4,7 @@ import { editarAvisoBusqueda, type EditarAvisoBusquedaDeps } from "./editar-avis
 const deps = (updated = true): EditarAvisoBusquedaDeps => ({
   updateJobAvisoFields: vi.fn(async () => ({ updated })),
 });
-const ctx = { organizationId: "org-1", role: "recruiter" as const };
+const ctx = { organizationId: "org-1", role: "recruiter" as const, membershipId: "m1" };
 
 describe("editarAvisoBusqueda", () => {
   it("rechaza al consultor", async () => {
@@ -22,7 +22,7 @@ describe("editarAvisoBusqueda", () => {
     const d = deps();
     const res = await editarAvisoBusqueda(
       { jobId: "j1" },
-      { organizationId: null, role: null },
+      { organizationId: null, role: null, membershipId: null },
       d,
     );
     expect(res.ok).toBe(false);
@@ -48,12 +48,17 @@ describe("editarAvisoBusqueda", () => {
       d,
     );
     expect(res).toEqual({ ok: true, data: { jobId: "j1" } });
-    expect(d.updateJobAvisoFields).toHaveBeenCalledWith("j1", "org-1", {
-      objectives: "Liderar el equipo",
-      requirements: null,
-      responsibilities: "Diseñar servicios.",
-      benefits: null,
-    });
+    expect(d.updateJobAvisoFields).toHaveBeenCalledWith(
+      "j1",
+      "org-1",
+      {
+        objectives: "Liderar el equipo",
+        requirements: null,
+        responsibilities: "Diseñar servicios.",
+        benefits: null,
+      },
+      "m1",
+    );
   });
 
   it("descarta beneficios en blanco y deja null si no queda ninguno", async () => {
@@ -67,6 +72,7 @@ describe("editarAvisoBusqueda", () => {
       "j1",
       "org-1",
       expect.objectContaining({ benefits: [{ name: "Home office", description: "" }] }),
+      "m1",
     );
   });
 
@@ -81,6 +87,7 @@ describe("editarAvisoBusqueda", () => {
       "j1",
       "org-1",
       expect.objectContaining({ objectives: "Liderar el equipo." }),
+      "m1",
     );
   });
 });

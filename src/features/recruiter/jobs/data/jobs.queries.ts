@@ -1,15 +1,9 @@
 import { cache } from "react";
-import { and, eq, or, desc, sql } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db/client";
 import { jobs, applications, organizations, memberships, profiles, type Job } from "@/db/schema";
-
-/** Búsquedas donde el membership es responsable o sourcer — condición compartida por los
- *  listados que aceptan `scopeToMembershipId` (roles acotados por asignación, ver
- *  `isAssignmentScoped` en `@/lib/auth/roles`). */
-function assignedToMembership(membershipId: string) {
-  return or(eq(jobs.assignedTo, membershipId), eq(jobs.sourcerId, membershipId));
-}
+import { assignedToMembership } from "./job-scope";
 
 /** Lecturas de búsquedas. Cliente RLS; además filtramos por organizationId activa. */
 
@@ -233,13 +227,20 @@ export async function getJobAssignees(
 export async function getJobStatus(
   jobId: string,
   organizationId: string,
+  scopeToMembershipId?: string,
 ): Promise<Job["status"] | null> {
   const db = await getDb();
   const rows = await db.rls((tx) =>
     tx
       .select({ status: jobs.status })
       .from(jobs)
-      .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
+      .where(
+        and(
+          eq(jobs.id, jobId),
+          eq(jobs.organizationId, organizationId),
+          scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined,
+        ),
+      )
       .limit(1),
     "db.jobs.get-status",
   );

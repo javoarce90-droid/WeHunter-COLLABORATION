@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can } from "@/lib/auth/roles";
+import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 
 /**
@@ -48,10 +48,15 @@ export interface NormalizedScreeningQuestion {
 export interface DefinirPreguntasScreeningCtx {
   organizationId: string | null;
   role: OrgRole | null;
+  /** Roles acotados por asignación (ver `isAssignmentScoped`) solo configuran lo propio. */
+  membershipId: string | null;
 }
 
 export interface DefinirPreguntasScreeningDeps {
-  getJob: (jobId: string, organizationId: string) => Promise<{ id: string } | null>;
+  getJob: (
+    jobId: string,
+    organizationId: string,
+  ) => Promise<{ id: string; assignedTo: string; sourcerId: string | null } | null>;
   syncQuestions: (
     jobId: string,
     organizationId: string,
@@ -131,6 +136,13 @@ export async function definirPreguntasScreening(
 
   const job = await deps.getJob(jobId, ctx.organizationId);
   if (!job) {
+    return err("Búsqueda no encontrada.");
+  }
+  if (
+    isAssignmentScoped(ctx.role) &&
+    job.assignedTo !== ctx.membershipId &&
+    job.sourcerId !== ctx.membershipId
+  ) {
     return err("Búsqueda no encontrada.");
   }
 

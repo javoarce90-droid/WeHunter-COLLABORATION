@@ -219,6 +219,7 @@ export async function editarBusquedaAction(
     {
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
+      membershipId: membership?.id ?? null,
     },
     { updateJobFields },
   );
@@ -230,7 +231,11 @@ export async function editarBusquedaAction(
     await definirPreguntasScreening(
       jobId,
       parsed.data.screeningQuestions,
-      { organizationId: membership?.organizationId ?? null, role: membership?.role ?? null },
+      {
+        organizationId: membership?.organizationId ?? null,
+        role: membership?.role ?? null,
+        membershipId: membership?.id ?? null,
+      },
       { getJob: getJobById, syncQuestions: syncScreeningQuestions },
     );
   }
@@ -262,6 +267,7 @@ export async function editarAvisoBusquedaAction(
     {
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
+      membershipId: membership?.id ?? null,
     },
     { updateJobAvisoFields },
   );
@@ -287,6 +293,7 @@ export async function cambiarEstadoBusquedaAction(
     {
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
+      membershipId: membership?.id ?? null,
     },
     { getJobStatus, updateJobStatus },
   );
@@ -309,6 +316,7 @@ export async function registrarCompartidaBusquedaAction(formData: FormData): Pro
     {
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
+      membershipId: membership?.id ?? null,
     },
     { incrementShareCount },
   );
