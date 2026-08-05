@@ -54,11 +54,16 @@ export function buildDefaultStageTemplate(): StageTemplateSeed[] {
 
 export type AgregarEtapaPlantillaDeps = {
   listStages: (organizationId: string) => Promise<JobStage[]>;
-  insertStage: (args: { organizationId: string; name: string; position: number }) => Promise<{ id: string }>;
+  insertStage: (args: {
+    organizationId: string;
+    name: string;
+    position: number;
+    slaDays?: number | null;
+  }) => Promise<{ id: string }>;
 };
 
 export async function agregarEtapaPlantilla(
-  input: { name: string },
+  input: { name: string; slaDays?: number | null },
   ctx: PlantillaCtx,
   deps: AgregarEtapaPlantillaDeps,
 ): Promise<Result<{ stageId: string }>> {
@@ -69,6 +74,9 @@ export async function agregarEtapaPlantilla(
   const name = input.name.trim();
   if (name.length < 2) return err("El nombre de la etapa es demasiado corto.");
   if (name.length > MAX_NOMBRE) return err(`El nombre no puede superar los ${MAX_NOMBRE} caracteres.`);
+  if (input.slaDays != null && input.slaDays < 1) {
+    return err("El SLA tiene que ser de al menos 1 día.");
+  }
 
   const stages = await deps.listStages(ctx.organizationId);
   if (stages.length >= MAX_ETAPAS) {
@@ -81,7 +89,12 @@ export async function agregarEtapaPlantilla(
   const primeraDeCierre = stages.find((s) => s.kind === "offer" || s.kind === "hired" || s.kind === "rejected");
   const position = primeraDeCierre ? primeraDeCierre.position : stages.length;
 
-  const { id } = await deps.insertStage({ organizationId: ctx.organizationId, name, position });
+  const { id } = await deps.insertStage({
+    organizationId: ctx.organizationId,
+    name,
+    position,
+    slaDays: input.slaDays ?? null,
+  });
   return ok({ stageId: id });
 }
 

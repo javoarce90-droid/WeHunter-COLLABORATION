@@ -1,30 +1,28 @@
 import { and, count, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { jobs, candidates, organizations } from "@/db/schema";
-import type { WorkspaceType } from "@/lib/auth/session";
 import type { SetupCounts } from "../domain/calcular-progreso-setup";
 import { getOrganization } from "@/features/recruiter/settings/data/settings.queries";
-import { countStageTemplates } from "@/features/recruiter/pipeline-stages/data/job-stage-templates.queries";
 import { countClients } from "@/features/recruiter/clients/data/clients.queries";
 import { countMembersAndPendingInvitations } from "@/features/recruiter/team/data/team.queries";
+import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
 
 /**
  * Cuentas para el checklist de setup (Inicio + widget flotante). Reusa las funciones ya
- * existentes de cada feature (career site, etapas, equipo/clientes) en paralelo, y suma una
+ * existentes de cada feature (career site, clientes/equipo, agenda) en paralelo, y suma una
  * transacción propia solo para lo que no tenía un count liviano todavía (búsquedas/candidatos).
  */
 export async function getSetupChecklistCounts(
   organizationId: string,
-  workspaceType: WorkspaceType | null,
+  userId: string,
 ): Promise<SetupCounts> {
   const db = await getDb();
 
-  const [org, stageTemplatesCount, teamOrClientsCount, jobsAndCandidates] = await Promise.all([
+  const [org, clientsOrHmCount, teamCount, googleConnection, jobsAndCandidates] = await Promise.all([
     getOrganization(organizationId),
-    countStageTemplates(organizationId),
-    workspaceType === "freelance"
-      ? countClients(organizationId)
-      : countMembersAndPendingInvitations(organizationId),
+    countClients(organizationId),
+    countMembersAndPendingInvitations(organizationId),
+    getConnectionByProfile(userId, organizationId),
     db.rls(async (tx) => {
       const [jobRows, candidateRows] = await Promise.all([
         tx.select({ n: count() }).from(jobs).where(eq(jobs.organizationId, organizationId)),
@@ -39,8 +37,9 @@ export async function getSetupChecklistCounts(
 
   return {
     careerSiteConfigured: !!org?.branding?.description || !!org?.careerSiteCoverUrl,
-    stageTemplatesCount,
-    teamOrClientsCount,
+    clientsOrHmCount,
+    teamCount,
+    googleCalendarConnected: !!googleConnection,
     jobsCount: jobsAndCandidates.jobsCount,
     candidatesCount: jobsAndCandidates.candidatesCount,
   };

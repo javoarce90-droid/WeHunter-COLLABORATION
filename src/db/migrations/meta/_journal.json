@@ -624,6 +624,20 @@
       "when": 1785863645250,
       "tag": "0088_romantic_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1785864000000,
+      "tag": "0089_get_active_career_sites",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1785864100000,
+      "tag": "0090_client_requisition_detail",
+      "breakpoints": true
     }
   ]
 }

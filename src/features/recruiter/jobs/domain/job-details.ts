@@ -100,12 +100,14 @@ function stripRedundantHeading(text: string, title: string): string {
   return text;
 }
 
-const cleanAvisoSection = (key: keyof typeof SECTION_TITLES) => (s?: string | null) => {
+/** Exportado: lo reusa también `editar-aviso-busqueda.ts` (edición angosta de solo estos 3
+ *  campos desde la tab Aviso) para no duplicar la regla de "sacar el heading redundante". */
+export const cleanAvisoSection = (key: keyof typeof SECTION_TITLES) => (s?: string | null) => {
   const cleaned = clean(s);
   return cleaned ? clean(stripRedundantHeading(cleaned, SECTION_TITLES[key])) : null;
 };
 
-function cleanBenefits(benefits?: Benefit[] | null): Benefit[] | null {
+export function cleanBenefits(benefits?: Benefit[] | null): Benefit[] | null {
   if (!benefits?.length) return null;
   const out = benefits
     .map((b) => ({ name: b.name?.trim() ?? "", description: b.description?.trim() ?? "" }))

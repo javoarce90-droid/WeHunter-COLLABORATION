@@ -102,6 +102,41 @@ export const getCareerSite = cache(async (slug: string): Promise<CareerSite | nu
   return { ...org, jobs: raw.jobs };
 });
 
+export type CareerSiteSuggestion = {
+  organizationId: string;
+  name: string;
+  slug: string;
+  logoUrl: string | null; // signed URL, ya resuelta
+  openJobsCount: number;
+};
+
+type RawCareerSiteSuggestion = Omit<CareerSiteSuggestion, "logoUrl"> & {
+  logoUrl: string | null; // path crudo del bucket privado org-logos
+};
+
+/**
+ * Otras organizations de WeHunter con career site habilitado y búsquedas abiertas, para
+ * sugerir en el empty state cuando la org visitada no tiene ninguna (ver get_active_career_sites,
+ * migración 0089 — primera lectura pública cross-org del proyecto, whitelist explícita de
+ * columnas). Sin cache(): se llama una sola vez, condicional, desde la page.
+ */
+export async function getActiveCareerSitesElsewhere(
+  excludeOrganizationId: string,
+  limit = 6,
+): Promise<CareerSiteSuggestion[]> {
+  const rows = await admin.execute<{ result: RawCareerSiteSuggestion[] }>(
+    sql`select get_active_career_sites(${excludeOrganizationId}::uuid, ${limit}) as result`,
+  );
+  const raw = rows[0]?.result ?? [];
+
+  return Promise.all(
+    raw.map(async (org) => ({
+      ...org,
+      logoUrl: org.logoUrl ? await getOrgLogoSignedUrl(org.logoUrl) : null,
+    })),
+  );
+}
+
 /** El tipo canónico vive en el dominio de applications: lo comparten el Career Site y el portal. */
 export type CareerSiteScreeningQuestion = ScreeningQuestion;
 

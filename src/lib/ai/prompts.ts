@@ -3,6 +3,7 @@ import type {
   DraftOfferInput,
   DraftJobPostingInput,
   DraftJobOfferInput,
+  DraftScreeningQuestionsInput,
   InterviewGuideInput,
   ReportInsightsInput,
 } from "./provider";
@@ -104,6 +105,44 @@ export const prompts = {
         `atencion_cliente, otro), objectives, requirements y responsibilities (Markdown con ` +
         `viñetas), benefits (lista de {name, description}), vacancies (entero ≥1) y skills ` +
         `(lista de tecnologías/competencias clave para el matching).`,
+    };
+  },
+
+  draftScreeningQuestions({
+    title,
+    objectives,
+    requirements,
+    responsibilities,
+    skills,
+  }: DraftScreeningQuestionsInput): Prompt {
+    const contenido = [
+      objectives ? `Objetivos:\n${objectives}` : null,
+      requirements ? `Requisitos:\n${requirements}` : null,
+      responsibilities ? `Responsabilidades:\n${responsibilities}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    return {
+      system:
+        "Sos un reclutador técnico que arma preguntas de screening (las responde el candidato " +
+        "al postularse, antes de la entrevista) en español rioplatense. Devolvés SOLO un array " +
+        "JSON de 4 a 5 preguntas relevantes al puesto — ni genéricas ni triviales, apuntan a " +
+        "filtrar por requisitos concretos del aviso. Cada pregunta tiene: label (el texto), " +
+        "type (exactamente uno de: yes_no, text, number, multiple_choice), options (solo si " +
+        "type=multiple_choice, 2 a 5 opciones), isCriterion (true si la respuesta debería " +
+        "descalificar/priorizar al candidato), y si isCriterion=true: expectedValues (respuestas " +
+        "válidas, para yes_no/multiple_choice) o minValue/maxValue (para number, al menos uno de " +
+        "los dos). Reglas estrictas de coherencia, no las rompas: una pregunta type=text NUNCA " +
+        "puede ser isCriterion=true (no hay forma de evaluar texto libre automáticamente). Preferí " +
+        "criterios objetivos y verificables (años de experiencia, disponibilidad, certificaciones) " +
+        "por sobre preferencias subjetivas. No inventes datos sensibles ni discriminatorios (nada " +
+        "de edad, género, estado civil ni nivel educativo obligatorio salvo que el aviso lo pida " +
+        "explícitamente).",
+      user:
+        `Búsqueda: "${title}"\n` +
+        (skills?.length ? `Skills buscadas: ${skills.join(", ")}\n` : "") +
+        (contenido ? `\n${contenido}\n` : "\n(sin más contenido cargado todavía)\n") +
+        `\nSugerí las preguntas de screening para esta búsqueda.`,
     };
   },
 

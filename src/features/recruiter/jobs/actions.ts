@@ -3,10 +3,11 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
-import { jobInputSchema, jobStatusSchema, jobAreaSchema } from "./schema";
+import { jobInputSchema, jobStatusSchema, jobAreaSchema, editarAvisoBusquedaSchema } from "./schema";
 import type { Benefit, JobArea } from "./domain/job-details";
 import { crearBusqueda } from "./domain/crear-busqueda";
 import { editarBusqueda } from "./domain/editar-busqueda";
+import { editarAvisoBusqueda } from "./domain/editar-aviso-busqueda";
 import { cambiarEstadoBusqueda } from "./domain/cambiar-estado-busqueda";
 import { duplicarBusqueda } from "./domain/duplicar-busqueda";
 import { registrarCompartidaBusqueda } from "./domain/registrar-compartida-busqueda";
@@ -14,6 +15,7 @@ import { reasignarResponsable, actualizarSourcer } from "./domain/gestionar-resp
 import {
   insertJob,
   updateJobFields,
+  updateJobAvisoFields,
   updateJobStatus,
   incrementShareCount,
   updateJobAssignedTo,
@@ -234,6 +236,41 @@ export async function editarBusquedaAction(
   }
 
   redirect("/jobs?updated=1");
+}
+
+/** Edición angosta desde la tab Aviso: solo objetivos/requisitos/responsabilidades/beneficios.
+ *  No redirige (se queda en la misma tab), a diferencia de `editarBusquedaAction`. */
+export async function editarAvisoBusquedaAction(
+  _prev: JobFormState,
+  formData: FormData,
+): Promise<JobFormState> {
+  const parsed = editarAvisoBusquedaSchema.safeParse({
+    jobId: formData.get("jobId"),
+    objectives: formData.get("objectives"),
+    requirements: formData.get("requirements"),
+    responsibilities: formData.get("responsibilities"),
+    benefits: formData.get("benefits"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+  }
+
+  const membership = await getActiveMembership();
+  const { jobId, ...fields } = parsed.data;
+  const result = await editarAvisoBusqueda(
+    { jobId, ...fields },
+    {
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+    },
+    { updateJobAvisoFields },
+  );
+  if (!result.ok) {
+    return { error: result.error };
+  }
+
+  revalidatePath(`/jobs/${jobId}/aviso`);
+  return {};
 }
 
 /** Botones de estado (publicar/pausar/cerrar). Revalida la lista y la búsqueda al terminar. */
