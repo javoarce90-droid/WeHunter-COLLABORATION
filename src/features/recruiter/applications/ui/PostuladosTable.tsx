@@ -41,7 +41,7 @@ import {
 } from "../actions";
 import { CriteriosChip } from "./CriteriosChip";
 import { MatchCell } from "./MatchCell";
-import { AiAnalysisDialog } from "./AiAnalysisDialog";
+import { AiAnalysisDialog, type AiAnalysisSubject } from "./AiAnalysisDialog";
 import {
   PostuladoDetailSheet,
   type ScreeningAnswerLine,
@@ -229,6 +229,18 @@ export function PostuladosTable({
   const aiDetailRow = aiDetailId
     ? (rows.find((r) => r.id === aiDetailId) ?? null)
     : null;
+  const aiDetailSubject: AiAnalysisSubject | null =
+    aiDetailRow && aiDetailRow.aiScore != null
+      ? {
+          name: aiDetailRow.candidate.fullName,
+          headline: aiDetailRow.candidate.headline,
+          score: aiDetailRow.aiScore,
+          summary: aiDetailRow.aiSummary,
+          breakdown: aiDetailRow.aiBreakdown,
+          strengths: aiDetailRow.aiStrengths,
+          redFlags: aiDetailRow.aiRedFlags,
+        }
+      : null;
 
   function setSortKey(key: SortKey) {
     setSort((prev) =>
@@ -692,7 +704,7 @@ export function PostuladosTable({
       />
 
       <AiAnalysisDialog
-        postulado={aiDetailRow}
+        subject={aiDetailSubject}
         onClose={() => setAiDetailId(null)}
       />
 

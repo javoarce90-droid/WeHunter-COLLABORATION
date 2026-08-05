@@ -1,6 +1,7 @@
 import type {
   ScoreApplicationInput,
   ScoreApplicationResult,
+  ScoreBreakdown,
 } from "@/lib/ai/provider";
 import type { LinkedInCandidateResult } from "./linkedin-search";
 
@@ -22,6 +23,9 @@ export const SOURCING_MAX_RESULTS = 10;
 export type ScoredLinkedInCandidate = LinkedInCandidateResult & {
   score: number;
   summary: string;
+  breakdown: ScoreBreakdown;
+  strengths: string[];
+  redFlags: string[];
 };
 
 export type SourcearParaBusquedaDeps = {
@@ -88,7 +92,14 @@ export async function sourcearParaBusqueda(
           responsibilities: job.responsibilities,
         },
       });
-      return { ...c, score: result.score, summary: result.summary };
+      return {
+        ...c,
+        score: result.score,
+        summary: result.summary,
+        breakdown: result.breakdown,
+        strengths: result.strengths,
+        redFlags: result.redFlags,
+      };
     }),
   );
 

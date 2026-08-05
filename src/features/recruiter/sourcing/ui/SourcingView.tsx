@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AiSourcingTab, type SourcingJobOption } from "./AiSourcingTab";
+import { AiSourcingTab } from "./AiSourcingTab";
 import { LinkedInSourcingTab } from "./LinkedInSourcingTab";
 
 type Tab = "ai" | "linkedin";
+
+export type SourcingJobOption = { id: string; title: string };
 
 type Props = {
   jobs: SourcingJobOption[];
@@ -54,7 +56,7 @@ export function SourcingView({ jobs }: Props) {
         <AiSourcingTab jobs={jobs} />
       </div>
       <div className={activeTab === "linkedin" ? "" : "hidden"}>
-        <LinkedInSourcingTab />
+        <LinkedInSourcingTab jobs={jobs} />
       </div>
     </div>
   );

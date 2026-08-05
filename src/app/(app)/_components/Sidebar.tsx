@@ -136,7 +136,7 @@ export function Sidebar({
             </span>
           ) : (
             <span className="flex min-w-0 flex-col">
-              <WehunterLogo variant="white" height={20} />
+              <WehunterLogo variant="white" height={20} priority />
               <span className="text-[10px] font-medium tracking-wide text-white/45">
                 Talent platform
               </span>

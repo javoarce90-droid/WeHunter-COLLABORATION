@@ -1,15 +1,16 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterChip } from "@/components/ui/filter-chip";
 import { useToast } from "@/lib/toast";
-import { ExternalLink, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { buscarLinkedinAction, importarSourcingAction } from "../actions";
+import { importarSourcingResultadoAction } from "../../applications/actions";
+import { SourcingCandidateCard } from "./SourcingCandidateCard";
 import type { LinkedInCandidateResult } from "../domain/linkedin-search";
+import type { SourcingJobOption } from "./SourcingView";
 
 const SUGGESTIONS = [
   "backend engineer supabase python",
@@ -22,12 +23,22 @@ const fieldClass =
   "w-full rounded-[var(--radius)] border border-border bg-bg px-3.5 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-50";
 
 type Decision = "pending" | "in" | "out" | "imported";
+type ImportedVia = "pool" | "postulado";
 
-export function LinkedInSourcingTab() {
+type Props = {
+  jobs: SourcingJobOption[];
+};
+
+export function LinkedInSourcingTab({ jobs }: Props) {
   const toast = useToast();
   const [query, setQuery] = useState("");
   const [candidates, setCandidates] = useState<LinkedInCandidateResult[] | null>(null);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const [importedVia, setImportedVia] = useState<Record<string, ImportedVia>>({});
+  // Búsqueda elegida por candidato (no por tab) — cada resultado puede postular a una
+  // distinta, o a ninguna y quedar solo en el pool.
+  const [jobByCandidate, setJobByCandidate] = useState<Record<string, string>>({});
+  const [importingId, setImportingId] = useState<string | null>(null);
   const [searching, startSearch] = useTransition();
 
   function buscar(searchQuery?: string) {
@@ -50,28 +61,50 @@ export function LinkedInSourcingTab() {
   function limpiar() {
     setCandidates(null);
     setDecisions({});
+    setImportedVia({});
+    setJobByCandidate({});
   }
 
   function decide(c: LinkedInCandidateResult, decision: Decision) {
-    if (decision === "in") {
-      startSearch(async () => {
-        const res = await importarSourcingAction({
-          name: c.name,
-          headline: c.headline,
-          location: c.location,
-          skills: c.skills,
-          linkedinUrl: c.linkedinUrl,
-        });
-        if (!res.ok) {
-          toast({ message: res.error ?? "No se pudo importar el candidato.", variant: "danger" });
-          return;
-        }
-        setDecisions((d) => ({ ...d, [c.id]: "imported" }));
-        toast({ message: `${c.name} importado al pool de WeHunter`, variant: "success" });
-      });
-    } else {
+    if (decision !== "in") {
       setDecisions((d) => ({ ...d, [c.id]: decision }));
+      return;
     }
+    const jobId = jobByCandidate[c.id] ?? "";
+    const job = jobs.find((j) => j.id === jobId);
+    setImportingId(c.id);
+    startSearch(async () => {
+      const res = jobId
+        ? await importarSourcingResultadoAction({
+            jobId,
+            name: c.name,
+            headline: c.headline,
+            location: c.location,
+            skills: c.skills,
+            linkedinUrl: c.linkedinUrl,
+            summary: c.snippet,
+          })
+        : await importarSourcingAction({
+            name: c.name,
+            headline: c.headline,
+            location: c.location,
+            skills: c.skills,
+            linkedinUrl: c.linkedinUrl,
+          });
+      setImportingId(null);
+      if (!res.ok) {
+        toast({ message: res.error ?? "No se pudo importar el candidato.", variant: "danger" });
+        return;
+      }
+      setDecisions((d) => ({ ...d, [c.id]: "imported" }));
+      setImportedVia((d) => ({ ...d, [c.id]: jobId ? "postulado" : "pool" }));
+      toast({
+        message: jobId
+          ? `${c.name} se sumó al pool y quedó postulado a ${job?.title ?? "la búsqueda"}`
+          : `${c.name} importado al pool de WeHunter`,
+        variant: "success",
+      });
+    });
   }
 
   return (
@@ -155,74 +188,39 @@ export function LinkedInSourcingTab() {
             const decision = decisions[c.id] ?? "pending";
             if (decision === "out") return null;
             const imported = decision === "imported";
+            const jobId = jobByCandidate[c.id] ?? "";
 
             return (
-              <div
+              <SourcingCandidateCard
                 key={c.id}
-                className="flex flex-col gap-4 rounded-[var(--radius)] border border-border bg-surface p-4 shadow-[var(--shadow)] sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-3.5 min-w-0 flex-1">
-                  <Avatar name={c.name} size="md" />
-                  <div className="flex flex-col gap-1 min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-base font-semibold text-text">{c.name}</span>
-                      <Badge variant="muted">LinkedIn</Badge>
-                    </div>
-
-                    <p className="text-xs font-medium text-text">{c.headline}</p>
-
-                    {c.location && (
-                      <p className="text-xs text-muted">{c.location}</p>
-                    )}
-
-                    {c.snippet && (
-                      <p className="text-xs text-muted line-clamp-2 mt-1 bg-bg/60 p-2.5 rounded-[var(--radius)] border border-border/40 font-normal">
-                        {c.snippet}
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {c.skills.map((s) => (
-                        <span
-                          key={s}
-                          className="rounded-md bg-bg px-2 py-0.5 text-[11px] font-medium text-text border border-border/40"
-                        >
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border sm:border-t-0 sm:pt-0 shrink-0">
-                  <a
-                    href={c.linkedinUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-border bg-bg px-3 py-1.5 text-xs font-medium text-text hover:bg-surface hover:text-primary transition-colors"
-                  >
-                    Ver perfil
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-
-                  {imported ? (
-                    <Badge variant="success">En el pool ✓</Badge>
-                  ) : (
-                    <>
-                      <Button size="sm" onClick={() => decide(c, "in")} disabled={searching}>
-                        Importar al pool
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => decide(c, "out")}
-                        className="rounded-lg px-2.5 py-1 text-xs font-semibold text-muted hover:text-danger"
-                      >
-                        Omitir
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
+                name={c.name}
+                headline={c.headline}
+                location={c.location}
+                skills={c.skills}
+                linkedinUrl={c.linkedinUrl}
+                snippet={c.snippet}
+                jobPicker={
+                  jobs.length > 0
+                    ? {
+                        jobs,
+                        value: jobId,
+                        onChange: (newJobId) =>
+                          setJobByCandidate((m) => ({ ...m, [c.id]: newJobId })),
+                      }
+                    : undefined
+                }
+                imported={imported}
+                importedLabel={
+                  importedVia[c.id] === "postulado"
+                    ? "En el pool y postulado ✓"
+                    : "En el pool ✓"
+                }
+                primaryActionLabel={jobId ? "Importar y postular" : "Importar al pool"}
+                onPrimaryAction={() => decide(c, "in")}
+                primaryActionLoading={importingId === c.id}
+                primaryActionDisabled={searching && importingId !== c.id}
+                onOmit={() => decide(c, "out")}
+              />
             );
           })}
         </div>
@@ -230,4 +228,3 @@ export function LinkedInSourcingTab() {
     </div>
   );
 }
-

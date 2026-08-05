@@ -4,8 +4,7 @@ import { useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
 import { AiJobSourcingResults } from "./AiJobSourcingResults";
-
-export type SourcingJobOption = { id: string; title: string };
+import type { SourcingJobOption } from "./SourcingView";
 
 type Props = {
   jobs: SourcingJobOption[];

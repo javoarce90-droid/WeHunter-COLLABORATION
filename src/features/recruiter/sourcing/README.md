@@ -9,9 +9,13 @@ distintas, y guardarlos en el Pool de Talento de WeHunter (`/candidates`):
   menor match, el reclutador decide mirando el %. El mismo flujo vive en dos lugares: la
   pantalla `/sourcing` (eligiendo la búsqueda de un selector) y un diálogo en Postulados (ya
   scopeado a esa búsqueda) — comparten el mismo componente de UI.
-- **Búsqueda en LinkedIn** (libre, sin búsqueda asociada): el reclutador tipea texto libre
+- **Sourcing Manual** (libre, sin búsqueda obligatoria): el reclutador tipea texto libre
   (ej. *"backend engineer supabase python"*), se formatea como query X-Ray
-  (`site:linkedin.com/in/ ...`) y se importa al pool sin postular a ninguna búsqueda.
+  (`site:linkedin.com/in/ ...`). Elegir una búsqueda es opcional y **es por candidato, no por
+  tab**: cada resultado tiene su propio selector — si no elige ninguna, "Importar al pool" solo
+  guarda ese candidato; si elige una, el botón de ese candidato pasa a "Importar y postular" y
+  usa el mismo camino que Sourcing con IA (`importarSourcingResultadoAction`). Dos candidatos de
+  la misma búsqueda pueden ir a búsquedas distintas (o ninguna).
 
 No hay generación de resultados 100% inventados en ningún camino — ambos pegan al mismo motor
 real (`searchLinkedInCandidates`), con fallback declarado como tal cuando no hay `SERPER_API_KEY`.
@@ -23,8 +27,9 @@ real (`searchLinkedInCandidates`), con fallback declarado como tal cuando no hay
 1. **Sourcing con IA**: elegís una búsqueda (o ya estás en Postulados de una) y el sistema
    arma la query y puntúa los resultados solo. "Sumar al pool y postular" agrega el candidato
    y lo postula directo a esa búsqueda en un solo paso.
-2. **Búsqueda en LinkedIn**: buscador de texto libre, resultados con "Ver perfil" (link directo
-   a LinkedIn) e "Importar al pool" (sin postular a ninguna búsqueda).
+2. **Sourcing Manual**: buscador de texto libre, resultados con "Ver perfil" (link directo a
+   LinkedIn) e "Importar al pool" — o "Importar y postular" si eligió una búsqueda en el
+   selector opcional de esa card puntual (por candidato, no uno global para toda la tab).
 3. **Importación al Pool de WeHunter**: en ambos caminos, el candidato se inserta en
    `candidates` con `source = 'linkedin'`, deduplicado por `linkedin_url` cuando corresponde.
 
@@ -38,7 +43,7 @@ src/app/(app)/sourcing/page.tsx                    (Server Component: trae listJ
        ▼
 src/features/recruiter/sourcing/ui/SourcingView.tsx        (tabs)
        ├── AiSourcingTab.tsx → AiJobSourcingResults.tsx     (selector de búsqueda + resultados)
-       └── LinkedInSourcingTab.tsx                          (texto libre)
+       └── LinkedInSourcingTab.tsx                          (texto libre + búsqueda opcional)
        │
        ▼
 src/features/recruiter/sourcing/actions.ts (Server Actions con Zod)
@@ -73,16 +78,37 @@ src/features/recruiter/candidates/data/candidates.mutations.ts (Drizzle ORM → 
 ### 2. Puerta de Entrada (`src/features/recruiter/sourcing/actions.ts`)
 - **`buscarLinkedinAction`**: query libre → `searchLinkedInCandidates`.
 - **`sourcearParaBusquedaAction`**: dado un `jobId`, orquesta `sourcearParaBusqueda`.
-- **`importarSourcingAction`**: importa al pool sin postular (camino libre).
+- **`importarSourcingAction`**: importa al pool sin postular (Sourcing Manual sin búsqueda
+  elegida).
 - **`importarSourcingResultadoAction`** (en `features/recruiter/applications/actions.ts`):
-  dedupe por `linkedinUrl` + postula a la búsqueda (camino con IA).
+  dedupe por `linkedinUrl` + postula a la búsqueda. Camino compartido por Sourcing con IA y
+  Sourcing Manual cuando el reclutador eligió una búsqueda.
 
 ### 3. Interfaz de Usuario (`src/features/recruiter/sourcing/ui/`)
-- **`SourcingView.tsx`**: tabs "Sourcing con IA" / "Búsqueda en LinkedIn".
-- **`AiSourcingTab.tsx`**: selector de búsqueda (`Select`, poblado con búsquedas abiertas).
+- **`SourcingView.tsx`**: tabs "Sourcing con IA" / "Sourcing Manual"; dueño del tipo
+  `SourcingJobOption` que ambas tabs comparten.
+- **`AiSourcingTab.tsx`**: selector de búsqueda obligatorio (`Select`, poblado con búsquedas
+  abiertas) — sin búsqueda no hay contexto para armar la query ni scorear.
 - **`AiJobSourcingResults.tsx`**: búsqueda + lista puntuada + import/omitir, parametrizado por
   `jobId`. Compartido con el diálogo de Postulados.
-- **`LinkedInSourcingTab.tsx`**: buscador de texto libre, chips de sugerencia, import al pool.
+- **`LinkedInSourcingTab.tsx`**: buscador de texto libre, chips de sugerencia. El selector de
+  búsqueda es **opcional y por candidato** (a diferencia del obligatorio y por-tab de la tab con
+  IA) — vive en `jobByCandidate: Record<candidateId, jobId>`, no en un único estado de tab.
+- **`SourcingCandidateCard.tsx`**: card de candidato única, compartida por ambas tabs (antes
+  cada una tenía su propio layout). Acepta un `jobPicker` opcional (solo Sourcing Manual lo usa
+  — un `<select>` inline en el footer de la card, por candidato) y `match` opcional (solo
+  Sourcing con IA, que ya está scopeada a una única búsqueda). Si recibe `match` muestra
+  `MatchCell` — el mismo componente de score+confianza+recomendación que usa la tabla de
+  Postulados — y el anillo abre `AiAnalysisDialog` con el desglose completo del match
+  (breakdown por categoría, fortalezas, riesgos). Sourcing Manual no pasa `match`: ese modo no
+  calcula compatibilidad, no hay contra qué comparar sin una búsqueda de contexto siempre
+  presente.
+
+`AiAnalysisDialog.tsx` (en `features/recruiter/applications/ui/`) dejó de estar acoplado a
+`PostuladoRow` — ahora recibe un `AiAnalysisSubject` genérico (`name, headline?, score,
+summary, breakdown, strengths, redFlags`), así que el mismo "Copiloto de reclutamiento" que ya
+existía en Postulados se reusa tal cual en Sourcing, sin duplicar el desglose por categoría ni
+las listas de fortalezas/riesgos.
 
 ---
 
@@ -98,8 +124,11 @@ src/features/recruiter/candidates/data/candidates.mutations.ts (Drizzle ORM → 
 
 1. Iniciar sesión, ir a **Sourcing** ([http://localhost:3000/sourcing](http://localhost:3000/sourcing)).
 2. **Sourcing con IA**: elegir una búsqueda abierta del selector → "Buscar en LinkedIn" → ver
-   resultados con su % de match, ordenados de mayor a menor → "Sumar al pool y postular".
-3. **Búsqueda en LinkedIn**: tab libre, tipear o click en un chip de sugerencia → "Buscar en
-   LinkedIn" → "Ver perfil" / "Importar al pool".
+   resultados con su % de match, ordenados de mayor a menor → click en el anillo de match para
+   ver el detalle completo (desglose, fortalezas, riesgos) → "Sumar al pool y postular".
+3. **Sourcing Manual**: tab libre, tipear o click en un chip de sugerencia → "Buscar en
+   LinkedIn" → "Ver perfil" / "Importar al pool" por candidato, o elegir una búsqueda en el
+   selector de esa card puntual para que su botón pase a "Importar y postular" (cada candidato
+   puede ir a una búsqueda distinta).
 4. Mismo flujo de IA disponible desde Postulados de una búsqueda puntual (botón "Sourcing con
    IA" en el header).

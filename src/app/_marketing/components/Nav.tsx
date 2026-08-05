@@ -14,7 +14,7 @@ export function Nav() {
   return (
     <nav className="nav">
       <div className="nav-inner">
-        <WehunterLogo height={30} />
+        <WehunterLogo height={30} priority />
 
         {/* Botón Hamburguesa (Móvil) */}
         <button
