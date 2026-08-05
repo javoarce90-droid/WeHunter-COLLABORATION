@@ -82,7 +82,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <main
             className={[
               "flex-1 overflow-auto p-6",
-              !membership.organizationSetupCompletedAt && "pb-24",
+              !membership.organizationSetupCompletedAt &&
+                (membership.role === "owner" || membership.role === "admin") &&
+                "pb-24",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -91,14 +93,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </main>
         </div>
       </AppChrome>
-      <Suspense fallback={null}>
-        <SetupChecklistWidgetLoader
-          organizationId={membership.organizationId}
-          workspaceType={membership.workspaceType}
-          setupCompletedAt={membership.organizationSetupCompletedAt}
-          userId={user.id}
-        />
-      </Suspense>
+      {(membership.role === "owner" || membership.role === "admin") && (
+        <Suspense fallback={null}>
+          <SetupChecklistWidgetLoader
+            organizationId={membership.organizationId}
+            workspaceType={membership.workspaceType}
+            setupCompletedAt={membership.organizationSetupCompletedAt}
+            userId={user.id}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

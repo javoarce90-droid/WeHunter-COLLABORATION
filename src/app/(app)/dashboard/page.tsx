@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
-import type { WorkspaceType } from "@/lib/auth/session";
+import type { OrgRole, WorkspaceType } from "@/lib/auth/session";
+import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import { getOwnProfile } from "@/features/recruiter/settings/data/settings.queries";
 import { obtenerKpis, type DashboardKpis } from "@/features/recruiter/dashboard/domain/obtener-kpis";
 import { getDashboardCounts } from "@/features/recruiter/dashboard/data/dashboard.queries";
@@ -91,9 +92,15 @@ async function DashboardContent() {
           organizationId={membership.organizationId}
           userId={user.id}
           workspaceType={membership.workspaceType}
+          role={membership.role}
         />
       ) : (
-        <DashboardDaily organizationId={membership.organizationId} kpis={kpis} />
+        <DashboardDaily
+          organizationId={membership.organizationId}
+          kpis={kpis}
+          role={membership.role}
+          membershipId={membership.id}
+        />
       )}
     </div>
   );
@@ -103,39 +110,57 @@ async function DashboardContent() {
 async function DashboardDaily({
   organizationId,
   kpis,
+  role,
+  membershipId,
 }: {
   organizationId: string;
   kpis: DashboardKpis;
+  role: OrgRole;
+  membershipId: string;
 }) {
   const [recentJobs, agenda] = await Promise.all([
-    listRecentOpenJobs(organizationId, 3),
+    listRecentOpenJobs(organizationId, 3, isAssignmentScoped(role) ? membershipId : undefined),
     getDashboardAgendaSummary(organizationId),
   ]);
+
+  // Sourcer no ve ninguno de los 3 accionables ni "Próximas entrevistas" (docs/BACKLOG.md).
+  // "Revisar postulados" es el único sin capability propia — gate directo por rol.
+  const showCreateJob = can(role, "jobs.manage");
+  const showReviewApplications = role !== "sourcer";
+  const showAgenda = can(role, "interviews.manage");
 
   return (
     <>
       <KpiGrid kpis={kpis} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <ActionCard
-          href="/jobs/new"
-          title="Crear búsqueda"
-          description="Nuevo aviso, con IA o manual."
-          icon={<PlusIcon />}
-        />
-        <ActionCard
-          href="/jobs"
-          title="Revisar postulados"
-          description={`${kpis.pendienteRevision} esperando decisión.`}
-          icon={<InboxIcon />}
-        />
-        <ActionCard
-          href="/agenda"
-          title="Agenda de hoy"
-          description={`${agenda.todayCount} entrevista${agenda.todayCount !== 1 ? "s" : ""} programada${agenda.todayCount !== 1 ? "s" : ""}.`}
-          icon={<CalendarIcon />}
-        />
-      </div>
+      {(showCreateJob || showReviewApplications || showAgenda) && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {showCreateJob && (
+            <ActionCard
+              href="/jobs/new"
+              title="Crear búsqueda"
+              description="Nuevo aviso, con IA o manual."
+              icon={<PlusIcon />}
+            />
+          )}
+          {showReviewApplications && (
+            <ActionCard
+              href="/jobs"
+              title="Revisar postulados"
+              description={`${kpis.pendienteRevision} esperando decisión.`}
+              icon={<InboxIcon />}
+            />
+          )}
+          {showAgenda && (
+            <ActionCard
+              href="/agenda"
+              title="Agenda de hoy"
+              description={`${agenda.todayCount} entrevista${agenda.todayCount !== 1 ? "s" : ""} programada${agenda.todayCount !== 1 ? "s" : ""}.`}
+              icon={<CalendarIcon />}
+            />
+          )}
+        </div>
+      )}
 
       <SectionCard
         title="Tus búsquedas activas"
@@ -186,6 +211,7 @@ async function DashboardDaily({
         )}
       </SectionCard>
 
+      {showAgenda && (
       <SectionCard
         title="Próximas entrevistas"
         action={
@@ -224,42 +250,51 @@ async function DashboardDaily({
           </ul>
         )}
       </SectionCard>
+      )}
     </>
   );
 }
 
 /**
- * Día 1: sin búsquedas todavía. Checklist de setup en vez de KPIs vacíos. Misma
- * `getSetupChecklistCounts` + `calcularProgresoSetup` que usa el widget flotante global —
- * única fuente de verdad de los items/umbrales.
+ * Día 1: sin búsquedas todavía. Checklist de setup en vez de KPIs vacíos — pero el checklist
+ * es de configuración inicial del workspace, así que solo tiene sentido para Owner/Admin
+ * (docs/BACKLOG.md, punto 8). El resto ve un estado vacío simple: todavía no hay accionables
+ * propios por rol diseñados para este caso (queda como follow-up, ver BACKLOG.md).
  */
 async function DashboardDay1({
   organizationId,
   userId,
   workspaceType,
+  role,
 }: {
   organizationId: string;
   userId: string;
   workspaceType: WorkspaceType | null;
+  role: OrgRole;
 }) {
-  const counts = await getSetupChecklistCounts(organizationId, userId);
-  const progreso = calcularProgresoSetup(counts, workspaceType);
+  const showSetupChecklist = role === "owner" || role === "admin";
+  const counts = showSetupChecklist
+    ? await getSetupChecklistCounts(organizationId, userId)
+    : null;
+  const progreso = counts ? calcularProgresoSetup(counts, workspaceType) : null;
 
   return (
     <>
-      <SectionCard
-        title="Configurá tu cuenta"
-        action={
-          <span className="text-xs font-semibold text-muted">
-            {progreso.done}/{progreso.total} listo
-          </span>
-        }
-        bodyClassName="flex flex-col gap-1"
-      >
-        {progreso.items.map((item) => (
-          <ChecklistItemRow key={item.title} item={item} />
-        ))}
-      </SectionCard>
+      {progreso && (
+        <SectionCard
+          title="Configurá tu cuenta"
+          action={
+            <span className="text-xs font-semibold text-muted">
+              {progreso.done}/{progreso.total} listo
+            </span>
+          }
+          bodyClassName="flex flex-col gap-1"
+        >
+          {progreso.items.map((item) => (
+            <ChecklistItemRow key={item.title} item={item} />
+          ))}
+        </SectionCard>
+      )}
 
       <SectionCard title="Tus búsquedas activas">
         <p className="py-6 text-center text-sm text-muted">

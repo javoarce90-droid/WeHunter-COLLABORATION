@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { getActiveMembership } from "@/lib/auth/session";
+import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import { listJobsWithStats, getOrganizationSlug } from "@/features/recruiter/jobs/data/jobs.queries";
 import { JobsList } from "@/features/recruiter/jobs/ui/JobsList";
 import {
@@ -19,6 +20,7 @@ export default async function JobsPage({
 }) {
   const { status } = await searchParams;
   const filter: JobFilter = isJobFilter(status) ? status : "all";
+  const membership = await getActiveMembership();
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,9 +29,11 @@ export default async function JobsPage({
           <h1 className="font-display text-xl font-bold text-text">Búsquedas</h1>
           <p className="text-sm text-muted">Gestioná tus avisos y su pipeline.</p>
         </div>
-        <Link href="/jobs/new" className={buttonVariants({ variant: "primary" })}>
-          Crear búsqueda
-        </Link>
+        {membership && can(membership.role, "jobs.manage") && (
+          <Link href="/jobs/new" className={buttonVariants({ variant: "primary" })}>
+            Crear búsqueda
+          </Link>
+        )}
       </div>
 
       <Suspense fallback={null}>
@@ -47,9 +51,19 @@ async function JobsSection({ filter }: { filter: JobFilter }) {
   const membership = await getActiveMembership();
   const [jobs, orgSlug] = membership
     ? await Promise.all([
-        listJobsWithStats(membership.organizationId),
+        listJobsWithStats(
+          membership.organizationId,
+          isAssignmentScoped(membership.role) ? membership.id : undefined,
+        ),
         getOrganizationSlug(membership.organizationId),
       ])
     : [[], null];
-  return <JobsList jobs={jobs} filter={filter} orgSlug={orgSlug} />;
+  return (
+    <JobsList
+      jobs={jobs}
+      filter={filter}
+      orgSlug={orgSlug}
+      canManage={membership ? can(membership.role, "jobs.manage") : false}
+    />
+  );
 }

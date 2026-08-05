@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { can, canManageRecruiting, isReadOnly, ROLE_LABELS, ROLE_DESCRIPTIONS } from "./roles";
+import {
+  can,
+  canManageRecruiting,
+  isReadOnly,
+  isAssignmentScoped,
+  ROLE_LABELS,
+  ROLE_DESCRIPTIONS,
+} from "./roles";
 import type { Capability } from "./roles";
 import type { OrgRole } from "./session";
 
@@ -184,6 +191,18 @@ describe("matriz de capacidades", () => {
     expect(canManageRecruiting("consultant")).toBe(false);
     expect(canManageRecruiting("viewer")).toBe(false);
     expect(canManageRecruiting("hiring_manager")).toBe(false);
+  });
+
+  it("recruiter, sourcer y consultant quedan acotados a sus búsquedas asignadas", () => {
+    expect(isAssignmentScoped("recruiter")).toBe(true);
+    expect(isAssignmentScoped("sourcer")).toBe(true);
+    expect(isAssignmentScoped("consultant")).toBe(true);
+  });
+
+  it("owner, admin y hiring_manager no quedan acotados por asignación", () => {
+    expect(isAssignmentScoped("owner")).toBe(false);
+    expect(isAssignmentScoped("admin")).toBe(false);
+    expect(isAssignmentScoped("hiring_manager")).toBe(false);
   });
 
   it("todos los roles tienen etiqueta y descripción", () => {

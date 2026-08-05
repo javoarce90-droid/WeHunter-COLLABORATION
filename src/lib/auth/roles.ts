@@ -161,6 +161,21 @@ export function isReadOnly(role: OrgRole): boolean {
   return CAPABILITIES[role].length === 0;
 }
 
+/**
+ * Roles cuya visibilidad de búsquedas queda acotada a las que tiene asignadas — como
+ * responsable (`jobs.assigned_to`) o como sourcer (`jobs.sourcer_id`), ver docs/BACKLOG.md
+ * puntos 3/4/5 de la especificación 2026-08-04 ("solo veo lo que me asignan a mí").
+ *
+ * `hiring_manager` queda fuera a propósito: ni `RESPONSABLE_ROLES` ni el campo sourcer lo
+ * contemplan hoy (`gestionar-responsables.ts`) — su scoping real depende de una relación
+ * búsqueda↔HM que todavía no existe en el modelo (ver checklist de BACKLOG.md). Hasta que
+ * se construya, sigue viendo todas las búsquedas de la org como owner/admin (mejor eso que
+ * una lista vacía que contradice "puede ver todo" de su especificación).
+ */
+export function isAssignmentScoped(role: OrgRole): boolean {
+  return role === "recruiter" || role === "sourcer" || role === "consultant";
+}
+
 export const ROLE_LABELS: Record<OrgRole, string> = {
   owner: "Propietario",
   admin: "Administrador",
