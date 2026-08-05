@@ -16,8 +16,7 @@ export type JobSourcingContext = {
   responsibilities?: string | null;
 };
 
-/** Umbral de compatibilidad y tope de resultados pedidos por el cliente (ítem 9.4). */
-export const SOURCING_MATCH_THRESHOLD = 60;
+/** Tope de resultados pedidos por el cliente (ítem 9.4). */
 export const SOURCING_MAX_RESULTS = 10;
 
 export type ScoredLinkedInCandidate = LinkedInCandidateResult & {
@@ -52,8 +51,9 @@ export function buildJobSourcingQuery(job: JobSourcingContext): string {
 
 /**
  * Busca candidatos en LinkedIn para una búsqueda puntual y los scorea contra ella con IA
- * (mismo contrato que `puntuar-postulaciones.ts`). Solo devuelve los que matchean 60% o más,
- * ordenados de mayor a menor compatibilidad, hasta 10 (ítem 9.4).
+ * (mismo contrato que `puntuar-postulaciones.ts`). Devuelve todos los que encuentra (sin
+ * filtrar por score — el recruiter decide mirando el % de cada uno), ordenados de mayor a
+ * menor compatibilidad, hasta 10.
  */
 export async function sourcearParaBusqueda(
   job: JobSourcingContext,
@@ -93,7 +93,6 @@ export async function sourcearParaBusqueda(
   );
 
   const results = scored
-    .filter((c) => c.score >= SOURCING_MATCH_THRESHOLD)
     .sort((a, b) => b.score - a.score)
     .slice(0, SOURCING_MAX_RESULTS);
 

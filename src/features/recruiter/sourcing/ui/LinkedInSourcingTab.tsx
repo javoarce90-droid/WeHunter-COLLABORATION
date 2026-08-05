@@ -19,7 +19,7 @@ const SUGGESTIONS = [
 ];
 
 const fieldClass =
-  "w-full rounded-[var(--radius)] border border-border bg-bg px-3.5 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
+  "w-full rounded-[var(--radius)] border border-border bg-bg px-3.5 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-50";
 
 type Decision = "pending" | "in" | "out" | "imported";
 
@@ -31,6 +31,7 @@ export function LinkedInSourcingTab() {
   const [searching, startSearch] = useTransition();
 
   function buscar(searchQuery?: string) {
+    if (candidates !== null) return; // hay que limpiar antes de buscar de nuevo
     const q = searchQuery ?? query;
     if (!q.trim()) return;
 
@@ -46,6 +47,11 @@ export function LinkedInSourcingTab() {
     });
   }
 
+  function limpiar() {
+    setCandidates(null);
+    setDecisions({});
+  }
+
   function decide(c: LinkedInCandidateResult, decision: Decision) {
     if (decision === "in") {
       startSearch(async () => {
@@ -54,7 +60,6 @@ export function LinkedInSourcingTab() {
           headline: c.headline,
           location: c.location,
           skills: c.skills,
-          platform: c.platform,
           linkedinUrl: c.linkedinUrl,
         });
         if (!res.ok) {
@@ -90,10 +95,15 @@ export function LinkedInSourcingTab() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Ej: Backend Engineer Python Supabase"
+                disabled={candidates !== null}
                 className={fieldClass}
               />
             </div>
-            <Button type="submit" disabled={searching || !query.trim()} className="shrink-0 gap-2">
+            <Button
+              type="submit"
+              disabled={searching || !query.trim() || candidates !== null}
+              className="shrink-0 gap-2"
+            >
               <Search className="h-4 w-4" />
               {searching ? "Buscando…" : "Buscar en LinkedIn"}
             </Button>
@@ -108,6 +118,7 @@ export function LinkedInSourcingTab() {
               key={s}
               active={query === s}
               onClick={() => {
+                if (candidates !== null) return;
                 setQuery(s);
                 buscar(s);
               }}
@@ -120,16 +131,24 @@ export function LinkedInSourcingTab() {
 
       {/* Resultados de la búsqueda */}
       {candidates === null ? null : candidates.length === 0 ? (
-        <EmptyState
-          title="Sin resultados"
-          description="No se encontraron perfiles coincidentes. Probá ajustar los términos de búsqueda."
-        />
+        <div className="flex flex-col items-center gap-4">
+          <EmptyState
+            title="Sin resultados"
+            description="No se encontraron perfiles coincidentes. Probá ajustar los términos de búsqueda."
+          />
+          <Button variant="secondary" size="sm" onClick={limpiar}>
+            Limpiar
+          </Button>
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-semibold text-muted">
               {candidates.length} candidato{candidates.length === 1 ? "" : "s"} en LinkedIn
             </span>
+            <Button variant="secondary" size="sm" onClick={limpiar}>
+              Limpiar
+            </Button>
           </div>
 
           {candidates.map((c) => {

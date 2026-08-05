@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   buildJobSourcingQuery,
   sourcearParaBusqueda,
-  SOURCING_MATCH_THRESHOLD,
   SOURCING_MAX_RESULTS,
   type JobSourcingContext,
 } from "./sourcear-para-busqueda";
@@ -24,7 +23,6 @@ function candidate(over: Partial<LinkedInCandidateResult> = {}): LinkedInCandida
     headline: "Backend Engineer",
     location: "Buenos Aires",
     skills: ["Python"],
-    platform: "LinkedIn",
     linkedinUrl: "https://www.linkedin.com/in/ana-perez",
     ...over,
   };
@@ -51,7 +49,7 @@ describe("buildJobSourcingQuery", () => {
 });
 
 describe("sourcearParaBusqueda", () => {
-  it("filtra a los que matchean 60% o más", async () => {
+  it("no filtra por score: trae todos los candidatos encontrados", async () => {
     const candidates = [candidate({ id: "a" }), candidate({ id: "b" }), candidate({ id: "c" })];
     const scores: Record<string, number> = { a: 80, b: 40, c: 60 };
     const res = await sourcearParaBusqueda(job(), {
@@ -66,8 +64,7 @@ describe("sourcearParaBusqueda", () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.results.map((r) => r.id)).toEqual(["a", "c"]);
-    expect(res.results.every((r) => r.score >= SOURCING_MATCH_THRESHOLD)).toBe(true);
+    expect(res.results.map((r) => r.id)).toEqual(["a", "c", "b"]);
   });
 
   it("ordena de mayor a menor score", async () => {

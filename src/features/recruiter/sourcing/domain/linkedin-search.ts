@@ -1,6 +1,9 @@
-import { type SourcingResult } from "./sourcing";
-
-export type LinkedInCandidateResult = SourcingResult & {
+export type LinkedInCandidateResult = {
+  id: string; // sintético (determinístico), NO es un candidate id
+  name: string;
+  headline: string;
+  location: string;
+  skills: string[];
   linkedinUrl: string;
   snippet?: string | null;
 };
@@ -134,7 +137,6 @@ export async function searchLinkedInCandidates(
                 headline,
                 location: "Ubicación en LinkedIn",
                 skills: skills.length > 0 ? skills : ["LinkedIn"],
-                platform: "LinkedIn" as const,
                 linkedinUrl: link,
                 snippet,
               };
@@ -173,7 +175,6 @@ export async function searchLinkedInCandidates(
         : p.headline,
       location: p.location,
       skills: dynamicSkills,
-      platform: "LinkedIn" as const,
       linkedinUrl: realLinkedinSearchUrl,
       snippet: p.snippet,
     };

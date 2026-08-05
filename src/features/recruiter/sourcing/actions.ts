@@ -5,13 +5,6 @@ import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
 import {
-  buildBooleanQuery,
-  generateSourcingResults,
-  platformToSource,
-  SOURCING_PLATFORMS,
-  type SourcingResult,
-} from "./domain/sourcing";
-import {
   sourcearParaBusqueda,
   type ScoredLinkedInCandidate,
 } from "./domain/sourcear-para-busqueda";
@@ -19,40 +12,11 @@ import { getJobById } from "../jobs/data/jobs.queries";
 import { getAiProvider } from "@/lib/ai";
 import { can } from "@/lib/auth/roles";
 
-const querySchema = z.object({
-  keywords: z.array(z.string()).max(10),
-  location: z.string().nullable(),
-  seniority: z.string().nullable(),
-  platforms: z.array(z.enum(SOURCING_PLATFORMS)).max(4),
-});
-
-export async function buscarSourcingAction(input: {
-  keywords: string[];
-  location: string | null;
-  seniority: string | null;
-  platforms: string[];
-}): Promise<{
-  ok: boolean;
-  boolean?: string;
-  results?: SourcingResult[];
-  error?: string;
-}> {
-  const parsed = querySchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Query inválida." };
-
-  const membership = await getActiveMembership();
-  if (!membership) return { ok: false, error: "No autorizado." };
-
-  const results = generateSourcingResults(parsed.data);
-  return { ok: true, boolean: buildBooleanQuery(parsed.data), results };
-}
-
 const importSchema = z.object({
   name: z.string().trim().min(1),
   headline: z.string().nullable(),
   location: z.string().nullable(),
   skills: z.array(z.string()),
-  platform: z.enum(SOURCING_PLATFORMS),
   linkedinUrl: z.string().optional().nullable(),
 });
 
@@ -61,7 +25,6 @@ export async function importarSourcingAction(result: {
   headline: string | null;
   location: string | null;
   skills: string[];
-  platform: string;
   linkedinUrl?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const parsed = importSchema.safeParse(result);
@@ -83,7 +46,7 @@ export async function importarSourcingAction(result: {
     linkedinUrl: parsed.data.linkedinUrl ?? null,
     summary: null,
     skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
-    source: platformToSource(parsed.data.platform),
+    source: "linkedin",
     phone: null,
   });
 
@@ -124,7 +87,8 @@ export async function buscarLinkedinAction(input: { query: string }): Promise<{
 /**
  * Sourcing con IA de un clic desde Postulados (ítem 9.4): busca en LinkedIn usando el contexto
  * de la búsqueda (puesto, skills, seniority, ubicación), sin que el recruiter tipee nada, y
- * scorea cada resultado con IA — solo devuelve los que matchean 60% o más, hasta 10.
+ * scorea cada resultado con IA — devuelve todos los que encuentra (sin filtrar por score),
+ * ordenados de mayor a menor match, hasta 10.
  */
 export async function sourcearParaBusquedaAction(jobId: string): Promise<{
   ok: boolean;
