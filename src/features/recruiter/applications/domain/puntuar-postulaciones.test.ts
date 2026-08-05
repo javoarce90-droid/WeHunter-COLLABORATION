@@ -88,11 +88,11 @@ describe("puntuarPostulaciones", () => {
     expect(strengths.length).toBeGreaterThan(0);
   });
 
-  it("rechaza al consultor sin puntuar", async () => {
+  it("rechaza al viewer sin puntuar", async () => {
     const deps = makeDeps();
     const res = await puntuarPostulaciones(
       { job: { title: "x", skills: null }, applications: [cand("a")] },
-      { ...ctx, role: "consultant" },
+      { ...ctx, role: "viewer" },
       deps,
     );
     expect(res.ok).toBe(false);

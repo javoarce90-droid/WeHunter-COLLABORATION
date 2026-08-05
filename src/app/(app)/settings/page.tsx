@@ -8,13 +8,17 @@ import { WorkspaceSection } from "@/features/recruiter/settings/ui/WorkspaceSect
 import { GoogleCalendarSection } from "@/features/recruiter/google-calendar/ui/GoogleCalendarSection";
 import { SettingsSection } from "@/features/recruiter/settings/ui/SettingsSection";
 import { DangerZoneSection } from "@/features/recruiter/settings/ui/DangerZoneSection";
+import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/features/recruiter/team/domain/gestionar-equipo";
 
 /**
  * "General": workspace + perfil personal + conexiones + eliminar workspace, todo en una sola
- * pantalla (antes eran dos tabs, "Perfil" y "General", separadas sin motivo real). Cada
- * sección conserva el gate de permiso que ya tenía (workspace y Danger Zone son owner/admin;
- * perfil siempre es el propio).
+ * pantalla (antes eran dos tabs, "Perfil" y "General", separadas sin motivo real).
+ *
+ * Roles fuera de owner/admin tienen esta pestaña acotada a "solo mi perfil" (docs/BACKLOG.md,
+ * especificación 2026-08-04): la sección Workspace se OCULTA para ellos, no solo se
+ * deshabilita — antes `canEditWorkspace` solo controlaba si los campos eran editables, la
+ * sección se veía igual para cualquier rol.
  */
 export default async function SettingsPage() {
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
@@ -28,10 +32,12 @@ export default async function SettingsPage() {
 
   const role = membership.role as OrgRole;
   const canEditWorkspace = role === "owner" || role === "admin";
+  // El sourcer no tiene integraciones (docs/BACKLOG.md): sin Conexiones para ese rol.
+  const showConnections = can(membership.role, "integrations.connect");
 
   return (
     <div className="flex flex-col gap-5">
-      {org && (
+      {org && canEditWorkspace && (
         <SettingsSection
           title="Workspace"
           description="Nombre y logo de tu organización, tal como se ven en toda la app."
@@ -45,17 +51,20 @@ export default async function SettingsPage() {
           profile={profile}
           email={profile?.email ?? user.email ?? ""}
           hasAvatar={!!profile?.avatarUrl}
+          showCommunityCheckbox={can(membership.role, "community.appear")}
         />
       </SettingsSection>
 
-      <SettingsSection title="Conexiones" description="Cuenta personal, no del workspace.">
-        <ul className="flex flex-col gap-2">
-          <GoogleCalendarSection
-            configured={isGoogleCalendarConfigured()}
-            connectedEmail={googleConnection?.googleEmail ?? null}
-          />
-        </ul>
-      </SettingsSection>
+      {showConnections && (
+        <SettingsSection title="Conexiones" description="Cuenta personal, no del workspace.">
+          <ul className="flex flex-col gap-2">
+            <GoogleCalendarSection
+              configured={isGoogleCalendarConfigured()}
+              connectedEmail={googleConnection?.googleEmail ?? null}
+            />
+          </ul>
+        </SettingsSection>
+      )}
 
       {org && role === "owner" && <DangerZoneSection organizationName={org.name} />}
     </div>

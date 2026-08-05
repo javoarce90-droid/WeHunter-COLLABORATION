@@ -46,9 +46,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Reclutamiento",
     items: [
-      { href: "/jobs", label: "Búsquedas", Icon: BriefcaseIcon, capability: "jobs.manage" },
+      { href: "/jobs", label: "Búsquedas", Icon: BriefcaseIcon, capability: "jobs.view" },
       { href: "/candidates", label: "Candidatos", Icon: UsersIcon, capability: "candidates.manage" },
-      { href: "/sourcing", label: "Sourcing", Icon: SearchIcon, capability: "candidates.manage" },
+      { href: "/sourcing", label: "Sourcing", Icon: SearchIcon, capability: "sourcing.use" },
     ],
   },
   {
@@ -65,12 +65,12 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/messages", label: "Mensajes", Icon: ChatIcon, capability: "messaging.send" },
     ],
   },
-  { label: "Análisis", items: [{ href: "/reports", label: "Reportes", Icon: ChartIcon }] },
+  { label: "Análisis", items: [{ href: "/reports", label: "Reportes", Icon: ChartIcon, capability: "reports.view" }] },
   {
     label: "Administración",
     items: [
-      { href: "/career-site", label: "Career Site", Icon: GlobeIcon },
-      { href: "/team", label: "Equipo", Icon: TeamIcon },
+      { href: "/career-site", label: "Career Site", Icon: GlobeIcon, capability: "career_site.manage" },
+      { href: "/team", label: "Equipo", Icon: TeamIcon, capability: "team.manage" },
       { href: "/settings", label: "Configuración", Icon: SettingsIcon },
     ],
   },
@@ -94,17 +94,14 @@ export function Sidebar({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
-  // "Clientes" es el mismo módulo técnico para los tres tipos de workspace — en Enterprise se
-  // etiqueta "Hiring Manager" (empresa contratante interna, no cliente externo de consultora).
+  // "Clientes" no aplica en Enterprise: ahí no hay empresas cliente externas, es un solo
+  // workspace — el antiguo relabel a "Hiring Manager" quedó superado por el rol real
+  // `hiring_manager` (docs/BACKLOG.md, punto 2 de la especificación 2026-08-04).
   const navGroups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items
       .filter((item) => !item.capability || can(role, item.capability))
-      .map((item) =>
-        item.href === "/clients" && workspaceType === "enterprise"
-          ? { ...item, label: "Hiring Manager" }
-          : item,
-      ),
+      .filter((item) => !(item.href === "/clients" && workspaceType === "enterprise")),
   })).filter((group) => group.items.length > 0);
 
   function toggle() {

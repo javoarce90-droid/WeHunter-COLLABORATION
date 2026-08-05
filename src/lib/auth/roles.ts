@@ -11,9 +11,22 @@ import type { OrgRole } from "./session";
  * (`is_org_member`), no rol. Es decir que el solo-lectura del viewer y el alcance acotado
  * del consultor viven en esta capa y NO tienen respaldo en la base. Es deuda conocida y
  * anotada: si un caso de uso se olvida de chequear, Postgres no lo frena.
+ *
+ * Matriz reescrita 2026-08-04 con la especificación completa que confirmó el cliente
+ * (ver "Roles" en docs/BACKLOG.md — es la fuente de verdad textual, no reinterpretar sin
+ * volver a leerla). Esta primera pasada cubre el gating de nivel página/nav (qué ve, qué
+ * botones aparecen); todavía NO cubre:
+ *   - Scoping por "búsqueda asignada" (hoy jobs.view/jobs.manage no filtran qué búsquedas
+ *     puntuales ve cada quien — eso vive en las queries, no en esta capa).
+ *   - Subtabs dentro de una búsqueda puntual para Sourcer (solo Detalle+Postulados) —
+ *     hoy `stages.configure`/`offers.manage`/`shortlists.manage` no están conectados
+ *     todavía a botones concretos de esas pantallas, solo a la matriz.
+ *   - La experiencia propia del Hiring Manager (cargar solicitud "como si cargara",
+ *     feedback de shortlist compartida) — construir esas pantallas es aparte.
  */
 
 export type Capability =
+  | "jobs.view"
   | "jobs.manage"
   | "candidates.manage"
   | "applications.add"
@@ -24,11 +37,20 @@ export type Capability =
   | "clients.manage"
   | "requisitions.review"
   | "stages.configure"
+  | "settings.stages_template"
   | "offers.manage"
   | "messaging.send"
+  | "sourcing.use"
+  | "reports.view"
+  | "career_site.manage"
+  | "team.manage"
+  | "billing.view"
+  | "community.appear"
+  | "integrations.connect"
   | "ai.use";
 
 const ALL: Capability[] = [
+  "jobs.view",
   "jobs.manage",
   "candidates.manage",
   "applications.add",
@@ -39,27 +61,87 @@ const ALL: Capability[] = [
   "clients.manage",
   "requisitions.review",
   "stages.configure",
+  "settings.stages_template",
   "offers.manage",
   "messaging.send",
+  "sourcing.use",
+  "reports.view",
+  "career_site.manage",
+  "team.manage",
+  "billing.view",
+  "community.appear",
+  "integrations.connect",
   "ai.use",
 ];
 
-/**
- * owner/admin/recruiter conservan exactamente lo que podían antes de existir esta matriz:
- * no se les recorta nada en esta tanda.
- *
- * El consultor externo y el hiring manager quedan sin capacidades operativas a propósito:
- * sus permisos reales dependen de "búsquedas asignadas", que todavía no existe como
- * concepto. Dárselas ahora significaría dejarlos operar sobre TODAS las búsquedas de la
- * organización, que es peor que no dárselas.
- */
 const CAPABILITIES: Record<OrgRole, readonly Capability[]> = {
   owner: ALL,
   admin: ALL,
-  recruiter: ALL,
-  sourcer: ["candidates.manage", "applications.add", "notes.write", "ai.use"],
-  consultant: [],
-  hiring_manager: [],
+
+  // Ve todas las páginas, pero no administra Equipo/Career Site/facturación, y su
+  // Configuración queda acotada a su propio perfil (sin plantilla de etapas ni workspace).
+  recruiter: [
+    "jobs.view",
+    "jobs.manage",
+    "candidates.manage",
+    "applications.add",
+    "pipeline.move",
+    "interviews.manage",
+    "notes.write",
+    "shortlists.manage",
+    "clients.manage",
+    "requisitions.review",
+    "stages.configure",
+    "offers.manage",
+    "messaging.send",
+    "sourcing.use",
+    "reports.view",
+    "community.appear",
+    "integrations.connect",
+    "ai.use",
+  ],
+
+  // Búsquedas asignadas, Sourcing y Candidatos (con carga), Reportes y Mensajes. Nada de
+  // pipeline/etapas/ofertas/shortlist/aviso, nada de Agenda, Career Site, Equipo, Plan y
+  // Facturación, integraciones ni comunidad.
+  sourcer: [
+    "jobs.view",
+    "candidates.manage",
+    "applications.add",
+    "notes.write",
+    "sourcing.use",
+    "reports.view",
+    "messaging.send",
+    "ai.use",
+  ],
+
+  // Búsquedas asignadas, Candidatos, Sourcing, Mensajes y Agenda (con conexión de
+  // calendario propia). No crea búsquedas, no ve Reportes/Solicitudes/Clientes.
+  consultant: [
+    "jobs.view",
+    "candidates.manage",
+    "sourcing.use",
+    "messaging.send",
+    "interviews.manage",
+    "integrations.connect",
+    "community.appear",
+    "ai.use",
+  ],
+
+  // Carga solicitudes, da feedback de shortlist compartida, ve y opera Agenda y Sourcing,
+  // ve Búsquedas y Candidatos. Único rol (además de owner/admin) con acceso a la plantilla
+  // de etapas en Configuración. Sin Equipo, Career Site, Plan y Facturación ni comunidad.
+  hiring_manager: [
+    "jobs.view",
+    "candidates.manage",
+    "interviews.manage",
+    "sourcing.use",
+    "requisitions.review",
+    "settings.stages_template",
+    "ai.use",
+  ],
+
+  // Sin especificar por el cliente todavía (ver docs/BACKLOG.md) — se mantiene solo-lectura.
   viewer: [],
 };
 

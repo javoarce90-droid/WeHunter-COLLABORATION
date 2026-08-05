@@ -3,6 +3,8 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Kbd } from "./kbd";
+import { can, type Capability } from "@/lib/auth/roles";
+import type { OrgRole, WorkspaceType } from "@/lib/auth/session";
 
 const OPEN_EVENT = "wh:open-command-palette";
 
@@ -19,14 +21,27 @@ interface Command {
   keywords?: string;
   hint?: ReactNode;
   perform: () => void;
+  /** Si se define, el comando se oculta cuando el rol activo no tiene esta capacidad. */
+  capability?: Capability;
+  /** Si se define, el comando se oculta en ese tipo de workspace (ej. Clientes en Enterprise). */
+  hideInWorkspaceType?: WorkspaceType;
 }
 
 /**
  * Command palette (⌘K / Ctrl-K) — la capa power-user que pedía PRODUCT.md ("el reclutador
  * vive dentro de la app"). Navegar y crear sin tocar el mouse. Versión 1: navegación + alta
  * rápida; el salto a candidato/búsqueda por nombre se suma cuando exista el endpoint de search.
+ *
+ * Filtrado por rol (docs/BACKLOG.md, especificación 2026-08-04, punto 9): cada comando solo
+ * ofrece lo que el rol activo puede ejecutar de verdad, mismo espejo que la Sidebar.
  */
-export function CommandPalette() {
+export function CommandPalette({
+  role,
+  workspaceType,
+}: {
+  role: OrgRole;
+  workspaceType: WorkspaceType | null;
+}) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -53,6 +68,7 @@ export function CommandPalette() {
         group: "Navegación",
         keywords: "jobs busquedas",
         perform: go("/jobs"),
+        capability: "jobs.view",
       },
       {
         id: "nav-candidates",
@@ -60,6 +76,7 @@ export function CommandPalette() {
         group: "Navegación",
         keywords: "candidates talento pool",
         perform: go("/candidates"),
+        capability: "candidates.manage",
       },
       {
         id: "nav-clients",
@@ -67,6 +84,8 @@ export function CommandPalette() {
         group: "Navegación",
         keywords: "clients empresas crm",
         perform: go("/clients"),
+        capability: "clients.manage",
+        hideInWorkspaceType: "enterprise",
       },
       {
         id: "nav-agenda",
@@ -74,6 +93,7 @@ export function CommandPalette() {
         group: "Navegación",
         keywords: "interviews entrevistas calendario",
         perform: go("/agenda"),
+        capability: "interviews.manage",
       },
       {
         id: "new-job",
@@ -81,6 +101,7 @@ export function CommandPalette() {
         group: "Crear",
         keywords: "nueva job vacante",
         perform: go("/jobs/new"),
+        capability: "jobs.manage",
       },
       {
         id: "new-candidate",
@@ -88,6 +109,7 @@ export function CommandPalette() {
         group: "Crear",
         keywords: "nuevo talento alta",
         perform: go("/candidates/new"),
+        capability: "candidates.manage",
       },
       {
         id: "new-client",
@@ -95,17 +117,29 @@ export function CommandPalette() {
         group: "Crear",
         keywords: "nueva empresa crm",
         perform: go("/clients/new"),
+        capability: "clients.manage",
+        hideInWorkspaceType: "enterprise",
       },
     ];
   }, [router]);
 
+  const allowedCommands = useMemo(
+    () =>
+      commands.filter(
+        (c) =>
+          (!c.capability || can(role, c.capability)) &&
+          c.hideInWorkspaceType !== workspaceType,
+      ),
+    [commands, role, workspaceType],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return commands;
-    return commands.filter((c) =>
+    if (!q) return allowedCommands;
+    return allowedCommands.filter((c) =>
       `${c.label} ${c.group} ${c.keywords ?? ""}`.toLowerCase().includes(q),
     );
-  }, [commands, query]);
+  }, [allowedCommands, query]);
 
   // Atajo global de apertura (⌘K / Ctrl-K) + evento custom para triggers de UI (botón topbar).
   useEffect(() => {

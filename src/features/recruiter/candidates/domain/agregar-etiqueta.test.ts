@@ -56,11 +56,11 @@ describe("agregarEtiqueta", () => {
     expect(deps.linkCandidateTag).not.toHaveBeenCalled();
   });
 
-  it("rechaza al consultor", async () => {
+  it("rechaza al viewer", async () => {
     const deps = makeDeps();
     const res = await agregarEtiqueta(
       { candidateId: "c-1", tagName: "Top perfil" },
-      { ...ctx, role: "consultant" },
+      { ...ctx, role: "viewer" },
       deps,
     );
     expect(res.ok).toBe(false);

@@ -17,7 +17,7 @@ export default async function SettingsLayout({ children }: { children: ReactNode
         <h1 className="font-display text-xl font-bold text-text">Configuración</h1>
         <p className="text-sm text-muted">Tu perfil y las preferencias del workspace.</p>
       </div>
-      <SettingsTabs />
+      <SettingsTabs role={membership.role} />
       <div>{children}</div>
     </div>
   );

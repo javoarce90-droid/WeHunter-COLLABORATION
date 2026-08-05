@@ -29,11 +29,11 @@ describe("quitarEtiqueta", () => {
     expect(deps.unlinkCandidateTag).not.toHaveBeenCalled();
   });
 
-  it("rechaza al consultor", async () => {
+  it("rechaza al viewer", async () => {
     const deps = makeDeps();
     const res = await quitarEtiqueta(
       { candidateId: "c-1", tagId: "tag-1" },
-      { ...ctx, role: "consultant" },
+      { ...ctx, role: "viewer" },
       deps,
     );
     expect(res.ok).toBe(false);

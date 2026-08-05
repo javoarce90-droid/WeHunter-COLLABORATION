@@ -155,7 +155,7 @@ async function DashboardDaily({
               return (
                 <li key={job.id}>
                   <Link
-                    href={`/jobs/${job.id}/pipeline`}
+                    href={`/jobs/${job.id}/postulados`}
                     className="group flex items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-bg"
                   >
                     <div className="min-w-0">

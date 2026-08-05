@@ -16,9 +16,9 @@ const deps = (overrides: Partial<SincronizarGmailDeps> = {}): SincronizarGmailDe
 });
 
 describe("sincronizarGmail", () => {
-  it("rechaza al consultor", async () => {
+  it("rechaza al viewer", async () => {
     const d = deps();
-    const res = await sincronizarGmail("cand-1", { ...ctx, role: "consultant" }, d);
+    const res = await sincronizarGmail("cand-1", { ...ctx, role: "viewer" }, d);
     expect(res.ok).toBe(false);
     expect(d.getCandidate).not.toHaveBeenCalled();
   });
