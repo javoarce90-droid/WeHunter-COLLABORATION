@@ -22,7 +22,8 @@ type Props = {
  * recruiter escriba nada) y muestra hasta 10 perfiles con su % de match, sin filtrar por score
  * (el recruiter decide mirando el número, y puede abrir el detalle completo del Copiloto IA
  * para ver el desglose). La búsqueda no se dispara al montar, solo al click en "Buscar en
- * LinkedIn".
+ * LinkedIn". Soporta procesar varios candidatos a la vez (selección múltiple + acciones en
+ * lote), no solo de a uno.
  */
 export function AiJobSourcingResults({ jobId }: Props) {
   const toast = useToast();
@@ -32,7 +33,9 @@ export function AiJobSourcingResults({ jobId }: Props) {
   const [isLiveApi, setIsLiveApi] = useState(true);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [searching, startSearch] = useTransition();
-  const [importingId, setImportingId] = useState<string | null>(null);
+  // Ids en curso de importación — uno solo si es individual, varios si es en lote.
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
 
   function buscar() {
@@ -49,6 +52,7 @@ export function AiJobSourcingResults({ jobId }: Props) {
       setResults(res.results);
       setIsLiveApi(res.isLiveApi ?? false);
       setDecisions({});
+      setSelected(new Set());
     });
   }
 
@@ -56,21 +60,31 @@ export function AiJobSourcingResults({ jobId }: Props) {
     setResults(null);
     setDecisions({});
     setIsLiveApi(true);
+    setSelected(new Set());
+  }
+
+  async function importarUno(c: ScoredLinkedInCandidate) {
+    const res = await importarSourcingResultadoAction({
+      jobId,
+      name: c.name,
+      headline: c.headline,
+      location: c.location,
+      skills: c.skills,
+      linkedinUrl: c.linkedinUrl,
+      summary: c.summary,
+    });
+    return { id: c.id, name: c.name, ok: res.ok, error: res.error };
   }
 
   function agregarYPostular(c: ScoredLinkedInCandidate) {
-    setImportingId(c.id);
+    setPendingIds((s) => new Set(s).add(c.id));
     startSearch(async () => {
-      const res = await importarSourcingResultadoAction({
-        jobId,
-        name: c.name,
-        headline: c.headline,
-        location: c.location,
-        skills: c.skills,
-        linkedinUrl: c.linkedinUrl,
-        summary: c.summary,
+      const res = await importarUno(c);
+      setPendingIds((s) => {
+        const next = new Set(s);
+        next.delete(c.id);
+        return next;
       });
-      setImportingId(null);
       if (!res.ok) {
         toast({
           message: res.error ?? "No se pudo agregar al candidato.",
@@ -86,8 +100,72 @@ export function AiJobSourcingResults({ jobId }: Props) {
     });
   }
 
+  function agregarYPostularSeleccionados() {
+    const targets = (results ?? []).filter((c) => selected.has(c.id));
+    if (targets.length === 0) return;
+    setPendingIds((s) => new Set([...s, ...targets.map((c) => c.id)]));
+    startSearch(async () => {
+      const outcomes = await Promise.all(targets.map((c) => importarUno(c)));
+      const succeeded = outcomes.filter((o) => o.ok);
+      const failed = outcomes.filter((o) => !o.ok);
+
+      setPendingIds((s) => {
+        const next = new Set(s);
+        targets.forEach((c) => next.delete(c.id));
+        return next;
+      });
+      if (succeeded.length > 0) {
+        setDecisions((d) => {
+          const next = { ...d };
+          succeeded.forEach((o) => (next[o.id] = "imported"));
+          return next;
+        });
+      }
+      setSelected((s) => {
+        const next = new Set(s);
+        succeeded.forEach((o) => next.delete(o.id));
+        return next;
+      });
+
+      if (failed.length === 0) {
+        toast({
+          message: `${succeeded.length} candidato${succeeded.length === 1 ? "" : "s"} sumado${succeeded.length === 1 ? "" : "s"} al pool y postulado${succeeded.length === 1 ? "" : "s"}`,
+          variant: "success",
+        });
+      } else {
+        toast({
+          message: `${succeeded.length} de ${outcomes.length} importados — ${failed.length} no se pudo${failed.length === 1 ? "" : "n"} agregar, quedan en la lista para reintentar`,
+          variant: succeeded.length > 0 ? "success" : "danger",
+        });
+      }
+    });
+  }
+
   function omitir(c: ScoredLinkedInCandidate) {
     setDecisions((d) => ({ ...d, [c.id]: "omitido" }));
+    setSelected((s) => {
+      const next = new Set(s);
+      next.delete(c.id);
+      return next;
+    });
+  }
+
+  function omitirSeleccionados() {
+    setDecisions((d) => {
+      const next = { ...d };
+      selected.forEach((id) => (next[id] = "omitido"));
+      return next;
+    });
+    setSelected(new Set());
+  }
+
+  function toggleSeleccionado(id: string) {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   const detailCandidate = detailId
@@ -123,6 +201,10 @@ export function AiJobSourcingResults({ jobId }: Props) {
     );
   }
 
+  const pendingResults = results.filter((c) => (decisions[c.id] ?? "pending") === "pending");
+  const allPendingSelected =
+    pendingResults.length > 0 && pendingResults.every((c) => selected.has(c.id));
+
   return (
     <div className="flex flex-col gap-3">
       {!isLiveApi && (
@@ -131,16 +213,62 @@ export function AiJobSourcingResults({ jobId }: Props) {
           la búsqueda en vivo en LinkedIn.
         </p>
       )}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-semibold text-muted">
           {results.length} candidato{results.length === 1 ? "" : "s"}{" "}
           encontrado{results.length === 1 ? "" : "s"} en LinkedIn, ordenados
           por match — tocá el anillo de cada uno para ver el detalle
         </span>
-        <Button variant="secondary" size="sm" onClick={limpiar}>
-          Limpiar
-        </Button>
+        <div className="flex items-center gap-3">
+          {pendingResults.length > 1 && (
+            <button
+              type="button"
+              onClick={() =>
+                setSelected(
+                  allPendingSelected
+                    ? new Set()
+                    : new Set(pendingResults.map((c) => c.id)),
+                )
+              }
+              className="text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              {allPendingSelected ? "Deseleccionar todos" : "Seleccionar todos"}
+            </button>
+          )}
+          <Button variant="secondary" size="sm" onClick={limpiar}>
+            Limpiar
+          </Button>
+        </div>
       </div>
+
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius)] border border-primary/30 bg-primary-light px-4 py-2.5">
+          <span className="text-sm font-semibold text-primary-hover">
+            {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
+          </span>
+          <Button
+            size="sm"
+            onClick={agregarYPostularSeleccionados}
+            loading={pendingIds.size > 0}
+          >
+            Sumar {selected.size} al pool y postular
+          </Button>
+          <button
+            type="button"
+            onClick={omitirSeleccionados}
+            className="text-sm font-semibold text-muted hover:text-danger"
+          >
+            Omitir seleccionados
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="text-sm font-semibold text-muted hover:text-text"
+          >
+            Deseleccionar todo
+          </button>
+        </div>
+      )}
 
       {results.map((c) => {
         const decision = decisions[c.id] ?? "pending";
@@ -161,12 +289,17 @@ export function AiJobSourcingResults({ jobId }: Props) {
               summary: c.summary,
               onOpenDetail: () => setDetailId(c.id),
             }}
+            selectable={
+              imported
+                ? null
+                : { checked: selected.has(c.id), onToggle: () => toggleSeleccionado(c.id) }
+            }
             imported={imported}
             importedLabel="En el pool y postulado ✓"
             primaryActionLabel="Sumar al pool y postular"
             onPrimaryAction={() => agregarYPostular(c)}
-            primaryActionLoading={importingId === c.id}
-            primaryActionDisabled={searching && importingId !== c.id}
+            primaryActionLoading={pendingIds.has(c.id)}
+            primaryActionDisabled={pendingIds.size > 0 && !pendingIds.has(c.id)}
             onOmit={() => omitir(c)}
           />
         );

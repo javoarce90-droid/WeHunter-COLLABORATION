@@ -20,6 +20,12 @@ export type JobSourcingContext = {
 /** Tope de resultados pedidos por el cliente (ítem 9.4). */
 export const SOURCING_MAX_RESULTS = 10;
 
+/** Tope de candidatos scoreados automáticamente por tanda en Sourcing Manual (guardrail contra
+ *  abuso — cada score es una llamada real a la IA). Coincide con SOURCING_MAX_RESULTS, así que
+ *  el freno real de hoy es "una vez por par candidato+búsqueda"; este tope queda como techo
+ *  explícito por si el máximo de resultados cambia. */
+export const SOURCING_MANUAL_SCORE_CAP = 10;
+
 export type ScoredLinkedInCandidate = LinkedInCandidateResult & {
   score: number;
   summary: string;
@@ -53,11 +59,48 @@ export function buildJobSourcingQuery(job: JobSourcingContext): string {
   return terms.join(" ");
 }
 
+/** Scorea un candidato de LinkedIn contra una búsqueda con IA (mismo contrato que
+ *  `puntuar-postulaciones.ts`). Función pura reusada tanto por `sourcearParaBusqueda` (lote,
+ *  Sourcing con IA) como por el scoring puntual de Sourcing Manual (un candidato a la vez). */
+export async function scoreLinkedInCandidate(
+  candidate: LinkedInCandidateResult,
+  job: JobSourcingContext,
+  scoreApplication: SourcearParaBusquedaDeps["scoreApplication"],
+): Promise<ScoredLinkedInCandidate> {
+  const result = await scoreApplication({
+    candidate: {
+      id: candidate.id,
+      skills: candidate.skills,
+      summary: candidate.snippet ?? candidate.headline,
+      source: "linkedin",
+      // El motor de sourcing no trae experiencia/educación estructurada (solo snippet de
+      // búsqueda) — el candidato recién arma su perfil completo si se importa al pool.
+      experience: [],
+      education: [],
+    },
+    job: {
+      title: job.title,
+      position: job.position,
+      skills: job.skills,
+      objectives: job.objectives,
+      requirements: job.requirements,
+      responsibilities: job.responsibilities,
+    },
+  });
+  return {
+    ...candidate,
+    score: result.score,
+    summary: result.summary,
+    breakdown: result.breakdown,
+    strengths: result.strengths,
+    redFlags: result.redFlags,
+  };
+}
+
 /**
- * Busca candidatos en LinkedIn para una búsqueda puntual y los scorea contra ella con IA
- * (mismo contrato que `puntuar-postulaciones.ts`). Devuelve todos los que encuentra (sin
- * filtrar por score — el recruiter decide mirando el % de cada uno), ordenados de mayor a
- * menor compatibilidad, hasta 10.
+ * Busca candidatos en LinkedIn para una búsqueda puntual y los scorea contra ella con IA.
+ * Devuelve todos los que encuentra (sin filtrar por score — el recruiter decide mirando el %
+ * de cada uno), ordenados de mayor a menor compatibilidad, hasta 10.
  */
 export async function sourcearParaBusqueda(
   job: JobSourcingContext,
@@ -71,36 +114,7 @@ export async function sourcearParaBusqueda(
   if (error) return { ok: false, error };
 
   const scored = await Promise.all(
-    candidates.map(async (c) => {
-      const result = await deps.scoreApplication({
-        candidate: {
-          id: c.id,
-          skills: c.skills,
-          summary: c.snippet ?? c.headline,
-          source: "linkedin",
-          // El motor de sourcing no trae experiencia/educación estructurada (solo snippet de
-          // búsqueda) — el candidato recién arma su perfil completo si se importa al pool.
-          experience: [],
-          education: [],
-        },
-        job: {
-          title: job.title,
-          position: job.position,
-          skills: job.skills,
-          objectives: job.objectives,
-          requirements: job.requirements,
-          responsibilities: job.responsibilities,
-        },
-      });
-      return {
-        ...c,
-        score: result.score,
-        summary: result.summary,
-        breakdown: result.breakdown,
-        strengths: result.strengths,
-        redFlags: result.redFlags,
-      };
-    }),
+    candidates.map((c) => scoreLinkedInCandidate(c, job, deps.scoreApplication)),
   );
 
   const results = scored

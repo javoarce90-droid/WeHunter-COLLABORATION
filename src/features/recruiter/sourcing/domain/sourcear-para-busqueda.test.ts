@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildJobSourcingQuery,
+  scoreLinkedInCandidate,
   sourcearParaBusqueda,
   SOURCING_MAX_RESULTS,
   type JobSourcingContext,
@@ -45,6 +46,68 @@ describe("buildJobSourcingQuery", () => {
     expect(
       buildJobSourcingQuery(job({ skills: null, seniority: null, location: null })),
     ).toBe("Senior Backend Engineer");
+  });
+});
+
+describe("scoreLinkedInCandidate", () => {
+  it("arma el input de scoring con snippet como summary y devuelve el candidato enriquecido", async () => {
+    const c = candidate({ snippet: "Backend con foco en Python y Supabase" });
+    let received: unknown;
+    const result = await scoreLinkedInCandidate(c, job(), async (input) => {
+      received = input;
+      return {
+        score: 82,
+        summary: "Buen match",
+        redFlags: ["sin certificaciones"],
+        breakdown: { experiencia: 80, skillsTecnicos: 90, seniority: 70, idiomas: 100, ubicacion: 100 },
+        strengths: ["Python sólido"],
+      };
+    });
+
+    expect(received).toEqual({
+      candidate: {
+        id: "c1",
+        skills: ["Python"],
+        summary: "Backend con foco en Python y Supabase",
+        source: "linkedin",
+        experience: [],
+        education: [],
+      },
+      job: {
+        title: "Backend Engineer",
+        position: "Senior Backend Engineer",
+        skills: ["Python", "Supabase"],
+        objectives: undefined,
+        requirements: undefined,
+        responsibilities: undefined,
+      },
+    });
+    expect(result).toEqual({
+      ...c,
+      score: 82,
+      summary: "Buen match",
+      redFlags: ["sin certificaciones"],
+      breakdown: { experiencia: 80, skillsTecnicos: 90, seniority: 70, idiomas: 100, ubicacion: 100 },
+      strengths: ["Python sólido"],
+    });
+  });
+
+  it("usa el headline como summary cuando no hay snippet", async () => {
+    const c = candidate({ snippet: null });
+    let received: unknown;
+    await scoreLinkedInCandidate(c, job(), async (input) => {
+      received = input;
+      return {
+        score: 50,
+        summary: "",
+        redFlags: [],
+        breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
+        strengths: [],
+      };
+    });
+    expect((received as { candidate: { summary: string } }).candidate.summary).toBe(
+      "Backend Engineer",
+    );
   });
 });
 

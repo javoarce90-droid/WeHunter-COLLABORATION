@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
 import {
+  scoreLinkedInCandidate,
   sourcearParaBusqueda,
   type ScoredLinkedInCandidate,
 } from "./domain/sourcear-para-busqueda";
@@ -127,4 +128,69 @@ export async function sourcearParaBusquedaAction(jobId: string): Promise<{
 
   if (!result.ok) return { ok: false, error: result.error };
   return { ok: true, results: result.results, isLiveApi: result.isLiveApi };
+}
+
+const scorearCandidatoSchema = z.object({
+  jobId: z.string().uuid("ID de búsqueda inválido."),
+  candidate: z.object({
+    id: z.string().trim().min(1),
+    name: z.string().trim().min(1),
+    headline: z.string(),
+    location: z.string(),
+    skills: z.array(z.string()),
+    linkedinUrl: z.string().trim().min(1),
+    snippet: z.string().nullable().optional(),
+  }),
+});
+
+/**
+ * Score post-hoc de un candidato puntual en Sourcing Manual (búsqueda libre, sin contexto de
+ * job por default): el reclutador elige a qué búsqueda postular a un candidato encontrado y
+ * eso dispara este análisis, de a uno — a diferencia de Sourcing con IA (que scorea toda la
+ * tanda porque ya está atado a una búsqueda). El guardrail contra abuso (una vez por par
+ * candidato+búsqueda, tope por tanda) vive en el cliente (`LinkedInSourcingTab.tsx`); esta
+ * action solo valida auth y ejecuta un scoring puntual.
+ */
+export async function scorearCandidatoSourcingAction(input: {
+  jobId: string;
+  candidate: {
+    id: string;
+    name: string;
+    headline: string;
+    location: string;
+    skills: string[];
+    linkedinUrl: string;
+    snippet?: string | null;
+  };
+}): Promise<{ ok: boolean; result?: ScoredLinkedInCandidate; error?: string }> {
+  const parsed = scorearCandidatoSchema.safeParse(input);
+  if (!parsed.success)
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { ok: false, error: "Tu rol no permite usar sourcing." };
+  }
+
+  const job = await getJobById(parsed.data.jobId, membership.organizationId);
+  if (!job) return { ok: false, error: "Búsqueda no encontrada." };
+
+  const provider = getAiProvider();
+  const result = await scoreLinkedInCandidate(
+    parsed.data.candidate,
+    {
+      title: job.title,
+      position: job.position,
+      skills: job.skills,
+      seniority: job.seniority,
+      location: job.location,
+      objectives: job.objectives,
+      requirements: job.requirements,
+      responsibilities: job.responsibilities,
+    },
+    (i) => provider.scoreApplication(i),
+  );
+
+  return { ok: true, result };
 }

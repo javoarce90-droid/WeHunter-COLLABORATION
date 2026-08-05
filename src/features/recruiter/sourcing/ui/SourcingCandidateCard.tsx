@@ -3,6 +3,8 @@
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Spinner } from "@/components/ui/spinner";
 import { ExternalLink } from "lucide-react";
 import { MatchCell } from "../../applications/ui/MatchCell";
 
@@ -10,6 +12,11 @@ type Match = {
   score: number;
   summary: string | null;
   onOpenDetail: () => void;
+};
+
+type Selectable = {
+  checked: boolean;
+  onToggle: () => void;
 };
 
 type JobPicker = {
@@ -25,12 +32,19 @@ type Props = {
   skills: string[];
   linkedinUrl: string;
   snippet?: string | null;
-  /** Ausente en Sourcing Manual: ese modo no calcula compatibilidad contra ninguna búsqueda. */
+  /** Ausente en Sourcing con IA hasta que se resuelva el scoring; en Sourcing Manual, ausente
+   *  hasta que el reclutador elija una búsqueda para este candidato. */
   match?: Match | null;
+  /** Score en camino (Sourcing Manual, tras elegir una búsqueda): muestra un loading en vez de
+   *  dejar el espacio vacío. Se ignora si ya hay `match`. */
+  matchLoading?: boolean;
   /** Solo en Sourcing Manual: elegir a qué búsqueda postular este candidato puntual (o
    *  ninguna, y queda solo en el pool). En Sourcing con IA no aplica — la búsqueda ya está
    *  elegida para toda la tab. */
   jobPicker?: JobPicker | null;
+  /** Solo para candidatos "pending" (ni importados ni omitidos) — habilita el checkbox de
+   *  selección múltiple para acciones en lote. */
+  selectable?: Selectable | null;
   imported: boolean;
   importedLabel: string;
   primaryActionLabel: string;
@@ -51,7 +65,9 @@ export function SourcingCandidateCard({
   linkedinUrl,
   snippet,
   match,
+  matchLoading,
   jobPicker,
+  selectable,
   imported,
   importedLabel,
   primaryActionLabel,
@@ -63,6 +79,14 @@ export function SourcingCandidateCard({
   return (
     <div className="flex flex-col gap-4 rounded-[var(--radius)] border border-border bg-surface p-4 shadow-[var(--shadow)]">
       <div className="flex items-start gap-3">
+        {selectable && (
+          <Checkbox
+            checked={selectable.checked}
+            onChange={selectable.onToggle}
+            aria-label={`Seleccionar a ${name}`}
+            className="mt-1"
+          />
+        )}
         <Avatar name={name} size="md" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -87,8 +111,15 @@ export function SourcingCandidateCard({
             ))}
           </div>
         </div>
-        {match && (
+        {match ? (
           <MatchCell score={match.score} summary={match.summary} onOpenCopiloto={match.onOpenDetail} />
+        ) : (
+          matchLoading && (
+            <div className="flex items-center gap-1.5 text-[11px] text-muted">
+              <Spinner className="text-primary" />
+              Analizando…
+            </div>
+          )
         )}
       </div>
 
