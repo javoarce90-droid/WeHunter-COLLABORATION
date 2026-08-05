@@ -20,10 +20,16 @@ export type RequisitionListRow = {
   clientName: string | null;
 };
 
-/** Bandeja de solicitudes con el nombre del cliente (una query, sin N+1). */
+/** Bandeja de solicitudes con el nombre del cliente (una query, sin N+1).
+ *  `scopeToClientId` acota a las solicitudes de ESE cliente (recruiter en workspace Team,
+ *  ver `isClientScoped` en `@/lib/auth/roles`). `null` explícito (scoping aplica pero el
+ *  recruiter no tiene cliente asignado) devuelve vacío sin ir a la base. */
 export async function listRequisitions(
   organizationId: string,
+  scopeToClientId?: string | null,
 ): Promise<RequisitionListRow[]> {
+  if (scopeToClientId === null) return [];
+
   const db = await getDb();
   return db.rls(
     (tx) =>
@@ -43,7 +49,12 @@ export async function listRequisitions(
         })
         .from(requisitions)
         .leftJoin(clients, eq(requisitions.clientId, clients.id))
-        .where(eq(requisitions.organizationId, organizationId))
+        .where(
+          and(
+            eq(requisitions.organizationId, organizationId),
+            scopeToClientId ? eq(requisitions.clientId, scopeToClientId) : undefined,
+          ),
+        )
         .orderBy(desc(requisitions.createdAt))
         .limit(LIST_LIMIT),
     "db.requisitions.list",

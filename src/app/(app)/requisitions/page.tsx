@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
-import { can } from "@/lib/auth/roles";
+import { can, isClientScoped } from "@/lib/auth/roles";
 import { listRequisitions } from "@/features/recruiter/requisitions/data/requisitions.queries";
 import { RequisitionsList } from "@/features/recruiter/requisitions/ui/RequisitionsList";
 
@@ -9,7 +9,10 @@ export default async function RequisitionsPage() {
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const requisitions = await listRequisitions(membership.organizationId);
+  const requisitions = await listRequisitions(
+    membership.organizationId,
+    isClientScoped(membership.role, membership.workspaceType) ? membership.assignedClientId : undefined,
+  );
   const pending = requisitions.filter((r) => r.status === "pending").length;
 
   return (

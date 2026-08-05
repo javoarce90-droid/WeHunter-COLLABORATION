@@ -1,4 +1,4 @@
-import type { OrgRole } from "./session";
+import type { OrgRole, WorkspaceType } from "./session";
 
 /**
  * Capacidades por rol, predefinidas y no configurables (decisión de producto: los permisos
@@ -174,6 +174,18 @@ export function isReadOnly(role: OrgRole): boolean {
  */
 export function isAssignmentScoped(role: OrgRole): boolean {
   return role === "recruiter" || role === "sourcer" || role === "consultant";
+}
+
+/**
+ * Recruiter en workspace TEAM ve, en Solicitudes, solo las del cliente que le asignaron
+ * (`memberships.assignedClientId`) — ver docs/BACKLOG.md punto 4 de la especificación
+ * 2026-08-04. No aplica a Enterprise: ahí el scoping depende de qué recruiter eligió el
+ * Hiring Manager al crear la solicitud (campo todavía no existe, ver checklist de roles).
+ * No aplica a Freelance: ese plan no admite más miembros que el propietario, no hay rol
+ * recruiter posible ahí.
+ */
+export function isClientScoped(role: OrgRole, workspaceType: WorkspaceType | null): boolean {
+  return role === "recruiter" && workspaceType === "team";
 }
 
 export const ROLE_LABELS: Record<OrgRole, string> = {
