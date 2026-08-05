@@ -17,6 +17,8 @@ import type {
   DraftJobPostingInput,
   DraftJobOfferInput,
   DraftJobOffer,
+  DraftScreeningQuestionsInput,
+  DraftScreeningQuestion,
   DraftCandidateProfileInput,
   DraftCandidateProfile,
   DraftWorkExperience,
@@ -253,6 +255,72 @@ export class GeminiAiProvider implements AiProvider {
     } catch (err) {
       logFallback("draftJobOffer", err);
       return this.fallback.draftJobOffer(input);
+    }
+  }
+
+  async draftScreeningQuestions(
+    input: DraftScreeningQuestionsInput,
+  ): Promise<DraftScreeningQuestion[]> {
+    const prompt = prompts.draftScreeningQuestions(input);
+    try {
+      const res = await this.client.models.generateContent({
+        model: this.model,
+        contents: prompt.user,
+        config: {
+          systemInstruction: prompt.system,
+          temperature: 0.6,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                label: { type: Type.STRING },
+                type: {
+                  type: Type.STRING,
+                  enum: ["yes_no", "text", "number", "multiple_choice"],
+                },
+                options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                isCriterion: { type: Type.BOOLEAN },
+                expectedValues: { type: Type.ARRAY, items: { type: Type.STRING } },
+                minValue: { type: Type.NUMBER },
+                maxValue: { type: Type.NUMBER },
+              },
+              required: ["label", "type", "isCriterion"],
+            },
+          },
+        },
+      });
+
+      const raw = res.text?.trim();
+      if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) throw new Error("Gemini devolvió una forma inesperada");
+
+      const VALID_TYPES = new Set(["yes_no", "text", "number", "multiple_choice"]);
+      return parsed
+        .filter(
+          (q): q is Record<string, unknown> =>
+            !!q && typeof q === "object" && typeof (q as Record<string, unknown>).label === "string",
+        )
+        .filter((q) => VALID_TYPES.has(String(q.type)))
+        .map((q) => ({
+          label: String(q.label).trim(),
+          type: String(q.type),
+          options: Array.isArray(q.options)
+            ? q.options.filter((o): o is string => typeof o === "string")
+            : undefined,
+          isCriterion: q.isCriterion === true,
+          expectedValues: Array.isArray(q.expectedValues)
+            ? q.expectedValues.filter((v): v is string => typeof v === "string")
+            : undefined,
+          minValue: typeof q.minValue === "number" ? q.minValue : null,
+          maxValue: typeof q.maxValue === "number" ? q.maxValue : null,
+        }))
+        .filter((q) => q.label.length > 0);
+    } catch (err) {
+      logFallback("draftScreeningQuestions", err);
+      return this.fallback.draftScreeningQuestions(input);
     }
   }
 

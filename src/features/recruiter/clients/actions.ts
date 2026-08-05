@@ -33,6 +33,7 @@ function parse(formData: FormData) {
     contactName: formData.get("contactName"),
     contactEmail: formData.get("contactEmail"),
     notes: formData.get("notes"),
+    assignedMembershipId: formData.get("assignedMembershipId"),
   });
 }
 
@@ -57,7 +58,14 @@ export async function crearClienteAction(
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
     },
-    { insertClient, getSoleActiveMembershipId, assignRecruiterToClient },
+    {
+      insertClient,
+      getSoleActiveMembershipId,
+      assignRecruiterToClient,
+      getMembershipById,
+      generateShareToken: generateClientShareToken,
+      createClientShare,
+    },
   );
   if (!result.ok) return { error: result.error };
 

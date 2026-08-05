@@ -392,6 +392,7 @@ export function JobForm({
               <ScreeningBuilder
                 questions={screeningQuestions}
                 onChange={setScreeningQuestions}
+                jobId={jobId}
               />
               <input type="hidden" name="screeningQuestions" value={screeningQuestionsPayload} />
             </Section>

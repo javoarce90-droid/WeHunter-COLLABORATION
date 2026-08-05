@@ -86,11 +86,12 @@ function revalidarBusqueda(jobId: string) {
 export async function agregarEtapaAction(
   jobId: string,
   name: string,
+  slaDays?: number | null,
 ): Promise<EtapaActionResult> {
   const ctx = await ctxDeSesion();
   if (!ctx) return { ok: false, error: "No autorizado." };
 
-  const res = await agregarEtapa({ jobId, name }, ctx, {
+  const res = await agregarEtapa({ jobId, name, slaDays }, ctx, {
     listStages: listJobStages,
     insertStage: insertJobStage,
   });
@@ -196,11 +197,14 @@ function revalidarPlantilla() {
   revalidatePath("/settings/stages");
 }
 
-export async function agregarEtapaPlantillaAction(name: string): Promise<EtapaActionResult> {
+export async function agregarEtapaPlantillaAction(
+  name: string,
+  slaDays?: number | null,
+): Promise<EtapaActionResult> {
   const ctx = await ctxDeSesion();
   if (!ctx) return { ok: false, error: "No autorizado." };
 
-  const res = await agregarEtapaPlantilla({ name }, ctx, {
+  const res = await agregarEtapaPlantilla({ name, slaDays }, ctx, {
     listStages: listStageTemplates,
     insertStage: insertStageTemplate,
   });

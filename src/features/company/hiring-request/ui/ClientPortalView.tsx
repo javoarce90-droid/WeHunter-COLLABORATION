@@ -1,20 +1,11 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SENIORITY_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
 import type { JobSeniority } from "@/features/recruiter/jobs/domain/job-details";
-import type { ClientPortal, RequisitionStatus } from "../data/hiring-request.data";
+import type { ClientPortal } from "../data/hiring-request.data";
 import { RequisitionForm } from "./RequisitionForm";
-
-const STATUS_META: Record<
-  RequisitionStatus,
-  { label: string; variant: "warning" | "success" | "danger" }
-> = {
-  pending: { label: "Pendiente de revisión", variant: "warning" },
-  approved: { label: "Aprobada", variant: "success" },
-  rejected: { label: "Rechazada", variant: "danger" },
-};
-
-const REASON_LABELS = { new_position: "Puesto nuevo", backfill: "Reemplazo" } as const;
+import { STATUS_META, REASON_LABELS } from "./status-meta";
 
 const dateFormatter = new Intl.DateTimeFormat("es-AR", {
   day: "2-digit",
@@ -47,44 +38,46 @@ export function ClientPortalView({ token, portal }: { token: string; portal: Cli
           {portal.requisitions.map((r) => {
             const status = STATUS_META[r.status];
             return (
-              <Card key={r.id}>
-                <div className="flex flex-col gap-3 p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h2 className="truncate font-semibold text-text">{r.title}</h2>
-                      <p className="truncate text-sm text-muted">
-                        {[
-                          r.position,
-                          r.seniority
-                            ? SENIORITY_LABELS[r.seniority as JobSeniority]
-                            : null,
-                          r.location,
-                          REASON_LABELS[r.reason],
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
+              <Link key={r.id} href={`/client/${token}/${r.id}`} className="block">
+                <Card className="transition-[transform,box-shadow,border-color] duration-[var(--motion-base)] ease-[var(--ease-out-quart)] hover:-translate-y-[3px] hover:border-primary hover:shadow-[var(--shadow-overlay)]">
+                  <div className="flex flex-col gap-3 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h2 className="truncate font-semibold text-text">{r.title}</h2>
+                        <p className="truncate text-sm text-muted">
+                          {[
+                            r.position,
+                            r.seniority
+                              ? SENIORITY_LABELS[r.seniority as JobSeniority]
+                              : null,
+                            r.location,
+                            REASON_LABELS[r.reason],
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <Badge variant={status.variant}>{status.label}</Badge>
                     </div>
-                    <Badge variant={status.variant}>{status.label}</Badge>
+
+                    <p className="text-xs text-muted">
+                      Enviada el {dateFormatter.format(new Date(r.createdAt))}
+                      {r.reviewedAt
+                        ? ` · Revisada el ${dateFormatter.format(new Date(r.reviewedAt))}`
+                        : ""}
+                    </p>
+
+                    {r.reviewNote && (
+                      <div className="rounded-[var(--radius)] border border-border bg-bg p-3">
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-label">
+                          Respuesta del equipo
+                        </p>
+                        <p className="whitespace-pre-wrap text-sm text-text">{r.reviewNote}</p>
+                      </div>
+                    )}
                   </div>
-
-                  <p className="text-xs text-muted">
-                    Enviada el {dateFormatter.format(new Date(r.createdAt))}
-                    {r.reviewedAt
-                      ? ` · Revisada el ${dateFormatter.format(new Date(r.reviewedAt))}`
-                      : ""}
-                  </p>
-
-                  {r.reviewNote && (
-                    <div className="rounded-[var(--radius)] border border-border bg-bg p-3">
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-label">
-                        Respuesta del equipo
-                      </p>
-                      <p className="whitespace-pre-wrap text-sm text-text">{r.reviewNote}</p>
-                    </div>
-                  )}
-                </div>
-              </Card>
+                </Card>
+              </Link>
             );
           })}
         </div>

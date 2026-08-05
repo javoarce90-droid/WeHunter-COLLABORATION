@@ -1,6 +1,7 @@
-import { and, count, eq, desc, sql } from "drizzle-orm";
+import { and, count, eq, inArray, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { clients, jobs, memberships, profiles, requisitions, clientShares, type Client } from "@/db/schema";
+import type { OrgRole } from "@/lib/auth/session";
 
 /** Lecturas de clientes. Cliente RLS; filtramos por organization activa. */
 
@@ -166,4 +167,43 @@ export async function listAssignableRecruiters(
         .limit(LIST_LIMIT),
     "db.clients.assignable-recruiters",
   );
+}
+
+export type AssignableClientOwner = {
+  membershipId: string;
+  name: string | null;
+  role: OrgRole;
+};
+
+const CLIENT_OWNER_ROLES: OrgRole[] = ["owner", "admin", "recruiter"];
+
+/** Candidatos a "responsable" de un cliente en el momento del alta: acá el responsable puede
+ *  ser el owner, un admin o un recruiter (a diferencia de `listAssignableRecruiters`, que solo
+ *  ofrece recruiters — ese selector vive en el detalle, este en el alta). */
+export async function listAssignableClientOwners(
+  organizationId: string,
+): Promise<AssignableClientOwner[]> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          membershipId: memberships.id,
+          name: profiles.fullName,
+          role: memberships.role,
+        })
+        .from(memberships)
+        .innerJoin(profiles, eq(memberships.profileId, profiles.id))
+        .where(
+          and(
+            eq(memberships.organizationId, organizationId),
+            inArray(memberships.role, CLIENT_OWNER_ROLES),
+            eq(memberships.status, "active"),
+          ),
+        )
+        .orderBy(profiles.fullName)
+        .limit(LIST_LIMIT),
+    "db.clients.assignable-owners",
+  );
+  return rows.map((r) => ({ ...r, role: r.role as OrgRole }));
 }

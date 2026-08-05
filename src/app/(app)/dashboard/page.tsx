@@ -5,19 +5,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getActiveMembership } from "@/lib/auth/session";
+import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import type { WorkspaceType } from "@/lib/auth/session";
-import { getOwnProfile, getOrganization } from "@/features/recruiter/settings/data/settings.queries";
+import { getOwnProfile } from "@/features/recruiter/settings/data/settings.queries";
 import { obtenerKpis, type DashboardKpis } from "@/features/recruiter/dashboard/domain/obtener-kpis";
 import { getDashboardCounts } from "@/features/recruiter/dashboard/data/dashboard.queries";
 import { calcularProgresoSetup } from "@/features/recruiter/dashboard/domain/calcular-progreso-setup";
+import { getSetupChecklistCounts } from "@/features/recruiter/dashboard/data/setup-checklist.queries";
 import { ChecklistItemRow } from "@/features/recruiter/dashboard/ui/ChecklistItemRow";
 import { KpiGrid, KpiGridSkeleton } from "@/features/recruiter/dashboard/ui/KpiGrid";
 import { listRecentOpenJobs } from "@/features/recruiter/jobs/data/jobs.queries";
 import { getDashboardAgendaSummary } from "@/features/recruiter/interviews/data/interviews.queries";
-import { countStageTemplates } from "@/features/recruiter/pipeline-stages/data/job-stage-templates.queries";
-import { countClients } from "@/features/recruiter/clients/data/clients.queries";
-import { countMembersAndPendingInvitations } from "@/features/recruiter/team/data/team.queries";
 import { JOB_STATUS_META } from "@/features/recruiter/jobs/ui/status-meta";
 import { TYPE_LABELS, TYPE_BADGE, MODE_LABELS } from "@/features/recruiter/interviews/schema";
 
@@ -49,6 +47,8 @@ export default function DashboardPage() {
 async function DashboardContent() {
   const membership = await getActiveMembership();
   if (!membership) notFound();
+  const user = await getCurrentUser();
+  if (!user) notFound();
 
   const [profile, kpisResult] = await Promise.all([
     getOwnProfile(),
@@ -89,7 +89,7 @@ async function DashboardContent() {
       {isDay1 ? (
         <DashboardDay1
           organizationId={membership.organizationId}
-          kpis={kpis}
+          userId={user.id}
           workspaceType={membership.workspaceType}
         />
       ) : (
@@ -229,39 +229,21 @@ async function DashboardDaily({
 }
 
 /**
- * Día 1: sin búsquedas todavía. Checklist de setup en vez de KPIs vacíos.
- * `jobsCount`/`candidatesCount` se arman con los `kpis` que ya trajo `DashboardContent` (no se
- * repite esa transacción) — el resto (career site, etapas, equipo/clientes) sí es propio de
- * este checklist y no lo trae `obtenerKpis`. La definición de los items/umbrales vive en
- * `calcularProgresoSetup`, misma función que usa el widget flotante global.
+ * Día 1: sin búsquedas todavía. Checklist de setup en vez de KPIs vacíos. Misma
+ * `getSetupChecklistCounts` + `calcularProgresoSetup` que usa el widget flotante global —
+ * única fuente de verdad de los items/umbrales.
  */
 async function DashboardDay1({
   organizationId,
-  kpis,
+  userId,
   workspaceType,
 }: {
   organizationId: string;
-  kpis: DashboardKpis;
+  userId: string;
   workspaceType: WorkspaceType | null;
 }) {
-  const [stageTemplatesCount, org, teamOrClientsCount] = await Promise.all([
-    countStageTemplates(organizationId),
-    getOrganization(organizationId),
-    workspaceType === "freelance"
-      ? countClients(organizationId)
-      : countMembersAndPendingInvitations(organizationId),
-  ]);
-
-  const progreso = calcularProgresoSetup(
-    {
-      careerSiteConfigured: !!org?.branding?.description || !!org?.careerSiteCoverUrl,
-      stageTemplatesCount,
-      teamOrClientsCount,
-      jobsCount: kpis.busquedasTotales,
-      candidatesCount: kpis.candidatosEnPool,
-    },
-    workspaceType,
-  );
+  const counts = await getSetupChecklistCounts(organizationId, userId);
+  const progreso = calcularProgresoSetup(counts, workspaceType);
 
   return (
     <>

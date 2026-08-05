@@ -13,14 +13,16 @@ export async function SetupChecklistWidgetLoader({
   organizationId,
   workspaceType,
   setupCompletedAt,
+  userId,
 }: {
   organizationId: string;
   workspaceType: WorkspaceType | null;
   setupCompletedAt: Date | null;
+  userId: string;
 }) {
   if (setupCompletedAt) return null;
 
-  const counts = await getSetupChecklistCounts(organizationId, workspaceType);
+  const counts = await getSetupChecklistCounts(organizationId, userId);
   const progreso = calcularProgresoSetup(counts, workspaceType);
 
   if (progreso.percent >= 100) {

@@ -42,10 +42,9 @@ export default async function ScreeningStepPage({ params }: Props) {
       </Suspense>
       <div>
         <h2 className="font-display text-base font-bold text-text">Preguntas de screening</h2>
-        <p className="mt-1 max-w-[65ch] text-sm text-muted">
-          Búsqueda creada. Sumá preguntas que el candidato responde al postularse — te ayudan a
-          conocerlo y filtrar antes de la entrevista. Es opcional: podés omitir este paso y hacerlo
-          más tarde desde <span className="font-semibold text-text">Editar</span>.
+        <p className="mt-1 text-sm text-muted">
+          Opcionales — se agregan ahora o después desde{" "}
+          <span className="font-semibold text-text">Editar</span>.
         </p>
       </div>
       <ScreeningStep jobId={job.id} initialQuestions={initialQuestions} />

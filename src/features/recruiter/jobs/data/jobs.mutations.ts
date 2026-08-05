@@ -123,6 +123,29 @@ export async function updateJobFields(
   return { updated: rows.length > 0 };
 }
 
+export async function updateJobAvisoFields(
+  jobId: string,
+  organizationId: string,
+  fields: {
+    objectives: string | null;
+    requirements: string | null;
+    responsibilities: string | null;
+    benefits: { name: string; description: string }[] | null;
+  },
+): Promise<{ updated: boolean }> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .update(jobs)
+        .set({ ...fields, updatedAt: new Date() })
+        .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
+        .returning({ id: jobs.id }),
+    "db.jobs.update-aviso-fields",
+  );
+  return { updated: rows.length > 0 };
+}
+
 export async function incrementShareCount(jobId: string, organizationId: string): Promise<void> {
   const db = await getDb();
   await db.rls(

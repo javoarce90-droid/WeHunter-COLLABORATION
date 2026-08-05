@@ -4,11 +4,18 @@ import type { OrgRole } from "@/lib/auth/session";
 
 /** Caso de uso: crear una empresa cliente. Autorización primaria: rol + organization. */
 
+/** Quién puede ser "responsable" de un cliente elegido a mano en el alta — mismo criterio que
+ *  `listAssignableClientOwners`. Un sourcer/consultor/viewer no califica. */
+const ROLES_RESPONSABLE: OrgRole[] = ["owner", "admin", "recruiter"];
+
 export interface CrearClienteInput {
   name: string;
   contactName?: string | null;
   contactEmail?: string | null;
   notes?: string | null;
+  /** Elegido a mano en el form de alta (org con más de un candidato posible). null/undefined =
+   *  sin elegir, cae al fallback de auto-asignación por org-de-un-solo-miembro. */
+  assignedMembershipId?: string | null;
 }
 
 export interface CrearClienteCtx {
@@ -34,6 +41,21 @@ export interface CrearClienteDeps {
     clientId: string,
     membershipId: string,
   ): Promise<void>;
+  /** Valida el `assignedMembershipId` elegido a mano: existe, es de esta org, activo. */
+  getMembershipById(
+    membershipId: string,
+    organizationId: string,
+  ): Promise<{ id: string; role: OrgRole; status: string } | null>;
+  /** El link de compartir se genera siempre al crear el cliente — nunca hace falta un paso
+   *  aparte en el detalle solo para tenerlo. */
+  generateShareToken(): string;
+  createClientShare(args: {
+    organizationId: string;
+    clientId: string;
+    token: string;
+    expiresAt: Date | null;
+    createdBy: string;
+  }): Promise<{ shareId: string; token: string }>;
 }
 
 export async function crearCliente(
@@ -62,10 +84,27 @@ export async function crearCliente(
     createdBy: ctx.userId,
   });
 
-  const soleMembershipId = await deps.getSoleActiveMembershipId(ctx.organizationId);
-  if (soleMembershipId) {
-    await deps.assignRecruiterToClient(ctx.organizationId, clientId, soleMembershipId);
+  if (input.assignedMembershipId) {
+    const member = await deps.getMembershipById(input.assignedMembershipId, ctx.organizationId);
+    if (member && member.status === "active" && ROLES_RESPONSABLE.includes(member.role)) {
+      await deps.assignRecruiterToClient(ctx.organizationId, clientId, member.id);
+    }
+    // Elegido inválido (rol que no califica, de otra org, inactivo): se ignora en silencio —
+    // el cliente ya se creó, un id manipulado no es motivo para fallar el alta completa.
+  } else {
+    const soleMembershipId = await deps.getSoleActiveMembershipId(ctx.organizationId);
+    if (soleMembershipId) {
+      await deps.assignRecruiterToClient(ctx.organizationId, clientId, soleMembershipId);
+    }
   }
+
+  await deps.createClientShare({
+    organizationId: ctx.organizationId,
+    clientId,
+    token: deps.generateShareToken(),
+    expiresAt: null,
+    createdBy: ctx.userId,
+  });
 
   return ok({ clientId });
 }

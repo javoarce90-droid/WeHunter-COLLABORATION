@@ -37,6 +37,7 @@ export function StageTemplateEditor({ stages }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
+  const [newSla, setNewSla] = useState("");
 
   const [optimisticStages, applyUpdate] = useOptimistic(stages, (state, update: Update) => {
     if (update.type === "replace") return update.stages;
@@ -93,10 +94,15 @@ export function StageTemplateEditor({ stages }: Props) {
   function agregar() {
     const name = newName.trim();
     if (name.length < 2) return;
+    const slaDays = newSla.trim() === "" ? null : parseInt(newSla, 10);
+    if (slaDays !== null && (isNaN(slaDays) || slaDays < 1)) return;
     startTransition(async () => {
-      const res = await agregarEtapaPlantillaAction(name);
+      const res = await agregarEtapaPlantillaAction(name, slaDays);
       withErrorToast(res);
-      if (res.ok) setNewName("");
+      if (res.ok) {
+        setNewName("");
+        setNewSla("");
+      }
     });
   }
 
@@ -108,7 +114,7 @@ export function StageTemplateEditor({ stages }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         {ordered.length === 0 && (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-3 py-6 text-center">
             <p className="text-xs text-muted">Esta organización todavía no tiene una plantilla de etapas.</p>
@@ -125,7 +131,7 @@ export function StageTemplateEditor({ stages }: Props) {
           return (
             <div
               key={stage.id}
-              className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-2"
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5"
             >
               <span
                 className="h-2 w-2 shrink-0 rounded-full"
@@ -196,6 +202,19 @@ export function StageTemplateEditor({ stages }: Props) {
             aria-label="Nombre de la nueva etapa"
             className="min-w-0 flex-1 rounded-[var(--radius)] border border-border bg-bg px-2.5 py-1.5 text-sm text-text focus:border-primary focus:outline-none"
           />
+          <div className="flex shrink-0 items-center gap-1">
+            <input
+              type="number"
+              min={1}
+              value={newSla}
+              onChange={(e) => setNewSla(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && agregar()}
+              placeholder="—"
+              aria-label="SLA en días de la nueva etapa"
+              className="w-10 rounded border border-border bg-bg px-1.5 py-1.5 text-center text-xs text-text focus:border-primary focus:outline-none"
+            />
+            <span className="text-[10px] text-muted">días</span>
+          </div>
           <Button type="button" variant="secondary" size="sm" onClick={agregar}>
             Agregar etapa
           </Button>
@@ -255,7 +274,7 @@ function SlaInput({ value, onChange }: { value: number | null; onChange: (v: num
         className="w-10 rounded border border-border bg-bg px-1.5 py-0.5 text-center text-xs text-text focus:border-primary focus:outline-none"
         aria-label="SLA en días"
       />
-      <span className="text-[10px] text-muted">d</span>
+      <span className="text-[10px] text-muted">días</span>
     </div>
   );
 }

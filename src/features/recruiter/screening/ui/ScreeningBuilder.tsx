@@ -1,11 +1,17 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { ToggleLeft, Type, Hash, ListChecks, Plus, X, ChevronUp, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AiButton } from "@/components/ui/ai";
+import { Dialog } from "@/components/ui/dialog";
+import { useToast } from "@/lib/toast";
+import { generarPreguntasScreeningAction } from "../actions";
+import type { DraftScreeningQuestion } from "@/lib/ai";
 import type {
   ScreeningQuestionInput,
   ScreeningQuestionType,
@@ -33,10 +39,118 @@ const TYPE_OPTIONS: {
 export function ScreeningBuilder({
   questions,
   onChange,
+  jobId,
 }: {
   questions: ScreeningQuestionInput[];
   onChange: (next: ScreeningQuestionInput[]) => void;
+  /** Si viene, habilita "Generar con IA" (necesita el aviso ya guardado del job). */
+  jobId?: string;
 }) {
+  const toast = useToast();
+  const [suggestions, setSuggestions] = useState<DraftScreeningQuestion[] | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [aiPending, startAi] = useTransition();
+
+  function generarConIA() {
+    if (!jobId) return;
+    startAi(async () => {
+      const res = await generarPreguntasScreeningAction(jobId);
+      if (res.ok && res.questions) {
+        setSuggestions(res.questions);
+        setSelected(new Set(res.questions.map((_, i) => i)));
+      } else {
+        toast({ message: res.error ?? "No se pudieron generar preguntas.", variant: "danger" });
+      }
+    });
+  }
+
+  function toggleSuggestion(i: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  }
+
+  function agregarSeleccionadas() {
+    if (!suggestions) return;
+    const nuevas: ScreeningQuestionInput[] = [...selected]
+      .sort((a, b) => a - b)
+      .map((i) => {
+        const s = suggestions[i]!;
+        return {
+          type: s.type as ScreeningQuestionType,
+          label: s.label,
+          options: s.options,
+          required: true,
+          isCriterion: s.isCriterion,
+          expectedValues: s.expectedValues,
+          minValue: s.minValue ?? null,
+          maxValue: s.maxValue ?? null,
+        };
+      });
+
+    const espacio = MAX_QUESTIONS - questions.length;
+    const aAgregar = nuevas.slice(0, espacio);
+    onChange([...questions, ...aAgregar]);
+    if (aAgregar.length < nuevas.length) {
+      toast({
+        message: `Se agregaron ${aAgregar.length} — llegaste al máximo de ${MAX_QUESTIONS} preguntas.`,
+      });
+    }
+    setSuggestions(null);
+  }
+
+  const aiHeader = jobId && (
+    <div className="flex justify-end">
+      <AiButton type="button" disabled={aiPending} onClick={generarConIA}>
+        {aiPending ? "Generando…" : "Generar con IA"}
+      </AiButton>
+    </div>
+  );
+
+  const aiDialog = suggestions && (
+    <Dialog
+      open
+      onClose={() => setSuggestions(null)}
+      side="center"
+      title="Preguntas sugeridas"
+      className="max-w-lg"
+    >
+      <div className="flex flex-col gap-4">
+        <p className="text-sm text-muted">
+          La IA leyó el aviso y sugiere estas preguntas. Elegí cuáles agregar.
+        </p>
+        <div className="flex max-h-[360px] flex-col gap-2 overflow-y-auto">
+          {suggestions.map((s, i) => (
+            <label
+              key={i}
+              className="flex cursor-pointer items-start gap-3 rounded-[var(--radius)] border border-border p-3 hover:bg-bg"
+            >
+              <Checkbox checked={selected.has(i)} onChange={() => toggleSuggestion(i)} />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-text">{s.label}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {TYPE_OPTIONS.find((t) => t.type === s.type)?.label ?? s.type}
+                  {criterionSummary(s) ? ` · ${criterionSummary(s)}` : ""}
+                </p>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="flex justify-end gap-3 border-t border-border pt-4">
+          <Button type="button" variant="ghost" onClick={() => setSuggestions(null)}>
+            Cancelar
+          </Button>
+          <Button type="button" disabled={selected.size === 0} onClick={agregarSeleccionadas}>
+            Agregar {selected.size} pregunta{selected.size !== 1 ? "s" : ""}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+
   // `required` queda siempre en true: no se ofrece la opción de hacer una pregunta opcional.
   function update(i: number, patch: Partial<ScreeningQuestionInput>) {
     onChange(
@@ -113,17 +227,22 @@ export function ScreeningBuilder({
 
   if (questions.length === 0) {
     return (
-      <EmptyState
-        icon={<ListChecks className="h-6 w-6" />}
-        title="Todavía no agregaste preguntas"
-        description="Las responde el candidato al postularse — te ayudan a conocerlo y filtrar antes de la entrevista. Son opcionales."
-        action={{ label: "Agregar primera pregunta", onClick: add }}
-      />
+      <div className="flex flex-col gap-3">
+        {aiHeader}
+        <EmptyState
+          icon={<ListChecks className="h-6 w-6" />}
+          title="Todavía no agregaste preguntas"
+          description="Las responde el candidato al postularse — te ayudan a conocerlo y filtrar antes de la entrevista. Son opcionales."
+          action={{ label: "Agregar primera pregunta", onClick: add }}
+        />
+        {aiDialog}
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-3">
+      {aiHeader}
       {questions.map((q, i) => (
         <div
           key={i}
@@ -267,8 +386,21 @@ export function ScreeningBuilder({
           Llegaste al máximo de {MAX_QUESTIONS} preguntas.
         </p>
       )}
+      {aiDialog}
     </div>
   );
+}
+
+function criterionSummary(q: DraftScreeningQuestion): string | null {
+  if (!q.isCriterion) return null;
+  if (q.type === "number") {
+    if (q.minValue != null && q.maxValue != null) return `criterio: entre ${q.minValue} y ${q.maxValue}`;
+    if (q.minValue != null) return `criterio: mínimo ${q.minValue}`;
+    if (q.maxValue != null) return `criterio: máximo ${q.maxValue}`;
+    return "criterio";
+  }
+  if (q.expectedValues?.length) return `criterio: ${q.expectedValues.join(", ")}`;
+  return "criterio";
 }
 
 /**

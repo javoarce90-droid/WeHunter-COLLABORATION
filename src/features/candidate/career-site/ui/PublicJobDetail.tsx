@@ -5,7 +5,7 @@ import {
   EMPLOYMENT_LABELS,
   AREA_LABELS,
 } from "@/features/recruiter/jobs/ui/field-meta";
-import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
+import { JobPostingContent } from "@/features/recruiter/jobs/ui/JobPostingContent";
 import { ShareButtons } from "./ShareButtons";
 import { accentStyle } from "./brand";
 import type { CareerSiteJobDetail } from "../data/career-site.data";
@@ -39,12 +39,6 @@ export function PublicJobDetail({
     salary,
   ].filter((c): c is string => !!c);
 
-  const sections = [
-    { title: "Objetivos del puesto", body: job.objectives },
-    { title: "Responsabilidades", body: job.responsibilities },
-    { title: "Requisitos", body: job.requirements },
-  ].filter((s): s is { title: string; body: string } => !!s.body?.trim());
-
   return (
     <div className="flex flex-col gap-4">
       <Link href={`/careers/${slug}`} className="text-xs font-semibold text-primary hover:underline">
@@ -52,50 +46,15 @@ export function PublicJobDetail({
       </Link>
 
       <article className="rounded-[var(--radius)] border border-border bg-surface p-8 shadow-[var(--shadow)]">
-        <header className="mb-6 border-b border-border pb-5">
-          <h1 className="font-display text-2xl font-bold text-text">{job.title}</h1>
-          {job.position && <p className="mt-1 text-sm font-medium text-muted">{job.position}</p>}
-          {chips.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {chips.map((c) => (
-                <span
-                  key={c}
-                  className="rounded-full bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary-hover"
-                >
-                  {c}
-                </span>
-              ))}
-            </div>
-          )}
-        </header>
-
-        {sections.length > 0 || (job.benefits?.length ?? 0) > 0 ? (
-          <div className="flex flex-col gap-6">
-            {sections.map((s) => (
-              <section key={s.title}>
-                <h2 className="mb-1.5 text-sm font-bold text-text">{s.title}</h2>
-                <div className="max-w-[70ch] text-sm leading-relaxed text-text/80">
-                  <JobMarkdown text={s.body} />
-                </div>
-              </section>
-            ))}
-            {(job.benefits?.length ?? 0) > 0 && (
-              <section>
-                <h2 className="mb-2 text-sm font-bold text-text">Beneficios</h2>
-                <ul className="flex flex-col gap-1.5">
-                  {job.benefits!.map((b, i) => (
-                    <li key={i} className="text-sm text-text/80">
-                      <span className="font-semibold text-text">{b.name}</span>
-                      {b.description ? ` — ${b.description}` : null}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-muted">Esta búsqueda todavía no tiene una descripción detallada.</p>
-        )}
+        <JobPostingContent
+          title={job.title}
+          position={job.position}
+          chips={chips}
+          objectives={job.objectives}
+          responsibilities={job.responsibilities}
+          requirements={job.requirements}
+          benefits={job.benefits}
+        />
 
         {(job.skills?.length ?? 0) > 0 && (
           <div className="mt-6 border-t border-border pt-5">

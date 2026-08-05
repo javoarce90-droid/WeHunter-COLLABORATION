@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef, useState, useTransition } from "react";
 import { AiButton, SparkleIcon } from "@/components/ui/ai";
 import { Button } from "@/components/ui/button";
@@ -10,9 +11,10 @@ import {
   SENIORITY_LABELS,
   EMPLOYMENT_LABELS,
 } from "@/features/recruiter/jobs/ui/field-meta";
-import { solicitarBusquedaAction, sugerirSolicitudAction } from "../actions";
+import { solicitarBusquedaAction, editarSolicitudAction, sugerirSolicitudAction } from "../actions";
 import type { SolicitarBusquedaActionState } from "../actions";
 import type { BorradorSolicitud } from "../domain/sugerir-solicitud";
+import type { ClientRequisitionDetail } from "../data/hiring-request.data";
 
 // Base de campo compartida (bg-bg, foco, error) — reusa el primitivo en vez de duplicar clases.
 const selectClass = fieldClasses();
@@ -28,8 +30,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export function RequisitionForm({ token }: { token: string }) {
-  const [open, setOpen] = useState(false);
+export function RequisitionForm({
+  token,
+  mode = "create",
+  requisitionId,
+  initialValues,
+}: {
+  token: string;
+  mode?: "create" | "edit";
+  requisitionId?: string;
+  initialValues?: ClientRequisitionDetail;
+}) {
+  const isEdit = mode === "edit";
+  const [open, setOpen] = useState(isEdit);
   const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState<BorradorSolicitud | null>(null);
   // Los campos que llena la IA siguen siendo no-controlados: cambiar esta versión los remonta
@@ -39,8 +52,8 @@ export function RequisitionForm({ token }: { token: string }) {
   const [aiPending, startAi] = useTransition();
   const [state, dispatch, pending] = useActionState<SolicitarBusquedaActionState, FormData>(
     async (prev, formData) => {
-      const result = await solicitarBusquedaAction(prev, formData);
-      if (result.ok) {
+      const result = await (isEdit ? editarSolicitudAction : solicitarBusquedaAction)(prev, formData);
+      if (result.ok && !isEdit) {
         formRef.current?.reset();
         setDraft(null);
         setOpen(false);
@@ -94,16 +107,28 @@ export function RequisitionForm({ token }: { token: string }) {
       className="flex flex-col gap-4 rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]"
     >
       <input type="hidden" name="token" value={token} />
+      {isEdit && <input type="hidden" name="requisitionId" value={requisitionId} />}
 
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-bold text-text">Nueva solicitud</h2>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="text-xs font-semibold text-muted hover:text-text"
-        >
-          Cancelar
-        </button>
+        <h2 className="font-display text-lg font-bold text-text">
+          {isEdit ? "Editar solicitud" : "Nueva solicitud"}
+        </h2>
+        {isEdit ? (
+          <Link
+            href={`/client/${token}`}
+            className="text-xs font-semibold text-muted hover:text-text"
+          >
+            ← Volver
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="text-xs font-semibold text-muted hover:text-text"
+          >
+            Cancelar
+          </button>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -113,17 +138,23 @@ export function RequisitionForm({ token }: { token: string }) {
           maxLength={33}
           required
           placeholder="Data Analyst Senior"
+          defaultValue={initialValues?.title ?? ""}
         />
         <Input
           key={`position-${draftVersion}`}
           name="position"
           label="Puesto a cubrir"
           placeholder="Analista de datos"
-          defaultValue={draft?.position ?? ""}
+          defaultValue={draft?.position ?? initialValues?.position ?? ""}
         />
 
         <Field label="Motivo *">
-          <select name="reason" defaultValue="new_position" required className={selectClass}>
+          <select
+            name="reason"
+            defaultValue={initialValues?.reason ?? "new_position"}
+            required
+            className={selectClass}
+          >
             <option value="new_position">Puesto nuevo</option>
             <option value="backfill">Reemplazo</option>
           </select>
@@ -133,7 +164,7 @@ export function RequisitionForm({ token }: { token: string }) {
           <select
             key={`jobArea-${draftVersion}`}
             name="jobArea"
-            defaultValue={draft?.jobArea ?? ""}
+            defaultValue={draft?.jobArea ?? initialValues?.jobArea ?? ""}
             className={selectClass}
           >
             <option value="">Sin especificar</option>
@@ -145,10 +176,20 @@ export function RequisitionForm({ token }: { token: string }) {
           </select>
         </Field>
 
-        <Input name="location" label="Ubicación" placeholder="Buenos Aires" />
+        <Input
+          name="location"
+          label="Ubicación"
+          placeholder="Buenos Aires"
+          defaultValue={initialValues?.location ?? ""}
+        />
 
         <Field label="Modalidad *">
-          <select name="modality" defaultValue="" required className={selectClass}>
+          <select
+            name="modality"
+            defaultValue={initialValues?.modality ?? ""}
+            required
+            className={selectClass}
+          >
             <option value="" disabled>
               Elegí una opción
             </option>
@@ -161,7 +202,12 @@ export function RequisitionForm({ token }: { token: string }) {
         </Field>
 
         <Field label="Seniority *">
-          <select name="seniority" defaultValue="" required className={selectClass}>
+          <select
+            name="seniority"
+            defaultValue={initialValues?.seniority ?? ""}
+            required
+            className={selectClass}
+          >
             <option value="" disabled>
               Elegí una opción
             </option>
@@ -174,7 +220,12 @@ export function RequisitionForm({ token }: { token: string }) {
         </Field>
 
         <Field label="Tipo de contratación *">
-          <select name="employmentType" defaultValue="" required className={selectClass}>
+          <select
+            name="employmentType"
+            defaultValue={initialValues?.employmentType ?? ""}
+            required
+            className={selectClass}
+          >
             <option value="" disabled>
               Elegí una opción
             </option>
@@ -186,43 +237,55 @@ export function RequisitionForm({ token }: { token: string }) {
           </select>
         </Field>
 
-        <Input name="budget" label="Presupuesto" placeholder="USD 3.000 – 4.000 brutos" />
-        <Input name="estimatedStartDate" label="Fecha estimada de ingreso" type="date" />
+        <Input
+          name="budget"
+          label="Presupuesto"
+          placeholder="USD 3.000 – 4.000 brutos"
+          defaultValue={initialValues?.budget ?? ""}
+        />
+        <Input
+          name="estimatedStartDate"
+          label="Fecha estimada de ingreso"
+          type="date"
+          defaultValue={initialValues?.estimatedStartDate ?? ""}
+        />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-[var(--radius)] border border-primary/30 bg-primary-light/20 p-4">
-        <div>
-          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-text">
-            <SparkleIcon size={16} /> Sugerir con IA
-          </span>
-          <p className="mt-1 text-xs text-muted">
-            Contanos en una línea qué perfil necesitás y la IA completa el puesto, las skills
-            y los bloques de abajo. Después revisás y ajustás lo que quieras.
-          </p>
+      {!isEdit && (
+        <div className="flex flex-col gap-3 rounded-[var(--radius)] border border-primary/30 bg-primary-light/20 p-4">
+          <div>
+            <span className="inline-flex items-center gap-1.5 text-sm font-bold text-text">
+              <SparkleIcon size={16} /> Sugerir con IA
+            </span>
+            <p className="mt-1 text-xs text-muted">
+              Contanos en una línea qué perfil necesitás y la IA completa el puesto, las skills
+              y los bloques de abajo. Después revisás y ajustás lo que quieras.
+            </p>
+          </div>
+          <Field label="¿Qué perfil necesitás?">
+            <textarea
+              name="brief"
+              rows={2}
+              maxLength={500}
+              placeholder="Ej: analista de datos para el equipo de growth, sql y visualización"
+              className={textareaClass}
+            />
+          </Field>
+          {aiError && <p className="text-xs text-danger">{aiError}</p>}
+          <div className="flex justify-end">
+            <AiButton type="button" disabled={aiPending} onClick={sugerir}>
+              {aiPending ? "Generando…" : "Sugerir con IA"}
+            </AiButton>
+          </div>
         </div>
-        <Field label="¿Qué perfil necesitás?">
-          <textarea
-            name="brief"
-            rows={2}
-            maxLength={500}
-            placeholder="Ej: analista de datos para el equipo de growth, sql y visualización"
-            className={textareaClass}
-          />
-        </Field>
-        {aiError && <p className="text-xs text-danger">{aiError}</p>}
-        <div className="flex justify-end">
-          <AiButton type="button" disabled={aiPending} onClick={sugerir}>
-            {aiPending ? "Generando…" : "Sugerir con IA"}
-          </AiButton>
-        </div>
-      </div>
+      )}
 
       <Input
         key={`skills-${draftVersion}`}
         name="skills"
         label="Skills (separadas por coma)"
         placeholder="sql, python, power bi"
-        defaultValue={draft?.skills.join(", ") ?? ""}
+        defaultValue={draft?.skills.join(", ") ?? initialValues?.skills?.join(", ") ?? ""}
       />
 
       <Field label="Objetivos del puesto">
@@ -231,7 +294,7 @@ export function RequisitionForm({ token }: { token: string }) {
           name="objectives"
           maxLength={5000}
           className={textareaClass}
-          defaultValue={draft?.objectives ?? ""}
+          defaultValue={draft?.objectives ?? initialValues?.objectives ?? ""}
         />
       </Field>
 
@@ -241,7 +304,7 @@ export function RequisitionForm({ token }: { token: string }) {
           name="requirements"
           maxLength={5000}
           className={textareaClass}
-          defaultValue={draft?.requirements ?? ""}
+          defaultValue={draft?.requirements ?? initialValues?.requirements ?? ""}
         />
       </Field>
 
@@ -251,7 +314,7 @@ export function RequisitionForm({ token }: { token: string }) {
           name="responsibilities"
           maxLength={5000}
           className={textareaClass}
-          defaultValue={draft?.responsibilities ?? ""}
+          defaultValue={draft?.responsibilities ?? initialValues?.responsibilities ?? ""}
         />
       </Field>
 
@@ -259,7 +322,7 @@ export function RequisitionForm({ token }: { token: string }) {
 
       <div className="flex justify-end">
         <Button type="submit" disabled={pending}>
-          {pending ? "Enviando…" : "Enviar solicitud"}
+          {pending ? (isEdit ? "Guardando…" : "Enviando…") : isEdit ? "Guardar cambios" : "Enviar solicitud"}
         </Button>
       </div>
     </form>

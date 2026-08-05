@@ -11,6 +11,8 @@ export type {
   DraftJobPostingInput,
   DraftJobOfferInput,
   DraftJobOffer,
+  DraftScreeningQuestionsInput,
+  DraftScreeningQuestion,
   DraftCandidateProfileInput,
   DraftCandidateProfile,
   DraftWorkExperience,
