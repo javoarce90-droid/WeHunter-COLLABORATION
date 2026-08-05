@@ -8,6 +8,7 @@ import { getActiveMembership } from "@/lib/auth/session";
 export default async function NewClientPage() {
   const membership = await getActiveMembership();
   if (!membership) notFound();
+  if (membership.workspaceType === "enterprise") notFound();
 
   const assignableMembers = await listAssignableClientOwners(membership.organizationId);
 

@@ -12,7 +12,7 @@ function deps(actual: JobStatus | null): CambiarEstadoDeps {
     updateJobStatus: vi.fn(async () => {}),
   };
 }
-const ctx = { organizationId: "org-1", role: "recruiter" as const };
+const ctx = { organizationId: "org-1", role: "recruiter" as const, membershipId: "m1" };
 
 describe("isValidTransition", () => {
   it("permite las transiciones del flujo", () => {
@@ -68,6 +68,18 @@ describe("cambiarEstadoBusqueda", () => {
     const res = await cambiarEstadoBusqueda({ jobId: "j1", nuevoEstado: "open" }, ctx, d);
     expect(res).toEqual({ ok: true, data: { jobId: "j1", estado: "open" } });
     expect(d.updateJobStatus).toHaveBeenCalledWith("j1", "org-1", "open");
+    // Recruiter queda acotado a lo asignado: se lo pasa a getJobStatus para que filtre.
+    expect(d.getJobStatus).toHaveBeenCalledWith("j1", "org-1", "m1");
+  });
+
+  it("owner/admin no quedan acotados a una búsqueda asignada (sin scope)", async () => {
+    const d = deps("draft");
+    await cambiarEstadoBusqueda(
+      { jobId: "j1", nuevoEstado: "open" },
+      { ...ctx, role: "owner" },
+      d,
+    );
+    expect(d.getJobStatus).toHaveBeenCalledWith("j1", "org-1", undefined);
   });
 
   it("es idempotente si ya está en ese estado (no escribe)", async () => {

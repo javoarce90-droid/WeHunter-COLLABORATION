@@ -60,7 +60,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         workspaceType={membership.workspaceType}
         defaultCollapsed={sidebarCollapsed}
       />
-      <AppChrome>
+      <AppChrome role={membership.role} workspaceType={membership.workspaceType}>
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-[var(--topbar-h)] shrink-0 items-center gap-3 border-b border-border bg-surface px-6 text-sm text-muted">
             <CommandTrigger />
@@ -82,7 +82,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <main
             className={[
               "flex-1 overflow-auto p-6",
-              !membership.organizationSetupCompletedAt && "pb-24",
+              !membership.organizationSetupCompletedAt &&
+                (membership.role === "owner" || membership.role === "admin") &&
+                "pb-24",
             ]
               .filter(Boolean)
               .join(" ")}
@@ -91,14 +93,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </main>
         </div>
       </AppChrome>
-      <Suspense fallback={null}>
-        <SetupChecklistWidgetLoader
-          organizationId={membership.organizationId}
-          workspaceType={membership.workspaceType}
-          setupCompletedAt={membership.organizationSetupCompletedAt}
-          userId={user.id}
-        />
-      </Suspense>
+      {(membership.role === "owner" || membership.role === "admin") && (
+        <Suspense fallback={null}>
+          <SetupChecklistWidgetLoader
+            organizationId={membership.organizationId}
+            workspaceType={membership.workspaceType}
+            setupCompletedAt={membership.organizationSetupCompletedAt}
+            userId={user.id}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

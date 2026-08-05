@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Menu, MenuItem, MenuLabel } from "@/components/ui/menu";
 import { Spinner } from "@/components/ui/spinner";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import type { CandidateSource } from "@/features/recruiter/candidates/domain/candidate-details";
@@ -13,6 +14,8 @@ import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/e
 import { NoteTimeline } from "@/features/recruiter/notes/ui/NoteTimeline";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import type { LanguageLevel } from "@/db/schema";
+import type { JobStage } from "@/features/recruiter/pipeline-stages/schema";
+import { isClosingKind } from "@/features/recruiter/pipeline-stages/schema";
 import { STAGE_LABELS } from "../schema";
 import type { PostuladoRow, StageHistoryEvent } from "../data/applications.queries";
 import { getFichaCandidatoAction, type FichaCandidatoData } from "../actions";
@@ -38,6 +41,12 @@ type Props = {
   onGuardarEnPool: (row: PostuladoRow) => void;
   onDescartar: (row: PostuladoRow) => void;
   onOpenCopiloto: (row: PostuladoRow) => void;
+  /** Solo desde Pipeline: habilita el desplegable "Cambiar etapa". Ausente en Postulados. */
+  stageProps?: {
+    stages: JobStage[];
+    currentStageId: string | null;
+    onMoveStage: (applicationId: string, toStageId: string) => void;
+  };
 };
 
 type Tab = "perfil" | "notas" | "postulaciones" | "historial";
@@ -87,6 +96,7 @@ export function PostuladoDetailSheet({
   onGuardarEnPool,
   onDescartar,
   onOpenCopiloto,
+  stageProps,
 }: Props) {
   const [tab, setTab] = useState<Tab>("perfil");
   const [ficha, setFicha] = useState<FichaCandidatoData | null>(null);
@@ -120,6 +130,12 @@ export function PostuladoDetailSheet({
     { key: "postulaciones", label: "Postulaciones" },
     { key: "historial", label: "Historial" },
   ];
+
+  // Solo cuando viene desde Pipeline (stageProps): arma el desplegable "Cambiar etapa".
+  const currentStage = stageProps?.currentStageId
+    ? stageProps.stages.find((s) => s.id === stageProps.currentStageId)
+    : undefined;
+  const stageTerminal = currentStage ? isClosingKind(currentStage.kind) : false;
 
   return (
     <Dialog
@@ -158,6 +174,46 @@ export function PostuladoDetailSheet({
           </Badge>
           {criterios && criterios.total > 0 && <CriteriosChip criterios={criterios} />}
         </div>
+
+        {stageProps && (
+          <section className="flex flex-col gap-1.5">
+            {stageTerminal ? (
+              <p className="rounded-[var(--radius)] bg-bg px-3 py-2 text-xs text-muted">
+                Etapa terminal: este candidato ya está{" "}
+                {(currentStage?.name ?? STAGE_LABELS[row.stage]).toLowerCase()}.
+              </p>
+            ) : (
+              <Menu
+                align="start"
+                trigger={
+                  <button
+                    type="button"
+                    className="inline-flex w-fit items-center gap-1.5 rounded-[var(--radius)] border border-border px-2.5 py-1.5 text-xs font-semibold text-text transition-colors hover:border-primary hover:text-primary"
+                  >
+                    Cambiar etapa
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="m2.5 4.5 3.5 3 3.5-3" />
+                    </svg>
+                  </button>
+                }
+              >
+                <MenuLabel>Mover a</MenuLabel>
+                {stageProps.stages
+                  .filter((s) => s.kind !== "inbox" && s.id !== stageProps.currentStageId)
+                  .sort((a, b) => a.position - b.position)
+                  .map((s) => (
+                    <MenuItem
+                      key={s.id}
+                      destructive={s.kind === "rejected"}
+                      onClick={() => stageProps.onMoveStage(row.id, s.id)}
+                    >
+                      {s.name}
+                    </MenuItem>
+                  ))}
+              </Menu>
+            )}
+          </section>
+        )}
 
         {row.aiScore != null && (
           <div className="flex items-center gap-2">

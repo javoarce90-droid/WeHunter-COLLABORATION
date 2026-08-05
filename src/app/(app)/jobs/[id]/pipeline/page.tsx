@@ -11,10 +11,18 @@ import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import { listJobStages } from "@/features/recruiter/pipeline-stages/data/job-stages.queries";
 import {
+  listScreeningQuestionsByJob,
   listScreeningAnswersByJob,
-  type ScreeningAnswerRow,
 } from "@/features/recruiter/screening/data/screening.queries";
+import { evaluarCriterios } from "@/features/recruiter/screening/domain/evaluar-criterios";
+import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/evaluar-criterios";
+import type { ScreeningAnswerLine } from "@/features/recruiter/applications/ui/PostuladoDetailSheet";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
+import {
+  listTagsByCandidateIds,
+  type CandidateTagRow,
+} from "@/features/recruiter/candidates/data/tags.queries";
 import { PipelineView } from "@/features/recruiter/applications/ui/PipelineView";
 import { JobStageSettingsButton } from "@/features/recruiter/pipeline-stages/ui/JobStageSettingsButton";
 
@@ -28,17 +36,42 @@ export default async function PipelinePage({ params }: Props) {
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  const [applications, interviews, notes, stages, stageEvents, members, screeningAnswers, counts] =
-    await Promise.all([
-      listApplicationsByJob(jobId, membership.organizationId),
-      listInterviewsByJob(jobId, membership.organizationId),
-      listNotesByJob(jobId, membership.organizationId),
-      listJobStages(jobId, membership.organizationId),
-      listStageEventsByJob(jobId, membership.organizationId),
-      listMembers(membership.organizationId),
-      listScreeningAnswersByJob(jobId, membership.organizationId),
-      getJobStageCounts(jobId, membership.organizationId),
-    ]);
+  const [
+    job,
+    applications,
+    interviews,
+    notes,
+    stages,
+    stageEvents,
+    members,
+    questions,
+    screeningAnswers,
+    counts,
+  ] = await Promise.all([
+    getJobById(jobId, membership.organizationId),
+    listApplicationsByJob(jobId, membership.organizationId),
+    listInterviewsByJob(jobId, membership.organizationId),
+    listNotesByJob(jobId, membership.organizationId),
+    listJobStages(jobId, membership.organizationId),
+    listStageEventsByJob(jobId, membership.organizationId),
+    listMembers(membership.organizationId),
+    listScreeningQuestionsByJob(jobId, membership.organizationId),
+    listScreeningAnswersByJob(jobId, membership.organizationId),
+    getJobStageCounts(jobId, membership.organizationId),
+  ]);
+  if (!job) notFound();
+
+  // Depende de `applications` (los candidateId), así que va después del Promise.all de
+  // arriba — pero sigue siendo UNA sola query bulk para todo el tablero, no N+1.
+  const tags = await listTagsByCandidateIds(
+    applications.map((a) => a.candidate.id),
+    membership.organizationId,
+  );
+  const tagsByCandidate = tags.reduce<Record<string, CandidateTagRow[]>>((acc, t) => {
+    (acc[t.candidateId] ??= []).push({ id: t.id, name: t.name });
+    return acc;
+  }, {});
+
   const teamMembers = members
     .filter((m) => m.status === "active")
     .map((m) => ({ profileId: m.profileId, name: m.name, email: m.email }));
@@ -61,26 +94,43 @@ export default async function PipelinePage({ params }: Props) {
     },
     {},
   );
-  const screeningAnswersByApplication = screeningAnswers.reduce<Record<string, ScreeningAnswerRow[]>>(
-    (acc, a) => {
-      (acc[a.applicationId] ??= []).push(a);
-      return acc;
-    },
-    {},
-  );
+  const answersByApplication = new Map<string, Record<string, string>>();
+  for (const a of screeningAnswers) {
+    const bucket = answersByApplication.get(a.applicationId) ?? {};
+    bucket[a.questionId] = a.value;
+    answersByApplication.set(a.applicationId, bucket);
+  }
+  const criteriosByApplication: Record<string, CriteriosEvaluados> = {};
+  for (const app of applications) {
+    criteriosByApplication[app.id] = evaluarCriterios(
+      questions,
+      answersByApplication.get(app.id) ?? {},
+    );
+  }
+  const screeningByApplication: Record<string, ScreeningAnswerLine[]> = {};
+  for (const a of screeningAnswers) {
+    (screeningByApplication[a.applicationId] ??= []).push({
+      questionId: a.questionId,
+      label: a.questionLabel,
+      value: a.value,
+    });
+  }
 
   return (
     <PipelineView
       jobId={jobId}
+      jobTitle={job.title}
       applications={applications}
       pendientes={counts.pendientes}
       interviewsByApplication={interviewsByApplication}
       teamMembers={teamMembers}
       notesByApplication={notesByApplication}
       stageEventsByApplication={stageEventsByApplication}
-      screeningAnswersByApplication={screeningAnswersByApplication}
+      criteriosByApplication={criteriosByApplication}
+      screeningByApplication={screeningByApplication}
+      tagsByCandidate={tagsByCandidate}
       stages={stages}
-      actions={<JobStageSettingsButton jobId={jobId} stages={stages} />}
+      actions={<JobStageSettingsButton key="stage-settings" jobId={jobId} stages={stages} />}
     />
   );
 }

@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
-import type { WorkspaceType } from "@/lib/auth/session";
+import type { OrgRole, WorkspaceType } from "@/lib/auth/session";
+import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import { getOwnProfile } from "@/features/recruiter/settings/data/settings.queries";
 import { obtenerKpis, type DashboardKpis } from "@/features/recruiter/dashboard/domain/obtener-kpis";
 import { getDashboardCounts } from "@/features/recruiter/dashboard/data/dashboard.queries";
@@ -91,9 +92,15 @@ async function DashboardContent() {
           organizationId={membership.organizationId}
           userId={user.id}
           workspaceType={membership.workspaceType}
+          role={membership.role}
         />
       ) : (
-        <DashboardDaily organizationId={membership.organizationId} kpis={kpis} />
+        <DashboardDaily
+          organizationId={membership.organizationId}
+          kpis={kpis}
+          role={membership.role}
+          membershipId={membership.id}
+        />
       )}
     </div>
   );
@@ -103,39 +110,57 @@ async function DashboardContent() {
 async function DashboardDaily({
   organizationId,
   kpis,
+  role,
+  membershipId,
 }: {
   organizationId: string;
   kpis: DashboardKpis;
+  role: OrgRole;
+  membershipId: string;
 }) {
   const [recentJobs, agenda] = await Promise.all([
-    listRecentOpenJobs(organizationId, 3),
+    listRecentOpenJobs(organizationId, 3, isAssignmentScoped(role) ? membershipId : undefined),
     getDashboardAgendaSummary(organizationId),
   ]);
+
+  // Sourcer no ve ninguno de los 3 accionables ni "Próximas entrevistas" (docs/BACKLOG.md).
+  // "Revisar postulados" es el único sin capability propia — gate directo por rol.
+  const showCreateJob = can(role, "jobs.manage");
+  const showReviewApplications = role !== "sourcer";
+  const showAgenda = can(role, "interviews.manage");
 
   return (
     <>
       <KpiGrid kpis={kpis} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <ActionCard
-          href="/jobs/new"
-          title="Crear búsqueda"
-          description="Nuevo aviso, con IA o manual."
-          icon={<PlusIcon />}
-        />
-        <ActionCard
-          href="/jobs"
-          title="Revisar postulados"
-          description={`${kpis.pendienteRevision} esperando decisión.`}
-          icon={<InboxIcon />}
-        />
-        <ActionCard
-          href="/agenda"
-          title="Agenda de hoy"
-          description={`${agenda.todayCount} entrevista${agenda.todayCount !== 1 ? "s" : ""} programada${agenda.todayCount !== 1 ? "s" : ""}.`}
-          icon={<CalendarIcon />}
-        />
-      </div>
+      {(showCreateJob || showReviewApplications || showAgenda) && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {showCreateJob && (
+            <ActionCard
+              href="/jobs/new"
+              title="Crear búsqueda"
+              description="Nuevo aviso, con IA o manual."
+              icon={<PlusIcon />}
+            />
+          )}
+          {showReviewApplications && (
+            <ActionCard
+              href="/jobs"
+              title="Revisar postulados"
+              description={`${kpis.pendienteRevision} esperando decisión.`}
+              icon={<InboxIcon />}
+            />
+          )}
+          {showAgenda && (
+            <ActionCard
+              href="/agenda"
+              title="Agenda de hoy"
+              description={`${agenda.todayCount} entrevista${agenda.todayCount !== 1 ? "s" : ""} programada${agenda.todayCount !== 1 ? "s" : ""}.`}
+              icon={<CalendarIcon />}
+            />
+          )}
+        </div>
+      )}
 
       <SectionCard
         title="Tus búsquedas activas"
@@ -155,7 +180,7 @@ async function DashboardDaily({
               return (
                 <li key={job.id}>
                   <Link
-                    href={`/jobs/${job.id}/pipeline`}
+                    href={`/jobs/${job.id}/postulados`}
                     className="group flex items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-bg"
                   >
                     <div className="min-w-0">
@@ -186,6 +211,7 @@ async function DashboardDaily({
         )}
       </SectionCard>
 
+      {showAgenda && (
       <SectionCard
         title="Próximas entrevistas"
         action={
@@ -224,42 +250,53 @@ async function DashboardDaily({
           </ul>
         )}
       </SectionCard>
+      )}
     </>
   );
 }
 
 /**
- * Día 1: sin búsquedas todavía. Checklist de setup en vez de KPIs vacíos. Misma
- * `getSetupChecklistCounts` + `calcularProgresoSetup` que usa el widget flotante global —
- * única fuente de verdad de los items/umbrales.
+ * Día 1: sin búsquedas todavía. Checklist de setup en vez de KPIs vacíos — pero el checklist
+ * es de configuración inicial del workspace, así que solo tiene sentido para Owner/Admin
+ * (docs/BACKLOG.md, punto 8). El resto ve accionables propios de su rol en su lugar
+ * (`DashboardDay1RoleActions`) en vez del mismo estado vacío genérico para todos.
  */
 async function DashboardDay1({
   organizationId,
   userId,
   workspaceType,
+  role,
 }: {
   organizationId: string;
   userId: string;
   workspaceType: WorkspaceType | null;
+  role: OrgRole;
 }) {
-  const counts = await getSetupChecklistCounts(organizationId, userId);
-  const progreso = calcularProgresoSetup(counts, workspaceType);
+  const showSetupChecklist = role === "owner" || role === "admin";
+  const counts = showSetupChecklist
+    ? await getSetupChecklistCounts(organizationId, userId)
+    : null;
+  const progreso = counts ? calcularProgresoSetup(counts, workspaceType) : null;
 
   return (
     <>
-      <SectionCard
-        title="Configurá tu cuenta"
-        action={
-          <span className="text-xs font-semibold text-muted">
-            {progreso.done}/{progreso.total} listo
-          </span>
-        }
-        bodyClassName="flex flex-col gap-1"
-      >
-        {progreso.items.map((item) => (
-          <ChecklistItemRow key={item.title} item={item} />
-        ))}
-      </SectionCard>
+      {progreso && (
+        <SectionCard
+          title="Configurá tu cuenta"
+          action={
+            <span className="text-xs font-semibold text-muted">
+              {progreso.done}/{progreso.total} listo
+            </span>
+          }
+          bodyClassName="flex flex-col gap-1"
+        >
+          {progreso.items.map((item) => (
+            <ChecklistItemRow key={item.title} item={item} />
+          ))}
+        </SectionCard>
+      )}
+
+      {!showSetupChecklist && <DashboardDay1RoleActions role={role} />}
 
       <SectionCard title="Tus búsquedas activas">
         <p className="py-6 text-center text-sm text-muted">
@@ -268,6 +305,57 @@ async function DashboardDay1({
       </SectionCard>
     </>
   );
+}
+
+/** Accionables propios por rol para el Día 1 (sin checklist de setup). Sourcer y Consultor
+ *  ya pueden sourcear sin que exista ninguna búsqueda todavía (`/sourcing` no depende de
+ *  tener jobs). HM no tiene todavía pantalla propia de "cargar solicitud" (ver BACKLOG.md
+ *  punto 3), así que por ahora solo se le ofrece conectar su agenda, igual que al Consultor.
+ *  Viewer no tiene ninguna capability (`CAPABILITIES.viewer: []`) — sin CTA, solo contexto. */
+function DashboardDay1RoleActions({ role }: { role: OrgRole }) {
+  if (role === "sourcer" || role === "consultant") {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <ActionCard
+          href="/sourcing"
+          title="Empezá a sourcear"
+          description="Buscá y cargá candidatos a tu Talent Pool."
+          icon={<SearchIcon />}
+        />
+        {role === "consultant" && (
+          <ActionCard
+            href="/settings"
+            title="Conectá tu agenda"
+            description="Sincronizá Google Calendar para coordinar entrevistas."
+            icon={<CalendarIcon />}
+          />
+        )}
+      </div>
+    );
+  }
+
+  if (role === "hiring_manager") {
+    return (
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <ActionCard
+          href="/settings"
+          title="Conectá tu agenda"
+          description="Sincronizá Google Calendar para coordinar entrevistas."
+          icon={<CalendarIcon />}
+        />
+      </div>
+    );
+  }
+
+  if (role === "viewer") {
+    return (
+      <p className="text-sm text-muted">
+        Tu acceso es de solo lectura: vas a ver la actividad del equipo a medida que se cargue.
+      </p>
+    );
+  }
+
+  return null;
 }
 
 function ActionCard({
@@ -324,6 +412,15 @@ function InboxIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M22 12h-6l-2 3h-4l-2-3H2" />
       <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
     </svg>
   );
 }

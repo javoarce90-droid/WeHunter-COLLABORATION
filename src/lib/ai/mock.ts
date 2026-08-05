@@ -33,10 +33,19 @@ function stableHash(s: string): number {
 const norm = (s: string) => s.trim().toLowerCase();
 
 export class MockAiProvider implements AiProvider {
-  async scoreApplication(input: ScoreApplicationInput): Promise<ScoreApplicationResult> {
+  async scoreApplication(
+    input: ScoreApplicationInput,
+  ): Promise<ScoreApplicationResult> {
     const { candidate, job } = input;
     const jobSkills = (job.skills ?? []).map(norm).filter(Boolean);
     const candSkills = (candidate.skills ?? []).map(norm).filter(Boolean);
+    const hasExperience = candidate.experience.length > 0;
+    const hasEducation = candidate.education.length > 0;
+    // Perfil sin nada para evaluar (ni skills, ni experiencia, ni educación) — NUNCA se penaliza
+    // por falta de CV cargado (es un detalle de carga, no una señal de compatibilidad), pero un
+    // perfil vacío sí baja el score porque no hay datos para confirmar el match.
+    const profileIsThin =
+      candSkills.length === 0 && !hasExperience && !hasEducation;
 
     const redFlags: string[] = [];
 
@@ -46,24 +55,31 @@ export class MockAiProvider implements AiProvider {
       matched = jobSkills.filter((s) => candSkills.includes(s)).length;
       // 35–95 según solapamiento de skills con la búsqueda.
       score = 35 + Math.round((matched / jobSkills.length) * 60);
-      if (matched === 0) redFlags.push("Sin skills coincidentes con la búsqueda");
+      if (matched === 0)
+        redFlags.push("Sin skills coincidentes con la búsqueda");
     } else {
       // Sin skills para comparar: score medio, marcado como dato insuficiente.
       score = 55;
       redFlags.push("Faltan skills para evaluar el match");
     }
 
+    if (hasExperience) score += 5;
+    if (hasEducation) score += 3;
     if (candidate.summary) score += 3;
     if (candidate.source === "referral") score += 5;
-    if (!candidate.hasCv) redFlags.push("Sin CV cargado");
+    if (profileIsThin) {
+      redFlags.push("Perfil del candidato con muy poca información cargada");
+      score -= 20;
+    }
 
     // Jitter determinístico por candidato para desempatar perfiles equivalentes.
     score += stableHash(candidate.id) % 5;
     score = Math.max(5, Math.min(99, score));
 
     const role = job.position?.trim() || job.title;
-    const summary =
-      jobSkills.length > 0 && candSkills.length > 0
+    const summary = profileIsThin
+      ? `Perfil de ${candidate.id} con muy poca información cargada (sin skills, experiencia ni educación) — no hay datos suficientes para confirmar el match con ${role}.`
+      : jobSkills.length > 0 && candSkills.length > 0
         ? `Coincide en ${matched} de ${jobSkills.length} skills clave de ${role}.`
         : `Match estimado para ${role} con datos limitados del perfil.`;
 
@@ -73,18 +89,30 @@ export class MockAiProvider implements AiProvider {
     const h1 = stableHash(candidate.id);
     const h2 = stableHash(`${candidate.id}:loc`);
     const skillsTecnicos =
-      jobSkills.length > 0 ? Math.max(20, Math.round((matched / jobSkills.length) * 100)) : 50;
-    const experiencia = candidate.summary ? 70 + (h1 % 20) : 40 + (h1 % 20);
+      jobSkills.length > 0
+        ? Math.max(20, Math.round((matched / jobSkills.length) * 100))
+        : 50;
+    const experiencia = hasExperience ? 70 + (h1 % 20) : 40 + (h1 % 20);
     const seniority = 50 + (candSkills.length >= 3 ? 15 : 0) + ((h1 % 20) - 10);
     const idiomas = 55 + (h2 % 30);
     const ubicacion = 60 + (h1 % 25);
     const clamp = (n: number) => Math.max(10, Math.min(100, n));
 
     const strengths: string[] = [];
-    if (matched > 0) strengths.push(`Domina ${matched} de las ${jobSkills.length} skills clave pedidas`);
-    if (candidate.summary) strengths.push("Tiene experiencia relevante documentada en su perfil");
-    if (candidate.source === "referral") strengths.push("Llegó por referido: señal de confianza extra");
-    if (strengths.length < 2) strengths.push(`Compatibilidad estimada de ${score}/100 con el puesto`);
+    if (matched > 0)
+      strengths.push(
+        `Domina ${matched} de las ${jobSkills.length} skills clave pedidas`,
+      );
+    if (hasExperience)
+      strengths.push(
+        "Tiene experiencia laboral relevante documentada en su perfil",
+      );
+    if (hasEducation)
+      strengths.push("Tiene formación académica documentada en su perfil");
+    if (candidate.source === "referral")
+      strengths.push("Llegó por referido: señal de confianza extra");
+    if (strengths.length < 2)
+      strengths.push(`Compatibilidad estimada de ${score}/100 con el puesto`);
 
     return {
       score,
@@ -171,8 +199,14 @@ export class MockAiProvider implements AiProvider {
         `- Ejecutar las tareas principales del rol de ${position}.\n` +
         `- Colaborar con las distintas áreas para cumplir los objetivos.\n`,
       benefits: [
-        { name: "Trabajo flexible", description: "Modalidad acordada y horarios flexibles." },
-        { name: "Crecimiento", description: "Plan de desarrollo y aprendizaje continuo." },
+        {
+          name: "Trabajo flexible",
+          description: "Modalidad acordada y horarios flexibles.",
+        },
+        {
+          name: "Crecimiento",
+          description: "Plan de desarrollo y aprendizaje continuo.",
+        },
       ],
       vacancies: 1,
       skills,
@@ -192,7 +226,8 @@ export class MockAiProvider implements AiProvider {
         maxValue: null,
       },
       {
-        label: "¿Tenés disponibilidad para incorporarte en las próximas semanas?",
+        label:
+          "¿Tenés disponibilidad para incorporarte en las próximas semanas?",
         type: "yes_no",
         isCriterion: true,
         expectedValues: ["Sí"],
@@ -247,7 +282,10 @@ export class MockAiProvider implements AiProvider {
     ];
     const skillQs = skills
       .slice(0, 3)
-      .map((s) => `Profundicemos en ${s}: contame un caso concreto donde lo aplicaste.`);
+      .map(
+        (s) =>
+          `Profundicemos en ${s}: contame un caso concreto donde lo aplicaste.`,
+      );
     return [...base.slice(0, 3), ...skillQs, ...base.slice(3)];
   }
 
@@ -259,16 +297,22 @@ export class MockAiProvider implements AiProvider {
     const conversion = Math.round((hired / total) * 100);
     const parts = [
       `La búsqueda de ${jobTitle} acumula ${total} postulación${total !== 1 ? "es" : ""}` +
-        (hired > 0 ? `, con ${hired} contratación${hired !== 1 ? "es" : ""} (${conversion}% de conversión).` : ", sin contrataciones aún."),
+        (hired > 0
+          ? `, con ${hired} contratación${hired !== 1 ? "es" : ""} (${conversion}% de conversión).`
+          : ", sin contrataciones aún."),
     ];
     if (timeToHireDays != null) {
       parts.push(`El time-to-hire promedio es de ${timeToHireDays} días.`);
     }
     if (topSource) {
-      parts.push(`La fuente que más candidatos aporta es ${topSource}; conviene reforzarla.`);
+      parts.push(
+        `La fuente que más candidatos aporta es ${topSource}; conviene reforzarla.`,
+      );
     }
     if (hired === 0 && total >= 5) {
-      parts.push("Sugerencia: revisá las etapas con más caída en el funnel para destrabar el proceso.");
+      parts.push(
+        "Sugerencia: revisá las etapas con más caída en el funnel para destrabar el proceso.",
+      );
     }
     return parts.join(" ");
   }

@@ -17,6 +17,10 @@ interface DialogProps {
   children: ReactNode;
   /** Ancho del sheet / max-width del modal. */
   className?: string;
+  /** Override del max-width del `<dialog>` exterior en modo `center` (ej. "max-w-3xl") — el
+   *  `className` de arriba solo llega al wrapper interior, no alcanza para ensanchar el modal
+   *  más allá del `max-w-lg` por defecto. No aplica al sheet lateral. */
+  maxWidthClassName?: string;
 }
 
 /**
@@ -33,6 +37,7 @@ export function Dialog({
   ariaLabel,
   children,
   className = "",
+  maxWidthClassName,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -67,7 +72,7 @@ export function Dialog({
         "bg-transparent p-0 text-text backdrop:bg-[rgba(15,10,26,0.45)] backdrop:animate-fade-in",
         isSheet
           ? "m-0 ml-auto h-dvh max-h-dvh w-full max-w-[440px]"
-          : "m-auto w-full max-w-lg rounded-[var(--radius)]",
+          : `m-auto w-full ${maxWidthClassName ?? "max-w-lg"} rounded-[var(--radius)]`,
       ].join(" ")}
     >
       <div
@@ -80,9 +85,11 @@ export function Dialog({
         ].join(" ")}
       >
         {(header || title) && (
-          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-4">
             {header ?? (
-              <h2 className="font-display text-base font-bold text-text">{title}</h2>
+              <h2 className="font-display text-base font-bold text-text">
+                {title}
+              </h2>
             )}
             <button
               type="button"
@@ -90,7 +97,16 @@ export function Dialog({
               aria-label="Cerrar"
               className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-bg hover:text-text"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                aria-hidden
+              >
                 <path d="m4 4 8 8M12 4l-8 8" />
               </svg>
             </button>

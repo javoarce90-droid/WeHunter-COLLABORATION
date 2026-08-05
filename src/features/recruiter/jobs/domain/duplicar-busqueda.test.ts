@@ -7,6 +7,8 @@ const original = {
   organizationId: "org-1",
   title: "Backend Engineer",
   description: "Node + Postgres",
+  assignedTo: "m1",
+  sourcerId: null,
   posting: null,
   clientId: null,
   position: "Backend Engineer Senior",
@@ -66,6 +68,13 @@ describe("duplicarBusqueda", () => {
 
   it("falla si la búsqueda original no existe (o no es de la org)", async () => {
     const d = deps(null);
+    const res = await duplicarBusqueda({ jobId: "job-1" }, ctx, d);
+    expect(res.ok).toBe(false);
+    expect(d.insertJob).not.toHaveBeenCalled();
+  });
+
+  it("rechaza a un recruiter que no es responsable ni sourcer de la búsqueda original", async () => {
+    const d = deps({ ...original, assignedTo: "otro-membership" });
     const res = await duplicarBusqueda({ jobId: "job-1" }, ctx, d);
     expect(res.ok).toBe(false);
     expect(d.insertJob).not.toHaveBeenCalled();

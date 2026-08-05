@@ -46,9 +46,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Reclutamiento",
     items: [
-      { href: "/jobs", label: "Búsquedas", Icon: BriefcaseIcon, capability: "jobs.manage" },
+      { href: "/jobs", label: "Búsquedas", Icon: BriefcaseIcon, capability: "jobs.view" },
       { href: "/candidates", label: "Candidatos", Icon: UsersIcon, capability: "candidates.manage" },
-      { href: "/sourcing", label: "Sourcing", Icon: SearchIcon, capability: "candidates.manage" },
+      { href: "/sourcing", label: "Sourcing", Icon: SearchIcon, capability: "sourcing.use" },
     ],
   },
   {
@@ -56,6 +56,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/clients", label: "Clientes", Icon: BuildingIcon, capability: "clients.manage" },
       { href: "/requisitions", label: "Solicitudes", Icon: InboxIcon, capability: "requisitions.review" },
+      { href: "/shortlists", label: "Shortlists", Icon: ListCheckIcon, capability: "shortlists.feedback" },
     ],
   },
   {
@@ -65,12 +66,12 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/messages", label: "Mensajes", Icon: ChatIcon, capability: "messaging.send" },
     ],
   },
-  { label: "Análisis", items: [{ href: "/reports", label: "Reportes", Icon: ChartIcon }] },
+  { label: "Análisis", items: [{ href: "/reports", label: "Reportes", Icon: ChartIcon, capability: "reports.view" }] },
   {
     label: "Administración",
     items: [
-      { href: "/career-site", label: "Career Site", Icon: GlobeIcon },
-      { href: "/team", label: "Equipo", Icon: TeamIcon },
+      { href: "/career-site", label: "Career Site", Icon: GlobeIcon, capability: "career_site.manage" },
+      { href: "/team", label: "Equipo", Icon: TeamIcon, capability: "team.manage" },
       { href: "/settings", label: "Configuración", Icon: SettingsIcon },
     ],
   },
@@ -94,17 +95,14 @@ export function Sidebar({
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
-  // "Clientes" es el mismo módulo técnico para los tres tipos de workspace — en Enterprise se
-  // etiqueta "Hiring Manager" (empresa contratante interna, no cliente externo de consultora).
+  // "Clientes" no aplica en Enterprise: ahí no hay empresas cliente externas, es un solo
+  // workspace — el antiguo relabel a "Hiring Manager" quedó superado por el rol real
+  // `hiring_manager` (docs/BACKLOG.md, punto 2 de la especificación 2026-08-04).
   const navGroups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items
       .filter((item) => !item.capability || can(role, item.capability))
-      .map((item) =>
-        item.href === "/clients" && workspaceType === "enterprise"
-          ? { ...item, label: "Hiring Manager" }
-          : item,
-      ),
+      .filter((item) => !(item.href === "/clients" && workspaceType === "enterprise")),
   })).filter((group) => group.items.length > 0);
 
   function toggle() {
@@ -136,7 +134,7 @@ export function Sidebar({
             </span>
           ) : (
             <span className="flex min-w-0 flex-col">
-              <WehunterLogo variant="white" height={20} />
+              <WehunterLogo variant="white" height={20} priority />
               <span className="text-[10px] font-medium tracking-wide text-white/45">
                 Talent platform
               </span>
@@ -265,6 +263,16 @@ function InboxIcon({ className }: IconProps) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M22 12h-6l-2 3h-4l-2-3H2" />
       <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+    </svg>
+  );
+}
+
+function ListCheckIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m3 7 2 2 4-4" />
+      <path d="m3 15 2 2 4-4" />
+      <path d="M11 7h10M11 15h10" />
     </svg>
   );
 }

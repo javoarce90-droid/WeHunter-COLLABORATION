@@ -14,7 +14,7 @@ export function Nav() {
   return (
     <nav className="nav">
       <div className="nav-inner">
-        <WehunterLogo height={30} />
+        <WehunterLogo height={30} priority />
 
         {/* Botón Hamburguesa (Móvil) */}
         <button
@@ -41,9 +41,8 @@ export function Nav() {
             <Link href="/precios" onClick={closeMenu}>
               Precios
             </Link>
-            <Link href="/login" onClick={closeMenu}>
-              Iniciar Sesión
-            </Link>
+            {/* Oculto a propósito (temporal, hasta que la app esté productiva): que nadie
+                se cree una cuenta fácil desde la landing pública. La ruta /login sigue viva. */}
           </div>
 
           <a

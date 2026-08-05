@@ -13,6 +13,7 @@ export default async function EditClientPage({
   const { id } = await params;
   const membership = await getActiveMembership();
   if (!membership) notFound();
+  if (membership.workspaceType === "enterprise") notFound();
 
   const client = await getClientById(id, membership.organizationId);
   if (!client) notFound();

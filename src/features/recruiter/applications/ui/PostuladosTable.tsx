@@ -18,6 +18,11 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/toast";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import { AgregarCandidatos } from "./AgregarCandidatos";
+import { SourcingIADialog } from "./SourcingIADialog";
+import {
+  CompareCandidatesDialog,
+  type CompareSubject,
+} from "../../sourcing/ui/CompareCandidatesDialog";
 import type { CandidateSource } from "@/features/recruiter/candidates/domain/candidate-details";
 import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import {
@@ -27,7 +32,10 @@ import {
   DEFAULT_REJECTION_MESSAGE,
 } from "../schema";
 import type { RejectionReason } from "../schema";
-import type { PostuladoRow, StageHistoryEvent } from "../data/applications.queries";
+import type {
+  PostuladoRow,
+  StageHistoryEvent,
+} from "../data/applications.queries";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import {
   rechazarVariosAction,
@@ -37,8 +45,11 @@ import {
 } from "../actions";
 import { CriteriosChip } from "./CriteriosChip";
 import { MatchCell } from "./MatchCell";
-import { AiAnalysisDialog } from "./AiAnalysisDialog";
-import { PostuladoDetailSheet, type ScreeningAnswerLine } from "./PostuladoDetailSheet";
+import { AiAnalysisDialog, type AiAnalysisSubject } from "./AiAnalysisDialog";
+import {
+  PostuladoDetailSheet,
+  type ScreeningAnswerLine,
+} from "./PostuladoDetailSheet";
 
 type PoolCandidate = { id: string; fullName: string; email: string | null };
 
@@ -71,7 +82,11 @@ type SortDir = "asc" | "desc";
  *  ocultarse al toque sin esperar el round-trip. Guardar en Talent Pool NO es un estado de la
  *  postulación (ver candidates.saved_to_pool): es una propiedad del candidato. */
 type Triage = "pendiente" | "pipeline" | "descartado";
-const TRIAGE_ORDER: Record<Triage, number> = { pendiente: 0, pipeline: 1, descartado: 2 };
+const TRIAGE_ORDER: Record<Triage, number> = {
+  pendiente: 0,
+  pipeline: 1,
+  descartado: 2,
+};
 
 function triageDe(row: PostuladoRow): Triage {
   if (row.stage === "rejected") return "descartado";
@@ -130,12 +145,19 @@ export function PostuladosTable({
   const [poolTarget, setPoolTarget] = useState<string[] | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [aiDetailId, setAiDetailId] = useState<string | null>(null);
+  // Selección múltiple — habilita "Comparar" (solo con 2) y "Pasar al pipeline" en lote.
+  // Reject y pool ya aceptan varios ids también, pero no están conectados a esto todavía.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
   const [reason, setReason] = useState<RejectionReason>(REJECTION_REASONS[0]);
   const [note, setNote] = useState("");
   const [poolNote, setPoolNote] = useState("");
   const [notifyCandidate, setNotifyCandidate] = useState(false);
   const [message, setMessage] = useState(DEFAULT_REJECTION_MESSAGE);
-  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "date", dir: "desc" });
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: "date",
+    dir: "desc",
+  });
 
   const [query, setQuery] = useState("");
   const [originFilter, setOriginFilter] = useState<OriginFilter>("todos");
@@ -175,7 +197,8 @@ export function PostuladosTable({
         if (!c || c.total === 0 || c.cumplidos < c.total) return false;
       }
       if (q) {
-        const hay = `${r.candidate.fullName} ${r.candidate.email ?? ""}`.toLowerCase();
+        const hay =
+          `${r.candidate.fullName} ${r.candidate.email ?? ""}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -186,8 +209,10 @@ export function PostuladosTable({
     const factor = sort.dir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => {
       let cmp = 0;
-      if (sort.key === "candidate") cmp = a.candidate.fullName.localeCompare(b.candidate.fullName);
-      else if (sort.key === "estado") cmp = TRIAGE_ORDER[triageDe(a)] - TRIAGE_ORDER[triageDe(b)];
+      if (sort.key === "candidate")
+        cmp = a.candidate.fullName.localeCompare(b.candidate.fullName);
+      else if (sort.key === "estado")
+        cmp = TRIAGE_ORDER[triageDe(a)] - TRIAGE_ORDER[triageDe(b)];
       else if (sort.key === "criterios") {
         const ca = criteriosByApplication[a.id];
         const cb = criteriosByApplication[b.id];
@@ -206,38 +231,83 @@ export function PostuladosTable({
     });
   }, [filtered, sort, criteriosByApplication]);
 
-  if (postulados.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-4">
-        <EmptyState
-          className="w-full"
-          title="Todavía no hay postulaciones"
-          description={
-            <>
-              Cuando alguien se postule al aviso, o sumes un candidato del pool, va a aparecer
-              acá para que lo revises y decidas si pasa al{" "}
-              <span className="font-semibold text-text">Pipeline</span>.
-            </>
-          }
-        />
-        <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
-      </div>
-    );
+  const allVisibleSelected = sorted.length > 0 && sorted.every((r) => selected.has(r.id));
+  const someVisibleSelected = sorted.some((r) => selected.has(r.id));
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) sorted.forEach((r) => next.delete(r.id));
+      else sorted.forEach((r) => next.add(r.id));
+      return next;
+    });
   }
 
-  const detailRow = detailId ? (rows.find((r) => r.id === detailId) ?? null) : null;
-  const aiDetailRow = aiDetailId ? (rows.find((r) => r.id === aiDetailId) ?? null) : null;
+  function toCompareSubject(row: PostuladoRow): CompareSubject {
+    return {
+      name: row.candidate.fullName,
+      headline: row.candidate.headline ?? "",
+      location: row.candidate.location,
+      skills: row.candidate.skills ?? [],
+      linkedinUrl: row.candidate.linkedinUrl,
+      match:
+        row.aiScore != null
+          ? {
+              score: row.aiScore,
+              summary: row.aiSummary,
+              breakdown: row.aiBreakdown,
+              strengths: row.aiStrengths,
+              redFlags: row.aiRedFlags,
+            }
+          : null,
+    };
+  }
+  const compareA = compareIds ? (rows.find((r) => r.id === compareIds[0]) ?? null) : null;
+  const compareB = compareIds ? (rows.find((r) => r.id === compareIds[1]) ?? null) : null;
+
+  const detailRow = detailId
+    ? (rows.find((r) => r.id === detailId) ?? null)
+    : null;
+  const aiDetailRow = aiDetailId
+    ? (rows.find((r) => r.id === aiDetailId) ?? null)
+    : null;
+  const aiDetailSubject: AiAnalysisSubject | null =
+    aiDetailRow && aiDetailRow.aiScore != null
+      ? {
+          name: aiDetailRow.candidate.fullName,
+          headline: aiDetailRow.candidate.headline,
+          score: aiDetailRow.aiScore,
+          summary: aiDetailRow.aiSummary,
+          breakdown: aiDetailRow.aiBreakdown,
+          strengths: aiDetailRow.aiStrengths,
+          redFlags: aiDetailRow.aiRedFlags,
+        }
+      : null;
 
   function setSortKey(key: SortKey) {
     setSort((prev) =>
-      prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" },
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" },
     );
   }
 
   function onAnalizar() {
     startAnalyze(async () => {
       const res = await analizarPostuladosAction(jobId);
-      if (!res.ok) toast({ message: res.error ?? "No se pudo analizar.", variant: "danger" });
+      if (!res.ok)
+        toast({
+          message: res.error ?? "No se pudo analizar.",
+          variant: "danger",
+        });
       else
         toast({
           message: `${res.scored} postulado${res.scored !== 1 ? "s" : ""} analizado${res.scored !== 1 ? "s" : ""} con IA`,
@@ -250,16 +320,23 @@ export function PostuladosTable({
     if (ids.length === 0) return;
     setDetailId(null);
     startTransition(async () => {
-      ids.forEach((id) => applyPatch({ id, changes: { pipelineEnteredAt: new Date() } }));
+      ids.forEach((id) =>
+        applyPatch({ id, changes: { pipelineEnteredAt: new Date() } }),
+      );
       const res = await pasarAlPipelineAction({ jobId, applicationIds: ids });
       if (!res.ok) {
-        toast({ message: res.error ?? "No se pudo avanzar.", variant: "danger" });
+        toast({
+          message: res.error ?? "No se pudo avanzar.",
+          variant: "danger",
+        });
         return;
       }
       toast({
         message:
           `${res.hechas} candidato${res.hechas !== 1 ? "s" : ""} al pipeline` +
-          (res.saltadas ? ` · ${res.saltadas} saltado${res.saltadas !== 1 ? "s" : ""}` : ""),
+          (res.saltadas
+            ? ` · ${res.saltadas} saltado${res.saltadas !== 1 ? "s" : ""}`
+            : ""),
         variant: "success",
       });
     });
@@ -288,13 +365,21 @@ export function PostuladosTable({
         notifyCandidate,
         message: notifyCandidate ? message : undefined,
       });
-      if (!res.ok) toast({ message: res.error ?? "No se pudo rechazar.", variant: "danger" });
+      if (!res.ok)
+        toast({
+          message: res.error ?? "No se pudo rechazar.",
+          variant: "danger",
+        });
       else
         toast({
           message:
             `${res.rejected} rechazado${res.rejected !== 1 ? "s" : ""}` +
-            (res.skipped ? ` · ${res.skipped} saltado${res.skipped !== 1 ? "s" : ""}` : "") +
-            (notifyCandidate ? ` · ${res.notified ?? 0} notificado${res.notified !== 1 ? "s" : ""}` : ""),
+            (res.skipped
+              ? ` · ${res.skipped} saltado${res.skipped !== 1 ? "s" : ""}`
+              : "") +
+            (notifyCandidate
+              ? ` · ${res.notified ?? 0} notificado${res.notified !== 1 ? "s" : ""}`
+              : ""),
           variant: "success",
         });
     });
@@ -311,20 +396,27 @@ export function PostuladosTable({
     const ids = poolTarget;
     setPoolTarget(null);
     startTransition(async () => {
-      ids.forEach((id) => applyPatch({ id, candidateChanges: { savedToPool: true } }));
+      ids.forEach((id) =>
+        applyPatch({ id, candidateChanges: { savedToPool: true } }),
+      );
       const res = await guardarEnTalentPoolAction({
         jobId,
         applicationIds: ids,
         note: poolNote.trim() || undefined,
       });
       if (!res.ok) {
-        toast({ message: res.error ?? "No se pudo guardar en el pool.", variant: "danger" });
+        toast({
+          message: res.error ?? "No se pudo guardar en el pool.",
+          variant: "danger",
+        });
         return;
       }
       toast({
         message:
           `${res.hechas} candidato${res.hechas !== 1 ? "s" : ""} guardado${res.hechas !== 1 ? "s" : ""} en el Talent Pool` +
-          (res.saltadas ? ` · ${res.saltadas} saltado${res.saltadas !== 1 ? "s" : ""}` : ""),
+          (res.saltadas
+            ? ` · ${res.saltadas} saltado${res.saltadas !== 1 ? "s" : ""}`
+            : ""),
         variant: "success",
       });
     });
@@ -334,205 +426,362 @@ export function PostuladosTable({
   // El bulk analiza toda la bandeja (analizarPostuladosAction(jobId)), no solo lo filtrado/
   // buscado en pantalla — por eso se chequea contra `rows` entero, no `filtered`/`sorted`.
   const hayPendientesDeAnalizar = rows.some((r) => r.aiScore == null);
+  const isEmpty = postulados.length === 0;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder="Buscar por nombre o email…"
-          aria-label="Buscar postulados"
-        />
-        <FilterChipGroup label="Filtrar postulados por origen">
-          {ORIGIN_FILTERS.map((key) => (
-            <FilterChip
-              key={key}
-              active={originFilter === key}
-              onClick={() => setOriginFilter(key)}
-            >
-              {ORIGIN_FILTER_LABELS[key]}
-            </FilterChip>
-          ))}
-        </FilterChipGroup>
-        {showCriterios && (
+    <div className="flex flex-col gap-6">
+      {/* El cluster de acciones vive en una posición ESTABLE del árbol, siempre montado, para
+          que su estado (resultados de sourcing en el diálogo) no se pierda cuando el resto de
+          la fila (filtros/buscador) aparece o desaparece según haya postulados. Si este bloque
+          se moviera a un `return` condicional aparte, React lo desmontaría entero al pasar de 0
+          a 1 postulados y se perdería la búsqueda de sourcing en curso. */}
+      <div className="flex flex-wrap items-center gap-4">
+        {!isEmpty && (
+          <FilterChipGroup label="Filtrar postulados por origen">
+            {ORIGIN_FILTERS.map((key) => (
+              <FilterChip
+                key={key}
+                active={originFilter === key}
+                onClick={() => setOriginFilter(key)}
+              >
+                {ORIGIN_FILTER_LABELS[key]}
+              </FilterChip>
+            ))}
+          </FilterChipGroup>
+        )}
+        {!isEmpty && showCriterios && (
           <FilterChipGroup label="Filtros adicionales">
-            <FilterChip active={soloCumplen} onClick={() => setSoloCumplen((v) => !v)}>
+            <FilterChip
+              active={soloCumplen}
+              onClick={() => setSoloCumplen((v) => !v)}
+            >
               Cumplen criterios
             </FilterChip>
           </FilterChipGroup>
         )}
-        <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
-        {hayPendientesDeAnalizar ? (
-          <AiButton
-            onClick={onAnalizar}
-            loading={isAnalyzing}
-            title="Calcular compatibilidad de cada candidato con la búsqueda"
-            className="ml-auto"
-          >
-            {isAnalyzing ? "Analizando…" : "Analizar con IA"}
-          </AiButton>
-        ) : (
-          <Tooltip label="Ya se analizaron todas las postulaciones: no hay ninguna pendiente" className="ml-auto">
-            <AiButton disabled>Analizar con IA</AiButton>
-          </Tooltip>
-        )}
+
+        {/* Los 3 botones van siempre juntos y a la derecha: "Agregar candidatos" y "Sourcing con
+            IA" son las dos formas de sumar gente a la bandeja, "Analizar con IA" actúa sobre lo
+            que ya está postulado. Mismo tamaño los 3 (Button sm / AiButton comparten padding),
+            pero un color distinto cada uno para que no compitan: neutro (Agregar) → ✦ invertido,
+            fondo blanco/texto violeta (Sourcing, `AiButton variant="outline"`) → ✦ sólido
+            (Analizar, el más prominente — es la acción que más empuja el flujo). */}
+        <div
+          role="group"
+          aria-label="Acciones de postulados"
+          className="ml-auto flex items-center gap-3"
+        >
+          <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
+          <SourcingIADialog jobId={jobId} />
+          {!isEmpty &&
+            (hayPendientesDeAnalizar ? (
+              <AiButton
+                onClick={onAnalizar}
+                loading={isAnalyzing}
+                title="Calcular compatibilidad de cada candidato con la búsqueda"
+              >
+                {isAnalyzing ? "Analizando…" : "Analizar con IA"}
+              </AiButton>
+            ) : (
+              <Tooltip label="Ya se analizaron todas las postulaciones: no hay ninguna pendiente">
+                <AiButton disabled>Analizar con IA</AiButton>
+              </Tooltip>
+            ))}
+        </div>
       </div>
 
-      <p className="text-sm text-muted">
-        {sorted.length} de {postulados.length} postulación
-        {postulados.length !== 1 ? "es" : ""}
-      </p>
-
-      {sorted.length === 0 ? (
+      {isEmpty ? (
         <EmptyState
-          title="Ninguna postulación coincide"
-          description="Probá con otro filtro o limpiá la búsqueda."
+          title="Todavía no hay postulaciones"
+          description={
+            <>
+              Cuando alguien se postule al aviso, o sumes un candidato del pool
+              o por sourcing con IA, va a aparecer acá para que lo revises y
+              decidas si pasa al{" "}
+              <span className="font-semibold text-text">Pipeline</span>.
+            </>
+          }
         />
       ) : (
-        <div className="overflow-x-auto rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left">
-                <SortableTh
-                  label="Candidato"
-                  active={sort}
-                  sortKey="candidate"
-                  onSort={setSortKey}
-                  className="pl-4"
-                />
-                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
-                  Fuente
-                </th>
-                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
-                  Origen
-                </th>
-                {showCriterios && (
-                  <SortableTh label="Criterios" active={sort} sortKey="criterios" onSort={setSortKey} />
-                )}
-                <SortableTh label="Match" active={sort} sortKey="match" onSort={setSortKey} />
-                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
-                  Salario pret.
-                </th>
-                <SortableTh label="Estado" active={sort} sortKey="estado" onSort={setSortKey} />
-                <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
-                  Postulaciones
-                </th>
-                <SortableTh label="Postulado" active={sort} sortKey="date" onSort={setSortKey} />
-                <th className="py-2.5 pr-4" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {sorted.map((row) => {
-                const triage = triageDe(row);
-                return (
-                  <tr key={row.id} className="transition-colors hover:bg-bg">
-                    <td className="py-2.5 pr-3 pl-4">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar name={row.candidate.fullName} size="sm" />
-                        <div className="min-w-0">
-                          <button
-                            type="button"
-                            onClick={() => setDetailId(row.id)}
-                            className={`block max-w-full truncate text-left font-semibold text-text transition-colors hover:text-primary ${focusRing}`}
-                          >
-                            {row.candidate.fullName}
-                          </button>
-                          <span className="block truncate text-xs text-muted">
-                            {row.candidate.headline ?? row.candidate.email ?? "—"}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-2.5 pr-3 text-muted">{sourceLabel(row.candidate.source)}</td>
-                    <td className="py-2.5 pr-3">
-                      <Badge variant={row.selfApplied ? "blue" : "primary"}>
-                        {row.selfApplied ? "Auto-postulado" : "Del pool"}
-                      </Badge>
-                    </td>
-                    {showCriterios && (
-                      <td className="py-2.5 pr-3">
-                        {criteriosByApplication[row.id] ? (
-                          <CriteriosChip criterios={criteriosByApplication[row.id]} />
-                        ) : (
-                          <span className="text-xs text-muted">—</span>
-                        )}
-                      </td>
-                    )}
-                    <td className="py-2.5 pr-3">
-                      <MatchCell
-                        score={row.aiScore}
-                        summary={row.aiSummary}
-                        onOpenCopiloto={row.aiScore != null ? () => setAiDetailId(row.id) : undefined}
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted">
+              {sorted.length} de {postulados.length} postulación
+              {postulados.length !== 1 ? "es" : ""}
+            </p>
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder="Buscar por nombre o email…"
+              aria-label="Buscar postulados"
+            />
+          </div>
+
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius)] border border-primary/30 bg-primary-light px-4 py-2.5">
+              <span className="text-sm font-semibold text-primary-hover">
+                {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
+              </span>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const ids = [...selected];
+                  setSelected(new Set());
+                  onPasarAlPipeline(ids);
+                }}
+              >
+                Pasar {selected.size} al pipeline
+              </Button>
+              {selected.size === 2 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setCompareIds([...selected] as [string, string])}
+                >
+                  Comparar
+                </Button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="text-sm font-semibold text-muted hover:text-text"
+              >
+                Deseleccionar todo
+              </button>
+            </div>
+          )}
+
+          {sorted.length === 0 ? (
+            <EmptyState
+              title="Ninguna postulación coincide"
+              description="Probá con otro filtro o limpiá la búsqueda."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left">
+                    <th className="w-10 py-3 pl-4">
+                      <Checkbox
+                        checked={allVisibleSelected}
+                        aria-label="Seleccionar todos"
+                        ref={(el) => {
+                          if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected;
+                        }}
+                        onChange={toggleAll}
                       />
-                    </td>
-                    <td className="py-2.5 pr-3 text-muted tabular-nums">
-                      {salaryLabel(row.expectedSalary, row.expectedSalaryCurrency)}
-                    </td>
-                    <td className="py-2.5 pr-3">
-                      {triage === "descartado" ? (
-                        <Badge variant="rejected">Descartado</Badge>
-                      ) : triage === "pipeline" ? (
-                        <Badge variant={row.stage}>{STAGE_LABELS[row.stage]}</Badge>
-                      ) : (
-                        <Badge variant="new">Sin revisar</Badge>
-                      )}
-                    </td>
-                    <td className="py-2.5 pr-3 text-muted tabular-nums">
-                      {applicationCountLabel(row.applicationCount)}
-                    </td>
-                    <td className="py-2.5 pr-3 text-muted tabular-nums">
-                      {dateFmt.format(row.createdAt)}
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <div className="flex justify-end">
-                        <Menu
-                          align="end"
-                          trigger={
-                            <IconButton aria-label="Acciones" size="sm" variant="ghost">
-                              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
-                                <circle cx="8" cy="3" r="1.4" />
-                                <circle cx="8" cy="8" r="1.4" />
-                                <circle cx="8" cy="13" r="1.4" />
-                              </svg>
-                            </IconButton>
-                          }
-                        >
-                          <MenuLabel>Postulación</MenuLabel>
-                          <MenuItem onClick={() => setDetailId(row.id)}>Ver detalle</MenuItem>
-                          {triage === "pendiente" && (
-                            <MenuItem onClick={() => onPasarAlPipeline([row.id])}>
-                              Pasar al pipeline
-                            </MenuItem>
+                    </th>
+                    <SortableTh
+                      label="Candidato"
+                      active={sort}
+                      sortKey="candidate"
+                      onSort={setSortKey}
+                    />
+                    <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                      Fuente
+                    </th>
+                    <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                      Origen
+                    </th>
+                    {showCriterios && (
+                      <SortableTh
+                        label="Criterios"
+                        active={sort}
+                        sortKey="criterios"
+                        onSort={setSortKey}
+                      />
+                    )}
+                    <SortableTh
+                      label="Match"
+                      active={sort}
+                      sortKey="match"
+                      onSort={setSortKey}
+                    />
+                    <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                      Salario pret.
+                    </th>
+                    <SortableTh
+                      label="Estado"
+                      active={sort}
+                      sortKey="estado"
+                      onSort={setSortKey}
+                    />
+                    <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                      Postulaciones
+                    </th>
+                    <SortableTh
+                      label="Postulado"
+                      active={sort}
+                      sortKey="date"
+                      onSort={setSortKey}
+                    />
+                    <th className="py-3 pr-4" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {sorted.map((row) => {
+                    const triage = triageDe(row);
+                    return (
+                      <tr
+                        key={row.id}
+                        className={[
+                          "transition-colors",
+                          selected.has(row.id) ? "bg-[var(--selected-bg)]" : "hover:bg-bg",
+                        ].join(" ")}
+                      >
+                        <td className="py-3 pl-4">
+                          <Checkbox
+                            checked={selected.has(row.id)}
+                            onChange={() => toggleOne(row.id)}
+                            aria-label={`Seleccionar ${row.candidate.fullName}`}
+                          />
+                        </td>
+                        <td className="py-3 pr-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar name={row.candidate.fullName} size="sm" />
+                            <div className="min-w-0">
+                              <button
+                                type="button"
+                                onClick={() => setDetailId(row.id)}
+                                className={`block max-w-full truncate text-left font-semibold text-text transition-colors hover:text-primary ${focusRing}`}
+                              >
+                                {row.candidate.fullName}
+                              </button>
+                              <span className="block truncate text-xs text-muted">
+                                {row.candidate.headline ??
+                                  row.candidate.email ??
+                                  "—"}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 pr-3 text-muted">
+                          {sourceLabel(row.candidate.source)}
+                        </td>
+                        <td className="py-3 pr-3">
+                          <Badge variant={row.selfApplied ? "blue" : "primary"}>
+                            {row.selfApplied ? "Auto-postulado" : "Del pool"}
+                          </Badge>
+                        </td>
+                        {showCriterios && (
+                          <td className="py-3 pr-3">
+                            {criteriosByApplication[row.id] ? (
+                              <CriteriosChip
+                                criterios={criteriosByApplication[row.id]}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted">—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="py-3 pr-3">
+                          <MatchCell
+                            score={row.aiScore}
+                            summary={row.aiSummary}
+                            onOpenCopiloto={
+                              row.aiScore != null
+                                ? () => setAiDetailId(row.id)
+                                : undefined
+                            }
+                          />
+                        </td>
+                        <td className="py-3 pr-3 text-muted tabular-nums">
+                          {salaryLabel(
+                            row.expectedSalary,
+                            row.expectedSalaryCurrency,
                           )}
-                          {row.aiScore != null && (
-                            <MenuItem onClick={() => setAiDetailId(row.id)}>
-                              Ver análisis IA
-                            </MenuItem>
+                        </td>
+                        <td className="py-3 pr-3">
+                          {triage === "descartado" ? (
+                            <Badge variant="rejected">Descartado</Badge>
+                          ) : triage === "pipeline" ? (
+                            <Badge variant={row.stage}>
+                              {STAGE_LABELS[row.stage]}
+                            </Badge>
+                          ) : (
+                            <Badge variant="new">Sin revisar</Badge>
                           )}
-                          {triage !== "descartado" && (
-                            <>
-                              <MenuSeparator />
-                              {row.candidate.savedToPool ? (
-                                <MenuItem disabled>Ya es parte de tu pool</MenuItem>
-                              ) : (
-                                <MenuItem onClick={() => openPoolDialog([row.id])}>
-                                  Guardar en Talent Pool
+                        </td>
+                        <td className="py-3 pr-3 text-muted tabular-nums">
+                          {applicationCountLabel(row.applicationCount)}
+                        </td>
+                        <td className="py-3 pr-3 text-muted tabular-nums">
+                          {dateFmt.format(row.createdAt)}
+                        </td>
+                        <td className="py-3 pr-4">
+                          <div className="flex justify-end">
+                            <Menu
+                              align="end"
+                              trigger={
+                                <IconButton
+                                  aria-label="Acciones"
+                                  size="sm"
+                                  variant="ghost"
+                                >
+                                  <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 16 16"
+                                    fill="currentColor"
+                                    aria-hidden
+                                  >
+                                    <circle cx="8" cy="3" r="1.4" />
+                                    <circle cx="8" cy="8" r="1.4" />
+                                    <circle cx="8" cy="13" r="1.4" />
+                                  </svg>
+                                </IconButton>
+                              }
+                            >
+                              <MenuLabel>Postulación</MenuLabel>
+                              <MenuItem onClick={() => setDetailId(row.id)}>
+                                Ver detalle
+                              </MenuItem>
+                              {triage === "pendiente" && (
+                                <MenuItem
+                                  onClick={() => onPasarAlPipeline([row.id])}
+                                >
+                                  Pasar al pipeline
                                 </MenuItem>
                               )}
-                              <MenuItem destructive onClick={() => openRejectDialog(new Set([row.id]))}>
-                                Descartar
-                              </MenuItem>
-                            </>
-                          )}
-                        </Menu>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                              {row.aiScore != null && (
+                                <MenuItem onClick={() => setAiDetailId(row.id)}>
+                                  Ver análisis IA
+                                </MenuItem>
+                              )}
+                              {triage !== "descartado" && (
+                                <>
+                                  <MenuSeparator />
+                                  {row.candidate.savedToPool ? (
+                                    <MenuItem disabled>
+                                      Ya es parte de tu pool
+                                    </MenuItem>
+                                  ) : (
+                                    <MenuItem
+                                      onClick={() => openPoolDialog([row.id])}
+                                    >
+                                      Guardar en Talent Pool
+                                    </MenuItem>
+                                  )}
+                                  <MenuItem
+                                    destructive
+                                    onClick={() =>
+                                      openRejectDialog(new Set([row.id]))
+                                    }
+                                  >
+                                    Descartar
+                                  </MenuItem>
+                                </>
+                              )}
+                            </Menu>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -540,10 +789,16 @@ export function PostuladosTable({
         key={detailId ?? "closed"}
         jobId={jobId}
         postulado={detailRow}
-        criterios={detailRow ? (criteriosByApplication[detailRow.id] ?? null) : null}
-        screening={detailRow ? (screeningByApplication[detailRow.id] ?? []) : []}
+        criterios={
+          detailRow ? (criteriosByApplication[detailRow.id] ?? null) : null
+        }
+        screening={
+          detailRow ? (screeningByApplication[detailRow.id] ?? []) : []
+        }
         notes={detailRow ? (notesByApplication[detailRow.id] ?? []) : []}
-        stageEvents={detailRow ? (stageEventsByApplication[detailRow.id] ?? []) : []}
+        stageEvents={
+          detailRow ? (stageEventsByApplication[detailRow.id] ?? []) : []
+        }
         onClose={() => setDetailId(null)}
         onPasarAlPipeline={(r) => onPasarAlPipeline([r.id])}
         onGuardarEnPool={(r) => openPoolDialog([r.id])}
@@ -551,7 +806,17 @@ export function PostuladosTable({
         onOpenCopiloto={(r) => setAiDetailId(r.id)}
       />
 
-      <AiAnalysisDialog postulado={aiDetailRow} onClose={() => setAiDetailId(null)} />
+      <AiAnalysisDialog
+        subject={aiDetailSubject}
+        onClose={() => setAiDetailId(null)}
+      />
+
+      <CompareCandidatesDialog
+        open={compareIds !== null}
+        onClose={() => setCompareIds(null)}
+        a={compareA ? toCompareSubject(compareA) : null}
+        b={compareB ? toCompareSubject(compareB) : null}
+      />
 
       <Dialog
         open={poolTarget != null}
@@ -562,8 +827,8 @@ export function PostuladosTable({
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted">
-            Salen de esta búsqueda pero quedan marcados como talento disponible para futuras.
-            No se les envía ningún mensaje.
+            Salen de esta búsqueda pero quedan marcados como talento disponible
+            para futuras. No se les envía ningún mensaje.
           </p>
           <Textarea
             label="Por qué lo guardás (opcional)"
@@ -598,8 +863,8 @@ export function PostuladosTable({
         <div className="flex flex-col gap-4">
           <p className="text-sm text-muted">
             Las postulaciones seleccionadas pasarán a{" "}
-            <span className="font-semibold text-text">Descartado</span>. Las que ya estén
-            descartadas o en una etapa terminal se saltan.
+            <span className="font-semibold text-text">Descartado</span>. Las que
+            ya estén descartadas o en una etapa terminal se saltan.
           </p>
 
           <Select
@@ -624,12 +889,15 @@ export function PostuladosTable({
           />
 
           <label className="flex items-center gap-2 text-sm text-text">
-            <Checkbox checked={notifyCandidate} onChange={() => setNotifyCandidate((v) => !v)} />
+            <Checkbox
+              checked={notifyCandidate}
+              onChange={() => setNotifyCandidate((v) => !v)}
+            />
             Notificar al candidato
           </label>
 
           {notifyCandidate && (
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Textarea
                 label="Mensaje para el candidato"
                 rows={4}
@@ -638,7 +906,8 @@ export function PostuladosTable({
                 className="resize-y"
               />
               <p className="text-[11px] text-muted">
-                Variables: <code>{"{{candidato}}"}</code> y <code>{"{{puesto}}"}</code> ({jobTitle}
+                Variables: <code>{"{{candidato}}"}</code> y{" "}
+                <code>{"{{puesto}}"}</code> ({jobTitle}
                 ). No incluye la nota interna.
               </p>
             </div>
@@ -682,8 +951,10 @@ function SortableTh({
   const isActive = active.key === sortKey;
   return (
     <th
-      className={`py-2.5 pr-3 ${className}`}
-      aria-sort={isActive ? (active.dir === "asc" ? "ascending" : "descending") : "none"}
+      className={`py-3 pr-3 ${className}`}
+      aria-sort={
+        isActive ? (active.dir === "asc" ? "ascending" : "descending") : "none"
+      }
     >
       <button
         type="button"
@@ -692,7 +963,10 @@ function SortableTh({
         aria-label={`Ordenar por ${label}`}
       >
         {label}
-        <span className={isActive ? "text-primary" : "text-transparent"} aria-hidden>
+        <span
+          className={isActive ? "text-primary" : "text-transparent"}
+          aria-hidden
+        >
           {isActive && active.dir === "asc" ? "↑" : "↓"}
         </span>
       </button>

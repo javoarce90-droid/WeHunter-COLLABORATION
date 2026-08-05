@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can } from "@/lib/auth/roles";
+import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import type { Job } from "@/db/schema";
 
@@ -37,10 +37,17 @@ export interface CambiarEstadoInput {
 export interface CambiarEstadoCtx {
   organizationId: string | null;
   role: OrgRole | null;
+  /** Membership de quien actúa — roles acotados por asignación (ver `isAssignmentScoped`)
+   *  solo pueden cambiar el estado de una búsqueda propia. */
+  membershipId: string | null;
 }
 
 export interface CambiarEstadoDeps {
-  getJobStatus(jobId: string, organizationId: string): Promise<JobStatus | null>;
+  getJobStatus(
+    jobId: string,
+    organizationId: string,
+    scopeToMembershipId?: string,
+  ): Promise<JobStatus | null>;
   updateJobStatus(
     jobId: string,
     organizationId: string,
@@ -60,7 +67,8 @@ export async function cambiarEstadoBusqueda(
     return err("No tenés permisos para gestionar búsquedas.");
   }
 
-  const actual = await deps.getJobStatus(input.jobId, ctx.organizationId);
+  const scope = isAssignmentScoped(ctx.role) ? (ctx.membershipId ?? undefined) : undefined;
+  const actual = await deps.getJobStatus(input.jobId, ctx.organizationId, scope);
   if (!actual) {
     return err("La búsqueda no existe.");
   }

@@ -1,4 +1,15 @@
-import { and, eq, ne, asc, desc, sql, isNull, isNotNull, inArray } from "drizzle-orm";
+import {
+  and,
+  eq,
+  ne,
+  or,
+  asc,
+  desc,
+  sql,
+  isNull,
+  isNotNull,
+  inArray,
+} from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   applications,
@@ -7,8 +18,14 @@ import {
   jobs,
   jobStages,
   profiles,
+  candidateWorkExperiences,
+  candidateEducation,
   type Job,
 } from "@/db/schema";
+import type {
+  CandidateExperienceInput,
+  CandidateEducationInput,
+} from "@/lib/ai";
 import type { ApplicationStage, RejectionReason } from "../schema";
 import type { InboxApplicationRow } from "../domain/pasar-al-pipeline";
 import type { StageKind } from "../../pipeline-stages/schema";
@@ -26,8 +43,24 @@ export type ApplicationWithCandidate = {
   stageKind: StageKind | null;
   /** Cuándo entró a la etapa actual — resetea en cada movimiento. */
   stageEnteredAt: Date;
+  /** Siempre no-null acá (el query filtra por esto) — se mantiene por paridad de shape con
+   *  `PostuladoRow`, así el sheet de detalle es el mismo componente en ambas vistas. */
+  pipelineEnteredAt: Date | null;
+  selfApplied: boolean;
   aiScore: number | null;
   aiSummary: string | null;
+  aiRedFlags: string[];
+  aiBreakdown: {
+    experiencia: number;
+    skillsTecnicos: number;
+    seniority: number;
+    idiomas: number;
+    ubicacion: number;
+  } | null;
+  aiStrengths: string[];
+  coverNote: string | null;
+  expectedSalary: number | null;
+  expectedSalaryCurrency: string | null;
   notes: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -35,7 +68,14 @@ export type ApplicationWithCandidate = {
     id: string;
     fullName: string;
     email: string | null;
+    phone: string | null;
     cvUrl: string | null;
+    source: string | null;
+    headline: string | null;
+    savedToPool: boolean;
+    location: string | null;
+    skills: string[] | null;
+    linkedinUrl: string | null;
   };
 };
 
@@ -49,37 +89,53 @@ export async function listApplicationsByJob(
   organizationId: string,
 ): Promise<ApplicationWithCandidate[]> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
-      .select({
-        id: applications.id,
-        organizationId: applications.organizationId,
-        jobId: applications.jobId,
-        candidateId: applications.candidateId,
-        stage: applications.stage,
-        stageId: applications.stageId,
-        stageKind: jobStages.kind,
-        stageEnteredAt: applications.stageEnteredAt,
-        aiScore: applications.aiScore,
-        aiSummary: applications.aiSummary,
-        notes: applications.notes,
-        createdAt: applications.createdAt,
-        updatedAt: applications.updatedAt,
-        candidateId2: candidates.id,
-        candidateFullName: candidates.fullName,
-        candidateEmail: candidates.email,
-        candidateCvUrl: candidates.cvUrl,
-      })
-      .from(applications)
-      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
-      .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
-      .where(
-        and(
-          eq(applications.jobId, jobId),
-          eq(applications.organizationId, organizationId),
-          isNotNull(applications.pipelineEnteredAt),
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applications.id,
+          organizationId: applications.organizationId,
+          jobId: applications.jobId,
+          candidateId: applications.candidateId,
+          stage: applications.stage,
+          stageId: applications.stageId,
+          stageKind: jobStages.kind,
+          stageEnteredAt: applications.stageEnteredAt,
+          pipelineEnteredAt: applications.pipelineEnteredAt,
+          selfApplied: applications.selfApplied,
+          aiScore: applications.aiScore,
+          aiSummary: applications.aiSummary,
+          aiRedFlags: applications.aiRedFlags,
+          aiBreakdown: applications.aiBreakdown,
+          aiStrengths: applications.aiStrengths,
+          coverNote: applications.coverNote,
+          expectedSalary: applications.expectedSalary,
+          expectedSalaryCurrency: applications.expectedSalaryCurrency,
+          notes: applications.notes,
+          createdAt: applications.createdAt,
+          updatedAt: applications.updatedAt,
+          candidateId2: candidates.id,
+          candidateFullName: candidates.fullName,
+          candidateEmail: candidates.email,
+          candidatePhone: candidates.phone,
+          candidateCvUrl: candidates.cvUrl,
+          candidateSource: candidates.source,
+          candidateHeadline: candidates.headline,
+          candidateSavedToPool: candidates.savedToPool,
+          candidateLocation: candidates.location,
+          candidateSkills: candidates.skills,
+          candidateLinkedinUrl: candidates.linkedinUrl,
+        })
+        .from(applications)
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
+        .where(
+          and(
+            eq(applications.jobId, jobId),
+            eq(applications.organizationId, organizationId),
+            isNotNull(applications.pipelineEnteredAt),
+          ),
         ),
-      ),
     "db.applications.by-job",
   );
   return rows.map((r) => ({
@@ -91,8 +147,16 @@ export async function listApplicationsByJob(
     stageId: r.stageId,
     stageKind: r.stageKind as StageKind | null,
     stageEnteredAt: r.stageEnteredAt,
+    pipelineEnteredAt: r.pipelineEnteredAt,
+    selfApplied: r.selfApplied,
     aiScore: r.aiScore,
     aiSummary: r.aiSummary,
+    aiRedFlags: r.aiRedFlags ?? [],
+    aiBreakdown: r.aiBreakdown,
+    aiStrengths: r.aiStrengths ?? [],
+    coverNote: r.coverNote,
+    expectedSalary: r.expectedSalary,
+    expectedSalaryCurrency: r.expectedSalaryCurrency,
     notes: r.notes,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
@@ -100,7 +164,14 @@ export async function listApplicationsByJob(
       id: r.candidateId2,
       fullName: r.candidateFullName,
       email: r.candidateEmail,
+      phone: r.candidatePhone,
       cvUrl: r.candidateCvUrl,
+      source: r.candidateSource,
+      headline: r.candidateHeadline,
+      savedToPool: r.candidateSavedToPool,
+      location: r.candidateLocation,
+      skills: r.candidateSkills,
+      linkedinUrl: r.candidateLinkedinUrl,
     },
   }));
 }
@@ -137,17 +208,18 @@ export async function getApplicationById(
   organizationId: string,
 ): Promise<InboxApplicationRow | null> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
-      .select()
-      .from(applications)
-      .where(
-        and(
-          eq(applications.id, applicationId),
-          eq(applications.organizationId, organizationId),
-        ),
-      )
-      .limit(1),
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select()
+        .from(applications)
+        .where(
+          and(
+            eq(applications.id, applicationId),
+            eq(applications.organizationId, organizationId),
+          ),
+        )
+        .limit(1),
     "db.applications.get",
   );
   if (!rows[0]) return null;
@@ -201,7 +273,12 @@ export async function getApplicationForMove(
         .from(applications)
         .innerJoin(candidates, eq(applications.candidateId, candidates.id))
         .innerJoin(jobs, eq(applications.jobId, jobs.id))
-        .where(and(eq(applications.id, applicationId), eq(applications.organizationId, organizationId)))
+        .where(
+          and(
+            eq(applications.id, applicationId),
+            eq(applications.organizationId, organizationId),
+          ),
+        )
         .limit(1),
     "db.applications.for-move",
   );
@@ -245,13 +322,22 @@ export async function getApplicationForStageMove(
         .innerJoin(candidates, eq(applications.candidateId, candidates.id))
         .innerJoin(jobs, eq(applications.jobId, jobs.id))
         .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
-        .where(and(eq(applications.id, applicationId), eq(applications.organizationId, organizationId)))
+        .where(
+          and(
+            eq(applications.id, applicationId),
+            eq(applications.organizationId, organizationId),
+          ),
+        )
         .limit(1),
     "db.applications.for-stage-move",
   );
   const r = rows[0];
   if (!r) return null;
-  return { ...r, stageKind: r.stageKind as StageKind | null, stage: r.stage as ApplicationStage };
+  return {
+    ...r,
+    stageKind: r.stageKind as StageKind | null,
+    stage: r.stage as ApplicationStage,
+  };
 }
 
 export async function findExistingApplication(
@@ -259,17 +345,18 @@ export async function findExistingApplication(
   candidateId: string,
 ): Promise<{ id: string } | null> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
-      .select({ id: applications.id })
-      .from(applications)
-      .where(
-        and(
-          eq(applications.jobId, jobId),
-          eq(applications.candidateId, candidateId),
-        ),
-      )
-      .limit(1),
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ id: applications.id })
+        .from(applications)
+        .where(
+          and(
+            eq(applications.jobId, jobId),
+            eq(applications.candidateId, candidateId),
+          ),
+        )
+        .limit(1),
     "db.applications.find-existing",
   );
   return rows[0] ?? null;
@@ -296,28 +383,29 @@ export async function listApplicationsByCandidate(
   organizationId: string,
 ): Promise<CandidateApplication[]> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
-      .select({
-        id: applications.id,
-        jobId: applications.jobId,
-        jobTitle: jobs.title,
-        jobStatus: jobs.status,
-        stage: applications.stage,
-        createdAt: applications.createdAt,
-        aiScore: applications.aiScore,
-        aiSummary: applications.aiSummary,
-      })
-      .from(applications)
-      .innerJoin(jobs, eq(applications.jobId, jobs.id))
-      .where(
-        and(
-          eq(applications.candidateId, candidateId),
-          eq(applications.organizationId, organizationId),
-        ),
-      )
-      .orderBy(desc(applications.createdAt))
-      .limit(100),
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applications.id,
+          jobId: applications.jobId,
+          jobTitle: jobs.title,
+          jobStatus: jobs.status,
+          stage: applications.stage,
+          createdAt: applications.createdAt,
+          aiScore: applications.aiScore,
+          aiSummary: applications.aiSummary,
+        })
+        .from(applications)
+        .innerJoin(jobs, eq(applications.jobId, jobs.id))
+        .where(
+          and(
+            eq(applications.candidateId, candidateId),
+            eq(applications.organizationId, organizationId),
+          ),
+        )
+        .orderBy(desc(applications.createdAt))
+        .limit(100),
     "db.applications.by-candidate",
   );
   return rows.map((r) => ({ ...r, stage: r.stage as ApplicationStage }));
@@ -368,6 +456,9 @@ export type PostuladoRow = {
      *  postulación — ver candidates.saved_to_pool). Decide si se ofrece "Guardar en
      *  Talent Pool" o si ya es redundante. */
     savedToPool: boolean;
+    location: string | null;
+    skills: string[] | null;
+    linkedinUrl: string | null;
   };
 };
 
@@ -383,50 +474,54 @@ export async function listPostulados(
   organizationId: string,
 ): Promise<PostuladoRow[]> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
-      .select({
-        id: applications.id,
-        stage: applications.stage,
-        pipelineEnteredAt: applications.pipelineEnteredAt,
-        selfApplied: applications.selfApplied,
-        aiScore: applications.aiScore,
-        aiSummary: applications.aiSummary,
-        aiRedFlags: applications.aiRedFlags,
-        aiBreakdown: applications.aiBreakdown,
-        aiStrengths: applications.aiStrengths,
-        coverNote: applications.coverNote,
-        expectedSalary: applications.expectedSalary,
-        expectedSalaryCurrency: applications.expectedSalaryCurrency,
-        createdAt: applications.createdAt,
-        candidateId: candidates.id,
-        candidateFullName: candidates.fullName,
-        candidateEmail: candidates.email,
-        candidatePhone: candidates.phone,
-        candidateCvUrl: candidates.cvUrl,
-        candidateSource: candidates.source,
-        candidateHeadline: candidates.headline,
-        candidateSavedToPool: candidates.savedToPool,
-        // Subquery correlacionada (no ventana): la partición del `where jobId=X` de esta
-        // query siempre da 1 por candidato, no sirve para "a cuántas búsquedas se postuló".
-        // Sigue siendo UNA sola consulta a la base (database.md #3), no un round-trip extra.
-        applicationCount: sql<number>`(
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applications.id,
+          stage: applications.stage,
+          pipelineEnteredAt: applications.pipelineEnteredAt,
+          selfApplied: applications.selfApplied,
+          aiScore: applications.aiScore,
+          aiSummary: applications.aiSummary,
+          aiRedFlags: applications.aiRedFlags,
+          aiBreakdown: applications.aiBreakdown,
+          aiStrengths: applications.aiStrengths,
+          coverNote: applications.coverNote,
+          expectedSalary: applications.expectedSalary,
+          expectedSalaryCurrency: applications.expectedSalaryCurrency,
+          createdAt: applications.createdAt,
+          candidateId: candidates.id,
+          candidateFullName: candidates.fullName,
+          candidateEmail: candidates.email,
+          candidatePhone: candidates.phone,
+          candidateCvUrl: candidates.cvUrl,
+          candidateSource: candidates.source,
+          candidateHeadline: candidates.headline,
+          candidateSavedToPool: candidates.savedToPool,
+          candidateLocation: candidates.location,
+          candidateSkills: candidates.skills,
+          candidateLinkedinUrl: candidates.linkedinUrl,
+          // Subquery correlacionada (no ventana): la partición del `where jobId=X` de esta
+          // query siempre da 1 por candidato, no sirve para "a cuántas búsquedas se postuló".
+          // Sigue siendo UNA sola consulta a la base (database.md #3), no un round-trip extra.
+          applicationCount: sql<number>`(
           select count(*)::int from ${applications} a2
           where a2.candidate_id = ${candidates.id} and a2.organization_id = ${organizationId}
         )`,
-      })
-      .from(applications)
-      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
-      .where(
-        and(
-          eq(applications.jobId, jobId),
-          eq(applications.organizationId, organizationId),
-          isNull(applications.pipelineEnteredAt),
-          ne(applications.stage, "rejected"),
-        ),
-      )
-      .orderBy(desc(applications.createdAt))
-      .limit(200),
+        })
+        .from(applications)
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .where(
+          and(
+            eq(applications.jobId, jobId),
+            eq(applications.organizationId, organizationId),
+            isNull(applications.pipelineEnteredAt),
+            ne(applications.stage, "rejected"),
+          ),
+        )
+        .orderBy(desc(applications.createdAt))
+        .limit(200),
     "db.applications.postulados",
   );
   return rows.map((r) => ({
@@ -453,6 +548,9 @@ export async function listPostulados(
       source: r.candidateSource,
       savedToPool: r.candidateSavedToPool,
       headline: r.candidateHeadline,
+      location: r.candidateLocation,
+      skills: r.candidateSkills,
+      linkedinUrl: r.candidateLinkedinUrl,
     },
   }));
 }
@@ -488,7 +586,8 @@ export async function listCandidatesForApplications(
   );
 }
 
-/** Datos de los candidatos de un job para puntuar con IA (skills, perfil, CV). */
+/** Datos de los candidatos de un job para puntuar con IA (skills, perfil, experiencia,
+ *  educación). El match nunca mira si hay CV cargado — eso no es una señal de compatibilidad. */
 export type ScoringRow = {
   id: string;
   candidate: {
@@ -496,7 +595,8 @@ export type ScoringRow = {
     skills: string[] | null;
     summary: string | null;
     source: string | null;
-    hasCv: boolean;
+    experience: CandidateExperienceInput[];
+    education: CandidateEducationInput[];
   };
 };
 
@@ -509,44 +609,130 @@ export async function listApplicationsForScoring(
   // para el scoring — candidates.summary/skills/cvUrl NO se tocan (esas mismas columnas las
   // muestra la ficha del recruiter, que deliberadamente no se fusiona con el perfil real). El
   // join acá es solo para leer, nunca para escribir.
-  const rows = await db.rls((tx) =>
-    tx
-      .select({
-        id: applications.id,
-        candidateId: candidates.id,
-        skills: candidates.skills,
-        summary: candidates.summary,
-        source: candidates.source,
-        cvUrl: candidates.cvUrl,
-        profileBio: profiles.bio,
-        profileSkills: profiles.skills,
-        profileCvUrl: profiles.cvUrl,
-      })
-      .from(applications)
-      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
-      .leftJoin(profiles, eq(candidates.profileId, profiles.id))
-      .where(
-        and(
-          eq(applications.jobId, jobId),
-          eq(applications.organizationId, organizationId),
-        ),
-      )
-      .limit(200),
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applications.id,
+          candidateId: candidates.id,
+          profileId: candidates.profileId,
+          skills: candidates.skills,
+          summary: candidates.summary,
+          source: candidates.source,
+          profileBio: profiles.bio,
+          profileSkills: profiles.skills,
+        })
+        .from(applications)
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .leftJoin(profiles, eq(candidates.profileId, profiles.id))
+        .where(
+          and(
+            eq(applications.jobId, jobId),
+            eq(applications.organizationId, organizationId),
+          ),
+        )
+        .limit(200),
     "db.applications.for-scoring",
   );
-  return rows.map((r) => ({
-    id: r.id,
-    candidate: {
-      id: r.candidateId,
-      skills: r.skills?.length ? r.skills : r.profileSkills,
-      summary: r.summary ?? r.profileBio,
-      source: r.source,
-      hasCv: r.cvUrl != null || r.profileCvUrl != null,
-    },
-  }));
+  if (rows.length === 0) return [];
+
+  // Experiencia/educación en 2 queries acotadas para TODO el lote (no una por candidato): cada
+  // fila pertenece a un candidateId (carga manual) O a un profileId (candidato vinculado), nunca
+  // a los dos (constraint de la tabla) — por eso el `or` cubre ambos casos en una sola pasada.
+  const candidateIds = rows.map((r) => r.candidateId);
+  const profileIds = rows
+    .map((r) => r.profileId)
+    .filter((id): id is string => id != null);
+  const [experiences, educations] = await Promise.all([
+    db.rls(
+      (tx) =>
+        tx
+          .select({
+            candidateId: candidateWorkExperiences.candidateId,
+            profileId: candidateWorkExperiences.profileId,
+            company: candidateWorkExperiences.company,
+            position: candidateWorkExperiences.position,
+            description: candidateWorkExperiences.description,
+          })
+          .from(candidateWorkExperiences)
+          .where(
+            or(
+              inArray(candidateWorkExperiences.candidateId, candidateIds),
+              profileIds.length > 0
+                ? inArray(candidateWorkExperiences.profileId, profileIds)
+                : undefined,
+            ),
+          ),
+      "db.applications.for-scoring.experience",
+    ),
+    db.rls(
+      (tx) =>
+        tx
+          .select({
+            candidateId: candidateEducation.candidateId,
+            profileId: candidateEducation.profileId,
+            degree: candidateEducation.degree,
+            institution: candidateEducation.institution,
+            fieldOfStudy: candidateEducation.fieldOfStudy,
+          })
+          .from(candidateEducation)
+          .where(
+            or(
+              inArray(candidateEducation.candidateId, candidateIds),
+              profileIds.length > 0
+                ? inArray(candidateEducation.profileId, profileIds)
+                : undefined,
+            ),
+          ),
+      "db.applications.for-scoring.education",
+    ),
+  ]);
+
+  const expByKey = new Map<string, CandidateExperienceInput[]>();
+  for (const e of experiences) {
+    const key = e.profileId ? `p:${e.profileId}` : `c:${e.candidateId}`;
+    const list = expByKey.get(key) ?? [];
+    list.push({
+      position: e.position,
+      company: e.company,
+      description: e.description,
+    });
+    expByKey.set(key, list);
+  }
+  const eduByKey = new Map<string, CandidateEducationInput[]>();
+  for (const e of educations) {
+    const key = e.profileId ? `p:${e.profileId}` : `c:${e.candidateId}`;
+    const list = eduByKey.get(key) ?? [];
+    list.push({
+      degree: e.degree,
+      institution: e.institution,
+      fieldOfStudy: e.fieldOfStudy,
+    });
+    eduByKey.set(key, list);
+  }
+
+  return rows.map((r) => {
+    const key = r.profileId ? `p:${r.profileId}` : `c:${r.candidateId}`;
+    return {
+      id: r.id,
+      candidate: {
+        id: r.candidateId,
+        skills: r.skills?.length ? r.skills : r.profileSkills,
+        summary: r.summary ?? r.profileBio,
+        source: r.source,
+        experience: expByKey.get(key) ?? [],
+        education: eduByKey.get(key) ?? [],
+      },
+    };
+  });
 }
 
-export type StageCount = { stageId: string; name: string; kind: StageKind; count: number };
+export type StageCount = {
+  stageId: string;
+  name: string;
+  kind: StageKind;
+  count: number;
+};
 
 export type JobApplicationCounts = {
   /** Etapas REALES de esta búsqueda (sin la bandeja), en orden de tablero — cada una con
@@ -579,7 +765,10 @@ export async function getJobStageCounts(
       .from(jobStages)
       .leftJoin(
         applications,
-        and(eq(applications.stageId, jobStages.id), eq(applications.organizationId, organizationId)),
+        and(
+          eq(applications.stageId, jobStages.id),
+          eq(applications.organizationId, organizationId),
+        ),
       )
       .where(and(eq(jobStages.jobId, jobId), ne(jobStages.kind, "inbox")))
       .groupBy(jobStages.id, jobStages.name, jobStages.kind, jobStages.position)
@@ -591,13 +780,23 @@ export async function getJobStageCounts(
         pendientes: sql<number>`count(*) filter (where ${applications.pipelineEnteredAt} is null and ${applications.stage} != 'rejected')::int`,
       })
       .from(applications)
-      .where(and(eq(applications.jobId, jobId), eq(applications.organizationId, organizationId)));
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applications.organizationId, organizationId),
+        ),
+      );
 
     return [stageRows, totalsRow] as const;
   }, "db.applications.stage-counts");
 
   return {
-    stages: stageRows.map((r) => ({ stageId: r.stageId, name: r.name, kind: r.kind as StageKind, count: r.count })),
+    stages: stageRows.map((r) => ({
+      stageId: r.stageId,
+      name: r.name,
+      kind: r.kind as StageKind,
+      count: r.count,
+    })),
     recibidas: totalsRow?.recibidas ?? 0,
     pendientes: totalsRow?.pendientes ?? 0,
   };
@@ -616,7 +815,10 @@ export async function countApplicationsInStage(
         .select({ n: sql<number>`count(*)::int` })
         .from(applications)
         .where(
-          and(eq(applications.organizationId, organizationId), eq(applications.stage, stage)),
+          and(
+            eq(applications.organizationId, organizationId),
+            eq(applications.stage, stage),
+          ),
         ),
     "db.applications.count-in-stage",
   );
@@ -647,30 +849,34 @@ export async function listStageEventsByJob(
   organizationId: string,
 ): Promise<StageHistoryEvent[]> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
-      .select({
-        id: applicationEvents.id,
-        applicationId: applicationEvents.applicationId,
-        fromStage: applicationEvents.fromStage,
-        toStage: applicationEvents.toStage,
-        createdAt: applicationEvents.createdAt,
-        changedByName: profiles.fullName,
-        changedByEmail: profiles.email,
-        rejectionReason: applicationEvents.rejectionReason,
-        rejectionNote: applicationEvents.rejectionNote,
-      })
-      .from(applicationEvents)
-      .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
-      .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
-      .where(
-        and(
-          eq(applications.jobId, jobId),
-          eq(applicationEvents.organizationId, organizationId),
-        ),
-      )
-      .orderBy(desc(applicationEvents.createdAt))
-      .limit(500),
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applicationEvents.id,
+          applicationId: applicationEvents.applicationId,
+          fromStage: applicationEvents.fromStage,
+          toStage: applicationEvents.toStage,
+          createdAt: applicationEvents.createdAt,
+          changedByName: profiles.fullName,
+          changedByEmail: profiles.email,
+          rejectionReason: applicationEvents.rejectionReason,
+          rejectionNote: applicationEvents.rejectionNote,
+        })
+        .from(applicationEvents)
+        .innerJoin(
+          applications,
+          eq(applicationEvents.applicationId, applications.id),
+        )
+        .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
+        .where(
+          and(
+            eq(applications.jobId, jobId),
+            eq(applicationEvents.organizationId, organizationId),
+          ),
+        )
+        .orderBy(desc(applicationEvents.createdAt))
+        .limit(500),
     "db.applications.stage-events-by-job",
   );
   return rows.map((r) => ({
@@ -695,30 +901,34 @@ export async function listStageEventsByCandidate(
   organizationId: string,
 ): Promise<StageHistoryEvent[]> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
-      .select({
-        id: applicationEvents.id,
-        applicationId: applicationEvents.applicationId,
-        fromStage: applicationEvents.fromStage,
-        toStage: applicationEvents.toStage,
-        createdAt: applicationEvents.createdAt,
-        changedByName: profiles.fullName,
-        changedByEmail: profiles.email,
-        rejectionReason: applicationEvents.rejectionReason,
-        rejectionNote: applicationEvents.rejectionNote,
-      })
-      .from(applicationEvents)
-      .innerJoin(applications, eq(applicationEvents.applicationId, applications.id))
-      .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
-      .where(
-        and(
-          eq(applications.candidateId, candidateId),
-          eq(applicationEvents.organizationId, organizationId),
-        ),
-      )
-      .orderBy(desc(applicationEvents.createdAt))
-      .limit(500),
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applicationEvents.id,
+          applicationId: applicationEvents.applicationId,
+          fromStage: applicationEvents.fromStage,
+          toStage: applicationEvents.toStage,
+          createdAt: applicationEvents.createdAt,
+          changedByName: profiles.fullName,
+          changedByEmail: profiles.email,
+          rejectionReason: applicationEvents.rejectionReason,
+          rejectionNote: applicationEvents.rejectionNote,
+        })
+        .from(applicationEvents)
+        .innerJoin(
+          applications,
+          eq(applicationEvents.applicationId, applications.id),
+        )
+        .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
+        .where(
+          and(
+            eq(applications.candidateId, candidateId),
+            eq(applicationEvents.organizationId, organizationId),
+          ),
+        )
+        .orderBy(desc(applicationEvents.createdAt))
+        .limit(500),
     "db.applications.stage-events-by-candidate",
   );
   return rows.map((r) => ({
@@ -739,12 +949,13 @@ export async function getJobForPipeline(
   organizationId: string,
 ): Promise<{ id: string; title: string; status: string } | null> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
-      .select({ id: jobs.id, title: jobs.title, status: jobs.status })
-      .from(jobs)
-      .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
-      .limit(1),
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ id: jobs.id, title: jobs.title, status: jobs.status })
+        .from(jobs)
+        .where(and(eq(jobs.id, jobId), eq(jobs.organizationId, organizationId)))
+        .limit(1),
     "db.applications.job-for-pipeline",
   );
   return rows[0] ?? null;

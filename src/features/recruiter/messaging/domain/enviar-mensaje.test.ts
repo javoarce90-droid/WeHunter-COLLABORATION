@@ -38,9 +38,9 @@ describe("enviarMensaje", () => {
     expect(deps.ensureThread).not.toHaveBeenCalled();
   });
 
-  it("rechaza al consultor", async () => {
+  it("rechaza al viewer", async () => {
     const deps = makeDeps();
-    const res = await enviarMensaje(input, { ...ctx, role: "consultant" }, deps);
+    const res = await enviarMensaje(input, { ...ctx, role: "viewer" }, deps);
     expect(res.ok).toBe(false);
     expect(deps.getCandidate).not.toHaveBeenCalled();
   });

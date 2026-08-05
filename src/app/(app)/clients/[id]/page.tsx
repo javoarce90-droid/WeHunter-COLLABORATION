@@ -21,6 +21,8 @@ export default async function ClientDetailPage({
   const { id } = await params;
   const membership = await getActiveMembership();
   if (!membership) notFound();
+  // Ver clients/page.tsx: en Enterprise el módulo "Clientes" no existe.
+  if (membership.workspaceType === "enterprise") notFound();
 
   // URL base resuelta en el server (host de la request) y pasada como prop. Así el enlace
   // del portal se renderiza idéntico en server y cliente -> sin mismatch de hidratación.

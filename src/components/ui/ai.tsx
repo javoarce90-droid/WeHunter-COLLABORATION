@@ -4,31 +4,51 @@ import { Spinner } from "./spinner";
 /** Ícono ✦ de IA (sparkle). */
 export function SparkleIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
       <path d="M12 2l1.6 5.2L19 9l-5.4 1.8L12 16l-1.6-5.2L5 9l5.4-1.8L12 2zM19 14l.8 2.4L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.6L19 14z" />
     </svg>
   );
 }
 
+const aiButtonVariantClasses = {
+  // Gradiente ✦ accesible: el extremo claro se mantiene en #7C3AED (~5.6:1 con blanco),
+  // no #9D6DF1 (~3.55:1, falla AA). Accesibilidad de PRODUCT.md > hex exacto de DESIGN.md.
+  solid:
+    "bg-gradient-to-r from-primary to-[#7C3AED] text-white hover:opacity-90 disabled:opacity-50",
+  // Mismo botón, invertido: fondo blanco/superficie con texto y sparkle violeta. Para cuando
+  // dos acciones de IA quedan una al lado de la otra y el gradiente sólido de las dos compite —
+  // una se queda con el sólido (la más prominente), la otra con este.
+  outline:
+    "border border-border bg-surface text-primary hover:bg-primary-light disabled:opacity-50",
+};
+
 /**
  * Botón de acción de IA. Tratamiento ✦ del design system (DESIGN.md): gradiente
- * primary → ai en el FONDO (nunca en el texto), con el sparkle. Para acciones generativas.
+ * primary → ai (o su inverso, `variant="outline"`), con el sparkle. Para acciones generativas.
  */
 export function AiButton({
+  variant = "solid",
   className = "",
   children,
   loading = false,
   disabled,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: keyof typeof aiButtonVariantClasses;
+  loading?: boolean;
+}) {
   return (
     <button
       className={[
-        "relative inline-flex items-center justify-center gap-1.5 rounded-[var(--radius)] px-3 py-1.5 text-xs font-semibold text-white",
+        "relative inline-flex items-center justify-center gap-2 rounded-[var(--radius)] px-3 py-2 text-xs font-semibold",
         "outline-none transition-opacity focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
-        // Gradiente ✦ accesible: el extremo claro se mantiene en #7C3AED (~5.6:1 con blanco),
-        // no #9D6DF1 (~3.55:1, falla AA). Accesibilidad de PRODUCT.md > hex exacto de DESIGN.md.
-        "bg-gradient-to-r from-primary to-[#7C3AED] hover:opacity-90 disabled:opacity-50",
+        aiButtonVariantClasses[variant],
         className,
       ].join(" ")}
       disabled={disabled || loading}

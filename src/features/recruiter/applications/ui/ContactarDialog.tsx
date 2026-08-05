@@ -17,6 +17,9 @@ type Props = {
   jobTitle: string;
   onClose: () => void;
   onSent: () => void;
+  /** Si viene, fija el canal y oculta el selector (ej. "Enviar Email" desde el menú de una
+   * card puntual, donde no tiene sentido ofrecer el WhatsApp simulado). */
+  fixedChannel?: MessageChannel;
 };
 
 const PLANTILLA_BASE =
@@ -29,10 +32,17 @@ const PLANTILLA_BASE =
  * Contacto a uno o varios postulados desde la bandeja. Mismo diálogo para el individual y
  * el lote: cada candidato recibe el mensaje con su propio nombre ({{candidato}}).
  */
-export function ContactarDialog({ target, jobId, jobTitle, onClose, onSent }: Props) {
+export function ContactarDialog({
+  target,
+  jobId,
+  jobTitle,
+  onClose,
+  onSent,
+  fixedChannel,
+}: Props) {
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
-  const [channel, setChannel] = useState<MessageChannel>("email");
+  const [channel, setChannel] = useState<MessageChannel>(fixedChannel ?? "email");
   const [body, setBody] = useState(PLANTILLA_BASE);
 
   const count = target?.length ?? 0;
@@ -71,17 +81,19 @@ export function ContactarDialog({ target, jobId, jobTitle, onClose, onSent }: Pr
       className="max-w-md"
     >
       <div className="flex flex-col gap-4">
-        <Select
-          label="Canal"
-          value={channel}
-          onChange={(e) => setChannel(e.target.value as MessageChannel)}
-        >
-          {MESSAGE_CHANNELS.map((c) => (
-            <option key={c} value={c}>
-              {CHANNEL_LABELS[c]}
-            </option>
-          ))}
-        </Select>
+        {!fixedChannel && (
+          <Select
+            label="Canal"
+            value={channel}
+            onChange={(e) => setChannel(e.target.value as MessageChannel)}
+          >
+            {MESSAGE_CHANNELS.map((c) => (
+              <option key={c} value={c}>
+                {CHANNEL_LABELS[c]}
+              </option>
+            ))}
+          </Select>
+        )}
 
         <div className="flex flex-col gap-1.5">
           <Textarea

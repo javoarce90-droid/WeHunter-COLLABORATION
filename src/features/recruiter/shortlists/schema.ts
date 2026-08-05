@@ -24,3 +24,14 @@ export const generarShareSchema = z.object({
 export const revocarShareSchema = z.object({
   shareId: z.string().uuid("ID de enlace inválido."),
 });
+
+export const compartirConHMSchema = z.object({
+  shortlistId: z.string().uuid("ID de shortlist inválido."),
+  membershipId: z.string().uuid("Elegí un Hiring Manager."),
+});
+
+export const registrarFeedbackInternoSchema = z.object({
+  shortlistCandidateId: z.string().uuid("ID de candidato inválido."),
+  decision: z.string(),
+  comment: z.string().default(""),
+});

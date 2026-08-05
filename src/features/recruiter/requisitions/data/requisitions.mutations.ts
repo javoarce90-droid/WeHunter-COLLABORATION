@@ -1,8 +1,35 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { jobs, requisitions } from "@/db/schema";
+import type { RequisitionDraft } from "../domain/cargar-solicitud";
 
 /** Escrituras de solicitudes (§17). Cliente RLS; el organizationId acota a la org activa. */
+
+/** Camino HM: inserta directo por RLS (a diferencia del camino Cliente, que pasa por una
+ *  función SECURITY DEFINER porque no hay sesión) — el HM ya está autenticado, la policy
+ *  `tenant_isolation` de `requisitions` alcanza para el aislamiento por tenant. */
+export async function insertRequisitionFromHM(args: {
+  organizationId: string;
+  createdByProfileId: string;
+  assignedToMembershipId: string;
+  draft: RequisitionDraft;
+}): Promise<{ requisitionId: string }> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .insert(requisitions)
+        .values({
+          organizationId: args.organizationId,
+          createdByProfileId: args.createdByProfileId,
+          assignedToMembershipId: args.assignedToMembershipId,
+          ...args.draft,
+        })
+        .returning({ id: requisitions.id }),
+    "db.requisitions.insert-from-hm",
+  );
+  return { requisitionId: rows[0]!.id };
+}
 
 /**
  * Aprueba la solicitud y crea la búsqueda vinculada en UNA transacción: si el insert del

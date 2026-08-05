@@ -1,5 +1,5 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can } from "@/lib/auth/roles";
+import { canReviewRequisitions } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 
 /**
@@ -49,7 +49,7 @@ export async function aprobarRequisition(
   if (!ctx.userId || !ctx.organizationId || !ctx.role || !ctx.membershipId) {
     return err("Necesitás estar autenticado en un workspace.");
   }
-  if (!can(ctx.role, "requisitions.review")) {
+  if (!canReviewRequisitions(ctx.role)) {
     return err("No tenés permisos para revisar solicitudes.");
   }
 
