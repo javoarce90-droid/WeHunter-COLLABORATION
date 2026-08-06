@@ -56,7 +56,14 @@ src/
   revisá `package.json` primero. Si falta, avisá antes de agregarlo.
 - **Toda tabla de dominio lleva `organization_id`.** El aislamiento entre tenants es
   sagrado. → `.claude/rules/database.md`
-
+- **Invocá el skill `impeccable` ante CUALQUIER cambio visual (HTML/JSX), nuevo o edición,
+  por chico que parezca — nunca escribas o edites UI a mano sin pasar por él.** No sos bueno
+  en diseño y lo repetís siempre igual: ley de proximidad ignorada, alturas desiguales sin
+  alinear, monotonía en pesos de fuente, microinteracciones pobres, mal manejo de
+  labels/metadata, sin negative tracking en headings, contenido pegado a los bordes, poca
+  elevación/profundidad de superficie. Encima de eso, tendés a escribir Tailwind arbitrario
+  desde cero en vez de reusar `src/components/ui` — dejá que `impeccable` fuerce el reuso del
+  design system existente.
 
 ## Antes de tocar cada área, leé su regla
 - Base de datos / Drizzle / RLS / Supabase → `.claude/rules/database.md`
