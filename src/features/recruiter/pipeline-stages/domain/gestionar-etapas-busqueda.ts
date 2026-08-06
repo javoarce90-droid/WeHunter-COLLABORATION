@@ -191,6 +191,17 @@ export async function reordenarEtapas(
     return err("El orden recibido no coincide con las etapas de la búsqueda.");
   }
 
+  // Mismo criterio que agregarEtapa al insertar: una etapa de cierre (oferta/contratado/
+  // descartado) nunca puede tener una etapa en curso después — el drag libre de columnas
+  // podría, si no, dejar "Contratado" en el medio del proceso.
+  const stageById = new Map(stages.map((s) => [s.id, s]));
+  let vioCierre = false;
+  for (const id of input.stageIds) {
+    const esCierre = ["offer", "hired", "rejected"].includes(stageById.get(id)!.kind);
+    if (esCierre) vioCierre = true;
+    else if (vioCierre) return err("Las etapas de cierre siempre van al final.");
+  }
+
   await deps.setPositions(input.stageIds.map((stageId, position) => ({ stageId, position })));
   return ok(undefined);
 }
