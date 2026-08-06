@@ -1,6 +1,7 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { clients, profiles, requisitions, type Requisition } from "@/db/schema";
+import { paginationRange } from "@/lib/pagination";
 
 /** Lecturas de solicitudes de búsqueda (§17). Cliente RLS; filtramos por organization activa. */
 
@@ -33,50 +34,84 @@ export type RequisitionsScope = {
   createdByProfileId?: string | null;
 };
 
-/** Bandeja de solicitudes con el nombre del cliente (una query, sin N+1). */
+export type RequisitionsPage = {
+  requisitions: RequisitionListRow[];
+  total: number;
+  /** Pendientes en TODA la bandeja (con el mismo scope), no solo en la página actual — el
+   *  badge del header cuenta contra el total, no contra las 10 filas visibles. */
+  pendingCount: number;
+};
+
+/** Bandeja de solicitudes con el nombre del cliente (una query, sin N+1). Paginada (`page`, 10
+ *  por página); el total y el conteo de pendientes salen de una segunda query, en paralelo
+ *  (database.md regla #3), nunca contra las filas ya recortadas por el LIMIT. */
 export async function listRequisitions(
   organizationId: string,
   scope?: RequisitionsScope,
-): Promise<RequisitionListRow[]> {
-  if (scope && Object.values(scope).some((v) => v === null)) return [];
+  page: number = 1,
+): Promise<RequisitionsPage> {
+  if (scope && Object.values(scope).some((v) => v === null)) {
+    return { requisitions: [], total: 0, pendingCount: 0 };
+  }
 
   const db = await getDb();
-  return db.rls(
-    (tx) =>
-      tx
-        .select({
-          id: requisitions.id,
-          title: requisitions.title,
-          position: requisitions.position,
-          status: requisitions.status,
-          reason: requisitions.reason,
-          location: requisitions.location,
-          seniority: requisitions.seniority,
-          budget: requisitions.budget,
-          estimatedStartDate: requisitions.estimatedStartDate,
-          createdAt: requisitions.createdAt,
-          clientName: clients.name,
-          requestedByName: profiles.fullName,
-        })
-        .from(requisitions)
-        .leftJoin(clients, eq(requisitions.clientId, clients.id))
-        .leftJoin(profiles, eq(requisitions.createdByProfileId, profiles.id))
-        .where(
-          and(
-            eq(requisitions.organizationId, organizationId),
-            scope?.clientId ? eq(requisitions.clientId, scope.clientId) : undefined,
-            scope?.assignedToMembershipId
-              ? eq(requisitions.assignedToMembershipId, scope.assignedToMembershipId)
-              : undefined,
-            scope?.createdByProfileId
-              ? eq(requisitions.createdByProfileId, scope.createdByProfileId)
-              : undefined,
-          ),
-        )
-        .orderBy(desc(requisitions.createdAt))
-        .limit(LIST_LIMIT),
-    "db.requisitions.list",
+  const { limit, offset } = paginationRange(page);
+  const whereClause = and(
+    eq(requisitions.organizationId, organizationId),
+    scope?.clientId ? eq(requisitions.clientId, scope.clientId) : undefined,
+    scope?.assignedToMembershipId
+      ? eq(requisitions.assignedToMembershipId, scope.assignedToMembershipId)
+      : undefined,
+    scope?.createdByProfileId
+      ? eq(requisitions.createdByProfileId, scope.createdByProfileId)
+      : undefined,
   );
+
+  const [rows, counts] = await Promise.all([
+    db.rls(
+      (tx) =>
+        tx
+          .select({
+            id: requisitions.id,
+            title: requisitions.title,
+            position: requisitions.position,
+            status: requisitions.status,
+            reason: requisitions.reason,
+            location: requisitions.location,
+            seniority: requisitions.seniority,
+            budget: requisitions.budget,
+            estimatedStartDate: requisitions.estimatedStartDate,
+            createdAt: requisitions.createdAt,
+            clientName: clients.name,
+            requestedByName: profiles.fullName,
+          })
+          .from(requisitions)
+          .leftJoin(clients, eq(requisitions.clientId, clients.id))
+          .leftJoin(profiles, eq(requisitions.createdByProfileId, profiles.id))
+          .where(whereClause)
+          .orderBy(desc(requisitions.createdAt))
+          .limit(limit)
+          .offset(offset),
+      "db.requisitions.list",
+    ),
+    db.rls(
+      (tx) =>
+        tx
+          .select({
+            total: sql<number>`count(*)::int`,
+            pending: sql<number>`count(*) filter (where ${requisitions.status} = 'pending')::int`,
+          })
+          .from(requisitions)
+          .where(whereClause),
+      "db.requisitions.counts",
+    ),
+  ]);
+
+  return {
+    requisitions: rows,
+    total: counts[0]?.total ?? 0,
+    pendingCount: counts[0]?.pending ?? 0,
+  };
 }
 
 export type RequisitionByClientRow = {

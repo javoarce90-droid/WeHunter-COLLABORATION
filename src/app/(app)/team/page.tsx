@@ -1,15 +1,26 @@
 import { notFound } from "next/navigation";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
-import { listMembers, listPendingInvitations } from "@/features/recruiter/team/data/team.queries";
+import { listMembersPage, listPendingInvitations } from "@/features/recruiter/team/data/team.queries";
 import { TeamSection } from "@/features/recruiter/team/ui/TeamSection";
 import type { OrgRole } from "@/features/recruiter/team/domain/gestionar-equipo";
+import { Pagination } from "@/components/ui/pagination";
+import { parsePage, totalPages as calcTotalPages } from "@/lib/pagination";
 
-export default async function TeamPage() {
-  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+export default async function TeamPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const [user, membership, { page: rawPage }] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+    searchParams,
+  ]);
   if (!user || !membership) notFound();
 
-  const [members, invitations] = await Promise.all([
-    listMembers(membership.organizationId),
+  const page = parsePage(rawPage);
+  const [{ members, total }, invitations] = await Promise.all([
+    listMembersPage(membership.organizationId, page),
     listPendingInvitations(membership.organizationId),
   ]);
 
@@ -28,6 +39,11 @@ export default async function TeamPage() {
         currentRole={membership.role as OrgRole}
         currentUserId={user.id}
         workspaceType={membership.workspaceType}
+      />
+      <Pagination
+        page={page}
+        totalPages={calcTotalPages(total)}
+        buildHref={(p) => `/team?page=${p}`}
       />
     </div>
   );
