@@ -66,7 +66,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <CommandTrigger />
             <div className="ml-auto flex items-center gap-3">
               <Suspense fallback={<NotificationBellFallback />}>
-                <NotificationBellLoader organizationId={membership.organizationId} />
+                <NotificationBellLoader
+                  organizationId={membership.organizationId}
+                  profileId={user.id}
+                />
               </Suspense>
               <span className="truncate">{user.email}</span>
               <span className="h-4 w-px bg-border" aria-hidden />

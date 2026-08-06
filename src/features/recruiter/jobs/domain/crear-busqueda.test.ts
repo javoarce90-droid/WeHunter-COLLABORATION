@@ -9,6 +9,7 @@ const ctx = {
   organizationId: "org-1",
   role: "recruiter" as const,
   membershipId: "m1",
+  workspaceType: "team" as const,
 };
 
 describe("crearBusqueda", () => {
@@ -16,7 +17,7 @@ describe("crearBusqueda", () => {
     const d = deps();
     const res = await crearBusqueda(
       { title: "Dev" },
-      { userId: null, organizationId: null, role: null, membershipId: null },
+      { userId: null, organizationId: null, role: null, membershipId: null, workspaceType: null },
       d,
     );
     expect(res.ok).toBe(false);
@@ -96,6 +97,36 @@ describe("crearBusqueda", () => {
     const res = await crearBusqueda(
       { title: "Backend Engineer", clientId: "cualquiera" },
       ctx,
+      d,
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("un owner con assignedClientId puede crear para cualquier cliente", async () => {
+    const d = deps();
+    const res = await crearBusqueda(
+      { title: "Backend Engineer", clientId: "client-2" },
+      { ...ctx, role: "owner", assignedClientId: "client-1" },
+      d,
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("un admin con assignedClientId puede crear para cualquier cliente", async () => {
+    const d = deps();
+    const res = await crearBusqueda(
+      { title: "Backend Engineer", clientId: "client-2" },
+      { ...ctx, role: "admin", assignedClientId: "client-1" },
+      d,
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("en Enterprise no aplica la restricción de cliente asignado (no existe la figura)", async () => {
+    const d = deps();
+    const res = await crearBusqueda(
+      { title: "Backend Engineer", clientId: "client-2" },
+      { ...ctx, workspaceType: "enterprise", assignedClientId: "client-1" },
       d,
     );
     expect(res.ok).toBe(true);

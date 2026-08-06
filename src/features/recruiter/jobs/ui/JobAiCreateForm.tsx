@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { SparkleIcon } from "@/components/ui/ai";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +15,7 @@ interface JobAiCreateFormProps {
 }
 
 export function JobAiCreateForm({ action }: JobAiCreateFormProps) {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [modality, setModality] = useState("");
   const [employmentType, setEmploymentType] = useState("");
@@ -24,6 +25,14 @@ export function JobAiCreateForm({ action }: JobAiCreateFormProps) {
   // Guard síncrono: `pending` recién bloquea el botón después de un re-render, dejando una
   // ventana para un doble click/tap que dispare `submit()` dos veces (bug: job duplicado).
   const submittingRef = useRef(false);
+  // Si el usuario ya navegó a otra pantalla mientras la IA generaba la búsqueda, no lo
+  // arrastramos de vuelta acá — la notificación persistente ya le avisa que se creó.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   function submit() {
     if (submittingRef.current) return;
@@ -39,26 +48,15 @@ export function JobAiCreateForm({ action }: JobAiCreateFormProps) {
         });
         if (res.error) {
           setError(res.error);
+          return;
+        }
+        if (res.jobId && mountedRef.current) {
+          router.push(`/jobs/${res.jobId}/screening?created=1`);
         }
       } finally {
         submittingRef.current = false;
       }
     });
-  }
-
-  if (pending) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-text">
-            <SparkleIcon size={16} /> Generando tu búsqueda con IA…
-          </span>
-          <p className="max-w-sm text-xs text-muted">
-            Puede tardar unos segundos. No cierres ni recargues la página.
-          </p>
-        </CardContent>
-      </Card>
-    );
   }
 
   return (
@@ -121,7 +119,7 @@ export function JobAiCreateForm({ action }: JobAiCreateFormProps) {
           {error && <p className="text-xs text-danger">{error}</p>}
 
           <div className="flex items-center gap-3">
-            <Button type="button" disabled={pending || !title.trim()} onClick={submit}>
+            <Button type="button" loading={pending} disabled={!title.trim()} onClick={submit}>
               Crear oferta
             </Button>
             <Link href="/jobs/new" className="text-sm font-semibold text-muted">

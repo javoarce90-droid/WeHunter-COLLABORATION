@@ -221,7 +221,16 @@ export const invitationStatus = pgEnum("invitation_status", [
 
 // Tipo de notificación (para iconografía/agrupación). "candidate_status" = notificación al
 // candidato por un cambio en el estado visible de su postulación (no requiere membership).
-export const notificationType = pgEnum("notification_type", ["hire", "team", "system", "candidate_status"]);
+// "background_job" = autonotificación: una acción lenta propia (IA, lote) terminó mientras
+// el recruiter estaba en otra pantalla — a diferencia de las demás, actor y destinatario
+// son la misma persona.
+export const notificationType = pgEnum("notification_type", [
+  "hire",
+  "team",
+  "system",
+  "candidate_status",
+  "background_job",
+]);
 
 export const languageLevel = pgEnum("language_level", ["basico", "intermedio", "avanzado", "nativo"]);
 

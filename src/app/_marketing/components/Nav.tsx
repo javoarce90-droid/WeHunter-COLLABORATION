@@ -30,9 +30,9 @@ export function Nav() {
         {/* Menú de enlaces + Botón */}
         <div className={`nav-menu ${isOpen ? "active" : ""}`}>
           <div className="nav-links">
-            <div onClick={closeMenu}>
-              <NoopLink message="Comunidad próximamente!">Comunidad</NoopLink>
-            </div>
+            <Link href="/community" onClick={closeMenu}>
+              Comunidad
+            </Link>
             <div onClick={closeMenu}>
               <NoopLink message="Portal de empleos próximamente!">
                 Empleos

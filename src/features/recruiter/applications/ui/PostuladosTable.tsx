@@ -13,9 +13,11 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
 import { SearchInput } from "@/components/ui/search-input";
 import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
+import { Pagination } from "@/components/ui/pagination";
 import { AiButton } from "@/components/ui/ai";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/toast";
+import { PAGE_SIZE, totalPages as calcTotalPages } from "@/lib/pagination";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import { AgregarCandidatos } from "./AgregarCandidatos";
 import { SourcingIADialog } from "./SourcingIADialog";
@@ -162,6 +164,27 @@ export function PostuladosTable({
   const [query, setQuery] = useState("");
   const [originFilter, setOriginFilter] = useState<OriginFilter>("todos");
   const [soloCumplen, setSoloCumplen] = useState(false);
+  // Paginación en memoria (10 por página): el orden depende de criterios de screening
+  // calculados en JS (no viven en SQL), así que no puede ser una query con LIMIT/OFFSET real
+  // — se pagina el array ya filtrado/ordenado. Cualquier cambio de filtro/búsqueda/orden
+  // vuelve a la página 1, porque el conjunto (o su orden) cambió.
+  const [page, setPage] = useState(1);
+  function changeQuery(next: string) {
+    setQuery(next);
+    setPage(1);
+  }
+  function changeOriginFilter(next: OriginFilter) {
+    setOriginFilter(next);
+    setPage(1);
+  }
+  function toggleSoloCumplen() {
+    setSoloCumplen((v) => !v);
+    setPage(1);
+  }
+  function changeSortKey(key: SortKey) {
+    setSortKey(key);
+    setPage(1);
+  }
 
   const [rows, applyPatch] = useOptimistic(
     postulados,
@@ -231,8 +254,15 @@ export function PostuladosTable({
     });
   }, [filtered, sort, criteriosByApplication]);
 
-  const allVisibleSelected = sorted.length > 0 && sorted.every((r) => selected.has(r.id));
-  const someVisibleSelected = sorted.some((r) => selected.has(r.id));
+  const totalPagesCount = calcTotalPages(sorted.length, PAGE_SIZE);
+  const paged = useMemo(
+    () => sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [sorted, page],
+  );
+
+  const allVisibleSelected =
+    paged.length > 0 && paged.every((r) => selected.has(r.id));
+  const someVisibleSelected = paged.some((r) => selected.has(r.id));
 
   function toggleOne(id: string) {
     setSelected((prev) => {
@@ -245,8 +275,8 @@ export function PostuladosTable({
   function toggleAll() {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (allVisibleSelected) sorted.forEach((r) => next.delete(r.id));
-      else sorted.forEach((r) => next.add(r.id));
+      if (allVisibleSelected) paged.forEach((r) => next.delete(r.id));
+      else paged.forEach((r) => next.add(r.id));
       return next;
     });
   }
@@ -270,8 +300,12 @@ export function PostuladosTable({
           : null,
     };
   }
-  const compareA = compareIds ? (rows.find((r) => r.id === compareIds[0]) ?? null) : null;
-  const compareB = compareIds ? (rows.find((r) => r.id === compareIds[1]) ?? null) : null;
+  const compareA = compareIds
+    ? (rows.find((r) => r.id === compareIds[0]) ?? null)
+    : null;
+  const compareB = compareIds
+    ? (rows.find((r) => r.id === compareIds[1]) ?? null)
+    : null;
 
   const detailRow = detailId
     ? (rows.find((r) => r.id === detailId) ?? null)
@@ -442,7 +476,7 @@ export function PostuladosTable({
               <FilterChip
                 key={key}
                 active={originFilter === key}
-                onClick={() => setOriginFilter(key)}
+                onClick={() => changeOriginFilter(key)}
               >
                 {ORIGIN_FILTER_LABELS[key]}
               </FilterChip>
@@ -451,10 +485,7 @@ export function PostuladosTable({
         )}
         {!isEmpty && showCriterios && (
           <FilterChipGroup label="Filtros adicionales">
-            <FilterChip
-              active={soloCumplen}
-              onClick={() => setSoloCumplen((v) => !v)}
-            >
+            <FilterChip active={soloCumplen} onClick={toggleSoloCumplen}>
               Cumplen criterios
             </FilterChip>
           </FilterChipGroup>
@@ -511,7 +542,7 @@ export function PostuladosTable({
             </p>
             <SearchInput
               value={query}
-              onChange={setQuery}
+              onChange={changeQuery}
               placeholder="Buscar por nombre o email…"
               aria-label="Buscar postulados"
             />
@@ -536,7 +567,9 @@ export function PostuladosTable({
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setCompareIds([...selected] as [string, string])}
+                  onClick={() =>
+                    setCompareIds([...selected] as [string, string])
+                  }
                 >
                   Comparar
                 </Button>
@@ -566,7 +599,9 @@ export function PostuladosTable({
                         checked={allVisibleSelected}
                         aria-label="Seleccionar todos"
                         ref={(el) => {
-                          if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected;
+                          if (el)
+                            el.indeterminate =
+                              !allVisibleSelected && someVisibleSelected;
                         }}
                         onChange={toggleAll}
                       />
@@ -575,7 +610,7 @@ export function PostuladosTable({
                       label="Candidato"
                       active={sort}
                       sortKey="candidate"
-                      onSort={setSortKey}
+                      onSort={changeSortKey}
                     />
                     <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                       Fuente
@@ -588,14 +623,14 @@ export function PostuladosTable({
                         label="Criterios"
                         active={sort}
                         sortKey="criterios"
-                        onSort={setSortKey}
+                        onSort={changeSortKey}
                       />
                     )}
                     <SortableTh
                       label="Match"
                       active={sort}
                       sortKey="match"
-                      onSort={setSortKey}
+                      onSort={changeSortKey}
                     />
                     <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                       Salario pret.
@@ -604,7 +639,7 @@ export function PostuladosTable({
                       label="Estado"
                       active={sort}
                       sortKey="estado"
-                      onSort={setSortKey}
+                      onSort={changeSortKey}
                     />
                     <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                       Postulaciones
@@ -613,20 +648,22 @@ export function PostuladosTable({
                       label="Postulado"
                       active={sort}
                       sortKey="date"
-                      onSort={setSortKey}
+                      onSort={changeSortKey}
                     />
                     <th className="py-3 pr-4" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {sorted.map((row) => {
+                  {paged.map((row) => {
                     const triage = triageDe(row);
                     return (
                       <tr
                         key={row.id}
                         className={[
                           "transition-colors",
-                          selected.has(row.id) ? "bg-[var(--selected-bg)]" : "hover:bg-bg",
+                          selected.has(row.id)
+                            ? "bg-[var(--selected-bg)]"
+                            : "hover:bg-bg",
                         ].join(" ")}
                       >
                         <td className="py-3 pl-4">
@@ -782,6 +819,12 @@ export function PostuladosTable({
               </table>
             </div>
           )}
+
+          <Pagination
+            page={page}
+            totalPages={totalPagesCount}
+            onPageChange={setPage}
+          />
         </div>
       )}
 

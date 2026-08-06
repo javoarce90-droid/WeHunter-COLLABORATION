@@ -1,7 +1,8 @@
-import { and, eq, desc, sql } from "drizzle-orm";
+import { and, eq, desc, sql, count } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { messageThreads, messages, messageTemplates, candidates } from "@/db/schema";
 import type { MessageChannel } from "../schema";
+import { paginationRange } from "@/lib/pagination";
 
 export type ThreadListRow = {
   id: string;
@@ -12,31 +13,49 @@ export type ThreadListRow = {
   preview: string | null;
 };
 
-/** Inbox: hilos de la org con el nombre del candidato y un preview del último mensaje. */
-export async function listThreads(organizationId: string): Promise<ThreadListRow[]> {
+/** Inbox: hilos de la org con el nombre del candidato y un preview del último mensaje.
+ *  Paginado (`page`, 10 por página); el total sale de una query en paralelo. */
+export async function listThreads(
+  organizationId: string,
+  page: number = 1,
+): Promise<{ threads: ThreadListRow[]; total: number }> {
   const db = await getDb();
-  const rows = await db.rls((tx) =>
-    tx
-      .select({
-        id: messageThreads.id,
-        channel: messageThreads.channel,
-        candidateId: messageThreads.candidateId,
-        candidateName: candidates.fullName,
-        lastMessageAt: messageThreads.lastMessageAt,
-        preview: sql<string | null>`(
-          select body from ${messages} m
-          where m.thread_id = ${messageThreads.id}
-          order by m.created_at desc limit 1
-        )`,
-      })
-      .from(messageThreads)
-      .innerJoin(candidates, eq(messageThreads.candidateId, candidates.id))
-      .where(eq(messageThreads.organizationId, organizationId))
-      .orderBy(desc(messageThreads.lastMessageAt))
-      .limit(100),
-    "db.messaging.threads",
-  );
-  return rows.map((r) => ({ ...r, channel: r.channel as MessageChannel }));
+  const { limit, offset } = paginationRange(page);
+  const [rows, total] = await Promise.all([
+    db.rls(
+      (tx) =>
+        tx
+          .select({
+            id: messageThreads.id,
+            channel: messageThreads.channel,
+            candidateId: messageThreads.candidateId,
+            candidateName: candidates.fullName,
+            lastMessageAt: messageThreads.lastMessageAt,
+            preview: sql<string | null>`(
+              select body from ${messages} m
+              where m.thread_id = ${messageThreads.id}
+              order by m.created_at desc limit 1
+            )`,
+          })
+          .from(messageThreads)
+          .innerJoin(candidates, eq(messageThreads.candidateId, candidates.id))
+          .where(eq(messageThreads.organizationId, organizationId))
+          .orderBy(desc(messageThreads.lastMessageAt))
+          .limit(limit)
+          .offset(offset),
+      "db.messaging.threads",
+    ),
+    db.rls(
+      (tx) =>
+        tx
+          .select({ n: count() })
+          .from(messageThreads)
+          .where(eq(messageThreads.organizationId, organizationId))
+          .then((r) => r[0]?.n ?? 0),
+      "db.messaging.threads-count",
+    ),
+  ]);
+  return { threads: rows.map((r) => ({ ...r, channel: r.channel as MessageChannel })), total };
 }
 
 export type ThreadHeader = {
