@@ -24,6 +24,7 @@ import {
 import { getJobById, getJobStatus } from "./data/jobs.queries";
 import { getMembershipById } from "@/features/recruiter/team/data/team.queries";
 import { getAiProvider } from "@/lib/ai";
+import { notifyProfile } from "@/features/recruiter/notifications/data/notifications.mutations";
 import { definirPreguntasScreening } from "@/features/recruiter/screening/domain/definir-preguntas-screening";
 import { syncScreeningQuestions } from "@/features/recruiter/screening/data/screening.mutations";
 
@@ -125,6 +126,7 @@ export async function crearBusquedaAction(
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
       membershipId: membership?.id ?? null,
+      workspaceType: membership?.workspaceType ?? null,
       assignedClientId: membership?.assignedClientId ?? null,
     },
     { insertJob },
@@ -147,7 +149,7 @@ export async function crearBusquedaConIaAction(input: {
   modality: string | null;
   employmentType: string | null;
   brief: string;
-}): Promise<JobFormState> {
+}): Promise<JobFormState & { jobId?: string }> {
   const draftResult = await generarBorradorAction({
     name: input.title,
     brief: input.brief,
@@ -190,6 +192,7 @@ export async function crearBusquedaConIaAction(input: {
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
       membershipId: membership?.id ?? null,
+      workspaceType: membership?.workspaceType ?? null,
       assignedClientId: membership?.assignedClientId ?? null,
     },
     { insertJob },
@@ -198,8 +201,22 @@ export async function crearBusquedaConIaAction(input: {
     return { error: result.error };
   }
 
-  // Igual que el manual: paso de screening antes del aviso (así el creado por IA también lo tiene).
-  redirect(`/jobs/${result.data.jobId}/screening?created=1`);
+  if (user && membership) {
+    try {
+      await notifyProfile(membership.organizationId, user.id, {
+        type: "background_job",
+        title: `Tu búsqueda "${input.title}" se creó con IA`,
+        link: `/jobs/${result.data.jobId}/screening?created=1`,
+      });
+    } catch {
+      // no-op: la búsqueda ya se creó, un fallo al notificar no debe revertirla.
+    }
+  }
+
+  // No usamos redirect(): si el usuario ya navegó a otra pantalla mientras esperaba, forzarlo
+  // de vuelta acá lo interrumpiría donde esté. El cliente navega solo si sigue montado, y la
+  // notificación de arriba cubre el caso de que ya se haya ido.
+  return { jobId: result.data.jobId };
 }
 
 export async function editarBusquedaAction(
@@ -220,6 +237,8 @@ export async function editarBusquedaAction(
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
       membershipId: membership?.id ?? null,
+      workspaceType: membership?.workspaceType ?? null,
+      assignedClientId: membership?.assignedClientId ?? null,
     },
     { updateJobFields },
   );

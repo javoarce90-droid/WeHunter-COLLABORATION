@@ -512,7 +512,10 @@ export async function generarGuiaEntrevistaAction(
 export async function analizarPostuladosAction(
   jobId: string,
 ): Promise<{ ok: boolean; scored?: number; error?: string }> {
-  const membership = await getActiveMembership();
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+  ]);
   if (!membership) return { ok: false, error: "No autorizado." };
 
   const [job, applications] = await Promise.all([
@@ -542,6 +545,18 @@ export async function analizarPostuladosAction(
 
   if (!result.ok) return { ok: false, error: result.error };
 
+  if (user) {
+    try {
+      await notifyProfile(membership.organizationId, user.id, {
+        type: "background_job",
+        title: `Análisis de IA listo: ${result.scored} postulación${result.scored !== 1 ? "es" : ""} de "${job.title}"`,
+        link: `/jobs/${jobId}/postulados`,
+      });
+    } catch {
+      // no-op: el análisis ya se aplicó, un fallo al notificar no debe revertirlo.
+    }
+  }
+
   revalidatePath(`/jobs/${jobId}/postulados`);
   revalidatePath(`/jobs/${jobId}/pipeline`);
   return { ok: true, scored: result.scored };
@@ -555,7 +570,10 @@ export async function analizarPostuladosAction(
 export async function analizarPostulacionAction(
   applicationId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const membership = await getActiveMembership();
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+  ]);
   if (!membership) return { ok: false, error: "No autorizado." };
 
   const application = await getApplicationById(
@@ -631,6 +649,18 @@ export async function analizarPostulacionAction(
 
   if (!result.ok) return { ok: false, error: result.error };
 
+  if (user) {
+    try {
+      await notifyProfile(membership.organizationId, user.id, {
+        type: "background_job",
+        title: `Análisis de IA listo: ${candidate.fullName}`,
+        link: `/jobs/${application.jobId}/pipeline`,
+      });
+    } catch {
+      // no-op: el análisis ya se aplicó, un fallo al notificar no debe revertirlo.
+    }
+  }
+
   revalidatePath(`/jobs/${application.jobId}/postulados`);
   revalidatePath(`/jobs/${application.jobId}/pipeline`);
   return { ok: true };
@@ -673,7 +703,10 @@ export async function pasarAlPipelineAction(input: {
   }
   const { jobId, applicationIds, toStage } = parsed.data;
 
-  const membership = await getActiveMembership();
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+  ]);
   if (!membership) return { ok: false, error: "No autorizado." };
 
   const ctx = {
@@ -704,6 +737,18 @@ export async function pasarAlPipelineAction(input: {
       ok: false,
       error: firstError ?? "No se pudo avanzar a los candidatos.",
     };
+  }
+
+  if (user) {
+    try {
+      await notifyProfile(membership.organizationId, user.id, {
+        type: "background_job",
+        title: `${hechas} candidato${hechas !== 1 ? "s" : ""} pasado${hechas !== 1 ? "s" : ""} al pipeline`,
+        link: `/jobs/${jobId}/pipeline`,
+      });
+    } catch {
+      // no-op: la acción ya se aplicó, un fallo al notificar no debe revertirla.
+    }
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);
@@ -775,6 +820,18 @@ export async function guardarEnTalentPoolAction(input: {
     };
   }
 
+  if (user) {
+    try {
+      await notifyProfile(membership.organizationId, user.id, {
+        type: "background_job",
+        title: `${hechas} candidato${hechas !== 1 ? "s" : ""} guardado${hechas !== 1 ? "s" : ""} en el Talent Pool`,
+        link: "/candidates",
+      });
+    } catch {
+      // no-op: la acción ya se aplicó, un fallo al notificar no debe revertirla.
+    }
+  }
+
   revalidatePath(`/jobs/${jobId}/postulados`);
   revalidatePath(`/jobs/${jobId}/pipeline`);
   revalidatePath("/candidates");
@@ -808,7 +865,10 @@ export async function contactarPostuladosAction(input: {
   }
   const { jobId, applicationIds, channel, body } = parsed.data;
 
-  const membership = await getActiveMembership();
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+  ]);
   if (!membership) return { ok: false, error: "No autorizado." };
   const org = membership.organizationId;
 
@@ -847,6 +907,18 @@ export async function contactarPostuladosAction(input: {
 
   if (hechas === 0) {
     return { ok: false, error: firstError ?? "No se pudo enviar el mensaje." };
+  }
+
+  if (user) {
+    try {
+      await notifyProfile(org, user.id, {
+        type: "background_job",
+        title: `Mensaje enviado a ${hechas} candidato${hechas !== 1 ? "s" : ""}`,
+        link: `/jobs/${jobId}/postulados`,
+      });
+    } catch {
+      // no-op: los mensajes ya se enviaron, un fallo al notificar no debe revertirlo.
+    }
   }
 
   revalidatePath("/messages");
@@ -901,7 +973,10 @@ export async function rechazarVariosAction(
   const { jobId, applicationIds, reason, note, notifyCandidate, message } =
     parsed.data;
 
-  const membership = await getActiveMembership();
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+  ]);
   if (!membership) return { ok: false, error: "No autorizado." };
 
   const ctx = {
@@ -962,6 +1037,18 @@ export async function rechazarVariosAction(
       error:
         "No se pudo rechazar (¿ya estaban descartados o en etapa terminal?).",
     };
+  }
+
+  if (user) {
+    try {
+      await notifyProfile(membership.organizationId, user.id, {
+        type: "background_job",
+        title: `${rejected} candidato${rejected !== 1 ? "s" : ""} rechazado${rejected !== 1 ? "s" : ""}`,
+        link: `/jobs/${jobId}/postulados`,
+      });
+    } catch {
+      // no-op: el rechazo ya se aplicó, un fallo al notificar no debe revertirlo.
+    }
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);
