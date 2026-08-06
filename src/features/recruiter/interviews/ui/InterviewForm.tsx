@@ -29,6 +29,9 @@ type Props = {
   jobId: string;
   /** Si viene, el form edita esa entrevista; si no, agenda una nueva. */
   interview?: InterviewRow;
+  /** Sugerencia inicial de fecha/hora al agendar (ej. el horario que propuso el Cliente/HM
+   *  al pedir entrevista desde el shortlist) — editable, no se usa si `interview` ya trae la suya. */
+  defaultScheduledAt?: Date;
   teamMembers: TeamMemberOption[];
   onDone: () => void;
 };
@@ -42,7 +45,14 @@ function toLocalInputValue(date: Date): string {
   );
 }
 
-export function InterviewForm({ applicationId, jobId, interview, teamMembers, onDone }: Props) {
+export function InterviewForm({
+  applicationId,
+  jobId,
+  interview,
+  defaultScheduledAt,
+  teamMembers,
+  onDone,
+}: Props) {
   const isEdit = Boolean(interview);
 
   const teamEmailSet = new Set(teamMembers.map((m) => m.email.toLowerCase()));
@@ -80,7 +90,13 @@ export function InterviewForm({ applicationId, jobId, interview, teamMembers, on
           type="datetime-local"
           name="scheduledAt"
           required
-          defaultValue={interview ? toLocalInputValue(interview.scheduledAt) : ""}
+          defaultValue={
+            interview
+              ? toLocalInputValue(interview.scheduledAt)
+              : defaultScheduledAt
+                ? toLocalInputValue(defaultScheduledAt)
+                : ""
+          }
           className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
         />
       </label>

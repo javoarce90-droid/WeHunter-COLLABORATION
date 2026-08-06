@@ -1139,6 +1139,9 @@ export const shortlistCandidates = pgTable("shortlist_candidates", {
   // null = la empresa todavía no pidió entrevista para este candidato. Se setea desde la
   // función SECURITY DEFINER request_shortlist_interview (acceso sin cuenta, por token).
   interviewRequestedAt: timestamp("interview_requested_at"),
+  // 1 a 3 fechas/horas tentativas que propone quien pide la entrevista (Cliente o HM). El
+  // recruiter agenda con una de estas (o con otra) al confirmar en ScheduleInterviewDialog.
+  interviewRequestedSlots: timestamp("interview_requested_slots").array(),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("shortlist_candidates_org_idx").on(t.organizationId),
@@ -1199,6 +1202,31 @@ export const shortlistFeedback = pgTable("shortlist_feedback", {
   ),
 }));
 
+// Comentario de Recruiting sobre un candidato de un shortlist, visible para quien lo revisa
+// (Cliente por token o Hiring Manager por sesión). También es el canal donde el reclutador
+// responde al feedback que dejaron — no hay tabla separada para eso, es el mismo hilo.
+// Autor siempre interno (membership): Cliente/HM solo LEEN este hilo, no escriben acá — su
+// input es `shortlist_feedback` (decisión + comentario propio).
+export const shortlistCandidateComments = pgTable("shortlist_candidate_comments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  shortlistCandidateId: uuid("shortlist_candidate_id")
+    .references(() => shortlistCandidates.id, { onDelete: "cascade" })
+    .notNull(),
+  authorMembershipId: uuid("author_membership_id").references(() => memberships.id, {
+    onDelete: "set null",
+  }),
+  body: text("body").notNull(),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("shortlist_candidate_comments_org_idx").on(t.organizationId),
+  candidateIdx: index("shortlist_candidate_comments_candidate_idx").on(
+    t.shortlistCandidateId,
+  ),
+}));
+
 // Tipos inferidos (fuente de verdad de los tipos de datos)
 export type Organization = typeof organizations.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
@@ -1232,6 +1260,7 @@ export type Shortlist = typeof shortlists.$inferSelect;
 export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;
 export type ShortlistShare = typeof shortlistShares.$inferSelect;
 export type ShortlistFeedback = typeof shortlistFeedback.$inferSelect;
+export type ShortlistCandidateComment = typeof shortlistCandidateComments.$inferSelect;
 
 /**
  * RLS — política base de aislamiento por tenant.

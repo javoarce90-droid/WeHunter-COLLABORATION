@@ -1,24 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { getActiveMembership } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 import {
   getSharedShortlistForMembership,
   listShortlistCandidates,
 } from "@/features/recruiter/shortlists/data/shortlists.queries";
-import { FeedbackFormInterno } from "@/features/recruiter/shortlists/ui/FeedbackFormInterno";
-import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
-import type { ApplicationStage } from "@/features/recruiter/applications/schema";
+import { HmShortlistCandidateList } from "@/features/recruiter/shortlists/ui/HmShortlistCandidateList";
 
 interface Props {
   params: Promise<{ shortlistId: string }>;
 }
 
-/** Detalle de una shortlist compartida con el Hiring Manager — mismo contenido que ve un
- *  Cliente externo por link mágico (`SharedShortlistView`), pero autenticado: sin CV (esa
- *  ruta es por token) ni pedido de entrevista, solo feedback por candidato en esta pasada. */
+/** Detalle de una shortlist compartida con el Hiring Manager — mismo sheet de detalle
+ *  unificado que ve el Cliente externo por link mágico (perfil, CV, entrevistas,
+ *  comentarios de Recruiting), pero autenticado por sesión en vez de token. */
 export default async function SharedShortlistDetailPage({ params }: Props) {
   const { shortlistId } = await params;
   const membership = await getActiveMembership();
@@ -44,35 +40,16 @@ export default async function SharedShortlistDetailPage({ params }: Props) {
         </span>
         <h1 className="font-display text-xl font-bold text-text">{shortlist.name}</h1>
         <p className="mt-0.5 text-sm text-muted">
-          {candidates.length} candidato{candidates.length !== 1 ? "s" : ""}. Dejá tu feedback en
-          cada uno.
+          {candidates.length} candidato{candidates.length !== 1 ? "s" : ""}. Abrí cada uno para
+          ver su perfil completo y dejar tu feedback.
         </p>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {candidates.map((c) => (
-          <Card key={c.shortlistCandidateId}>
-            <div className="flex flex-col gap-3 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <h2 className="truncate font-semibold text-text">{c.fullName}</h2>
-                  {c.email && <p className="truncate text-sm text-muted">{c.email}</p>}
-                </div>
-                <Badge variant={c.stage as ApplicationStage}>
-                  {STAGE_LABELS[c.stage as ApplicationStage]}
-                </Badge>
-              </div>
-
-              <FeedbackFormInterno
-                shortlistId={shortlistId}
-                shortlistCandidateId={c.shortlistCandidateId}
-                currentDecision={c.feedbackDecision}
-                currentComment={c.feedbackComment}
-              />
-            </div>
-          </Card>
-        ))}
-      </div>
+      <HmShortlistCandidateList
+        shortlistId={shortlistId}
+        jobTitle={shortlist.jobTitle}
+        candidates={candidates}
+      />
     </div>
   );
 }

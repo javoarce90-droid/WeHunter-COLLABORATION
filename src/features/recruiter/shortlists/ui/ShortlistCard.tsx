@@ -1,34 +1,35 @@
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
-import type { ApplicationStage } from "@/features/recruiter/applications/schema";
-import type { FeedbackDecision } from "@/features/company/shortlist-review/domain/registrar-feedback";
-import type {
-  ShortlistCandidateWithFeedback,
-  ShareRow,
-} from "../data/shortlists.queries";
+import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
+import type { ShortlistCandidateWithFeedback, ShareRow } from "../data/shortlists.queries";
 import { ShareControls, type HMOption } from "./ShareControls";
+import { ShortlistCardCandidates } from "./ShortlistCardCandidates";
 
 type Props = {
   shortlistId: string;
   jobId: string;
+  jobTitle: string;
   name: string;
   candidates: ShortlistCandidateWithFeedback[];
   shares: ShareRow[];
   appUrl: string;
   hmOptions: HMOption[];
+  teamMembers: TeamMemberOption[];
+  interviewsByApplication: Record<string, InterviewRow[]>;
 };
 
-const FEEDBACK_META: Record<
-  FeedbackDecision,
-  { label: string; variant: "success" | "danger" | "warning" }
-> = {
-  approved: { label: "Aprobado", variant: "success" },
-  rejected: { label: "Rechazado", variant: "danger" },
-  maybe: { label: "Quizás", variant: "warning" },
-};
-
-export function ShortlistCard({ shortlistId, jobId, name, candidates, shares, appUrl, hmOptions }: Props) {
+export function ShortlistCard({
+  shortlistId,
+  jobId,
+  jobTitle,
+  name,
+  candidates,
+  shares,
+  appUrl,
+  hmOptions,
+  teamMembers,
+  interviewsByApplication,
+}: Props) {
   return (
     <Card>
       <div className="flex flex-col gap-3 p-4">
@@ -39,33 +40,14 @@ export function ShortlistCard({ shortlistId, jobId, name, candidates, shares, ap
           </span>
         </div>
 
-        <ul className="flex flex-col gap-1.5">
-          {candidates.map((c) => {
-            const fb = c.feedbackDecision ? FEEDBACK_META[c.feedbackDecision] : null;
-            return (
-              <li
-                key={c.shortlistCandidateId}
-                className="flex flex-wrap items-center gap-2 rounded-[var(--radius)] border border-border px-3 py-2 text-sm"
-              >
-                <span className="flex-1 truncate text-text">{c.fullName}</span>
-                <Badge variant={c.stage as ApplicationStage}>
-                  {STAGE_LABELS[c.stage as ApplicationStage]}
-                </Badge>
-                {fb ? (
-                  <Badge variant={fb.variant}>{fb.label}</Badge>
-                ) : (
-                  <Badge variant="muted">Sin feedback</Badge>
-                )}
-                {c.interviewRequestedAt && (
-                  <Badge variant="warning">Pidió entrevista</Badge>
-                )}
-                {c.feedbackComment && (
-                  <p className="w-full text-xs italic text-muted">“{c.feedbackComment}”</p>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <ShortlistCardCandidates
+          shortlistId={shortlistId}
+          jobId={jobId}
+          jobTitle={jobTitle}
+          candidates={candidates}
+          teamMembers={teamMembers}
+          interviewsByApplication={interviewsByApplication}
+        />
 
         <ShareControls
           shortlistId={shortlistId}

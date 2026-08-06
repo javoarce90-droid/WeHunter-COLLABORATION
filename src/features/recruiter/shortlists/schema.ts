@@ -35,3 +35,16 @@ export const registrarFeedbackInternoSchema = z.object({
   decision: z.string(),
   comment: z.string().default(""),
 });
+
+export const postearComentarioSchema = z.object({
+  shortlistCandidateId: z.string().uuid("ID de candidato inválido."),
+  body: z.string().trim().min(1, "El comentario no puede estar vacío.").max(2000, "El comentario no puede superar los 2.000 caracteres."),
+});
+
+export const solicitarEntrevistaInternoSchema = z.object({
+  shortlistCandidateId: z.string().uuid("ID de candidato inválido."),
+  slots: z
+    .array(z.string().min(1))
+    .min(1, "Proponé al menos un horario para la entrevista.")
+    .max(3, "Podés proponer como máximo 3 horarios."),
+});

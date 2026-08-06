@@ -9,6 +9,9 @@ import {
   listSharesByShortlist,
 } from "@/features/recruiter/shortlists/data/shortlists.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
+import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
+import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { CrearShortlistForm } from "@/features/recruiter/shortlists/ui/CrearShortlistForm";
 import { ShortlistCard } from "@/features/recruiter/shortlists/ui/ShortlistCard";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,13 +33,23 @@ export default async function ShortlistsPage({ params }: Props) {
   const proto = reqHeaders.get("x-forwarded-proto") ?? "http";
   const appUrl = host ? `${proto}://${host}` : "";
 
-  const [applications, summaries, members] = await Promise.all([
+  const [job, applications, summaries, members, jobInterviews] = await Promise.all([
+    getJobById(jobId, membership.organizationId), // cache() por request: gratis (ya lo pidió el layout)
     listApplicationsByJob(jobId, membership.organizationId),
     listShortlistsByJob(jobId, membership.organizationId),
-    membership.workspaceType === "enterprise"
-      ? listMembers(membership.organizationId)
-      : Promise.resolve([]),
+    listMembers(membership.organizationId),
+    listInterviewsByJob(jobId, membership.organizationId),
   ]);
+  if (!job) notFound();
+
+  const teamMembers = members
+    .filter((m) => m.status === "active")
+    .map((m) => ({ profileId: m.profileId, name: m.name, email: m.email }));
+
+  const interviewsByApplication = jobInterviews.reduce<Record<string, InterviewRow[]>>((acc, it) => {
+    (acc[it.applicationId] ??= []).push(it);
+    return acc;
+  }, {});
 
   const candidateOptions = applications.map((a) => ({
     applicationId: a.id,
@@ -45,9 +58,12 @@ export default async function ShortlistsPage({ params }: Props) {
   }));
 
   // Compartir con HM solo existe en Enterprise (§9) — ahí es donde el rol tiene sentido.
-  const hmOptions = members
-    .filter((m) => m.status === "active" && m.role === "hiring_manager")
-    .map((m) => ({ membershipId: m.membershipId, name: m.name ?? m.email }));
+  const hmOptions =
+    membership.workspaceType === "enterprise"
+      ? members
+          .filter((m) => m.status === "active" && m.role === "hiring_manager")
+          .map((m) => ({ membershipId: m.membershipId, name: m.name ?? m.email }))
+      : [];
 
   // Para cada shortlist, traemos candidatos (con feedback) y sus enlaces.
   const shortlists = await Promise.all(
@@ -81,11 +97,14 @@ export default async function ShortlistsPage({ params }: Props) {
               key={sl.id}
               shortlistId={sl.id}
               jobId={jobId}
+              jobTitle={job.title}
               name={sl.name}
               candidates={sl.candidates}
               shares={sl.shares}
               appUrl={appUrl}
               hmOptions={hmOptions}
+              teamMembers={teamMembers}
+              interviewsByApplication={interviewsByApplication}
             />
           ))}
         </div>

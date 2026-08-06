@@ -15,6 +15,9 @@ type Props = {
   jobId: string;
   interviews: InterviewRow[];
   teamMembers: TeamMemberOption[];
+  /** Sugerencia inicial al agendar (ver `InterviewForm`) — cuando viene, el form de alta
+   *  arranca abierto de una (no hace falta el clic extra en "+ Agendar entrevista…"). */
+  defaultScheduledAt?: Date;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -24,9 +27,17 @@ const dateFormatter = new Intl.DateTimeFormat("es-AR", {
   minute: "2-digit",
 });
 
-export function InterviewsSection({ applicationId, jobId, interviews, teamMembers }: Props) {
+export function InterviewsSection({
+  applicationId,
+  jobId,
+  interviews,
+  teamMembers,
+  defaultScheduledAt,
+}: Props) {
   // null = nada abierto; "new" = form de alta; un id = editando esa entrevista.
-  const [editing, setEditing] = useState<string | null>(null);
+  // Con una sugerencia de horario, arranca directo en "new" (venís de "Agendar entrevista"
+  // en el shortlist, no de recorrer la lista).
+  const [editing, setEditing] = useState<string | null>(defaultScheduledAt ? "new" : null);
 
   return (
     <div className="mt-2 border-t border-border pt-2">
@@ -101,6 +112,7 @@ export function InterviewsSection({ applicationId, jobId, interviews, teamMember
           applicationId={applicationId}
           jobId={jobId}
           teamMembers={teamMembers}
+          defaultScheduledAt={defaultScheduledAt}
           onDone={() => setEditing(null)}
         />
       ) : (

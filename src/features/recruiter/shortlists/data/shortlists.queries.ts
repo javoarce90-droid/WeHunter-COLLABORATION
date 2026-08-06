@@ -1,10 +1,11 @@
-import { and, eq, desc, inArray, isNull, count } from "drizzle-orm";
+import { and, eq, desc, asc, inArray, isNull, count } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
   shortlists,
   shortlistCandidates,
   shortlistShares,
   shortlistFeedback,
+  shortlistCandidateComments,
   applications,
   candidates,
   memberships,
@@ -263,12 +264,15 @@ export async function getActiveShareForCandidate(args: {
 
 export type ShortlistCandidateWithFeedback = {
   shortlistCandidateId: string;
+  applicationId: string;
+  candidateId: string;
   fullName: string;
   email: string | null;
   stage: ApplicationStage;
   feedbackDecision: FeedbackDecision | null;
   feedbackComment: string | null;
   interviewRequestedAt: Date | null;
+  interviewRequestedSlots: Date[] | null;
 };
 
 /** Candidatos del shortlist con el feedback de la empresa (vista interna del reclutador). */
@@ -281,12 +285,15 @@ export async function listShortlistCandidates(
     tx
       .select({
         shortlistCandidateId: shortlistCandidates.id,
+        applicationId: applications.id,
+        candidateId: candidates.id,
         fullName: candidates.fullName,
         email: candidates.email,
         stage: applications.stage,
         feedbackDecision: shortlistFeedback.decision,
         feedbackComment: shortlistFeedback.comment,
         interviewRequestedAt: shortlistCandidates.interviewRequestedAt,
+        interviewRequestedSlots: shortlistCandidates.interviewRequestedSlots,
       })
       .from(shortlistCandidates)
       .innerJoin(applications, eq(shortlistCandidates.applicationId, applications.id))
@@ -305,11 +312,195 @@ export async function listShortlistCandidates(
   );
   return rows.map((r) => ({
     shortlistCandidateId: r.shortlistCandidateId,
+    applicationId: r.applicationId,
+    candidateId: r.candidateId,
     fullName: r.fullName,
     email: r.email,
     stage: r.stage as ApplicationStage,
     feedbackDecision: (r.feedbackDecision as FeedbackDecision | null) ?? null,
     feedbackComment: r.feedbackComment,
     interviewRequestedAt: r.interviewRequestedAt,
+    interviewRequestedSlots: r.interviewRequestedSlots,
   }));
+}
+
+/** Ficha completa de UN candidato del shortlist (perfil + feedback + pedido de entrevista) —
+ *  alimenta el sheet de detalle unificado, tanto para el recruiter como para el Hiring
+ *  Manager (después de que cada caller valide su propio acceso: org-wide para el recruiter,
+ *  `getActiveShareForCandidate`/`getSharedShortlistForMembership` para el HM). */
+export type ShortlistCandidateCore = {
+  shortlistCandidateId: string;
+  applicationId: string;
+  candidateId: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  linkedinUrl: string | null;
+  summary: string | null;
+  skills: string[] | null;
+  cvUrl: string | null;
+  stage: ApplicationStage;
+  feedbackDecision: FeedbackDecision | null;
+  feedbackComment: string | null;
+  interviewRequestedAt: Date | null;
+  interviewRequestedSlots: Date[] | null;
+};
+
+export async function getShortlistCandidateCore(
+  shortlistCandidateId: string,
+  organizationId: string,
+): Promise<ShortlistCandidateCore | null> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          shortlistCandidateId: shortlistCandidates.id,
+          applicationId: applications.id,
+          candidateId: candidates.id,
+          fullName: candidates.fullName,
+          email: candidates.email,
+          phone: candidates.phone,
+          location: candidates.location,
+          linkedinUrl: candidates.linkedinUrl,
+          summary: candidates.summary,
+          skills: candidates.skills,
+          cvUrl: candidates.cvUrl,
+          stage: applications.stage,
+          feedbackDecision: shortlistFeedback.decision,
+          feedbackComment: shortlistFeedback.comment,
+          interviewRequestedAt: shortlistCandidates.interviewRequestedAt,
+          interviewRequestedSlots: shortlistCandidates.interviewRequestedSlots,
+        })
+        .from(shortlistCandidates)
+        .innerJoin(applications, eq(shortlistCandidates.applicationId, applications.id))
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .leftJoin(
+          shortlistFeedback,
+          eq(shortlistFeedback.shortlistCandidateId, shortlistCandidates.id),
+        )
+        .where(
+          and(
+            eq(shortlistCandidates.id, shortlistCandidateId),
+            eq(shortlistCandidates.organizationId, organizationId),
+          ),
+        )
+        .limit(1),
+    "db.shortlists.candidate-core",
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return { ...r, stage: r.stage as ApplicationStage, feedbackDecision: (r.feedbackDecision as FeedbackDecision | null) ?? null };
+}
+
+/** Existencia simple, para autorizar antes de escribir (ej. postear un comentario). */
+export async function getShortlistCandidateById(
+  shortlistCandidateId: string,
+  organizationId: string,
+): Promise<{ id: string } | null> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ id: shortlistCandidates.id })
+        .from(shortlistCandidates)
+        .where(
+          and(
+            eq(shortlistCandidates.id, shortlistCandidateId),
+            eq(shortlistCandidates.organizationId, organizationId),
+          ),
+        )
+        .limit(1),
+    "db.shortlists.candidate.get",
+  );
+  return rows[0] ?? null;
+}
+
+export type ShortlistComment = {
+  id: string;
+  body: string;
+  createdAt: Date;
+  authorName: string | null;
+};
+
+/** Hilo de comentarios de Recruiting sobre un candidato — visible para quien lo revisa
+ *  (Cliente por token vía `get_shared_shortlist`, HM/recruiter acá por RLS). */
+export async function listCommentsByShortlistCandidate(
+  shortlistCandidateId: string,
+  organizationId: string,
+): Promise<ShortlistComment[]> {
+  const db = await getDb();
+  return db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: shortlistCandidateComments.id,
+          body: shortlistCandidateComments.body,
+          createdAt: shortlistCandidateComments.createdAt,
+          authorName: profiles.fullName,
+        })
+        .from(shortlistCandidateComments)
+        .leftJoin(memberships, eq(shortlistCandidateComments.authorMembershipId, memberships.id))
+        .leftJoin(profiles, eq(memberships.profileId, profiles.id))
+        .where(
+          and(
+            eq(shortlistCandidateComments.shortlistCandidateId, shortlistCandidateId),
+            eq(shortlistCandidateComments.organizationId, organizationId),
+          ),
+        )
+        .orderBy(asc(shortlistCandidateComments.createdAt)),
+    "db.shortlists.comments.list",
+  );
+}
+
+export type ShortlistCommentNotificationContext = {
+  jobId: string;
+  jobTitle: string;
+  candidateName: string;
+  /** Perfil del Hiring Manager con quien está compartido este shortlist internamente —
+   *  null si solo tiene link externo al Cliente (sin cuenta, no se le puede avisar). */
+  hmProfileId: string | null;
+};
+
+/** Contexto para notificar al postear un comentario o pedir entrevista: a quién avisar y
+ *  con qué texto. Una sola query (join), evita N+1 por cada notificación. */
+export async function getShortlistCommentNotificationContext(
+  shortlistCandidateId: string,
+  organizationId: string,
+): Promise<ShortlistCommentNotificationContext | null> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          jobId: jobs.id,
+          jobTitle: jobs.title,
+          candidateName: candidates.fullName,
+          hmProfileId: profiles.id,
+        })
+        .from(shortlistCandidates)
+        .innerJoin(applications, eq(shortlistCandidates.applicationId, applications.id))
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .innerJoin(shortlists, eq(shortlistCandidates.shortlistId, shortlists.id))
+        .innerJoin(jobs, eq(shortlists.jobId, jobs.id))
+        .leftJoin(
+          shortlistShares,
+          and(
+            eq(shortlistShares.shortlistId, shortlists.id),
+            isNull(shortlistShares.revokedAt),
+          ),
+        )
+        .leftJoin(memberships, eq(shortlistShares.sharedWithMembershipId, memberships.id))
+        .leftJoin(profiles, eq(memberships.profileId, profiles.id))
+        .where(
+          and(
+            eq(shortlistCandidates.id, shortlistCandidateId),
+            eq(shortlistCandidates.organizationId, organizationId),
+          ),
+        )
+        .limit(1),
+    "db.shortlists.comment-notification-context",
+  );
+  return rows[0] ?? null;
 }

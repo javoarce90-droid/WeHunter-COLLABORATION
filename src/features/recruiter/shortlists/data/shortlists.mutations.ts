@@ -6,6 +6,7 @@ import {
   shortlistCandidates,
   shortlistShares,
   shortlistFeedback,
+  shortlistCandidateComments,
   applications,
 } from "@/db/schema";
 import type { FeedbackDecision } from "@/features/company/shortlist-review/domain/registrar-feedback";
@@ -152,6 +153,52 @@ export async function upsertShortlistFeedbackDirect(args: {
           set: { shareId: args.shareId, decision: args.decision, comment: args.comment, updatedAt: new Date() },
         }),
     "db.shortlists.feedback.upsert-direct",
+  );
+}
+
+export async function createShortlistCandidateComment(args: {
+  organizationId: string;
+  shortlistCandidateId: string;
+  authorMembershipId: string;
+  body: string;
+}): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx.insert(shortlistCandidateComments).values({
+        organizationId: args.organizationId,
+        shortlistCandidateId: args.shortlistCandidateId,
+        authorMembershipId: args.authorMembershipId,
+        body: args.body,
+      }),
+    "db.shortlists.comments.create",
+  );
+}
+
+/** Pedido de entrevista del Hiring Manager (con sesión, vía RLS) — contraparte de
+ *  `request_shortlist_interview` (función definer del camino Cliente por token). */
+export async function requestInterviewDirect(args: {
+  organizationId: string;
+  shortlistCandidateId: string;
+  slots: Date[];
+}): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx
+        .update(shortlistCandidates)
+        .set({
+          interviewRequestedAt: new Date(),
+          interviewRequestedSlots: args.slots,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(shortlistCandidates.id, args.shortlistCandidateId),
+            eq(shortlistCandidates.organizationId, args.organizationId),
+          ),
+        ),
+    "db.shortlists.interview-request.direct",
   );
 }
 
