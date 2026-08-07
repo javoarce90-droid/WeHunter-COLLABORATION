@@ -654,13 +654,16 @@ export function PostuladosTable({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {paged.map((row) => {
+                  {paged.map((row, i) => {
                     const triage = triageDe(row);
                     return (
                       <tr
                         key={row.id}
+                        // Tope en 8: una página con muchas filas no tarda más en asentarse
+                        // por tener más — a partir de ahí todas entran con el mismo delay.
+                        style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}
                         className={[
-                          "transition-colors",
+                          "animate-view-in transition-colors",
                           selected.has(row.id)
                             ? "bg-[var(--selected-bg)]"
                             : "hover:bg-bg",

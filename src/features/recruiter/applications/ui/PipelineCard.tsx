@@ -33,6 +33,9 @@ type Props = {
   slaDays?: number | null;
   /** true cuando se usa dentro de DragOverlay — deshabilita el drag y los handlers. */
   isDragOverlay?: boolean;
+  /** Posición dentro de su columna — determina el delay del stagger de entrada. Sin esto (ej.
+   *  el clon en DragOverlay) la tarjeta no anima. */
+  entryIndex?: number;
 };
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short" });
@@ -61,6 +64,7 @@ export function PipelineCard({
   analyzing = false,
   slaDays,
   isDragOverlay = false,
+  entryIndex,
 }: Props) {
   const terminal = application.stageKind ? isClosingKind(application.stageKind) : false;
   const nextInterview = pickNextInterview(interviews);
@@ -71,9 +75,14 @@ export function PipelineCard({
     disabled: isDragOverlay || terminal,
   });
 
+  // Arrastrando prevalece sobre la entrada: no sumar animation-delay a una tarjeta que el
+  // usuario está moviendo. Tope en 6: una columna con muchas tarjetas no tarda más en
+  // asentarse por tener más, entran todas juntas a partir de ahí.
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined;
+    : entryIndex != null
+      ? { animationDelay: `${Math.min(entryIndex, 6) * 50}ms` }
+      : undefined;
 
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === "Enter" || e.key === " ") {
@@ -102,6 +111,7 @@ export function PipelineCard({
       {...listeners}
       className={[
         "rounded-[var(--radius)] border border-border bg-surface p-3 shadow-[var(--shadow)] outline-none transition-[border-color,box-shadow,opacity] duration-150 hover:border-primary/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+        entryIndex != null && !transform && "animate-view-in",
         !terminal && !isDragOverlay
           ? "touch-none cursor-grab active:cursor-grabbing"
           : "cursor-pointer",
