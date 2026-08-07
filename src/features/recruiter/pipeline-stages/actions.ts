@@ -66,6 +66,11 @@ import {
   setJobStagePositions,
   setJobStageSla,
 } from "./data/job-stages.mutations";
+import { getJobById } from "../jobs/data/jobs.queries";
+
+async function jobExists(jobId: string, organizationId: string): Promise<boolean> {
+  return (await getJobById(jobId, organizationId)) !== null;
+}
 
 export interface EtapaActionResult {
   ok: boolean;
@@ -92,6 +97,7 @@ export async function agregarEtapaAction(
   if (!ctx) return { ok: false, error: "No autorizado." };
 
   const res = await agregarEtapa({ jobId, name, slaDays }, ctx, {
+    jobExists,
     listStages: listJobStages,
     insertStage: insertJobStage,
   });
@@ -164,6 +170,7 @@ export async function reordenarEtapasAction(
   if (!ctx) return { ok: false, error: "No autorizado." };
 
   const res = await reordenarEtapas({ jobId, stageIds }, ctx, {
+    jobExists,
     listStages: listJobStages,
     setPositions: setJobStagePositions,
   });

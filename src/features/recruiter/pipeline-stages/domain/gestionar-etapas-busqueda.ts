@@ -28,6 +28,7 @@ const MAX_NOMBRE = 40;
 const KINDS_IRREMPLAZABLES: StageKind[] = ["inbox", "hired", "rejected"];
 
 export type AgregarEtapaDeps = {
+  jobExists: (jobId: string, organizationId: string) => Promise<boolean>;
   listStages: (jobId: string, organizationId: string) => Promise<JobStage[]>;
   insertStage: (args: {
     organizationId: string;
@@ -54,8 +55,12 @@ export async function agregarEtapa(
     return err("El SLA tiene que ser de al menos 1 día.");
   }
 
+  if (!(await deps.jobExists(input.jobId, ctx.organizationId))) return err("Búsqueda no encontrada.");
+
+  // Un job válido puede legítimamente tener 0 etapas todavía (dato legado, o una reparación en
+  // curso): no es motivo para negar el alta, es justo el caso que esta acción tiene que poder
+  // resolver.
   const stages = await deps.listStages(input.jobId, ctx.organizationId);
-  if (stages.length === 0) return err("Búsqueda no encontrada.");
   if (stages.length >= MAX_ETAPAS) {
     return err(`No podés tener más de ${MAX_ETAPAS} etapas en una búsqueda.`);
   }
@@ -168,6 +173,7 @@ export async function eliminarEtapa(
 }
 
 export type ReordenarEtapasDeps = {
+  jobExists: (jobId: string, organizationId: string) => Promise<boolean>;
   listStages: (jobId: string, organizationId: string) => Promise<JobStage[]>;
   setPositions: (positions: { stageId: string; position: number }[]) => Promise<void>;
 };
@@ -181,8 +187,8 @@ export async function reordenarEtapas(
     return err("Tu rol no permite configurar el pipeline.");
   }
 
+  if (!(await deps.jobExists(input.jobId, ctx.organizationId))) return err("Búsqueda no encontrada.");
   const stages = await deps.listStages(input.jobId, ctx.organizationId);
-  if (stages.length === 0) return err("Búsqueda no encontrada.");
 
   // El orden que llega tiene que ser exactamente las mismas etapas: si falta o sobra una,
   // aplicar posiciones parciales dejaría el tablero inconsistente.

@@ -1,6 +1,8 @@
-import { eq, sql, inArray, and, gte } from "drizzle-orm";
+import { asc, eq, sql, inArray, and, gte } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { jobStages } from "@/db/schema";
+import type { JobStage, StageKind } from "../schema";
+import { resolveJobStageSeed } from "./job-stage-templates.queries";
 
 /**
  * Inserta una etapa corriendo un lugar a las que quedan detrás, en una sola transacción:
@@ -86,6 +88,62 @@ export async function setJobStageSla(stageId: string, slaDays: number | null): P
         .where(eq(jobStages.id, stageId)),
     "db.job-stages.set-sla",
   );
+}
+
+/** Repara un job que quedó sin etapas (dato legado o creado antes de que existiera la siembra
+ *  automática): si ya tiene alguna, no hace nada; si no tiene ninguna, siembra el default de la
+ *  organización. Se llama tanto al mostrar el tablero como al mover un candidato al pipeline,
+ *  para que ninguno de los dos vuelva a operar sobre un job con 0 columnas. */
+export async function ensureJobStages(jobId: string, organizationId: string): Promise<JobStage[]> {
+  const db = await getDb();
+  const selectCols = {
+    id: jobStages.id,
+    name: jobStages.name,
+    position: jobStages.position,
+    slaDays: jobStages.slaDays,
+    kind: jobStages.kind,
+  };
+
+  const existing = await db.rls(
+    (tx) =>
+      tx
+        .select(selectCols)
+        .from(jobStages)
+        .where(and(eq(jobStages.jobId, jobId), eq(jobStages.organizationId, organizationId)))
+        .orderBy(asc(jobStages.position)),
+    "db.job-stages.ensure-check",
+  );
+  if (existing.length > 0) return existing.map((r) => ({ ...r, kind: r.kind as StageKind }));
+
+  // Se lee fuera de la transacción: resolveJobStageSeed abre la suya y anidarlas rompe.
+  const seed = await resolveJobStageSeed(organizationId);
+
+  return db.rls(async (tx) => {
+    // Recheck adentro de la transacción: si dos requests llegan casi a la vez, que la segunda
+    // encuentre lo que la primera ya sembró en vez de duplicar.
+    const recheck = await tx
+      .select(selectCols)
+      .from(jobStages)
+      .where(and(eq(jobStages.jobId, jobId), eq(jobStages.organizationId, organizationId)))
+      .orderBy(asc(jobStages.position));
+    if (recheck.length > 0) return recheck.map((r) => ({ ...r, kind: r.kind as StageKind }));
+
+    const inserted = await tx
+      .insert(jobStages)
+      .values(
+        seed.map((s) => ({
+          organizationId,
+          jobId,
+          name: s.name,
+          position: s.position,
+          slaDays: s.slaDays,
+          kind: s.kind,
+          legacyStage: s.legacyStage,
+        })),
+      )
+      .returning(selectCols);
+    return inserted.map((r) => ({ ...r, kind: r.kind as StageKind }));
+  }, "db.job-stages.ensure-seed");
 }
 
 /** Etapas de varias búsquedas de una vez (para listados que muestran el tablero de fondo). */

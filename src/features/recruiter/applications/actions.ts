@@ -47,6 +47,7 @@ import {
   getActiveStages,
 } from "../pipeline-stages/data/pipeline-stages.queries";
 import { getJobStage } from "../pipeline-stages/data/job-stages.queries";
+import { ensureJobStages } from "../pipeline-stages/data/job-stages.mutations";
 import { legacyStageFor } from "./domain/mover-a-etapa";
 import {
   getCandidateById,
@@ -717,6 +718,7 @@ export async function pasarAlPipelineAction(input: {
   const deps = {
     getApplicationById,
     getActiveStages,
+    ensureJobStages,
     setPipelineEntered,
   };
 

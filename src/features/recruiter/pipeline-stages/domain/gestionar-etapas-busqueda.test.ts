@@ -22,6 +22,7 @@ const stages: JobStage[] = [
 
 describe("agregarEtapa", () => {
   const deps = (over = {}) => ({
+    jobExists: vi.fn().mockResolvedValue(true),
     listStages: vi.fn().mockResolvedValue(stages),
     insertStage: vi.fn().mockResolvedValue({ id: "s-nueva" }),
     ...over,
@@ -101,6 +102,22 @@ describe("agregarEtapa", () => {
 
     expect(res).toMatchObject({ ok: false });
     expect(d.insertStage).not.toHaveBeenCalled();
+  });
+
+  it("rechaza si la búsqueda no existe", async () => {
+    const d = deps({ jobExists: vi.fn().mockResolvedValue(false) });
+    const res = await agregarEtapa({ jobId: "job-inexistente", name: "Challenge" }, ctx, d);
+
+    expect(res).toMatchObject({ ok: false, error: "Búsqueda no encontrada." });
+    expect(d.insertStage).not.toHaveBeenCalled();
+  });
+
+  it("permite agregar la primera etapa a una búsqueda que todavía no tiene ninguna", async () => {
+    const d = deps({ listStages: vi.fn().mockResolvedValue([]) });
+    const res = await agregarEtapa({ jobId: "job-1", name: "Challenge Técnico" }, ctx, d);
+
+    expect(res.ok).toBe(true);
+    expect(d.insertStage).toHaveBeenCalledWith(expect.objectContaining({ position: 0 }));
   });
 });
 
@@ -225,6 +242,7 @@ describe("configurarSlaEtapaBusqueda", () => {
 
 describe("reordenarEtapas", () => {
   const deps = (over = {}) => ({
+    jobExists: vi.fn().mockResolvedValue(true),
     listStages: vi.fn().mockResolvedValue(stages),
     setPositions: vi.fn().mockResolvedValue(undefined),
     ...over,
@@ -267,6 +285,14 @@ describe("reordenarEtapas", () => {
     );
 
     expect(res).toMatchObject({ ok: false });
+    expect(d.setPositions).not.toHaveBeenCalled();
+  });
+
+  it("rechaza si la búsqueda no existe", async () => {
+    const d = deps({ jobExists: vi.fn().mockResolvedValue(false) });
+    const res = await reordenarEtapas({ jobId: "job-inexistente", stageIds: ["s-inbox"] }, ctx, d);
+
+    expect(res).toMatchObject({ ok: false, error: "Búsqueda no encontrada." });
     expect(d.setPositions).not.toHaveBeenCalled();
   });
 });
