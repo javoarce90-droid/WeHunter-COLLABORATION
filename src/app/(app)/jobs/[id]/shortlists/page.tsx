@@ -1,12 +1,12 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
-import { listApplicationsByJob } from "@/features/recruiter/applications/data/applications.queries";
+import { listApplicationOptionsByJob } from "@/features/recruiter/applications/data/applications.queries";
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
 import {
   listShortlistsByJob,
-  listShortlistCandidates,
-  listSharesByShortlist,
+  listShortlistCandidatesForShortlists,
+  listSharesForShortlists,
 } from "@/features/recruiter/shortlists/data/shortlists.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
@@ -35,7 +35,7 @@ export default async function ShortlistsPage({ params }: Props) {
 
   const [job, applications, summaries, members, jobInterviews] = await Promise.all([
     getJobById(jobId, membership.organizationId), // cache() por request: gratis (ya lo pidió el layout)
-    listApplicationsByJob(jobId, membership.organizationId),
+    listApplicationOptionsByJob(jobId, membership.organizationId),
     listShortlistsByJob(jobId, membership.organizationId),
     listMembers(membership.organizationId),
     listInterviewsByJob(jobId, membership.organizationId),
@@ -53,7 +53,7 @@ export default async function ShortlistsPage({ params }: Props) {
 
   const candidateOptions = applications.map((a) => ({
     applicationId: a.id,
-    fullName: a.candidate.fullName,
+    fullName: a.candidateFullName,
     stage: STAGE_LABELS[a.stage],
   }));
 
@@ -65,16 +65,29 @@ export default async function ShortlistsPage({ params }: Props) {
           .map((m) => ({ membershipId: m.membershipId, name: m.name ?? m.email }))
       : [];
 
-  // Para cada shortlist, traemos candidatos (con feedback) y sus enlaces.
-  const shortlists = await Promise.all(
-    summaries.map(async (sl) => {
-      const [candidates, shares] = await Promise.all([
-        listShortlistCandidates(sl.id, membership.organizationId),
-        listSharesByShortlist(sl.id, membership.organizationId),
-      ]);
-      return { ...sl, candidates, shares };
-    }),
+  // Candidatos (con feedback) y enlaces de TODAS las shortlists del job en 2 queries bulk,
+  // no 2 por shortlist — antes era un Promise.all con una ronda de queries por cada una.
+  const shortlistIds = summaries.map((sl) => sl.id);
+  const [allCandidates, allShares] = await Promise.all([
+    listShortlistCandidatesForShortlists(shortlistIds, membership.organizationId),
+    listSharesForShortlists(shortlistIds, membership.organizationId),
+  ]);
+  const candidatesByShortlist = allCandidates.reduce<Record<string, typeof allCandidates>>(
+    (acc, c) => {
+      (acc[c.shortlistId] ??= []).push(c);
+      return acc;
+    },
+    {},
   );
+  const sharesByShortlist = allShares.reduce<Record<string, typeof allShares>>((acc, s) => {
+    (acc[s.shortlistId] ??= []).push(s);
+    return acc;
+  }, {});
+  const shortlists = summaries.map((sl) => ({
+    ...sl,
+    candidates: candidatesByShortlist[sl.id] ?? [],
+    shares: sharesByShortlist[sl.id] ?? [],
+  }));
 
   return (
     <div className="flex flex-col gap-4">

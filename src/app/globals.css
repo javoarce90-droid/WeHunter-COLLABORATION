@@ -34,6 +34,8 @@
   --motion-fast: 120ms;
   --motion-base: 180ms;
   --motion-slow: 240ms;
+  /* Entrada de contenido (columnas/filas/tarjetas al aparecer la vista) — DESIGN.md "Motion". */
+  --motion-view: 250ms;
   /* ease-out exponenciales: entran rápido y desaceleran, sin rebote. */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -76,6 +78,7 @@
   --animate-pop-in: pop-in var(--motion-base) var(--ease-out-expo);
   --animate-sheet-in: sheet-in var(--motion-slow) var(--ease-out-expo);
   --animate-toast-in: toast-in var(--motion-base) var(--ease-out-expo);
+  --animate-view-in: view-in var(--motion-view) var(--ease-out-quart);
 }
 
 /* — Keyframes de overlays/feedback (materiales: opacity + transform, GPU-friendly) — */
@@ -99,6 +102,12 @@
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* Contenido entrando a una vista (columnas, filas, tarjetas) — nunca la navegación entre
+   subtabs en sí, que tiene que quedar instantánea. */
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* Reduced motion no es opcional: cortamos animación/transición a lo mínimo. */
 @media (prefers-reduced-motion: reduce) {
@@ -109,6 +118,14 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Excepción: un spinner de carga comunica estado, no decora. Congelarlo no "reduce
+     movimiento" — deja al usuario sin ninguna señal de que algo está pasando (y de paso,
+     un anillo con el borde derecho transparente sin girar se ve como una "C" rota). */
+  .spinner-status {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
   }
 }
 

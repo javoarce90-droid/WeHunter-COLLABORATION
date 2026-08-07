@@ -468,6 +468,11 @@ export const jobs = pgTable("jobs", {
   clientIdx: index("jobs_client_idx").on(t.clientId),
   assignedToIdx: index("jobs_assigned_to_idx").on(t.assignedTo),
   sourcerIdx: index("jobs_sourcer_idx").on(t.sourcerId),
+  // El listado de Búsquedas filtra por status y ordena por estas tres columnas (jobOrderBy en
+  // jobs.queries.ts) — sin esto, Postgres resuelve el filtro con orgIdx y ordena en memoria.
+  orgStatusIdx: index("jobs_org_status_idx").on(t.organizationId, t.status),
+  orgCreatedIdx: index("jobs_org_created_idx").on(t.organizationId, t.createdAt),
+  orgUpdatedIdx: index("jobs_org_updated_idx").on(t.organizationId, t.updatedAt),
 }));
 
 // Solicitud de búsqueda (Hiring Request, §17 backlog). La pide un Cliente externo (camino
@@ -560,6 +565,10 @@ export const candidates = pgTable("candidates", {
 }, (t) => ({
   orgIdx: index("candidates_org_idx").on(t.organizationId),
   profileIdx: index("candidates_profile_idx").on(t.profileId),
+  // listCandidateOptions ordena por createdAt DESC filtrando por org — sin este índice compuesto,
+  // Postgres resuelve el filtro con orgIdx pero después ordena TODAS esas filas en memoria
+  // antes de aplicar el LIMIT. En una org con pool acumulado, ese sort es caro.
+  orgCreatedIdx: index("candidates_org_created_idx").on(t.organizationId, t.createdAt),
 }));
 
 // Etiquetas libres que el reclutador arma para catalogar candidatos (ej. "Top perfil",

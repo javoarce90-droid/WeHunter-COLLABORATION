@@ -159,6 +159,41 @@ export async function listSharesByShortlist(
   );
 }
 
+/** Igual a `listSharesByShortlist` pero para VARIOS shortlists de una — la tab Shortlists de
+ *  un job (con N shortlists) usaba esto en un `Promise.all` por-shortlist (N transacciones);
+ *  acá es una sola, agrupada por `shortlistId` del lado del caller. */
+export async function listSharesForShortlists(
+  shortlistIds: string[],
+  organizationId: string,
+): Promise<ShareRow[]> {
+  if (shortlistIds.length === 0) return [];
+  const db = await getDb();
+  return db.rls((tx) =>
+    tx
+      .select({
+        id: shortlistShares.id,
+        shortlistId: shortlistShares.shortlistId,
+        token: shortlistShares.token,
+        expiresAt: shortlistShares.expiresAt,
+        revokedAt: shortlistShares.revokedAt,
+        createdAt: shortlistShares.createdAt,
+        sharedWithMembershipId: shortlistShares.sharedWithMembershipId,
+        sharedWithName: profiles.fullName,
+      })
+      .from(shortlistShares)
+      .leftJoin(memberships, eq(shortlistShares.sharedWithMembershipId, memberships.id))
+      .leftJoin(profiles, eq(memberships.profileId, profiles.id))
+      .where(
+        and(
+          inArray(shortlistShares.shortlistId, shortlistIds),
+          eq(shortlistShares.organizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(shortlistShares.createdAt)),
+    "db.shortlists.shares.by-shortlists",
+  );
+}
+
 export type SharedShortlistSummary = {
   shortlistId: string;
   shortlistName: string;
@@ -311,6 +346,63 @@ export async function listShortlistCandidates(
     "db.shortlists.candidates",
   );
   return rows.map((r) => ({
+    shortlistCandidateId: r.shortlistCandidateId,
+    applicationId: r.applicationId,
+    candidateId: r.candidateId,
+    fullName: r.fullName,
+    email: r.email,
+    stage: r.stage as ApplicationStage,
+    feedbackDecision: (r.feedbackDecision as FeedbackDecision | null) ?? null,
+    feedbackComment: r.feedbackComment,
+    interviewRequestedAt: r.interviewRequestedAt,
+    interviewRequestedSlots: r.interviewRequestedSlots,
+  }));
+}
+
+export type ShortlistCandidateWithFeedbackAndShortlist = ShortlistCandidateWithFeedback & {
+  shortlistId: string;
+};
+
+/** Igual a `listShortlistCandidates` pero para VARIOS shortlists de una — mismo motivo que
+ *  `listSharesForShortlists`: evita el N+1 de "una query por shortlist del job". */
+export async function listShortlistCandidatesForShortlists(
+  shortlistIds: string[],
+  organizationId: string,
+): Promise<ShortlistCandidateWithFeedbackAndShortlist[]> {
+  if (shortlistIds.length === 0) return [];
+  const db = await getDb();
+  const rows = await db.rls((tx) =>
+    tx
+      .select({
+        shortlistId: shortlistCandidates.shortlistId,
+        shortlistCandidateId: shortlistCandidates.id,
+        applicationId: applications.id,
+        candidateId: candidates.id,
+        fullName: candidates.fullName,
+        email: candidates.email,
+        stage: applications.stage,
+        feedbackDecision: shortlistFeedback.decision,
+        feedbackComment: shortlistFeedback.comment,
+        interviewRequestedAt: shortlistCandidates.interviewRequestedAt,
+        interviewRequestedSlots: shortlistCandidates.interviewRequestedSlots,
+      })
+      .from(shortlistCandidates)
+      .innerJoin(applications, eq(shortlistCandidates.applicationId, applications.id))
+      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .leftJoin(
+        shortlistFeedback,
+        eq(shortlistFeedback.shortlistCandidateId, shortlistCandidates.id),
+      )
+      .where(
+        and(
+          inArray(shortlistCandidates.shortlistId, shortlistIds),
+          eq(shortlistCandidates.organizationId, organizationId),
+        ),
+      ),
+    "db.shortlists.candidates.by-shortlists",
+  );
+  return rows.map((r) => ({
+    shortlistId: r.shortlistId,
     shortlistCandidateId: r.shortlistCandidateId,
     applicationId: r.applicationId,
     candidateId: r.candidateId,

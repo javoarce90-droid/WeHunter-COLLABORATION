@@ -30,6 +30,10 @@ export type PasarAlPipelineDeps = {
   ) => Promise<InboxApplicationRow | null>;
   /** Etapas activas del tablero, en orden. La bandeja ("new") no cuenta como etapa destino. */
   getActiveStages: (organizationId: string) => Promise<ApplicationStage[]>;
+  /** Repara el pipeline del job si quedó sin etapas propias (dato legado): sin esto, el
+   *  candidato entra al pipeline pero `setPipelineEntered` no encuentra dónde ubicarlo y lo deja
+   *  con `stageId` null — invisible en el tablero pese a contar como "en proceso". */
+  ensureJobStages: (jobId: string, organizationId: string) => Promise<unknown>;
   setPipelineEntered: (
     applicationId: string,
     fromStage: ApplicationStage,
@@ -81,6 +85,7 @@ export async function pasarAlPipeline(
     return { ok: false, error: `La etapa "${STAGE_LABELS[toStage]}" no está disponible.` };
   }
 
+  await deps.ensureJobStages(application.jobId, ctx.organizationId);
   const updated = await deps.setPipelineEntered(input.applicationId, application.stage, toStage);
   return { ok: true, data: updated };
 }

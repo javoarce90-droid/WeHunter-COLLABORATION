@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { and, count, eq, desc } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { memberships, profiles, invitations } from "@/db/schema";
@@ -14,8 +15,12 @@ export type MemberRow = {
 };
 
 /** Todos los miembros (hasta 100) — usado por selectores/pickers de otras pantallas
- *  (agenda, pipeline, shortlists, solicitudes) que necesitan la lista completa, no una página. */
-export async function listMembers(organizationId: string): Promise<MemberRow[]> {
+ *  (agenda, pipeline, shortlists, solicitudes) que necesitan la lista completa, no una página.
+ *  `cache()`: el layout de `/jobs/[id]` y varias de sus tabs (ej. Shortlists) la piden en el
+ *  mismo request — sin esto, cada una dispara su propia transacción `db.team.members`. */
+export const listMembers = cache(async function listMembers(
+  organizationId: string,
+): Promise<MemberRow[]> {
   const db = await getDb();
   const rows = await db.rls((tx) =>
     tx
@@ -39,7 +44,7 @@ export async function listMembers(organizationId: string): Promise<MemberRow[]> 
     role: r.role as OrgRole,
     status: r.status as MembershipStatus,
   }));
-}
+});
 
 /** Página de miembros para la tabla de `/team` (10 por página) — distinta de `listMembers`,
  *  que otras pantallas usan como selector y necesitan la lista completa. */

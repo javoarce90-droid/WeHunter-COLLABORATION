@@ -2,6 +2,8 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { jobStageTemplates } from "@/db/schema";
 import type { JobStage, StageKind } from "../schema";
+import { buildJobStagesFromTemplate } from "../schema";
+import { buildDefaultStageTemplate } from "../domain/gestionar-plantilla-etapas";
 
 /** Cuántas filas tiene la plantilla — para el checklist de Día 1 (¿ya está sembrada?), sin
  *  traer las columnas completas. */
@@ -61,4 +63,12 @@ export async function getStageTemplate(
   );
   const r = rows[0];
   return r ? { ...r, kind: r.kind as StageKind } : null;
+}
+
+/** Molde con el que nace (o se repara) el pipeline de un job: la plantilla de la organización,
+ *  o el default de código si esa organización todavía no tiene ninguna fila propia. Usado tanto
+ *  al crear un job (`insertJob`) como al reparar uno que quedó sin etapas (`ensureJobStages`). */
+export async function resolveJobStageSeed(organizationId: string) {
+  const template = await listStageTemplates(organizationId);
+  return buildJobStagesFromTemplate(template.length > 0 ? template : buildDefaultStageTemplate());
 }
