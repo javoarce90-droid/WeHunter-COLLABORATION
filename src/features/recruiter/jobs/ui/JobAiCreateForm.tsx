@@ -29,6 +29,11 @@ export function JobAiCreateForm({ action }: JobAiCreateFormProps) {
   // arrastramos de vuelta acá — la notificación persistente ya le avisa que se creó.
   const mountedRef = useRef(true);
   useEffect(() => {
+    // El `setup` también marca `true`: en dev, Strict Mode corre este efecto dos veces al
+    // montar (setup → cleanup → setup) para detectar bugs de limpieza — sin esto, ese cleanup
+    // de prueba dejaba `mountedRef.current` en `false` para siempre, y el submit real nunca
+    // navegaba (aunque la búsqueda sí se creaba en el server).
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
