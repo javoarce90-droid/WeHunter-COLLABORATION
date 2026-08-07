@@ -1,0 +1,1 @@
+CREATE INDEX "candidates_org_created_idx" ON "candidates" USING btree ("organization_id","created_at");

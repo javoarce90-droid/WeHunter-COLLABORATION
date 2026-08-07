@@ -7,7 +7,7 @@ import {
   type StageHistoryEvent,
 } from "@/features/recruiter/applications/data/applications.queries";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
-import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
+import { listCandidateOptions } from "@/features/recruiter/candidates/data/candidates.queries";
 import {
   listScreeningQuestionsByJob,
   listScreeningAnswersByJob,
@@ -42,16 +42,14 @@ export default async function PostuladosPage({ params }: Props) {
       listScreeningAnswersByJob(jobId, membership.organizationId),
       listNotesByJob(jobId, membership.organizationId),
       listStageEventsByJob(jobId, membership.organizationId),
-      listCandidates(membership.organizationId),
+      listCandidateOptions(membership.organizationId),
       listCandidateIdsByJob(jobId, membership.organizationId),
     ]);
   if (!job) notFound();
 
   // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
   const postuladosIds = new Set(candidateIdsEnLaBusqueda);
-  const poolCandidates = candidates
-    .filter((c) => !postuladosIds.has(c.id))
-    .map((c) => ({ id: c.id, fullName: c.fullName, email: c.email }));
+  const poolCandidates = candidates.filter((c) => !postuladosIds.has(c.id));
 
   const notesByApplication = notes.reduce<Record<string, TimelineNote[]>>((acc, n) => {
     (acc[n.applicationId] ??= []).push(n);

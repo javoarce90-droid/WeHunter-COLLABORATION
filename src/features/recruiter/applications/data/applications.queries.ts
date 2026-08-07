@@ -176,6 +176,43 @@ export async function listApplicationsByJob(
   }));
 }
 
+export type ApplicationOption = { id: string; stage: ApplicationStage; candidateFullName: string };
+
+/**
+ * Igual alcance que `listApplicationsByJob` (mismo job, mismo filtro por `pipelineEnteredAt`)
+ * pero solo `{id, stage, candidateFullName}` — para pickers (Ofertas, Shortlists) que arman un
+ * selector de "a quién le hago una oferta / a quién sumo a la shortlist", nunca la ficha de IA
+ * completa que sí necesita el tablero de Pipeline. Cap defensivo: el pipeline de UN job no
+ * debería tener miles de postulaciones, pero ningún listado va sin límite (database.md #4).
+ */
+export async function listApplicationOptionsByJob(
+  jobId: string,
+  organizationId: string,
+): Promise<ApplicationOption[]> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applications.id,
+          stage: applications.stage,
+          candidateFullName: candidates.fullName,
+        })
+        .from(applications)
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .where(
+          and(
+            eq(applications.jobId, jobId),
+            eq(applications.organizationId, organizationId),
+            isNotNull(applications.pipelineEnteredAt),
+          ),
+        )
+        .limit(200),
+    "db.applications.options-by-job",
+  );
+  return rows.map((r) => ({ ...r, stage: r.stage as ApplicationStage }));
+}
+
 /**
  * Candidatos que YA están en la búsqueda, en cualquier estado (bandeja, pipeline o
  * descartados). El selector de "Agregar candidatos" los excluye del pool: no alcanza con

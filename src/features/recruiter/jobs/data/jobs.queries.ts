@@ -92,115 +92,89 @@ export type JobWithStats = JobListItem & {
 
 export type JobStatusCounts = Record<JobFilter, number>;
 
-/** Conteo por estado para las chips de filtro — SIEMPRE sobre todas las búsquedas del scope,
- *  sin el texto de búsqueda (los badges no cambian mientras escribís, solo el listado). "all"
- *  suma todos los estados (incluido archived) — mismo comportamiento que ya tenía el filtro
- *  client-side que reemplaza esta query. */
-export async function countJobsByStatus(
-  organizationId: string,
-  scopeToMembershipId?: string,
-): Promise<JobStatusCounts> {
-  const db = await getDb();
-  const rows = await db.rls(
-    (tx) =>
-      tx
-        .select({ status: jobs.status, n: sql<number>`count(*)::int` })
-        .from(jobs)
-        .where(
-          and(
-            eq(jobs.organizationId, organizationId),
-            scopeToMembershipId
-              ? assignedToMembership(scopeToMembershipId)
-              : undefined,
-          ),
-        )
-        .groupBy(jobs.status),
-    "db.jobs.count-by-status",
-  );
-  const counts: JobStatusCounts = {
-    all: 0,
-    open: 0,
-    paused: 0,
-    draft: 0,
-    closed: 0,
-    archived: 0,
-  };
-  for (const row of rows) {
-    counts[row.status as JobFilter] = row.n;
-    counts.all += row.n;
-  }
-  return counts;
-}
-
 /**
- * Listado para la pantalla de búsquedas: cada job con el conteo de su pipeline.
- * Una sola query (LEFT JOIN + GROUP BY), no N+1 (database.md reglas #3 y #6). El conteo
- * usa los índices `jobs_org_idx` y `applications_job_idx`. RLS aísla por org en ambas tablas.
- * Selecciona solo columnas livianas: los campos pesados (benefits, Markdown) van en el detalle.
- * Paginado (`page`, 10 por página) + filtro de estado/texto ya resuelto en el servidor (antes
- * era client-side sobre las 100 filas ya traídas — con paginación real no alcanza, tiene que
- * filtrar contra TODA la búsqueda, no solo la página visible).
+ * Todo lo que pinta la pantalla de Búsquedas (listado paginado + total + chips de estado) en
+ * UNA transacción — antes eran 3 (`list-with-stats`, `list-with-stats-count`,
+ * `count-by-status`), cada una pagando su propio BEGIN/SET LOCAL/COMMIT contra el pooler
+ * (database.md regla #3). El conteo por chip es SIEMPRE sobre todas las búsquedas del scope,
+ * sin el texto de búsqueda (los badges no cambian mientras escribís, solo el listado). El
+ * listado en sí usa una sola query (LEFT JOIN + GROUP BY), no N+1 (regla #6). Selecciona solo
+ * columnas livianas: los campos pesados (benefits, Markdown) van en el detalle.
  */
-export async function listJobsWithStats(
+export async function getJobsListScreenData(
   organizationId: string,
   scopeToMembershipId?: string,
   filter: JobFilter = "all",
   q?: string,
   page: number = 1,
   sort: JobSortKey = "createdAt_desc",
-): Promise<{ jobs: JobWithStats[]; total: number }> {
+): Promise<{ jobs: JobWithStats[]; total: number; statusCounts: JobStatusCounts }> {
   const db = await getDb();
   const { limit, offset } = paginationRange(page);
   const trimmedQ = q?.trim();
-  const whereClause = and(
+  const scopeClause = scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined;
+  const listWhere = and(
     eq(jobs.organizationId, organizationId),
-    scopeToMembershipId ? assignedToMembership(scopeToMembershipId) : undefined,
+    scopeClause,
     filter !== "all" ? eq(jobs.status, filter) : undefined,
     trimmedQ ? ilike(jobs.title, `%${trimmedQ}%`) : undefined,
   );
+  // Sin el filtro de estado/texto: las chips cuentan sobre todo el scope, no sobre lo filtrado.
+  const countsWhere = and(eq(jobs.organizationId, organizationId), scopeClause);
 
-  const [rows, [{ total }]] = await Promise.all([
-    db.rls(
-      (tx) =>
-        tx
-          .select({
-            id: jobs.id,
-            title: jobs.title,
-            status: jobs.status,
-            createdAt: jobs.createdAt,
-            updatedAt: jobs.updatedAt,
-            viewCount: jobs.viewCount,
-            priority: jobs.priority,
-            shareCount: jobs.shareCount,
-            assigneeName: profiles.fullName,
-            receivedCount: sql<number>`count(${applications.id})::int`,
-            pendingCount: sql<number>`count(${applications.id}) filter (
-              where ${applications.pipelineEnteredAt} is null
-                and ${applications.stage} <> 'rejected'
-            )::int`,
-          })
-          .from(jobs)
-          .leftJoin(applications, eq(applications.jobId, jobs.id))
-          .innerJoin(memberships, eq(memberships.id, jobs.assignedTo))
-          .innerJoin(profiles, eq(profiles.id, memberships.profileId))
-          .where(whereClause)
-          .groupBy(jobs.id, profiles.fullName)
-          .orderBy(jobOrderBy(sort))
-          .limit(limit)
-          .offset(offset),
-      "db.jobs.list-with-stats",
-    ),
-    db.rls(
-      (tx) =>
-        tx
-          .select({ total: sql<number>`count(*)::int` })
-          .from(jobs)
-          .where(whereClause),
-      "db.jobs.list-with-stats-count",
-    ),
-  ]);
+  return db.rls(async (tx) => {
+    const rows = await tx
+      .select({
+        id: jobs.id,
+        title: jobs.title,
+        status: jobs.status,
+        createdAt: jobs.createdAt,
+        updatedAt: jobs.updatedAt,
+        viewCount: jobs.viewCount,
+        priority: jobs.priority,
+        shareCount: jobs.shareCount,
+        assigneeName: profiles.fullName,
+        receivedCount: sql<number>`count(${applications.id})::int`,
+        pendingCount: sql<number>`count(${applications.id}) filter (
+          where ${applications.pipelineEnteredAt} is null
+            and ${applications.stage} <> 'rejected'
+        )::int`,
+      })
+      .from(jobs)
+      .leftJoin(applications, eq(applications.jobId, jobs.id))
+      .innerJoin(memberships, eq(memberships.id, jobs.assignedTo))
+      .innerJoin(profiles, eq(profiles.id, memberships.profileId))
+      .where(listWhere)
+      .groupBy(jobs.id, profiles.fullName)
+      .orderBy(jobOrderBy(sort))
+      .limit(limit)
+      .offset(offset);
 
-  return { jobs: rows, total };
+    const [{ total }] = await tx
+      .select({ total: sql<number>`count(*)::int` })
+      .from(jobs)
+      .where(listWhere);
+
+    const statusRows = await tx
+      .select({ status: jobs.status, n: sql<number>`count(*)::int` })
+      .from(jobs)
+      .where(countsWhere)
+      .groupBy(jobs.status);
+    const statusCounts: JobStatusCounts = {
+      all: 0,
+      open: 0,
+      paused: 0,
+      draft: 0,
+      closed: 0,
+      archived: 0,
+    };
+    for (const row of statusRows) {
+      statusCounts[row.status as JobFilter] = row.n;
+      statusCounts.all += row.n;
+    }
+
+    return { jobs: rows, total, statusCounts };
+  }, "db.jobs.list-screen");
 }
 
 export type RecentOpenJob = {
@@ -213,7 +187,7 @@ export type RecentOpenJob = {
 };
 
 /** Últimas búsquedas abiertas, para el widget "Tus búsquedas activas" del dashboard —
- *  versión liviana de listJobsWithStats, acotada a `open` y a un puñado de filas. */
+ *  versión liviana de getJobsListScreenData, acotada a `open` y a un puñado de filas. */
 export async function listRecentOpenJobs(
   organizationId: string,
   limitN = 3,

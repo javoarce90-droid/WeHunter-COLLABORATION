@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { listCandidateIdsByJob } from "@/features/recruiter/applications/data/applications.queries";
-import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
+import { listCandidateOptions } from "@/features/recruiter/candidates/data/candidates.queries";
 import { AvisoEditor } from "@/features/recruiter/jobs/ui/AvisoEditor";
 
 /**
@@ -23,15 +23,13 @@ export default async function JobAvisoPage({
   const [job, candidateIdsEnLaBusqueda, candidates] = await Promise.all([
     getJobById(id, membership.organizationId),
     listCandidateIdsByJob(id, membership.organizationId),
-    listCandidates(membership.organizationId),
+    listCandidateOptions(membership.organizationId),
   ]);
   if (!job) notFound();
 
   // Para el alta contextual: el pool ofrece solo candidatos que NO están ya en esta búsqueda.
   const postuladosIds = new Set(candidateIdsEnLaBusqueda);
-  const poolCandidates = candidates
-    .filter((c) => !postuladosIds.has(c.id))
-    .map((c) => ({ id: c.id, fullName: c.fullName, email: c.email }));
+  const poolCandidates = candidates.filter((c) => !postuladosIds.has(c.id));
 
   return <AvisoEditor job={job} poolCandidates={poolCandidates} />;
 }
