@@ -322,7 +322,8 @@ export function LinkedInSourcingTab({ jobs }: Props) {
             </div>
             <Button
               type="submit"
-              disabled={searching || !query.trim() || candidates !== null}
+              disabled={!query.trim() || candidates !== null}
+              loading={searching}
               className="shrink-0 gap-2"
             >
               <Search className="h-4 w-4" />
