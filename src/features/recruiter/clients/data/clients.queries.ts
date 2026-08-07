@@ -2,6 +2,7 @@ import { and, count, eq, inArray, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { clients, jobs, memberships, profiles, requisitions, clientShares, type Client } from "@/db/schema";
 import type { OrgRole } from "@/lib/auth/session";
+import { paginationRange } from "@/lib/pagination";
 
 /** Lecturas de clientes. Cliente RLS; filtramos por organization activa. */
 
@@ -30,49 +31,59 @@ export type ClientWithStats = Client & {
 
 /** Listado de clientes con sus contadores (búsquedas, solicitudes, si tiene link de acceso
  *  activo) — una sola query: el conteo de búsquedas por join+group, el resto por subquery
- *  correlacionada para no generar fan-out con el join (database.md regla #3). */
+ *  correlacionada para no generar fan-out con el join (database.md regla #3). Paginado
+ *  (`page`, 10 por página) — el total viene de `countClients` en paralelo, no en serie. */
 export async function listClientsWithStats(
   organizationId: string,
-): Promise<ClientWithStats[]> {
+  page: number = 1,
+): Promise<{ clients: ClientWithStats[]; total: number }> {
   const db = await getDb();
-  const rows = await db.rls(
-    (tx) =>
-      tx
-        .select({
-          client: clients,
-          jobCount: sql<number>`count(${jobs.id})::int`,
-          requisitionCount: sql<number>`(
-            select count(*)::int from ${requisitions}
-            where ${requisitions.clientId} = ${clients.id}
-          )`,
-          hasActiveShare: sql<boolean>`exists(
-            select 1 from ${clientShares}
-            where ${clientShares.clientId} = ${clients.id}
-              and ${clientShares.revokedAt} is null
-              and (${clientShares.expiresAt} is null or ${clientShares.expiresAt} > now())
-          )`,
-          assignedRecruiterName: sql<string | null>`(
-            select ${profiles.fullName} from ${memberships}
-            inner join ${profiles} on ${profiles.id} = ${memberships.profileId}
-            where ${memberships.assignedClientId} = ${clients.id}
-            limit 1
-          )`,
-        })
-        .from(clients)
-        .leftJoin(jobs, eq(jobs.clientId, clients.id))
-        .where(eq(clients.organizationId, organizationId))
-        .groupBy(clients.id)
-        .orderBy(desc(clients.createdAt))
-        .limit(LIST_LIMIT),
-    "db.clients.list-with-stats",
-  );
-  return rows.map(({ client, jobCount, requisitionCount, hasActiveShare, assignedRecruiterName }) => ({
-    ...client,
-    jobCount,
-    requisitionCount,
-    hasActiveShare,
-    assignedRecruiterName,
-  }));
+  const { limit, offset } = paginationRange(page);
+  const [rows, total] = await Promise.all([
+    db.rls(
+      (tx) =>
+        tx
+          .select({
+            client: clients,
+            jobCount: sql<number>`count(${jobs.id})::int`,
+            requisitionCount: sql<number>`(
+              select count(*)::int from ${requisitions}
+              where ${requisitions.clientId} = ${clients.id}
+            )`,
+            hasActiveShare: sql<boolean>`exists(
+              select 1 from ${clientShares}
+              where ${clientShares.clientId} = ${clients.id}
+                and ${clientShares.revokedAt} is null
+                and (${clientShares.expiresAt} is null or ${clientShares.expiresAt} > now())
+            )`,
+            assignedRecruiterName: sql<string | null>`(
+              select ${profiles.fullName} from ${memberships}
+              inner join ${profiles} on ${profiles.id} = ${memberships.profileId}
+              where ${memberships.assignedClientId} = ${clients.id}
+              limit 1
+            )`,
+          })
+          .from(clients)
+          .leftJoin(jobs, eq(jobs.clientId, clients.id))
+          .where(eq(clients.organizationId, organizationId))
+          .groupBy(clients.id)
+          .orderBy(desc(clients.createdAt))
+          .limit(limit)
+          .offset(offset),
+      "db.clients.list-with-stats",
+    ),
+    countClients(organizationId),
+  ]);
+  return {
+    clients: rows.map(({ client, jobCount, requisitionCount, hasActiveShare, assignedRecruiterName }) => ({
+      ...client,
+      jobCount,
+      requisitionCount,
+      hasActiveShare,
+      assignedRecruiterName,
+    })),
+    total,
+  };
 }
 
 /** Listado mínimo (id + nombre) para selects. */

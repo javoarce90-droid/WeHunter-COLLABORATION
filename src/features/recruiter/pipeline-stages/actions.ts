@@ -87,7 +87,7 @@ export async function agregarEtapaAction(
   jobId: string,
   name: string,
   slaDays?: number | null,
-): Promise<EtapaActionResult> {
+): Promise<EtapaActionResult & { stageId?: string }> {
   const ctx = await ctxDeSesion();
   if (!ctx) return { ok: false, error: "No autorizado." };
 
@@ -98,7 +98,7 @@ export async function agregarEtapaAction(
   if (!res.ok) return { ok: false, error: res.error };
 
   revalidarBusqueda(jobId);
-  return { ok: true };
+  return { ok: true, stageId: res.data.stageId };
 }
 
 export async function renombrarEtapaAction(

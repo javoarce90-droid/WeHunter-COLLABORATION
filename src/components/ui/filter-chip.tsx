@@ -17,15 +17,24 @@ function chipClass(active: boolean, tone?: "danger") {
 export function FilterChipGroup({
   label,
   children,
+  wrap = true,
 }: {
   label: string;
   children: ReactNode;
+  /** `false`: una sola fila que scrollea horizontal en vez de wrappear (toolbars con
+   *  buscador/selector al lado, donde el wrap rompe la jerarquía de la fila). */
+  wrap?: boolean;
 }) {
   return (
     <div
       role="group"
       aria-label={label}
-      className="flex flex-wrap items-center gap-2"
+      className={[
+        "flex items-center gap-2",
+        // min-w-0: sin esto, un hijo flex no encoge bajo su ancho de contenido y
+        // overflow-x-auto nunca llega a activarse (el padre se ensancha en su lugar).
+        wrap ? "flex-wrap" : "min-w-0 flex-nowrap overflow-x-auto",
+      ].join(" ")}
     >
       {children}
     </div>

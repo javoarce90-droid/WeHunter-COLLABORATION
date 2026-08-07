@@ -195,6 +195,49 @@ export async function listAgendaInterviews(
   }));
 }
 
+export type ShortlistInterviewSummary = {
+  id: string;
+  scheduledAt: Date;
+  mode: InterviewMode;
+  type: InterviewType;
+  status: InterviewStatus;
+};
+
+/** Historial liviano de entrevistas de UNA postulación — para el detalle que ve el Cliente
+ *  o el Hiring Manager (sin `notes`, que es interna del equipo). */
+export async function listInterviewsByApplication(
+  applicationId: string,
+  organizationId: string,
+): Promise<ShortlistInterviewSummary[]> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: interviews.id,
+          scheduledAt: interviews.scheduledAt,
+          mode: interviews.mode,
+          type: interviews.type,
+          status: interviews.status,
+        })
+        .from(interviews)
+        .where(
+          and(
+            eq(interviews.applicationId, applicationId),
+            eq(interviews.organizationId, organizationId),
+          ),
+        )
+        .orderBy(asc(interviews.scheduledAt)),
+    "db.interviews.by-application",
+  );
+  return rows.map((r) => ({
+    ...r,
+    mode: r.mode as InterviewMode,
+    type: r.type as InterviewType,
+    status: r.status as InterviewStatus,
+  }));
+}
+
 /** Candidato agendable: ya está en el pipeline de esa búsqueda (mismo criterio que
  *  `listApplicationsByJob`). Alimenta el selector Búsqueda→Candidato del modal de Agenda. */
 export type SchedulableApplication = {

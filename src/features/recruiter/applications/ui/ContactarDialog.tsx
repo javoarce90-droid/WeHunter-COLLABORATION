@@ -50,6 +50,7 @@ export function ContactarDialog({
   function enviar() {
     if (!target) return;
     const ids = target;
+    onClose(); // no bloquear: el envío sigue en background, no hace falta el modal abierto
     startTransition(async () => {
       const res = await contactarPostuladosAction({
         jobId,
@@ -62,7 +63,6 @@ export function ContactarDialog({
         return;
       }
       onSent();
-      onClose();
       toast({
         message:
           `${res.hechas} mensaje${res.hechas !== 1 ? "s" : ""} enviado${res.hechas !== 1 ? "s" : ""}` +

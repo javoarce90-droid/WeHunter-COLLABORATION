@@ -4,7 +4,7 @@ import { notifications } from "@/db/schema";
 
 export type NotificationRow = {
   id: string;
-  type: "hire" | "team" | "system" | "candidate_status";
+  type: "hire" | "team" | "system" | "candidate_status" | "background_job";
   title: string;
   link: string | null;
   readAt: Date | null;

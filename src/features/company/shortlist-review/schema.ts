@@ -13,4 +13,10 @@ export const registrarFeedbackSchema = z.object({
 export const solicitarEntrevistaSchema = z.object({
   token: z.string().min(1, "Enlace inválido."),
   shortlistCandidateId: z.string().uuid("Candidato inválido."),
+  // 1 a 3 horarios tentativos (datetime-local); la validación fina (futuro, sin
+  // duplicados) vive en el dominio (`parseInterviewSlots`), acá solo el shape.
+  slots: z
+    .array(z.string().min(1))
+    .min(1, "Proponé al menos un horario para la entrevista.")
+    .max(3, "Podés proponer como máximo 3 horarios."),
 });

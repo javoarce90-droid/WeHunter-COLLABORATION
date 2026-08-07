@@ -1,6 +1,10 @@
+import { parseInterviewSlots } from "./interview-slots";
+
 export type SolicitarEntrevistaInput = {
   token: string;
   shortlistCandidateId: string;
+  /** 1 a 3 fechas/horas tentativas (ISO datetime), ver `parseInterviewSlots`. */
+  slots: string[];
 };
 
 export type SolicitarEntrevistaDeps = {
@@ -9,6 +13,7 @@ export type SolicitarEntrevistaDeps = {
   requestInterview: (args: {
     token: string;
     shortlistCandidateId: string;
+    slots: Date[];
   }) => Promise<boolean>;
 };
 
@@ -25,9 +30,13 @@ export async function solicitarEntrevista(
     return { ok: false, error: "Candidato inválido." };
   }
 
+  const slots = parseInterviewSlots(input.slots);
+  if (!slots.ok) return slots;
+
   const ok = await deps.requestInterview({
     token: input.token,
     shortlistCandidateId: input.shortlistCandidateId,
+    slots: slots.data,
   });
 
   if (!ok) {

@@ -73,19 +73,33 @@ const VARIANT_DOT: Record<ToastVariant, string> = {
   danger: "bg-danger",
 };
 
+// Espeja --motion-fast (globals.css): el tiempo que le da a animate-fade-out para
+// terminar antes de desmontar — mismo par duración/keyframe que ya usan los demás overlays.
+const EXIT_MS = 120;
+
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
   const duration = toast.duration ?? (toast.action ? 6000 : 3500);
+  const [closing, setClosing] = useState(false);
 
   useEffect(() => {
     if (duration === 0) return;
-    const timer = setTimeout(onDismiss, duration);
+    const timer = setTimeout(() => setClosing(true), duration);
     return () => clearTimeout(timer);
-  }, [duration, onDismiss]);
+  }, [duration]);
+
+  useEffect(() => {
+    if (!closing) return;
+    const timer = setTimeout(onDismiss, EXIT_MS);
+    return () => clearTimeout(timer);
+  }, [closing, onDismiss]);
 
   return (
     <div
       role="status"
-      className="flex animate-toast-in items-center gap-3 rounded-[var(--radius)] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-overlay)]"
+      className={[
+        "flex items-center gap-3 rounded-[var(--radius)] border border-border bg-surface px-4 py-3 shadow-[var(--shadow-overlay)]",
+        closing ? "animate-fade-out" : "animate-toast-in",
+      ].join(" ")}
     >
       <span className={["h-2 w-2 shrink-0 rounded-full", VARIANT_DOT[toast.variant ?? "default"]].join(" ")} aria-hidden />
       <p className="min-w-0 flex-1 truncate text-sm font-medium text-text">{toast.message}</p>
@@ -94,7 +108,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
           type="button"
           onClick={() => {
             toast.action!.onClick();
-            onDismiss();
+            setClosing(true);
           }}
           className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary-light"
         >
@@ -103,7 +117,7 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       )}
       <button
         type="button"
-        onClick={onDismiss}
+        onClick={() => setClosing(true)}
         aria-label="Descartar"
         className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition-colors hover:bg-bg hover:text-text"
       >

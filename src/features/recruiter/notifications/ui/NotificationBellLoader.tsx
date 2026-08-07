@@ -6,9 +6,23 @@ import { NotificationBell } from "./NotificationBell";
  * Carga async de la campana. Se monta dentro de <Suspense> en el layout para NO bloquear el
  * render de la página con la query de notificaciones (database.md #7).
  */
-export async function NotificationBellLoader({ organizationId }: { organizationId: string }) {
+export async function NotificationBellLoader({
+  organizationId,
+  profileId,
+}: {
+  organizationId: string;
+  profileId: string;
+}) {
   const { items, unread } = await getNotifications(organizationId);
-  return <NotificationBell items={items} unread={unread} onMarkRead={marcarLeidasAction} />;
+  return (
+    <NotificationBell
+      items={items}
+      unread={unread}
+      onMarkRead={marcarLeidasAction}
+      organizationId={organizationId}
+      profileId={profileId}
+    />
+  );
 }
 
 /** Fallback mientras carga: la campana sin contador (no salta el layout). */

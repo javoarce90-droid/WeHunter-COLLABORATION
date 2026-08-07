@@ -26,13 +26,31 @@ import { measure } from "@/lib/server-timing";
 
 const config = { schema, casing: "snake_case" as const };
 
+// En dev, Turbopack/webpack recompila este módulo en cada hot-reload: sin cachear la conexión
+// en globalThis, cada recompilación abre una conexión nueva sin cerrar la vieja, hasta agotar
+// el límite de clientes del pooler de Supabase (EMAXCONN). En producción cada proceso arranca
+// una sola vez, así que el caché ahí es un no-op inofensivo.
+declare global {
+  var __wehunterAdminConn: ReturnType<typeof postgres> | undefined;
+  var __wehunterRlsConn: ReturnType<typeof postgres> | undefined;
+}
+
 // Cliente admin: bypassea RLS. Usar con extremo cuidado.
-const adminConnection = postgres(process.env.ADMIN_DATABASE_URL!, { prepare: false });
+const adminConnection =
+  globalThis.__wehunterAdminConn ??
+  postgres(process.env.ADMIN_DATABASE_URL!, { prepare: false });
 export const admin = drizzle({ client: adminConnection, ...config });
 
 // Conexión protegida por RLS (rol authenticated).
-const rlsConnection = postgres(process.env.DATABASE_URL!, { prepare: false });
+const rlsConnection =
+  globalThis.__wehunterRlsConn ??
+  postgres(process.env.DATABASE_URL!, { prepare: false });
 const rlsBase = drizzle({ client: rlsConnection, ...config });
+
+if (process.env.NODE_ENV !== "production") {
+  globalThis.__wehunterAdminConn = adminConnection;
+  globalThis.__wehunterRlsConn = rlsConnection;
+}
 
 /**
  * Auth del request, deduplicada por cache() (corre una sola vez por request).

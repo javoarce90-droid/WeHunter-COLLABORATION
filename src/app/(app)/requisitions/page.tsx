@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import {
   can,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/auth/roles";
 import { listRequisitions, type RequisitionsScope } from "@/features/recruiter/requisitions/data/requisitions.queries";
 import { RequisitionsList } from "@/features/recruiter/requisitions/ui/RequisitionsList";
+import { parsePage, totalPages as calcTotalPages } from "@/lib/pagination";
 
 function scopeFor(
   membership: NonNullable<Awaited<ReturnType<typeof getActiveMembership>>>,
@@ -31,12 +33,24 @@ function scopeFor(
 /** Bandeja de solicitudes de búsqueda (§17) — camino Cliente (portal externo) y camino HM
  *  (Hiring Manager interno, Enterprise). El HM la ve acotada a las suyas ("carga, no
  *  revisa"); quien la revisa es el recruiter que el HM eligió al cargarla. */
-export default async function RequisitionsPage() {
-  const [membership, user] = await Promise.all([getActiveMembership(), getCurrentUser()]);
+export default async function RequisitionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const [membership, user, { page: rawPage }] = await Promise.all([
+    getActiveMembership(),
+    getCurrentUser(),
+    searchParams,
+  ]);
   if (!membership || !user) notFound();
 
-  const requisitions = await listRequisitions(membership.organizationId, scopeFor(membership, user.id));
-  const pending = requisitions.filter((r) => r.status === "pending").length;
+  const page = parsePage(rawPage);
+  const { requisitions, total, pendingCount } = await listRequisitions(
+    membership.organizationId,
+    scopeFor(membership, user.id),
+    page,
+  );
   const canCreate = can(membership.role, "requisitions.create");
 
   return (
@@ -45,9 +59,9 @@ export default async function RequisitionsPage() {
         <div>
           <h1 className="flex items-center gap-2.5 font-display text-xl font-bold text-text">
             Solicitudes
-            {pending > 0 && (
+            {pendingCount > 0 && (
               <span className="rounded-full bg-[#FEF3C7] px-2.5 py-0.5 text-xs font-semibold text-[#92400E]">
-                {pending} pendiente{pending !== 1 ? "s" : ""}
+                {pendingCount} pendiente{pendingCount !== 1 ? "s" : ""}
               </span>
             )}
           </h1>
@@ -68,6 +82,11 @@ export default async function RequisitionsPage() {
         requisitions={requisitions}
         canReview={canReviewRequisitions(membership.role)}
         canCreate={canCreate}
+      />
+      <Pagination
+        page={page}
+        totalPages={calcTotalPages(total)}
+        buildHref={(p) => `/requisitions?page=${p}`}
       />
     </div>
   );

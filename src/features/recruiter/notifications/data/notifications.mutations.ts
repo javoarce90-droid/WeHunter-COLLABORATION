@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { notifications, memberships } from "@/db/schema";
 
-export type NotificationType = "hire" | "team" | "system" | "candidate_status";
+export type NotificationType = "hire" | "team" | "system" | "candidate_status" | "background_job";
 
 export async function markAllRead(organizationId: string): Promise<void> {
   const db = await getDb();

@@ -6,9 +6,17 @@ import { listClientsWithStats } from "@/features/recruiter/clients/data/clients.
 import { ClientsList } from "@/features/recruiter/clients/ui/ClientsList";
 import { getClientsCopy } from "@/features/recruiter/clients/copy";
 import { ListSkeleton } from "@/components/ui/list-skeleton";
+import { Pagination } from "@/components/ui/pagination";
+import { parsePage, totalPages as calcTotalPages } from "@/lib/pagination";
 
 /** El shell (título + acción) pinta al instante; el listado se streamea. */
-export default async function ClientsPage() {
+export default async function ClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: rawPage } = await searchParams;
+  const page = parsePage(rawPage);
   const membership = await getActiveMembership();
   // En Enterprise no hay "clientes" externos: el módulo (CRM + magic link sin cuenta) queda
   // superado por el rol real `hiring_manager` (docs/BACKLOG.md, punto 2 de la especificación
@@ -49,16 +57,32 @@ export default async function ClientsPage() {
       </div>
 
       <Suspense fallback={<ListSkeleton />}>
-        <ClientsSection copy={copy} />
+        <ClientsSection copy={copy} page={page} />
       </Suspense>
     </div>
   );
 }
 
-async function ClientsSection({ copy }: { copy: ReturnType<typeof getClientsCopy> }) {
+async function ClientsSection({
+  copy,
+  page,
+}: {
+  copy: ReturnType<typeof getClientsCopy>;
+  page: number;
+}) {
   const membership = await getActiveMembership();
-  const clients = membership
-    ? await listClientsWithStats(membership.organizationId)
-    : [];
-  return <ClientsList clients={clients} copy={copy} />;
+  const { clients, total } = membership
+    ? await listClientsWithStats(membership.organizationId, page)
+    : { clients: [], total: 0 };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <ClientsList clients={clients} copy={copy} />
+      <Pagination
+        page={page}
+        totalPages={calcTotalPages(total)}
+        buildHref={(p) => `/clients?page=${p}`}
+      />
+    </div>
+  );
 }

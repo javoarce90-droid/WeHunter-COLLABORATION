@@ -1,6 +1,6 @@
 import { ok, err, type Result } from "@/lib/result";
-import { can, isAssignmentScoped } from "@/lib/auth/roles";
-import type { OrgRole } from "@/lib/auth/session";
+import { can, isAssignmentScoped, isClientScoped } from "@/lib/auth/roles";
+import type { OrgRole, WorkspaceType } from "@/lib/auth/session";
 import {
   normalizeJobDetails,
   type JobDetails,
@@ -20,6 +20,12 @@ export interface EditarBusquedaCtx {
   role: OrgRole | null;
   /** Roles acotados por asignación (ver `isAssignmentScoped`) solo editan lo propio. */
   membershipId: string | null;
+  /** Cómo usa el workspace la org — decide si "cliente asignado" aplica (ver
+   *  `isClientScoped`: solo Team; en Enterprise/Freelance el cliente no existe). */
+  workspaceType: WorkspaceType | null;
+  /** Cliente al que el editor está atado en exclusiva (memberships.assignedClientId).
+   *  null/undefined = sin restricción, puede editar el clientId de cualquier búsqueda. */
+  assignedClientId?: string | null;
 }
 
 export interface EditarBusquedaDeps {
@@ -41,6 +47,16 @@ export async function editarBusqueda(
   }
   if (!can(ctx.role, "jobs.manage")) {
     return err("No tenés permisos para editar búsquedas.");
+  }
+
+  // Mismo criterio que crearBusqueda: solo ata al cliente asignado al recruiter externo
+  // de un workspace Team — nunca a owner/admin, ni en Enterprise (sin figura de cliente).
+  if (
+    isClientScoped(ctx.role, ctx.workspaceType) &&
+    ctx.assignedClientId &&
+    input.clientId !== ctx.assignedClientId
+  ) {
+    return err("Solo podés editar búsquedas de tu cliente asignado.");
   }
 
   const title = input.title.trim();

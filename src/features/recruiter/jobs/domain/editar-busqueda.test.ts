@@ -4,7 +4,12 @@ import { editarBusqueda, type EditarBusquedaDeps } from "./editar-busqueda";
 const deps = (updated = true): EditarBusquedaDeps => ({
   updateJobFields: vi.fn(async () => ({ updated })),
 });
-const ctx = { organizationId: "org-1", role: "recruiter" as const, membershipId: "m1" };
+const ctx = {
+  organizationId: "org-1",
+  role: "recruiter" as const,
+  membershipId: "m1",
+  workspaceType: "team" as const,
+};
 
 describe("editarBusqueda", () => {
   it("rechaza al consultor", async () => {
@@ -59,5 +64,46 @@ describe("editarBusqueda", () => {
       expect.objectContaining({ title: "Backend Eng" }),
       undefined,
     );
+  });
+
+  it("un recruiter Team con cliente asignado no puede cambiar el clientId a otro cliente", async () => {
+    const d = deps();
+    const res = await editarBusqueda(
+      { jobId: "j1", title: "Backend Eng", clientId: "client-2" },
+      { ...ctx, assignedClientId: "client-1" },
+      d,
+    );
+    expect(res.ok).toBe(false);
+    expect(d.updateJobFields).not.toHaveBeenCalled();
+  });
+
+  it("un recruiter Team con cliente asignado sí puede editar para ese mismo cliente", async () => {
+    const d = deps();
+    const res = await editarBusqueda(
+      { jobId: "j1", title: "Backend Eng", clientId: "client-1" },
+      { ...ctx, assignedClientId: "client-1" },
+      d,
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("un owner con cliente asignado puede editar el clientId a cualquier cliente", async () => {
+    const d = deps();
+    const res = await editarBusqueda(
+      { jobId: "j1", title: "Backend Eng", clientId: "client-2" },
+      { ...ctx, role: "owner", assignedClientId: "client-1" },
+      d,
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("en Enterprise no aplica la restricción de cliente asignado", async () => {
+    const d = deps();
+    const res = await editarBusqueda(
+      { jobId: "j1", title: "Backend Eng", clientId: "client-2" },
+      { ...ctx, workspaceType: "enterprise", assignedClientId: "client-1" },
+      d,
+    );
+    expect(res.ok).toBe(true);
   });
 });

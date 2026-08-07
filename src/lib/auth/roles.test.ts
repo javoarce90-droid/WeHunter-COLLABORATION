@@ -53,6 +53,11 @@ describe("matriz de capacidades", () => {
     }
   });
 
+  it("owner y admin NO tienen shortlists.feedback: es el buzón propio del Hiring Manager, y ellos nunca son destinatarios de un share", () => {
+    expect(can("owner", "shortlists.feedback")).toBe(false);
+    expect(can("admin", "shortlists.feedback")).toBe(false);
+  });
+
   describe("recruiter", () => {
     it("opera búsquedas, candidatos, pipeline y comunicación de punta a punta", () => {
       for (const cap of [
@@ -138,7 +143,7 @@ describe("matriz de capacidades", () => {
   });
 
   describe("hiring_manager", () => {
-    it("carga solicitudes, opera agenda y sourcing, ve búsquedas y candidatos", () => {
+    it("carga solicitudes, opera agenda y sourcing, ve búsquedas y candidatos, y es el único con el buzón de shortlists.feedback", () => {
       for (const cap of [
         "jobs.view",
         "candidates.manage",
@@ -146,6 +151,7 @@ describe("matriz de capacidades", () => {
         "sourcing.use",
         "requisitions.review",
         "settings.stages_template",
+        "shortlists.feedback",
       ] as Capability[]) {
         expect(can("hiring_manager", cap), `hiring_manager debería poder ${cap}`).toBe(true);
       }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Candidate } from "@/db/schema";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -13,22 +14,37 @@ import { SearchInput } from "@/components/ui/search-input";
 import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
+import { Pagination } from "@/components/ui/pagination";
 import { useToast } from "@/lib/toast";
 import { normalizeIfUncapitalized } from "@/lib/text";
 import { postularVariosAction } from "@/features/recruiter/applications/actions";
 import { cambiarEstadoTalentoAction } from "../actions";
 import { CANDIDATE_SOURCE_LABELS } from "./source-meta";
-import { TALENT_STATE_LABELS, TALENT_STATE_BADGE, TALENT_STATE_ORDER } from "./talent-meta";
+import {
+  TALENT_STATE_LABELS,
+  TALENT_STATE_BADGE,
+  TALENT_STATE_ORDER,
+} from "./talent-meta";
 import type { CandidateSource } from "../domain/candidate-details";
 import type { TalentState } from "../domain/cambiar-estado-talento";
-import { normalizeEmailKey, normalizeLinkedinKey } from "../domain/duplicate-keys";
+import type {
+  CandidateFilterKey,
+  CandidateFilterCounts,
+} from "../data/candidates.queries";
 
 type JobOption = { id: string; title: string };
-type FilterKey = "all" | TalentState | "duplicates";
+
+const SEARCH_DEBOUNCE_MS = 350;
 
 interface Props {
   candidates: Candidate[];
   jobs: JobOption[];
+  filter: CandidateFilterKey;
+  query: string;
+  counts: CandidateFilterCounts;
+  duplicateIds: string[];
+  page: number;
+  totalPages: number;
 }
 
 function sourceLabel(source: string | null): string {
@@ -36,21 +52,66 @@ function sourceLabel(source: string | null): string {
   return CANDIDATE_SOURCE_LABELS[source as CandidateSource] ?? source;
 }
 
-/** Claves de identidad para detectar duplicados: email y LinkedIn normalizados. */
-function dupKeys(c: Candidate): string[] {
-  const keys: string[] = [];
-  const email = normalizeEmailKey(c.email);
-  const linkedin = normalizeLinkedinKey(c.linkedinUrl);
-  if (email) keys.push("e:" + email);
-  if (linkedin) keys.push("l:" + linkedin);
-  return keys;
+function buildCandidatesHref(
+  filter: CandidateFilterKey,
+  query: string,
+  page: number,
+): string {
+  const params = new URLSearchParams();
+  if (filter !== "all") params.set("filter", filter);
+  if (query) params.set("q", query);
+  if (page > 1) params.set("page", String(page));
+  return params.size ? `/candidates?${params}` : "/candidates";
 }
 
-export function CandidatesList({ candidates, jobs }: Props) {
+/** Buscador URL-driven (?q=): igual que en Búsquedas, la búsqueda tiene que filtrar contra
+ *  TODO el pool, no solo la página visible, así que ya no puede ser client-side puro. El
+ *  caller lo remonta con `key={query}` cuando el valor cambia por afuera (navegación). */
+function CandidatesSearchInput({
+  filter,
+  initialQuery,
+}: {
+  filter: CandidateFilterKey;
+  initialQuery: string;
+}) {
+  const router = useRouter();
+  const [value, setValue] = useState(initialQuery);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+
+  function handleChange(next: string) {
+    setValue(next);
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      router.replace(buildCandidatesHref(filter, next.trim(), 1), {
+        scroll: false,
+      });
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  return (
+    <SearchInput
+      value={value}
+      onChange={handleChange}
+      placeholder="Buscar por nombre o email…"
+      aria-label="Buscar candidatos"
+    />
+  );
+}
+
+export function CandidatesList({
+  candidates,
+  jobs,
+  filter,
+  query,
+  counts,
+  duplicateIds,
+  page,
+  totalPages,
+}: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<FilterKey>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [quickView, setQuickView] = useState<Candidate | null>(null);
@@ -58,44 +119,13 @@ export function CandidatesList({ candidates, jobs }: Props) {
   const [rows, applyState] = useOptimistic(
     candidates,
     (state, patch: { id: string; talentState: TalentState }) =>
-      state.map((c) => (c.id === patch.id ? { ...c, talentState: patch.talentState } : c)),
+      state.map((c) =>
+        c.id === patch.id ? { ...c, talentState: patch.talentState } : c,
+      ),
   );
+  const duplicateIdSet = new Set(duplicateIds);
 
-  // Detección de duplicados: ids que comparten email o LinkedIn con otro candidato.
-  const { duplicateIds, dupKeyOf } = useMemo(() => {
-    const byKey = new Map<string, string[]>();
-    const keyOf = new Map<string, string>();
-    for (const c of rows) {
-      for (const k of dupKeys(c)) {
-        const list = byKey.get(k) ?? [];
-        list.push(c.id);
-        byKey.set(k, list);
-      }
-    }
-    const dup = new Set<string>();
-    for (const [k, ids] of byKey) {
-      if (ids.length > 1) ids.forEach((id) => {
-        dup.add(id);
-        if (!keyOf.has(id)) keyOf.set(id, k);
-      });
-    }
-    return { duplicateIds: dup, dupKeyOf: keyOf };
-  }, [rows]);
-
-  const counts = useMemo(() => {
-    const c: Record<FilterKey, number> = {
-      all: rows.length,
-      active: 0,
-      passive: 0,
-      contacted: 0,
-      archived: 0,
-      duplicates: duplicateIds.size,
-    };
-    for (const r of rows) c[r.talentState as TalentState] += 1;
-    return c;
-  }, [rows, duplicateIds]);
-
-  if (candidates.length === 0) {
+  if (counts.all === 0) {
     return (
       <EmptyState
         title="Tu pool está vacío"
@@ -105,28 +135,9 @@ export function CandidatesList({ candidates, jobs }: Props) {
     );
   }
 
-  const q = query.trim().toLowerCase();
-  let visible = rows.filter((c) => {
-    if (filter === "duplicates") {
-      if (!duplicateIds.has(c.id)) return false;
-    } else if (filter !== "all") {
-      if (c.talentState !== filter) return false;
-    }
-    if (q) {
-      return (
-        c.fullName.toLowerCase().includes(q) || (c.email ?? "").toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
-  // En la vista de duplicados, agrupar por clave para que los pares queden adyacentes.
-  if (filter === "duplicates") {
-    visible = [...visible].sort((a, b) =>
-      (dupKeyOf.get(a.id) ?? "").localeCompare(dupKeyOf.get(b.id) ?? ""),
-    );
-  }
-
-  const allVisibleSelected = visible.length > 0 && visible.every((c) => selected.has(c.id));
+  const visible = rows;
+  const allVisibleSelected =
+    visible.length > 0 && visible.every((c) => selected.has(c.id));
   const someVisibleSelected = visible.some((c) => selected.has(c.id));
 
   function toggleOne(id: string) {
@@ -150,12 +161,20 @@ export function CandidatesList({ candidates, jobs }: Props) {
     startTransition(async () => {
       applyState({ id: c.id, talentState });
       const res = await cambiarEstadoTalentoAction(c.id, talentState);
-      if (!res.ok) toast({ message: res.error ?? "No se pudo cambiar.", variant: "danger" });
-      else toast({ message: `${c.fullName} → ${TALENT_STATE_LABELS[talentState]}`, variant: "success" });
+      if (!res.ok)
+        toast({
+          message: res.error ?? "No se pudo cambiar.",
+          variant: "danger",
+        });
+      else
+        toast({
+          message: `${c.fullName} → ${TALENT_STATE_LABELS[talentState]}`,
+          variant: "success",
+        });
     });
   }
 
-  const CHIPS: { key: FilterKey; label: string }[] = [
+  const CHIPS: { key: CandidateFilterKey; label: string }[] = [
     { key: "all", label: "Todos" },
     { key: "active", label: TALENT_STATE_LABELS.active },
     { key: "passive", label: TALENT_STATE_LABELS.passive },
@@ -167,14 +186,13 @@ export function CandidatesList({ candidates, jobs }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder="Buscar por nombre o email…"
-          aria-label="Buscar candidatos"
+        <CandidatesSearchInput
+          key={query}
+          filter={filter}
+          initialQuery={query}
         />
         <p className="text-sm text-muted">
-          {visible.length} de {candidates.length}
+          {visible.length} de {counts[filter]}
         </p>
       </div>
 
@@ -186,7 +204,7 @@ export function CandidatesList({ candidates, jobs }: Props) {
           return (
             <FilterChip
               key={chip.key}
-              onClick={() => setFilter(chip.key)}
+              href={buildCandidatesHref(chip.key, query, 1)}
               active={filter === chip.key}
               count={n}
               tone={isDup && n > 0 ? "danger" : undefined}
@@ -220,7 +238,9 @@ export function CandidatesList({ candidates, jobs }: Props) {
         <div className="rounded-[var(--radius)] border border-border bg-surface px-6 py-12 text-center text-sm text-muted shadow-[var(--shadow)]">
           {filter === "duplicates"
             ? "No se detectaron duplicados por email o LinkedIn."
-            : "Ningún candidato coincide con el filtro."}
+            : query
+              ? `Ningún candidato coincide con “${query}”.`
+              : "Ningún candidato coincide con el filtro."}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-[var(--radius)] border border-border bg-surface shadow-[var(--shadow)]">
@@ -232,7 +252,9 @@ export function CandidatesList({ candidates, jobs }: Props) {
                     checked={allVisibleSelected}
                     aria-label="Seleccionar todos"
                     ref={(el) => {
-                      if (el) el.indeterminate = !allVisibleSelected && someVisibleSelected;
+                      if (el)
+                        el.indeterminate =
+                          !allVisibleSelected && someVisibleSelected;
                     }}
                     onChange={toggleAll}
                   />
@@ -252,7 +274,7 @@ export function CandidatesList({ candidates, jobs }: Props) {
             <tbody className="divide-y divide-border">
               {visible.map((candidate) => {
                 const isSelected = selected.has(candidate.id);
-                const isDup = duplicateIds.has(candidate.id);
+                const isDup = duplicateIdSet.has(candidate.id);
                 return (
                   <tr
                     key={candidate.id}
@@ -280,7 +302,10 @@ export function CandidatesList({ candidates, jobs }: Props) {
                         </button>
                         {candidate.cvUrl && <Badge variant="blue">CV</Badge>}
                         {isDup && (
-                          <Badge variant="danger" title="Comparte email o LinkedIn con otro candidato">
+                          <Badge
+                            variant="danger"
+                            title="Comparte email o LinkedIn con otro candidato"
+                          >
                             Duplicado
                           </Badge>
                         )}
@@ -290,8 +315,18 @@ export function CandidatesList({ candidates, jobs }: Props) {
                       {sourceLabel(candidate.source)}
                     </td>
                     <td className="py-2.5 pr-3">
-                      <Badge variant={TALENT_STATE_BADGE[candidate.talentState as TalentState]}>
-                        {TALENT_STATE_LABELS[candidate.talentState as TalentState]}
+                      <Badge
+                        variant={
+                          TALENT_STATE_BADGE[
+                            candidate.talentState as TalentState
+                          ]
+                        }
+                      >
+                        {
+                          TALENT_STATE_LABELS[
+                            candidate.talentState as TalentState
+                          ]
+                        }
                       </Badge>
                     </td>
                     <td className="py-2.5 pr-4">
@@ -306,8 +341,18 @@ export function CandidatesList({ candidates, jobs }: Props) {
                         <Menu
                           align="end"
                           trigger={
-                            <IconButton aria-label="Acciones del candidato" size="sm" variant="ghost">
-                              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+                            <IconButton
+                              aria-label="Acciones del candidato"
+                              size="sm"
+                              variant="ghost"
+                            >
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 16 16"
+                                fill="currentColor"
+                                aria-hidden
+                              >
                                 <circle cx="8" cy="3" r="1.4" />
                                 <circle cx="8" cy="8" r="1.4" />
                                 <circle cx="8" cy="13" r="1.4" />
@@ -316,13 +361,20 @@ export function CandidatesList({ candidates, jobs }: Props) {
                           }
                         >
                           <MenuLabel>Marcar como</MenuLabel>
-                          {TALENT_STATE_ORDER.filter((s) => s !== candidate.talentState).map((s) => (
-                            <MenuItem key={s} onClick={() => setState(candidate, s)}>
+                          {TALENT_STATE_ORDER.filter(
+                            (s) => s !== candidate.talentState,
+                          ).map((s) => (
+                            <MenuItem
+                              key={s}
+                              onClick={() => setState(candidate, s)}
+                            >
                               {TALENT_STATE_LABELS[s]}
                             </MenuItem>
                           ))}
                           <MenuSeparator />
-                          <MenuItem onClick={() => setQuickView(candidate)}>Ver detalle…</MenuItem>
+                          <MenuItem onClick={() => setQuickView(candidate)}>
+                            Ver detalle…
+                          </MenuItem>
                         </Menu>
                       </div>
                     </td>
@@ -334,7 +386,16 @@ export function CandidatesList({ candidates, jobs }: Props) {
         </div>
       )}
 
-      <QuickViewDrawer candidate={quickView} onClose={() => setQuickView(null)} />
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        buildHref={(p) => buildCandidatesHref(filter, query, p)}
+      />
+
+      <QuickViewDrawer
+        candidate={quickView}
+        onClose={() => setQuickView(null)}
+      />
 
       <PostularDialog
         open={dialogOpen}
@@ -347,7 +408,9 @@ export function CandidatesList({ candidates, jobs }: Props) {
           toast({
             message:
               `${added} candidato${added !== 1 ? "s" : ""} a ${jobTitle}` +
-              (skipped ? ` · ${skipped} ya estaba${skipped !== 1 ? "n" : ""}` : ""),
+              (skipped
+                ? ` · ${skipped} ya estaba${skipped !== 1 ? "n" : ""}`
+                : ""),
             variant: "success",
           });
         }}
@@ -364,7 +427,9 @@ function QuickViewDrawer({
   candidate: Candidate | null;
   onClose: () => void;
 }) {
-  const fullName = candidate ? normalizeIfUncapitalized(candidate.fullName) : "";
+  const fullName = candidate
+    ? normalizeIfUncapitalized(candidate.fullName)
+    : "";
   return (
     <Dialog
       open={candidate !== null}
@@ -380,7 +445,9 @@ function QuickViewDrawer({
                 {fullName}
               </p>
               {candidate.headline && (
-                <p className="truncate text-xs text-muted">{candidate.headline}</p>
+                <p className="truncate text-xs text-muted">
+                  {candidate.headline}
+                </p>
               )}
             </div>
           </div>
@@ -390,20 +457,31 @@ function QuickViewDrawer({
       {candidate && (
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-2">
-            <Badge variant={TALENT_STATE_BADGE[candidate.talentState as TalentState]}>
+            <Badge
+              variant={TALENT_STATE_BADGE[candidate.talentState as TalentState]}
+            >
               {TALENT_STATE_LABELS[candidate.talentState as TalentState]}
             </Badge>
-            <span className="text-xs text-muted">{sourceLabel(candidate.source)}</span>
+            <span className="text-xs text-muted">
+              {sourceLabel(candidate.source)}
+            </span>
           </div>
 
           <dl className="flex flex-col gap-2.5 text-sm">
-            {candidate.email && <QuickRow label="Email" value={candidate.email} />}
+            {candidate.email && (
+              <QuickRow label="Email" value={candidate.email} />
+            )}
             {candidate.location && (
-              <QuickRow label="Ubicación" value={normalizeIfUncapitalized(candidate.location)} />
+              <QuickRow
+                label="Ubicación"
+                value={normalizeIfUncapitalized(candidate.location)}
+              />
             )}
             {candidate.linkedinUrl && (
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-wide text-label">LinkedIn</dt>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-label">
+                  LinkedIn
+                </dt>
                 <dd className="mt-0.5">
                   <a
                     href={candidate.linkedinUrl}
@@ -420,10 +498,15 @@ function QuickViewDrawer({
 
           {candidate.skills && candidate.skills.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-label">Skills</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-label">
+                Skills
+              </span>
               <div className="flex flex-wrap gap-1.5">
                 {candidate.skills.map((s) => (
-                  <span key={s} className="rounded-full bg-bg px-2 py-0.5 text-xs text-text">
+                  <span
+                    key={s}
+                    className="rounded-full bg-bg px-2 py-0.5 text-xs text-text"
+                  >
                     {normalizeIfUncapitalized(s)}
                   </span>
                 ))}
@@ -433,8 +516,12 @@ function QuickViewDrawer({
 
           {candidate.summary && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-label">Resumen</span>
-              <p className="whitespace-pre-wrap text-sm text-text">{candidate.summary}</p>
+              <span className="text-xs font-semibold uppercase tracking-wide text-label">
+                Resumen
+              </span>
+              <p className="whitespace-pre-wrap text-sm text-text">
+                {candidate.summary}
+              </p>
             </div>
           )}
 
@@ -471,7 +558,9 @@ function QuickViewDrawer({
 function QuickRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-label">{label}</dt>
+      <dt className="text-xs font-semibold uppercase tracking-wide text-label">
+        {label}
+      </dt>
       <dd className="mt-0.5 truncate text-text">{value}</dd>
     </div>
   );
@@ -520,14 +609,20 @@ function PostularDialog({
         {jobs.length === 0 ? (
           <p className="text-sm text-muted">
             No tenés búsquedas todavía.{" "}
-            <Link href="/jobs/new" className="font-semibold text-primary hover:underline">
+            <Link
+              href="/jobs/new"
+              className="font-semibold text-primary hover:underline"
+            >
               Creá una primero
             </Link>
             .
           </p>
         ) : (
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="bulk-job" className="text-xs font-semibold text-muted">
+            <label
+              htmlFor="bulk-job"
+              className="text-xs font-semibold text-muted"
+            >
               Búsqueda
             </label>
             <select
@@ -554,7 +649,10 @@ function PostularDialog({
           >
             Cancelar
           </button>
-          <Button onClick={submit} disabled={isPending || !jobId || jobs.length === 0}>
+          <Button
+            onClick={submit}
+            disabled={isPending || !jobId || jobs.length === 0}
+          >
             {isPending ? "Postulando…" : "Postular"}
           </Button>
         </div>

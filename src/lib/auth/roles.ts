@@ -82,8 +82,13 @@ const ALL: Capability[] = [
 ];
 
 const CAPABILITIES: Record<OrgRole, readonly Capability[]> = {
-  owner: ALL,
-  admin: ALL,
+  // Única excepción a "owner/admin puede hacer todo": `shortlists.feedback` es el buzón
+  // propio del Hiring Manager (shortlists que un recruiter le compartió A ÉL, para que
+  // deje feedback). Owner/admin nunca son destinatarios de ese share — heredarla de ALL
+  // solo mostraba un ítem de nav y una pantalla que para ellos siempre está vacía, y en
+  // workspaces sin rol HM posible (Freelance, Team) no tiene sentido en absoluto.
+  owner: ALL.filter((c) => c !== "shortlists.feedback"),
+  admin: ALL.filter((c) => c !== "shortlists.feedback"),
 
   // Ve todas las páginas, pero no administra Equipo/Career Site/facturación, y su
   // Configuración queda acotada a su propio perfil (sin plantilla de etapas ni workspace).
@@ -221,13 +226,19 @@ export function isRequesterScoped(role: OrgRole): boolean {
 
 /**
  * Quién puede de verdad aprobar/rechazar una solicitud — distinto de `can(role,
- * "requisitions.review")`, que el HM también tiene (esa capability solo gatea que VEA la
- * pantalla). El HM nunca revisa, ni siquiera la suya propia: la revisa el recruiter que él
- * mismo eligió al cargarla. Se chequea acá Y dentro de aprobar/rechazar-requisition.ts
- * (defensa en profundidad, no solo la UI).
+ * "requisitions.review")`, que solo gatea que se VEA la pantalla de Solicitudes (el HM también
+ * la tiene, para su propia bandeja de "cargadas por mí"). Lista blanca explícita, no "cualquiera
+ * con la capability salvo hiring_manager": esa forma anterior era un hueco latente — el día que
+ * un rol de solo lectura (ej. Viewer) gane `requisitions.review` únicamente para VER la
+ * pantalla, heredaría por accidente el poder real de aprobar/rechazar, porque no es
+ * `hiring_manager`. Con la lista blanca, ver y decidir quedan desacoplados de verdad. Se
+ * chequea acá Y dentro de aprobar/rechazar-requisition.ts (defensa en profundidad, no solo la
+ * UI).
  */
+const REQUISITION_REVIEWER_ROLES: readonly OrgRole[] = ["owner", "admin", "recruiter"];
+
 export function canReviewRequisitions(role: OrgRole): boolean {
-  return can(role, "requisitions.review") && role !== "hiring_manager";
+  return REQUISITION_REVIEWER_ROLES.includes(role);
 }
 
 export const ROLE_LABELS: Record<OrgRole, string> = {

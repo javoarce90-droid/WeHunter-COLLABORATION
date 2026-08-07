@@ -232,13 +232,22 @@ describe("reordenarEtapas", () => {
 
   it("asigna posiciones según el orden recibido", async () => {
     const d = deps();
-    const orden = ["s-inbox", "s-offer", "s-screen", "s-hired", "s-rej"];
+    const orden = ["s-screen", "s-inbox", "s-offer", "s-hired", "s-rej"];
     const res = await reordenarEtapas({ jobId: "job-1", stageIds: orden }, ctx, d);
 
     expect(res.ok).toBe(true);
     expect(d.setPositions).toHaveBeenCalledWith(
       orden.map((stageId, position) => ({ stageId, position })),
     );
+  });
+
+  it("rechaza un orden que deja una etapa en curso después de una de cierre", async () => {
+    const d = deps();
+    const orden = ["s-inbox", "s-offer", "s-screen", "s-hired", "s-rej"];
+    const res = await reordenarEtapas({ jobId: "job-1", stageIds: orden }, ctx, d);
+
+    expect(res).toMatchObject({ ok: false });
+    expect(d.setPositions).not.toHaveBeenCalled();
   });
 
   it("rechaza un orden al que le falta una etapa", async () => {

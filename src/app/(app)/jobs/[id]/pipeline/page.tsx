@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 import {
   listApplicationsByJob,
   getJobStageCounts,
@@ -24,7 +25,6 @@ import {
   type CandidateTagRow,
 } from "@/features/recruiter/candidates/data/tags.queries";
 import { PipelineView } from "@/features/recruiter/applications/ui/PipelineView";
-import { JobStageSettingsButton } from "@/features/recruiter/pipeline-stages/ui/JobStageSettingsButton";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -130,7 +130,7 @@ export default async function PipelinePage({ params }: Props) {
       screeningByApplication={screeningByApplication}
       tagsByCandidate={tagsByCandidate}
       stages={stages}
-      actions={<JobStageSettingsButton key="stage-settings" jobId={jobId} stages={stages} />}
+      canConfigureStages={can(membership.role, "stages.configure")}
     />
   );
 }
