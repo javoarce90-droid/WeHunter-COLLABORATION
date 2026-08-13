@@ -1,14 +1,17 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
-import { listApplicationsByJob } from "@/features/recruiter/applications/data/applications.queries";
+import { listApplicationOptionsByJob } from "@/features/recruiter/applications/data/applications.queries";
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
 import {
   listShortlistsByJob,
-  listShortlistCandidates,
-  listSharesByShortlist,
+  listShortlistCandidatesForShortlists,
+  listSharesForShortlists,
 } from "@/features/recruiter/shortlists/data/shortlists.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
+import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
+import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { CrearShortlistForm } from "@/features/recruiter/shortlists/ui/CrearShortlistForm";
 import { ShortlistCard } from "@/features/recruiter/shortlists/ui/ShortlistCard";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,35 +33,61 @@ export default async function ShortlistsPage({ params }: Props) {
   const proto = reqHeaders.get("x-forwarded-proto") ?? "http";
   const appUrl = host ? `${proto}://${host}` : "";
 
-  const [applications, summaries, members] = await Promise.all([
-    listApplicationsByJob(jobId, membership.organizationId),
+  const [job, applications, summaries, members, jobInterviews] = await Promise.all([
+    getJobById(jobId, membership.organizationId), // cache() por request: gratis (ya lo pidió el layout)
+    listApplicationOptionsByJob(jobId, membership.organizationId),
     listShortlistsByJob(jobId, membership.organizationId),
-    membership.workspaceType === "enterprise"
-      ? listMembers(membership.organizationId)
-      : Promise.resolve([]),
+    listMembers(membership.organizationId),
+    listInterviewsByJob(jobId, membership.organizationId),
   ]);
+  if (!job) notFound();
+
+  const teamMembers = members
+    .filter((m) => m.status === "active")
+    .map((m) => ({ profileId: m.profileId, name: m.name, email: m.email }));
+
+  const interviewsByApplication = jobInterviews.reduce<Record<string, InterviewRow[]>>((acc, it) => {
+    (acc[it.applicationId] ??= []).push(it);
+    return acc;
+  }, {});
 
   const candidateOptions = applications.map((a) => ({
     applicationId: a.id,
-    fullName: a.candidate.fullName,
+    fullName: a.candidateFullName,
     stage: STAGE_LABELS[a.stage],
   }));
 
   // Compartir con HM solo existe en Enterprise (§9) — ahí es donde el rol tiene sentido.
-  const hmOptions = members
-    .filter((m) => m.status === "active" && m.role === "hiring_manager")
-    .map((m) => ({ membershipId: m.membershipId, name: m.name ?? m.email }));
+  const hmOptions =
+    membership.workspaceType === "enterprise"
+      ? members
+          .filter((m) => m.status === "active" && m.role === "hiring_manager")
+          .map((m) => ({ membershipId: m.membershipId, name: m.name ?? m.email }))
+      : [];
 
-  // Para cada shortlist, traemos candidatos (con feedback) y sus enlaces.
-  const shortlists = await Promise.all(
-    summaries.map(async (sl) => {
-      const [candidates, shares] = await Promise.all([
-        listShortlistCandidates(sl.id, membership.organizationId),
-        listSharesByShortlist(sl.id, membership.organizationId),
-      ]);
-      return { ...sl, candidates, shares };
-    }),
+  // Candidatos (con feedback) y enlaces de TODAS las shortlists del job en 2 queries bulk,
+  // no 2 por shortlist — antes era un Promise.all con una ronda de queries por cada una.
+  const shortlistIds = summaries.map((sl) => sl.id);
+  const [allCandidates, allShares] = await Promise.all([
+    listShortlistCandidatesForShortlists(shortlistIds, membership.organizationId),
+    listSharesForShortlists(shortlistIds, membership.organizationId),
+  ]);
+  const candidatesByShortlist = allCandidates.reduce<Record<string, typeof allCandidates>>(
+    (acc, c) => {
+      (acc[c.shortlistId] ??= []).push(c);
+      return acc;
+    },
+    {},
   );
+  const sharesByShortlist = allShares.reduce<Record<string, typeof allShares>>((acc, s) => {
+    (acc[s.shortlistId] ??= []).push(s);
+    return acc;
+  }, {});
+  const shortlists = summaries.map((sl) => ({
+    ...sl,
+    candidates: candidatesByShortlist[sl.id] ?? [],
+    shares: sharesByShortlist[sl.id] ?? [],
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -81,11 +110,14 @@ export default async function ShortlistsPage({ params }: Props) {
               key={sl.id}
               shortlistId={sl.id}
               jobId={jobId}
+              jobTitle={job.title}
               name={sl.name}
               candidates={sl.candidates}
               shares={sl.shares}
               appUrl={appUrl}
               hmOptions={hmOptions}
+              teamMembers={teamMembers}
+              interviewsByApplication={interviewsByApplication}
             />
           ))}
         </div>

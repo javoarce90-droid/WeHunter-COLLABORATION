@@ -80,3 +80,32 @@ export async function listScreeningAnswersByJob(
   );
   return rows.map((r) => ({ ...r, questionType: r.questionType as ScreeningQuestionType }));
 }
+
+/** Respuestas de screening de UNA postulación — para fichas de detalle puntuales (ej. el
+ *  sheet de un candidato de shortlist), donde no hace falta el resto del job. */
+export async function listScreeningAnswersByApplication(
+  applicationId: string,
+  organizationId: string,
+): Promise<Pick<ScreeningAnswerRow, "questionId" | "questionLabel" | "value">[]> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          questionId: screeningAnswers.questionId,
+          questionLabel: screeningQuestions.label,
+          value: screeningAnswers.value,
+        })
+        .from(screeningAnswers)
+        .innerJoin(screeningQuestions, eq(screeningAnswers.questionId, screeningQuestions.id))
+        .where(
+          and(
+            eq(screeningAnswers.applicationId, applicationId),
+            eq(screeningAnswers.organizationId, organizationId),
+          ),
+        )
+        .orderBy(asc(screeningQuestions.position)),
+    "db.screening.answers-by-application",
+  );
+  return rows;
+}

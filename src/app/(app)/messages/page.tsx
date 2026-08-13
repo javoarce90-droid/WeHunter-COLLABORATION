@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { listThreads, listTemplates } from "@/features/recruiter/messaging/data/messaging.queries";
-import { listCandidates } from "@/features/recruiter/candidates/data/candidates.queries";
+import { listCandidateOptions } from "@/features/recruiter/candidates/data/candidates.queries";
 import { Inbox } from "@/features/recruiter/messaging/ui/Inbox";
 import { parsePage, totalPages as calcTotalPages } from "@/lib/pagination";
 
@@ -19,7 +19,7 @@ export default async function MessagesPage({
   const [{ threads, total }, templates, candidates] = await Promise.all([
     listThreads(membership.organizationId, page),
     listTemplates(membership.organizationId),
-    listCandidates(membership.organizationId),
+    listCandidateOptions(membership.organizationId),
   ]);
 
   return (

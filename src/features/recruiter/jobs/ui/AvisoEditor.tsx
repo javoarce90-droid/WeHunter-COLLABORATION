@@ -17,6 +17,7 @@ import {
 } from "./field-meta";
 import { JobPostingContent } from "./JobPostingContent";
 import { AgregarCandidatos } from "@/features/recruiter/applications/ui/AgregarCandidatos";
+import { FloatingMarkdownInput } from "./FloatingMarkdownInput";
 
 const REMOVE_ICON = (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -31,9 +32,6 @@ function formatSalary(min: number | null, max: number | null, currency: string |
   if (min != null && max != null) return `${cur}${fmt(min)} – ${fmt(max)}`;
   return `${cur}${fmt((min ?? max) as number)}`;
 }
-
-const textareaClass =
-  "w-full min-h-24 resize-y rounded-[var(--radius)] border border-border bg-bg px-3 py-2.5 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
 
 export function AvisoEditor({
   job,
@@ -211,36 +209,27 @@ export function AvisoEditor({
               </AiButton>
             </div>
             <div className="flex flex-col gap-4">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-muted">Objetivos del puesto</span>
-                <textarea
-                  name="objectives"
-                  rows={3}
-                  className={textareaClass}
-                  value={objectives}
-                  onChange={(e) => setObjectives(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-muted">Responsabilidades</span>
-                <textarea
-                  name="responsibilities"
-                  rows={3}
-                  className={textareaClass}
-                  value={responsibilities}
-                  onChange={(e) => setResponsibilities(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-muted">Requisitos</span>
-                <textarea
-                  name="requirements"
-                  rows={3}
-                  className={textareaClass}
-                  value={requirements}
-                  onChange={(e) => setRequirements(e.target.value)}
-                />
-              </label>
+              <FloatingMarkdownInput
+                name="objectives"
+                label="Objetivos del puesto"
+                value={objectives}
+                onChange={setObjectives}
+                placeholder="Objetivos del puesto..."
+              />
+              <FloatingMarkdownInput
+                name="responsibilities"
+                label="Responsabilidades"
+                value={responsibilities}
+                onChange={setResponsibilities}
+                placeholder="Responsabilidades cotidianas..."
+              />
+              <FloatingMarkdownInput
+                name="requirements"
+                label="Requisitos"
+                value={requirements}
+                onChange={setRequirements}
+                placeholder="Requisitos principales..."
+              />
             </div>
           </div>
 

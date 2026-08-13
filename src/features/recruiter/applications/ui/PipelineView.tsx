@@ -124,6 +124,12 @@ const noop = () => {};
 const SIN_SLA_KINDS = new Set(["hired", "rejected"]);
 const SIN_BORRADO_KINDS = new Set(["inbox", "hired", "rejected"]);
 
+/** Delay de entrada con tope: pasado `cap` ítems, todos entran juntos con el mismo delay que
+ *  el último — así un tablero con muchas tarjetas no tarda más en "asentarse" por tener más. */
+function staggerDelay(index: number, stepMs: number, cap: number): CSSProperties {
+  return { animationDelay: `${Math.min(index, cap) * stepMs}ms` };
+}
+
 // ── Controles inline del header de columna ──────────────────────────────────
 
 function StageNameInput({
@@ -229,6 +235,9 @@ function AddStageTile({ onAdd, disabled }: { onAdd: () => void; disabled?: boole
 
 type ColumnProps = {
   stage: JobStage;
+  /** Posición entre TODAS las columnas visibles (no solo dentro de in_process/cierre) — determina
+   *  el orden del stagger de entrada, de izquierda a derecha. */
+  columnIndex: number;
   stages: JobStage[];
   cards: ApplicationWithCandidate[];
   interviewsByApplication: Record<string, InterviewRow[]>;
@@ -263,6 +272,7 @@ type ColumnBodyProps = ColumnProps & {
 
 function PipelineColumn({
   stage,
+  columnIndex,
   stages,
   cards,
   interviewsByApplication,
@@ -290,13 +300,17 @@ function PipelineColumn({
 }: ColumnBodyProps) {
   const sinSla = SIN_SLA_KINDS.has(stage.kind);
   const sinBorrado = SIN_BORRADO_KINDS.has(stage.kind);
+  // Drag en curso (`style` con transform) prevalece: no sumar animation-delay a una columna
+  // que el usuario está moviendo con el mouse.
+  const entryStyle = style ?? staggerDelay(columnIndex, 60, 8);
 
   return (
     <section
       ref={setNodeRef}
-      style={style}
+      style={entryStyle}
       className={[
         "flex min-h-[60vh] w-[272px] shrink-0 flex-col gap-3 rounded-xl p-3 transition-colors",
+        !style && "animate-view-in",
         isOver ? "bg-primary/[0.06] ring-1 ring-primary/20" : "bg-text/[0.035]",
         isDragging && "opacity-40",
       ]
@@ -377,10 +391,11 @@ function PipelineColumn({
             Sin candidatos
           </div>
         ) : (
-          cards.map((app) => (
+          cards.map((app, i) => (
             <PipelineCard
               key={app.id}
               application={app}
+              entryIndex={i}
               stageName={stage.name}
               stages={stages}
               interviews={interviewsByApplication[app.id] ?? []}
@@ -748,6 +763,8 @@ export function PipelineView({
   // solo las `in_process` que agrega el recruiter se reordenan por drag.
   const inProcessStages = visibleStages.filter((s) => s.kind === "in_process");
   const closingStages = visibleStages.filter((s) => s.kind !== "in_process");
+  // Índice global (no por grupo) para que el stagger de entrada siga un único orden izq→der.
+  const columnIndexById = new Map(visibleStages.map((s, i) => [s.id, i]));
   // Reordenar (y agregar) necesita el set COMPLETO de columnas: con un filtro/búsqueda activo
   // el tablero solo muestra un subconjunto, y enviar ese subconjunto al server dejaría
   // huérfanas las etapas ocultas por el filtro.
@@ -913,6 +930,7 @@ export function PipelineView({
                   key={stage.id}
                   {...columnCommonProps}
                   stage={stage}
+                  columnIndex={columnIndexById.get(stage.id) ?? 0}
                   cards={cardsFor(stage.id)}
                   canDrag={canEditPipelineShape}
                   autoFocusName={focusStageId === stage.id}
@@ -925,6 +943,7 @@ export function PipelineView({
                 key={stage.id}
                 {...columnCommonProps}
                 stage={stage}
+                columnIndex={columnIndexById.get(stage.id) ?? 0}
                 cards={cardsFor(stage.id)}
                 autoFocusName={focusStageId === stage.id}
               />

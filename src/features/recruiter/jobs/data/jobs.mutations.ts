@@ -1,9 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { jobs, jobStages, type Job } from "@/db/schema";
-import { listStageTemplates } from "../../pipeline-stages/data/job-stage-templates.queries";
-import { buildJobStagesFromTemplate } from "../../pipeline-stages/schema";
-import { buildDefaultStageTemplate } from "../../pipeline-stages/domain/gestionar-plantilla-etapas";
+import { resolveJobStageSeed } from "../../pipeline-stages/data/job-stage-templates.queries";
 import type { JobDetails } from "../domain/job-details";
 import { assignedToMembership } from "./job-scope";
 
@@ -20,13 +18,8 @@ export async function insertJob(
 ): Promise<{ jobId: string }> {
   const db = await getDb();
   const { organizationId, title, description, createdBy, assignedTo, ...details } = args;
-  // Se lee fuera de la transacción: listStageTemplates abre la suya y anidarlas rompe.
-  // Si la org no tiene plantilla propia todavía (creada antes de Configuración > Etapas por
-  // defecto, y nadie generó el backfill manual), se usa el default de código como semilla de
-  // ESTE job puntual — no bloquea la creación de la búsqueda a que exista una fila en
-  // job_stage_templates.
-  const template = await listStageTemplates(organizationId);
-  const seed = buildJobStagesFromTemplate(template.length > 0 ? template : buildDefaultStageTemplate());
+  // Se lee fuera de la transacción: resolveJobStageSeed abre la suya y anidarlas rompe.
+  const seed = await resolveJobStageSeed(organizationId);
   // El job y su pipeline nacen juntos: una búsqueda sin etapas no se puede operar, así que
   // sembrarlas después dejaría una ventana con el tablero roto.
   const jobId = await db.rls(async (tx) => {

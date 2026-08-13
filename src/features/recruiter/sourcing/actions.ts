@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { getActiveMembership } from "@/lib/auth/session";
+import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
 import {
   scoreLinkedInCandidate,
@@ -12,6 +12,7 @@ import {
 import { getJobById } from "../jobs/data/jobs.queries";
 import { getAiProvider } from "@/lib/ai";
 import { can } from "@/lib/auth/roles";
+import { notifyProfile } from "../notifications/data/notifications.mutations";
 
 const importSchema = z.object({
   name: z.string().trim().min(1),
@@ -97,7 +98,7 @@ export async function sourcearParaBusquedaAction(jobId: string): Promise<{
   isLiveApi?: boolean;
   error?: string;
 }> {
-  const membership = await getActiveMembership();
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!membership) return { ok: false, error: "No autorizado." };
   if (!can(membership.role, "candidates.manage")) {
     return { ok: false, error: "Tu rol no permite usar sourcing." };
@@ -127,6 +128,23 @@ export async function sourcearParaBusquedaAction(jobId: string): Promise<{
   );
 
   if (!result.ok) return { ok: false, error: result.error };
+
+  // El recruiter puede haber navegado a otra subtab mientras esto corría (el sourcing tarda:
+  // búsqueda + hasta 10 scorings de IA) — si ya no está montado para ver `results`, esto es lo
+  // único que le avisa que terminó. No persiste los resultados: si vuelve desde el link, tiene
+  // que repetir la búsqueda.
+  if (user) {
+    try {
+      await notifyProfile(membership.organizationId, user.id, {
+        type: "background_job",
+        title: `Terminó el sourcing con IA para "${job.title}"`,
+        link: `/jobs/${jobId}/postulados`,
+      });
+    } catch {
+      // no-op: el sourcing ya terminó, un fallo al notificar no debe hacer fallar la respuesta.
+    }
+  }
+
   return { ok: true, results: result.results, isLiveApi: result.isLiveApi };
 }
 

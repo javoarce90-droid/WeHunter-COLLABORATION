@@ -24,6 +24,7 @@ const makeDeps = (
 ): PasarAlPipelineDeps => ({
   getApplicationById: vi.fn().mockResolvedValue(app),
   getActiveStages: vi.fn().mockResolvedValue(["new", "screening", "interview", "offer", "hired"]),
+  ensureJobStages: vi.fn().mockResolvedValue([]),
   setPipelineEntered: vi.fn().mockImplementation((id, _from, toStage) => ({
     ...makeApp({ id, stage: toStage }),
   })),
@@ -42,6 +43,7 @@ describe("pasarAlPipeline", () => {
     const res = await pasarAlPipeline({ applicationId: "app-1" }, ctx, deps);
 
     expect(res.ok).toBe(true);
+    expect(deps.ensureJobStages).toHaveBeenCalledWith("job-1", "org-1");
     expect(deps.setPipelineEntered).toHaveBeenCalledWith("app-1", "new", "screening");
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AiButton } from "@/components/ui/ai";
@@ -16,6 +16,14 @@ type Decision = "pending" | "imported" | "omitido";
 
 type Props = {
   jobId: string;
+  /** Estado del panel que lo contiene (el `Dialog` de Postulados). No desmonta este componente
+   *  al cerrarse — solo lo oculta — así que es la única forma de detectar ese cierre desde acá.
+   *  `true` fijo para el caller que no vive en un panel (la tab de /sourcing). */
+  open?: boolean;
+  /** Avisa al contenedor si hay resultados ya calculados sin revisar (ni sumados ni omitidos):
+   *  cerrar en ese estado los pierde de verdad (no se persisten) — el contenedor lo usa para
+   *  confirmar antes de dejar cerrar. */
+  onUnreviewedResultsChange?: (hasUnreviewed: boolean) => void;
 };
 
 /**
@@ -26,7 +34,7 @@ type Props = {
  * LinkedIn". Soporta procesar varios candidatos a la vez (selección múltiple + acciones en
  * lote), no solo de a uno.
  */
-export function AiJobSourcingResults({ jobId }: Props) {
+export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsChange }: Props) {
   const toast = useToast();
   const [results, setResults] = useState<ScoredLinkedInCandidate[] | null>(
     null,
@@ -40,8 +48,49 @@ export function AiJobSourcingResults({ jobId }: Props) {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
 
+  const hasUnreviewedResults =
+    results !== null && results.some((c) => (decisions[c.id] ?? "pending") === "pending");
+  useEffect(() => {
+    onUnreviewedResultsChange?.(hasUnreviewedResults);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasUnreviewedResults]);
+
+  // La búsqueda sigue en el servidor aunque el usuario se vaya (cierre el panel o navegue a
+  // otra subtab): esto avisa de ese caso puntual, una sola vez por búsqueda en curso.
+  const searchingRef = useRef(searching);
+  useEffect(() => {
+    searchingRef.current = searching;
+  }, [searching]);
+  const notifiedRef = useRef(false);
+  const avisarQueSigueBuscando = () => {
+    if (notifiedRef.current) return;
+    notifiedRef.current = true;
+    toast({
+      message: "Seguimos buscando en LinkedIn — te avisamos cuando esté listo",
+    });
+  };
+
+  // Cierre del panel sin navegar: el Dialog oculta pero no desmonta este componente.
+  const prevOpenRef = useRef(open);
+  useEffect(() => {
+    if (prevOpenRef.current && !open && searchingRef.current) {
+      avisarQueSigueBuscando();
+    }
+    prevOpenRef.current = open;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Navegación a otra subtab: acá sí se desmonta.
+  useEffect(() => {
+    return () => {
+      if (searchingRef.current) avisarQueSigueBuscando();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function buscar() {
     if (results !== null) return; // hay que limpiar antes de buscar de nuevo
+    notifiedRef.current = false;
     startSearch(async () => {
       const res = await sourcearParaBusquedaAction(jobId);
       if (!res.ok || !res.results) {

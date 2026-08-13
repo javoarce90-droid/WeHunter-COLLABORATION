@@ -53,6 +53,7 @@ export async function solicitarEntrevistaAction(
   const parsed = solicitarEntrevistaSchema.safeParse({
     token: formData.get("token"),
     shortlistCandidateId: formData.get("shortlistCandidateId"),
+    slots: formData.getAll("slots"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };

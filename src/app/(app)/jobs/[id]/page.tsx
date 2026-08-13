@@ -15,6 +15,7 @@ import {
 } from "@/features/recruiter/jobs/ui/field-meta";
 import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
+import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
@@ -44,16 +45,17 @@ export default async function JobDetailPage({
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
-  // getJobById está cacheado: comparte la transacción con la cabecera del layout.
-  const [job, counts] = await Promise.all([
-    getJobById(id, membership.organizationId),
-    getJobStageCounts(id, membership.organizationId),
-  ]);
+  // getJobById está cacheado: comparte la transacción con la cabecera del layout (el layout la
+  // resuelve primero, así que este await es un cache-hit, no una segunda espera real).
+  const job = await getJobById(id, membership.organizationId);
   if (!job) notFound();
 
-  const client = job.clientId
-    ? await getClientById(job.clientId, membership.organizationId)
-    : null;
+  // getClientById depende de job.clientId (no puede ir en el Promise.all de arriba), pero no
+  // depende de `counts` — antes esperaba a que counts termine sin necesidad.
+  const [counts, client] = await Promise.all([
+    getJobStageCounts(id, membership.organizationId),
+    job.clientId ? getClientById(job.clientId, membership.organizationId) : Promise.resolve(null),
+  ]);
 
   const enPipeline = counts.stages.reduce((sum, s) => sum + s.count, 0);
 
@@ -181,15 +183,11 @@ export default async function JobDetailPage({
                     <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-label">
                       {s.title}
                     </h3>
-                    <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
-                      {s.body}
-                    </p>
+                    <JobMarkdown text={s.body} className="max-w-[70ch] text-sm text-text/80" />
                   </div>
                 ))
               : job.posting && (
-                  <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
-                    {job.posting}
-                  </p>
+                  <JobMarkdown text={job.posting} className="max-w-[70ch] text-sm text-text/80" />
                 )}
             {(job.benefits?.length ?? 0) > 0 && (
               <div>

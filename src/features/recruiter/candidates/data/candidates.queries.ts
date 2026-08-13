@@ -17,21 +17,24 @@ import { paginationRange } from "@/lib/pagination";
 // (cursor + UI) queda como follow-up; por ahora cubrimos cargas razonables.
 const LIST_LIMIT = 100;
 
-/** Todos los candidatos (hasta 100) — usado por selectores/pickers de otras pantallas
- *  (mensajes, shortlists, postulados) que necesitan la lista completa, no una página. */
-export async function listCandidates(
+export type CandidateOption = { id: string; fullName: string; email: string | null };
+
+/** Candidatos de la org (hasta 100), solo las columnas que un picker necesita — Mensajes,
+ *  Aviso y Postulados usan esto para armar su selector de candidatos, nunca la ficha completa
+ *  (summary/skills/cvUrl no se leen ahí). */
+export async function listCandidateOptions(
   organizationId: string,
-): Promise<Candidate[]> {
+): Promise<CandidateOption[]> {
   const db = await getDb();
   return db.rls(
     (tx) =>
       tx
-        .select()
+        .select({ id: candidates.id, fullName: candidates.fullName, email: candidates.email })
         .from(candidates)
         .where(eq(candidates.organizationId, organizationId))
         .orderBy(desc(candidates.createdAt))
         .limit(LIST_LIMIT),
-    "db.candidates.list",
+    "db.candidates.list-options",
   );
 }
 
@@ -40,8 +43,8 @@ export type CandidateFilterCounts = Record<CandidateFilterKey, number>;
 
 /** Conteos para los chips + el set de ids duplicados (necesita ver TODO el pool, cross-row,
  *  nunca solo una página — igual que hacía el cliente antes, ahora en el servidor). Duplicados
- *  se computa sobre las mismas hasta 100 filas que ya traía `listCandidates` — mismo alcance
- *  que tenía la detección de hoy, no es una regresión. */
+ *  se computa sobre las mismas hasta 100 filas (`LIST_LIMIT`) que ven el resto de los
+ *  pickers — mismo alcance que tenía la detección de hoy, no es una regresión. */
 export async function getCandidateFilterMeta(
   organizationId: string,
 ): Promise<{ counts: CandidateFilterCounts; duplicateIds: string[] }> {

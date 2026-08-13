@@ -3,8 +3,7 @@ import Link from "next/link";
 import { getActiveMembership } from "@/lib/auth/session";
 import { can, isAssignmentScoped } from "@/lib/auth/roles";
 import {
-  listJobsWithStats,
-  countJobsByStatus,
+  getJobsListScreenData,
   getOrganizationSlug,
 } from "@/features/recruiter/jobs/data/jobs.queries";
 import { JobsList } from "@/features/recruiter/jobs/ui/JobsList";
@@ -104,8 +103,8 @@ async function JobsSection({
   const scopeToMembershipId = isAssignmentScoped(membership.role)
     ? membership.id
     : undefined;
-  const [{ jobs, total }, counts, orgSlug] = await Promise.all([
-    listJobsWithStats(
+  const [{ jobs, total, statusCounts: counts }, orgSlug] = await Promise.all([
+    getJobsListScreenData(
       membership.organizationId,
       scopeToMembershipId,
       filter,
@@ -113,7 +112,6 @@ async function JobsSection({
       page,
       sort,
     ),
-    countJobsByStatus(membership.organizationId, scopeToMembershipId),
     getOrganizationSlug(membership.organizationId),
   ]);
   return (

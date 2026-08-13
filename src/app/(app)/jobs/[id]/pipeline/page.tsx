@@ -10,7 +10,7 @@ import {
 import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
-import { listJobStages } from "@/features/recruiter/pipeline-stages/data/job-stages.queries";
+import { ensureJobStages } from "@/features/recruiter/pipeline-stages/data/job-stages.mutations";
 import {
   listScreeningQuestionsByJob,
   listScreeningAnswersByJob,
@@ -52,7 +52,7 @@ export default async function PipelinePage({ params }: Props) {
     listApplicationsByJob(jobId, membership.organizationId),
     listInterviewsByJob(jobId, membership.organizationId),
     listNotesByJob(jobId, membership.organizationId),
-    listJobStages(jobId, membership.organizationId),
+    ensureJobStages(jobId, membership.organizationId),
     listStageEventsByJob(jobId, membership.organizationId),
     listMembers(membership.organizationId),
     listScreeningQuestionsByJob(jobId, membership.organizationId),
