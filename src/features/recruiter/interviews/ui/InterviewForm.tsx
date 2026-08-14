@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   agendarInterviewAction,
   actualizarInterviewAction,
@@ -9,14 +9,20 @@ import {
 import {
   INTERVIEW_MODES,
   INTERVIEW_STATUSES,
-  INTERVIEW_TYPES,
   MODE_LABELS,
   STATUS_LABELS,
   TYPE_LABELS,
   LOCATION_MAX_LENGTH,
   INTERVIEW_NOTES_MAX_LENGTH,
+  type InterviewMode,
 } from "../schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
+import type { JobStageOption } from "../data/interviews.queries";
+import {
+  toLocalDateTimeInputValue,
+  todayDateTimeInputValue,
+  localDateTimeValueToISOString,
+} from "@/lib/date";
 
 export type TeamMemberOption = {
   profileId: string;
@@ -32,28 +38,31 @@ type Props = {
   /** Sugerencia inicial de fecha/hora al agendar (ej. el horario que propuso el Cliente/HM
    *  al pedir entrevista desde el shortlist) — editable, no se usa si `interview` ya trae la suya. */
   defaultScheduledAt?: Date;
+  /** Etapas del pipeline de esta búsqueda — pueblan el selector "Tipo" (ya no es un enum
+   *  fijo, ver schema.ts). */
+  jobStages: JobStageOption[];
   teamMembers: TeamMemberOption[];
   onDone: () => void;
 };
-
-/** Date → "yyyy-MM-ddThh:mm" en hora local, para un <input type="datetime-local">. */
-function toLocalInputValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
-}
 
 export function InterviewForm({
   applicationId,
   jobId,
   interview,
   defaultScheduledAt,
+  jobStages,
   teamMembers,
   onDone,
 }: Props) {
   const isEdit = Boolean(interview);
+  const [mode, setMode] = useState<InterviewMode>(interview?.mode ?? "remote");
+  const [scheduledAtLocal, setScheduledAtLocal] = useState(
+    interview
+      ? toLocalDateTimeInputValue(interview.scheduledAt)
+      : defaultScheduledAt
+        ? toLocalDateTimeInputValue(defaultScheduledAt)
+        : "",
+  );
 
   const teamEmailSet = new Set(teamMembers.map((m) => m.email.toLowerCase()));
   const currentParticipants = interview?.participantEmails ?? [];
@@ -86,19 +95,23 @@ export function InterviewForm({
 
       <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
         Fecha y hora
+        {/* El input visible NO manda `scheduledAt` directo — el valor "naive" de un
+            datetime-local no lleva huso horario, y parsearlo en el servidor lo interpreta con
+            el huso del SERVIDOR, no el del usuario (bug real: en prod corre la hora ~3hs).
+            Se normaliza a ISO acá, en el navegador, y eso es lo que viaja. */}
         <input
           type="datetime-local"
-          name="scheduledAt"
           required
-          defaultValue={
-            interview
-              ? toLocalInputValue(interview.scheduledAt)
-              : defaultScheduledAt
-                ? toLocalInputValue(defaultScheduledAt)
-                : ""
+          // Sin min si ya es una entrevista pasada (editar notas/estado de algo que ya
+          // sucedió no debería exigir mover la fecha para adelante).
+          min={
+            interview && interview.scheduledAt < new Date() ? undefined : todayDateTimeInputValue()
           }
+          value={scheduledAtLocal}
+          onChange={(e) => setScheduledAtLocal(e.target.value)}
           className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
         />
+        <input type="hidden" name="scheduledAt" value={localDateTimeValueToISOString(scheduledAtLocal) ?? ""} />
       </label>
 
       <div className="grid grid-cols-2 gap-2">
@@ -106,7 +119,8 @@ export function InterviewForm({
           Modalidad
           <select
             name="mode"
-            defaultValue={interview?.mode ?? "remote"}
+            value={mode}
+            onChange={(e) => setMode(e.target.value as InterviewMode)}
             className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
           >
             {INTERVIEW_MODES.map((m) => (
@@ -121,14 +135,22 @@ export function InterviewForm({
           Tipo
           <select
             name="type"
-            defaultValue={interview?.type ?? "screening"}
+            defaultValue={interview?.type ?? jobStages[0]?.name ?? ""}
             className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
           >
-            {INTERVIEW_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TYPE_LABELS[t]}
+            {jobStages.map((stage) => (
+              <option key={stage.id} value={stage.name}>
+                {stage.name}
               </option>
             ))}
+            {/* Entrevista existente cuyo tipo no matchea ninguna etapa actual (etapa
+                renombrada/borrada, o valor viejo del enum fijo que había antes) — se deja
+                como opción para no perderlo silenciosamente al editar. */}
+            {interview && !jobStages.some((s) => s.name === interview.type) && (
+              <option value={interview.type}>
+                {TYPE_LABELS[interview.type] ?? interview.type}
+              </option>
+            )}
           </select>
         </label>
       </div>
@@ -160,6 +182,11 @@ export function InterviewForm({
           placeholder="Dirección o link de la videollamada"
           className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
         />
+        {!isEdit && mode === "remote" && (
+          <span className="font-normal text-muted/80">
+            Si lo dejás vacío, generamos un Google Meet automático (necesita tu Google Calendar conectado).
+          </span>
+        )}
       </label>
 
       {teamMembers.length > 0 && (

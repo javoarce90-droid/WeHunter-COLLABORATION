@@ -8,12 +8,14 @@ import {
 } from "../actions";
 import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS, TYPE_BADGE, TYPE_LABELS } from "../schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
+import type { JobStageOption } from "../data/interviews.queries";
 import { InterviewForm, type TeamMemberOption } from "./InterviewForm";
 
 type Props = {
   applicationId: string;
   jobId: string;
   interviews: InterviewRow[];
+  jobStages: JobStageOption[];
   teamMembers: TeamMemberOption[];
   /** Sugerencia inicial al agendar (ver `InterviewForm`) — cuando viene, el form de alta
    *  arranca abierto de una (no hace falta el clic extra en "+ Agendar entrevista…"). */
@@ -31,6 +33,7 @@ export function InterviewsSection({
   applicationId,
   jobId,
   interviews,
+  jobStages,
   teamMembers,
   defaultScheduledAt,
 }: Props) {
@@ -54,6 +57,7 @@ export function InterviewsSection({
                   applicationId={applicationId}
                   jobId={jobId}
                   interview={it}
+                  jobStages={jobStages}
                   teamMembers={teamMembers}
                   onDone={() => setEditing(null)}
                 />
@@ -68,7 +72,9 @@ export function InterviewsSection({
                     {dateFormatter.format(it.scheduledAt)}
                   </span>
                   <div className="flex items-center gap-1">
-                    <Badge variant={TYPE_BADGE[it.type]}>{TYPE_LABELS[it.type]}</Badge>
+                    <Badge variant={TYPE_BADGE[it.type] ?? "blue"}>
+                      {TYPE_LABELS[it.type] ?? it.type}
+                    </Badge>
                     <Badge
                       variant={STATUS_BADGE[it.status]}
                       className={it.status === "cancelled" ? "line-through" : ""}
@@ -111,6 +117,7 @@ export function InterviewsSection({
         <InterviewForm
           applicationId={applicationId}
           jobId={jobId}
+          jobStages={jobStages}
           teamMembers={teamMembers}
           defaultScheduledAt={defaultScheduledAt}
           onDone={() => setEditing(null)}

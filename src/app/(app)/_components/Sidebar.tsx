@@ -61,9 +61,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Comunicación",
+    // "Mensajes" oculto a pedido del cliente (ago 2026) — la ruta /messages sigue viva,
+    // solo se saca del sidebar por ahora.
     items: [
       { href: "/agenda", label: "Agenda", Icon: CalendarIcon, capability: "interviews.manage" },
-      { href: "/messages", label: "Mensajes", Icon: ChatIcon, capability: "messaging.send" },
     ],
   },
   { label: "Análisis", items: [{ href: "/reports", label: "Reportes", Icon: ChartIcon, capability: "reports.view" }] },
@@ -291,14 +292,6 @@ function SearchIcon({ className }: IconProps) {
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.3-4.3" />
-    </svg>
-  );
-}
-
-function ChatIcon({ className }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8A8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
     </svg>
   );
 }

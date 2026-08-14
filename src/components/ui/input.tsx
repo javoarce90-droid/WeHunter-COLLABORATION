@@ -7,6 +7,9 @@ import { IconButton } from "./icon-button";
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  /** Texto de ayuda persistente (ej. "Mínimo 8 caracteres"). Se oculta si hay `error` — el
+   *  error tiene prioridad, no se muestran los dos a la vez. */
+  helperText?: string;
 }
 
 /**
@@ -29,7 +32,7 @@ export function fieldClasses(hasError = false): string {
 export const fieldLabelClass = "text-xs font-semibold text-muted";
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, className = "", type, ...props }, ref) => {
+  ({ label, error, helperText, className = "", type, ...props }, ref) => {
     const id = useId();
     const inputId = props.id ?? id;
     const [visible, setVisible] = useState(false);
@@ -73,7 +76,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             </IconButton>
           )}
         </div>
-        {error && <p className="text-xs text-danger">{error}</p>}
+        {error ? (
+          <p className="text-xs text-danger">{error}</p>
+        ) : (
+          helperText && <p className="text-xs text-muted">{helperText}</p>
+        )}
       </div>
     );
   },

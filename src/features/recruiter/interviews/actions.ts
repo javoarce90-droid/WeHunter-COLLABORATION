@@ -6,6 +6,7 @@ import {
   agendarInterviewSchema,
   actualizarInterviewSchema,
   eliminarInterviewSchema,
+  type InterviewMode,
 } from "./schema";
 import { agendarEntrevista } from "./domain/agendar-entrevista";
 import { actualizarEntrevista } from "./domain/actualizar-entrevista";
@@ -66,6 +67,7 @@ async function syncGoogleCalendar(args: {
   existingGoogleEventId: string | null;
   cancelled: boolean;
   scheduledAt: Date;
+  mode: InterviewMode;
   location: string | null;
   participantEmails: string[];
   profileId: string;
@@ -93,6 +95,9 @@ async function syncGoogleCalendar(args: {
       startsAt: args.scheduledAt,
       location: args.location,
       attendeeEmails,
+      // Solo al crear una entrevista remota que no trae ya un link propio (Zoom, etc.) —
+      // no le pisamos un link que el recruiter ya compartió con el candidato.
+      requestMeetLink: args.event === "created" && args.mode === "remote" && !args.location,
     },
     { profileId: args.profileId, organizationId: args.organizationId },
     {
@@ -147,6 +152,7 @@ export async function agendarInterviewAction(
     existingGoogleEventId: null,
     cancelled: false,
     scheduledAt: result.data.scheduledAt,
+    mode: result.data.mode,
     location: result.data.location,
     participantEmails: result.data.participantEmails,
     profileId: user.id,
@@ -200,6 +206,7 @@ export async function actualizarInterviewAction(
     existingGoogleEventId: result.data.googleEventId,
     cancelled: result.data.status === "cancelled",
     scheduledAt: result.data.scheduledAt,
+    mode: result.data.mode,
     location: result.data.location,
     participantEmails: result.data.participantEmails,
     profileId: user.id,
@@ -250,6 +257,7 @@ export async function eliminarInterviewAction(
       existingGoogleEventId: existing.googleEventId,
       cancelled: false,
       scheduledAt: existing.scheduledAt,
+      mode: existing.mode,
       location: existing.location,
       participantEmails: existing.participantEmails,
       profileId: user.id,

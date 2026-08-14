@@ -2,6 +2,7 @@ import { type InputHTMLAttributes, forwardRef } from "react";
 
 interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
   label?: string;
+  helpText?: string;
 }
 
 /**
@@ -9,7 +10,7 @@ interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "typ
  * el control — guía product: no inventar affordances estándar). Foco visible.
  */
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ label, className = "", ...props }, ref) => {
+  ({ label, helpText, className = "", ...props }, ref) => {
     const input = (
       <input
         ref={ref}
@@ -25,10 +26,13 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
     );
     if (!label) return input;
     return (
-      <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-text">
-        {input}
-        {label}
-      </label>
+      <div className="flex flex-col gap-1">
+        <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-text">
+          {input}
+          {label}
+        </label>
+        {helpText && <p className="pl-6 text-xs text-muted">{helpText}</p>}
+      </div>
     );
   },
 );

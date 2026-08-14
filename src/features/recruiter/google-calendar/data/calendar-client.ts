@@ -8,6 +8,10 @@ export type CalendarEventInput = {
   startsAt: Date;
   location: string | null;
   attendeeEmails: string[];
+  /** true = pedile a Google que genere un Google Meet para este evento (entrevista remota sin
+   *  link propio ya cargado). Solo tiene efecto al crear — no se re-pide en updates, para no
+   *  invalidar un link ya compartido con el candidato. */
+  requestMeetLink?: boolean;
 };
 
 const DEFAULT_DURATION_MS = 60 * 60 * 1000; // 1h: no hay campo de duración en interviews todavía.
@@ -45,6 +49,16 @@ function toEventBody(input: CalendarEventInput) {
     start: { dateTime: input.startsAt.toISOString() },
     end: { dateTime: new Date(input.startsAt.getTime() + DEFAULT_DURATION_MS).toISOString() },
     attendees: input.attendeeEmails.map((email) => ({ email })),
+    ...(input.requestMeetLink
+      ? {
+          conferenceData: {
+            createRequest: {
+              requestId: crypto.randomUUID(),
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          },
+        }
+      : {}),
   };
 }
 
@@ -55,15 +69,18 @@ function toErrorMessage(err: unknown): string {
 export async function createCalendarEvent(
   connection: GoogleCalendarConnectionLike,
   input: CalendarEventInput,
-): Promise<{ eventId: string } | { error: string }> {
+): Promise<{ eventId: string; meetLink: string | null } | { error: string }> {
   try {
     const calendar = buildAuthedClient(connection);
     const res = await calendar.events.insert({
       calendarId: "primary",
       sendUpdates: "all",
+      // Sin esto, Google ignora `conferenceData` en el body y no genera el Meet.
+      conferenceDataVersion: input.requestMeetLink ? 1 : undefined,
       requestBody: toEventBody(input),
     });
-    return res.data.id ? { eventId: res.data.id } : { error: "Google no devolvió un id de evento." };
+    if (!res.data.id) return { error: "Google no devolvió un id de evento." };
+    return { eventId: res.data.id, meetLink: res.data.hangoutLink ?? null };
   } catch (err) {
     return { error: toErrorMessage(err) };
   }

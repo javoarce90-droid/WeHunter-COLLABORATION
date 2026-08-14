@@ -84,6 +84,7 @@ export function RequisitionDetailView({
             <DetailField label="Objetivos del puesto" value={detail.objectives} />
             <DetailField label="Requisitos" value={detail.requirements} />
             <DetailField label="Responsabilidades" value={detail.responsibilities} />
+            <DetailField label="Comentarios adicionales" value={detail.additionalComments} />
 
             <p className="text-xs text-muted">
               Enviada el {dateFormatter.format(new Date(detail.createdAt))}

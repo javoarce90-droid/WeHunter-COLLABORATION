@@ -4,6 +4,8 @@ import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { SkillsPillsInput } from "@/features/candidate/profile/ui/SkillsPillsInput";
 import { actualizarPerfilAction } from "../actions";
 import type { OwnProfile } from "../data/settings.queries";
 
@@ -45,6 +47,7 @@ export function ProfileSection({
   const [state, dispatch, pending] = useActionState(actualizarPerfilAction, {});
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [phone, setPhone] = useState(profile?.phone ?? "");
   const name = profile?.fullName ?? "";
 
   return (
@@ -93,16 +96,33 @@ export function ProfileSection({
         <Field label="Cargo">
           <input name="jobTitle" defaultValue={profile?.jobTitle ?? ""} className={fieldClass} placeholder="Ej. Talent Acquisition Lead" />
         </Field>
-        <Field label="Teléfono">
-          <input name="phone" defaultValue={profile?.phone ?? ""} className={fieldClass} />
-        </Field>
+        <PhoneInput label="Teléfono" name="phone" value={phone} onChange={(v) => setPhone(v ?? "")} />
         <Field label="Ubicación">
           <input name="location" defaultValue={profile?.location ?? ""} className={fieldClass} placeholder="Ciudad, país" />
         </Field>
         <Field label="LinkedIn">
           <input name="linkedinUrl" inputMode="url" defaultValue={profile?.linkedinUrl ?? ""} className={fieldClass} placeholder="linkedin.com/in/…" />
         </Field>
+        <Field label="Años de experiencia">
+          <input
+            name="yearsOfExperience"
+            type="number"
+            min={0}
+            max={60}
+            defaultValue={profile?.yearsOfExperience ?? ""}
+            className={fieldClass}
+            placeholder="Ej. 8"
+          />
+        </Field>
       </div>
+
+      <SkillsPillsInput
+        name="specialties"
+        label="Especialidades"
+        initialSkills={profile?.specialties ?? []}
+        placeholder="Ej. Tecnología, Producto, Fintech…"
+        helpText="Presioná Enter o coma para agregar cada una. Se muestran en tu card de la Comunidad."
+      />
 
       <Field label="Bio (máx. 500 caracteres)">
         <textarea
@@ -118,8 +138,9 @@ export function ProfileSection({
       {showCommunityCheckbox && (
         <Checkbox
           name="visibleInCommunity"
-          defaultChecked={profile?.visibleInCommunity ?? true}
+          defaultChecked={profile?.visibleInCommunity ?? false}
           label="Aparecer en la Comunidad WeHunter"
+          helpText="Activá esto para que tu perfil sea visible en el directorio público de recruiters. Por defecto no aparecés."
         />
       )}
 
@@ -127,7 +148,7 @@ export function ProfileSection({
         <Button type="submit" disabled={pending}>
           {pending ? "Guardando…" : "Guardar"}
         </Button>
-        {state.ok && <span className="text-xs font-semibold text-success">Guardado ✓</span>}
+        {state.ok && !pending && <span className="text-xs font-semibold text-success">Guardado ✓</span>}
         {state.error && <span className="text-xs text-danger">{state.error}</span>}
       </div>
     </form>

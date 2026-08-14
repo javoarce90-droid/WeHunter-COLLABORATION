@@ -111,14 +111,6 @@ export const interviewStatus = pgEnum("interview_status", [
   "cancelled", // cancelada
 ]);
 
-// Tipo/propósito de una entrevista dentro del proceso (distinto de `mode`, que es la
-// modalidad presencial/remoto/telefónica).
-export const interviewType = pgEnum("interview_type", [
-  "screening", // primer filtro, con el recruiter
-  "technical", // técnica
-  "behavioral", // comportamental / cultural fit
-  "client", // con la empresa cliente
-]);
 
 // Campos ricos de una búsqueda (paridad demo). Todos opcionales en la columna.
 export const jobModality = pgEnum("job_modality", ["onsite", "remote", "hybrid"]);
@@ -285,13 +277,20 @@ export const profiles = pgTable("profiles", {
   location: text("location"),
   linkedinUrl: text("linkedin_url"),
   bio: text("bio"), // resumen breve (≤500 chars, validado en la action)
+  // Recruiter: especialidades libres para la card de Comunidad (ej. "Tecnología", "Fintech").
+  // Tope de cantidad/largo se valida en la action, no acá — son pocos tags, no ameritan tabla aparte.
+  specialties: text("specialties").array(),
+  // Recruiter: años de experiencia como recruiter, para la card de Comunidad. Número simple,
+  // no fecha de inicio — evita inferir de memberships/historial que no tiene ese dato.
+  yearsOfExperience: integer("years_of_experience"),
   // Perfil global del candidato (portal). `location`/`linkedinUrl`/`bio`/`cvUrl` de arriba se
   // reusan tal cual (mismo significado para candidato que para recruiter).
   headline: text("headline"), // puesto/título actual, ej "Frontend Senior"
   skills: text("skills").array(),
   // Recruiter: si aparece listado en la Comunidad WeHunter (directorio de recruiters). No
   // afecta accountType/candidato, es puramente de visibilidad pública del perfil recruiter.
-  visibleInCommunity: boolean("visible_in_community").notNull().default(true),
+  // Default false: opt-in explícito, no debe listarse nadie sin haberlo activado a mano.
+  visibleInCommunity: boolean("visible_in_community").notNull().default(false),
   // null = todavía no pasó (o saltó) el onboarding de candidato. No bloquea nada, solo decide
   // si al loguearse cae en /c/onboarding o directo al portal.
   candidateOnboardingCompletedAt: timestamp("candidate_onboarding_completed_at"),
@@ -511,6 +510,9 @@ export const requisitions = pgTable("requisitions", {
   requirements: text("requirements"),
   responsibilities: text("responsibilities"),
   benefits: jsonb("benefits").$type<{ name: string; description: string }[]>(),
+  // Comentarios adicionales de quien solicita la búsqueda (cliente), libres, no cubiertos
+  // por los campos estructurados de arriba. Distinto de reviewNote (ese es del recruiter).
+  additionalComments: text("additional_comments"),
   // Comentario del recruiter al aprobar/rechazar (ej. motivo de rechazo). Visible para quien pidió.
   reviewNote: text("review_note"),
   reviewedBy: uuid("reviewed_by").references(() => profiles.id),
@@ -849,9 +851,15 @@ export const interviews = pgTable("interviews", {
   applicationId: uuid("application_id")
     .references(() => applications.id, { onDelete: "cascade" })
     .notNull(),
-  scheduledAt: timestamp("scheduled_at").notNull(),
+  // withTimezone: a diferencia del resto del schema (todavía sin migrar), esta SÍ necesita
+  // huso horario explícito — es una fecha/hora que el usuario elige y espera ver de vuelta tal
+  // cual (bug confirmado ago 2026: con timestamp sin huso, postgres-js corrompe el round-trip
+  // por el offset del server; probado empíricamente contra la base real, ver commit).
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }).notNull(),
   mode: interviewMode("mode").notNull().default("remote"),
-  type: interviewType("type").notNull().default("screening"),
+  // Texto libre, no enum: lista las etapas del pipeline de la búsqueda elegidas al agendar
+  // (nombres editables por el recruiter, ver InterviewForm), no una taxonomía fija.
+  type: text("type").notNull().default("screening"),
   // Lugar (dirección) o link de la videollamada según la modalidad. Opcional.
   location: text("location"),
   // Notas internas de la entrevista (agenda, feedback). No visible para la empresa.
@@ -1147,10 +1155,11 @@ export const shortlistCandidates = pgTable("shortlist_candidates", {
     .notNull(),
   // null = la empresa todavía no pidió entrevista para este candidato. Se setea desde la
   // función SECURITY DEFINER request_shortlist_interview (acceso sin cuenta, por token).
-  interviewRequestedAt: timestamp("interview_requested_at"),
+  interviewRequestedAt: timestamp("interview_requested_at", { withTimezone: true }),
   // 1 a 3 fechas/horas tentativas que propone quien pide la entrevista (Cliente o HM). El
   // recruiter agenda con una de estas (o con otra) al confirmar en ScheduleInterviewDialog.
-  interviewRequestedSlots: timestamp("interview_requested_slots").array(),
+  // withTimezone: mismo motivo que interviews.scheduledAt (ver comentario ahí).
+  interviewRequestedSlots: timestamp("interview_requested_slots", { withTimezone: true }).array(),
   ...timestamps,
 }, (t) => ({
   orgIdx: index("shortlist_candidates_org_idx").on(t.organizationId),

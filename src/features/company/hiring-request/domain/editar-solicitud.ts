@@ -25,6 +25,7 @@ export type EditarSolicitudInput = {
   objectives?: string | null;
   requirements?: string | null;
   responsibilities?: string | null;
+  additionalComments?: string | null;
 };
 
 export type EditarSolicitudDeps = {
@@ -72,6 +73,7 @@ export async function editarSolicitud(
       objectives: clean(input.objectives),
       requirements: clean(input.requirements),
       responsibilities: clean(input.responsibilities),
+      additionalComments: clean(input.additionalComments),
     },
   });
 

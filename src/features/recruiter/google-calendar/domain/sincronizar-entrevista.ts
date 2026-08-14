@@ -12,6 +12,9 @@ export type SincronizarEntrevistaInput = {
   startsAt: Date;
   location: string | null;
   attendeeEmails: string[];
+  /** true = entrevista remota sin location cargada — pedile a Google que genere un Meet.
+   *  Solo se usa al crear (ver CalendarEventInput.requestMeetLink). */
+  requestMeetLink: boolean;
 };
 
 export type SincronizarEntrevistaCtx = {
@@ -32,6 +35,7 @@ export type CalendarEventPayload = {
   startsAt: Date;
   location: string | null;
   attendeeEmails: string[];
+  requestMeetLink?: boolean;
 };
 
 export type SincronizarEntrevistaDeps = {
@@ -42,7 +46,7 @@ export type SincronizarEntrevistaDeps = {
   createEvent: (
     connection: GoogleCalendarConnectionLike,
     payload: CalendarEventPayload,
-  ) => Promise<{ eventId: string } | { error: string }>;
+  ) => Promise<{ eventId: string; meetLink: string | null } | { error: string }>;
   updateEvent: (
     connection: GoogleCalendarConnectionLike,
     eventId: string,
@@ -54,7 +58,7 @@ export type SincronizarEntrevistaDeps = {
   ) => Promise<{ ok: true } | { error: string }>;
   saveSyncResult: (
     interviewId: string,
-    result: { googleEventId: string | null; googleSyncError: string | null },
+    result: { googleEventId: string | null; googleSyncError: string | null; meetLink?: string | null },
   ) => Promise<void>;
 };
 
@@ -81,6 +85,7 @@ export async function sincronizarEntrevista(
     startsAt: input.startsAt,
     location: input.location,
     attendeeEmails: input.attendeeEmails,
+    requestMeetLink: input.requestMeetLink,
   };
 
   // Cancelada con evento existente → sacarlo del calendario, no actualizarlo.
@@ -124,6 +129,10 @@ export async function sincronizarEntrevista(
     await deps.saveSyncResult(input.interviewId, { googleEventId: null, googleSyncError: res.error });
     return { ok: false, error: res.error };
   }
-  await deps.saveSyncResult(input.interviewId, { googleEventId: res.eventId, googleSyncError: null });
+  await deps.saveSyncResult(input.interviewId, {
+    googleEventId: res.eventId,
+    googleSyncError: null,
+    meetLink: res.meetLink,
+  });
   return { ok: true };
 }

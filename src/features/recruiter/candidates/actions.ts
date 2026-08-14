@@ -3,14 +3,21 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getActiveMembership } from "@/lib/auth/session";
+import { can } from "@/lib/auth/roles";
 import {
   candidateInputSchema,
   candidateCreateInputSchema,
+  columnMappingSchema,
   CV_ALLOWED_TYPES,
   CV_MAX_BYTES,
+  IMPORT_FILE_MAX_BYTES,
 } from "./schema";
 import { cargarCandidato } from "./domain/cargar-candidato";
 import { editarCandidato } from "./domain/editar-candidato";
+import {
+  importarCandidatosMasivo,
+  type ImportRowError,
+} from "./domain/importar-candidatos-masivo";
 import {
   cambiarEstadoTalento,
   TALENT_STATES,
@@ -25,10 +32,16 @@ import { quitarEtiqueta } from "./domain/quitar-etiqueta";
 import type { DuplicateCandidateMatch } from "./domain/duplicate-keys";
 import {
   insertCandidate,
+  insertCandidatesBatch,
   updateCandidateFields,
   setTalentState,
 } from "./data/candidates.mutations";
-import { getCandidateById, findDuplicateCandidate } from "./data/candidates.queries";
+import {
+  getCandidateById,
+  findDuplicateCandidate,
+  findExistingEmails,
+} from "./data/candidates.queries";
+import { parseCandidatesFile } from "./data/candidates-import.data";
 import { findTagByName } from "./data/tags.queries";
 import { insertTag, linkCandidateTag, unlinkCandidateTag } from "./data/tags.mutations";
 import { findLinkableProfile } from "./data/profile-link.queries";
@@ -351,4 +364,104 @@ export async function editarCandidatoAction(
   await saveCandidateResumeItems(candidateId, formData);
 
   redirect("/candidates");
+}
+
+// ---- Importación masiva ----
+
+const IMPORT_EXT_RE = /\.(csv|xlsx|xls)$/i;
+
+function readImportFile(formData: FormData): { file: File } | { error: string } {
+  const raw = formData.get("file");
+  if (!(raw instanceof File) || raw.size === 0) {
+    return { error: "Subí un archivo CSV o Excel." };
+  }
+  if (!IMPORT_EXT_RE.test(raw.name)) {
+    return { error: "El archivo debe ser .csv, .xlsx o .xls." };
+  }
+  if (raw.size > IMPORT_FILE_MAX_BYTES) {
+    return { error: "El archivo supera el límite de 5 MB." };
+  }
+  return { file: raw };
+}
+
+export interface ImportPreviewState {
+  ok?: boolean;
+  error?: string;
+  headers?: string[];
+  totalRows?: number;
+  sample?: Record<string, string>[];
+}
+
+/** Primer paso: parsea el archivo y devuelve sus columnas para que el recruiter las mapee.
+ *  No importa nada todavía — es de solo lectura del archivo subido. */
+export async function previsualizarImportacionAction(
+  _prev: ImportPreviewState,
+  formData: FormData,
+): Promise<ImportPreviewState> {
+  const membership = await getActiveMembership();
+  if (!membership || !can(membership.role, "candidates.manage")) {
+    return { error: "No tenés permisos para cargar candidatos." };
+  }
+
+  const file = readImportFile(formData);
+  if ("error" in file) return { error: file.error };
+
+  const parsed = await parseCandidatesFile(file.file);
+  if (!parsed.ok) return { error: parsed.error };
+
+  return {
+    ok: true,
+    headers: parsed.headers,
+    totalRows: parsed.rows.length,
+    sample: parsed.rows.slice(0, 5),
+  };
+}
+
+export interface ImportResultState {
+  ok?: boolean;
+  error?: string;
+  imported?: number;
+  skipped?: number;
+  errors?: ImportRowError[];
+}
+
+/** Segundo paso: recibe el mismo archivo + el mapeo de columnas que confirmó el recruiter,
+ *  y ahí sí importa. Se reparsea el archivo (llega de nuevo en el FormData) en vez de guardar
+ *  las filas parseadas entre pasos — evita mantener estado de sesión para esto. */
+export async function importarCandidatosMasivoAction(
+  _prev: ImportResultState,
+  formData: FormData,
+): Promise<ImportResultState> {
+  const file = readImportFile(formData);
+  if ("error" in file) return { error: file.error };
+
+  const mappingParsed = columnMappingSchema.safeParse({
+    fullName: formData.get("map_fullName"),
+    email: formData.get("map_email"),
+    phone: formData.get("map_phone"),
+    location: formData.get("map_location"),
+    linkedinUrl: formData.get("map_linkedinUrl"),
+    headline: formData.get("map_headline"),
+    skills: formData.get("map_skills"),
+  });
+  if (!mappingParsed.success) {
+    return { error: mappingParsed.error.issues[0]?.message ?? "Mapeo de columnas inválido." };
+  }
+
+  const parsed = await parseCandidatesFile(file.file);
+  if (!parsed.ok) return { error: parsed.error };
+
+  const membership = await getActiveMembership();
+  const result = await importarCandidatosMasivo(
+    { rows: parsed.rows, mapping: mappingParsed.data },
+    {
+      organizationId: membership?.organizationId ?? null,
+      role: membership?.role ?? null,
+    },
+    { findExistingEmails, insertCandidatesBatch },
+  );
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/candidates");
+  return { ok: true, ...result.data };
 }

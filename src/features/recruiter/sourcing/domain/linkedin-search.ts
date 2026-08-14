@@ -114,45 +114,47 @@ export async function searchLinkedInCandidates(
 
       if (res.ok) {
         const data = await res.json();
-        if (data.organic && Array.isArray(data.organic)) {
-          const liveCandidates: LinkedInCandidateResult[] = data.organic
-            .filter((item: { link?: string }) => item.link?.includes("linkedin.com/in/"))
-            .map((item: { title?: string; snippet?: string; link?: string }, idx: number) => {
-              const rawTitle = item.title ?? "Perfil de LinkedIn";
-              const parts = rawTitle.replace(/\s*\|\s*LinkedIn$/i, "").split(/\s*-\s*/);
-              const name = parts[0]?.trim() || "Candidato LinkedIn";
-              const headline = parts.slice(1).join(" - ").trim() || "Perfil profesional en LinkedIn";
-              const snippet = item.snippet || null;
-              const link = item.link || `https://www.linkedin.com/in/search-${idx}`;
+        const organic = Array.isArray(data.organic) ? data.organic : [];
+        const liveCandidates: LinkedInCandidateResult[] = organic
+          .filter((item: { link?: string }) => item.link?.includes("linkedin.com/in/"))
+          .map((item: { title?: string; snippet?: string; link?: string }, idx: number) => {
+            const rawTitle = item.title ?? "Perfil de LinkedIn";
+            const parts = rawTitle.replace(/\s*\|\s*LinkedIn$/i, "").split(/\s*-\s*/);
+            const name = parts[0]?.trim() || "Candidato LinkedIn";
+            const headline = parts.slice(1).join(" - ").trim() || "Perfil profesional en LinkedIn";
+            const snippet = item.snippet || null;
+            const link = item.link || `https://www.linkedin.com/in/search-${idx}`;
 
-              const skills = rawQuery
-                .split(/[\s,]+/)
-                .map((s) => s.trim())
-                .filter((s) => s.length > 2)
-                .slice(0, 5);
+            const skills = rawQuery
+              .split(/[\s,]+/)
+              .map((s) => s.trim())
+              .filter((s) => s.length > 2)
+              .slice(0, 5);
 
-              return {
-                id: `linkedin-serper-${idx}-${stableHash(link)}`,
-                name,
-                headline,
-                location: "Ubicación en LinkedIn",
-                skills: skills.length > 0 ? skills : ["LinkedIn"],
-                linkedinUrl: link,
-                snippet,
-              };
-            });
+            return {
+              id: `linkedin-serper-${idx}-${stableHash(link)}`,
+              name,
+              headline,
+              location: "Ubicación en LinkedIn",
+              skills: skills.length > 0 ? skills : ["LinkedIn"],
+              linkedinUrl: link,
+              snippet,
+            };
+          });
 
-          if (liveCandidates.length > 0) {
-            return { candidates: liveCandidates, isLiveApi: true };
-          }
-        }
+        // La API respondió: el resultado es real aunque venga vacío. No sustituir por el
+        // mock acá — mostrarle al recruiter "no encontramos candidatos" es mejor que
+        // mostrarle perfiles inventados como si fueran reales y "ordenados por match".
+        return { candidates: liveCandidates, isLiveApi: true };
       }
     } catch {
-      // Si falla Serper API, cae al fallback determinístico
+      // Acá sí falló la búsqueda en vivo de verdad (red, timeout, respuesta inválida) — cae
+      // al fallback determinístico, no porque la búsqueda no haya encontrado nada.
     }
   }
 
-  // Fallback / Entorno Mockup: Generación determinística contextualizada
+  // Fallback / Entorno Mockup: sin API key, o la búsqueda en vivo falló de verdad (no llegó a
+  // responder). Generación determinística contextualizada
   const queryTerms = rawQuery.toLowerCase().split(/[\s,]+/).filter(Boolean);
   const seed = stableHash(rawQuery);
 

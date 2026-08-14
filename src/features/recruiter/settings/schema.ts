@@ -16,6 +16,18 @@ export const profileInputSchema = z.object({
     emptyToUndef,
     z.string().trim().max(500, "La bio no puede superar los 500 caracteres.").optional(),
   ),
+  // "Tecnología, Producto" → ["Tecnología","Producto"]; vacío → undefined. Mismo formato que
+  // SkillsPillsInput (input hidden separado por comas).
+  specialties: z.preprocess((v) => {
+    if (typeof v !== "string") return undefined;
+    const parts = v.split(",").map((s) => s.trim()).filter(Boolean);
+    return parts.length ? parts : undefined;
+  }, z.array(z.string().max(40)).max(10).optional()),
+  yearsOfExperience: z.preprocess((v) => {
+    if (typeof v !== "string" || v.trim() === "") return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : undefined;
+  }, z.number().int().min(0, "No puede ser negativo.").max(60, "Revisá el valor.").optional()),
 });
 
 export const workspaceIdentityInputSchema = z.object({

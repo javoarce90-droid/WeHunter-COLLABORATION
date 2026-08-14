@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import type { JobStageOption } from "@/features/recruiter/interviews/data/interviews.queries";
 import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
 import type { ShortlistCandidateWithFeedback, ShareRow } from "../data/shortlists.queries";
 import { ShareControls, type HMOption } from "./ShareControls";
@@ -14,6 +15,7 @@ type Props = {
   shares: ShareRow[];
   appUrl: string;
   hmOptions: HMOption[];
+  jobStages: JobStageOption[];
   teamMembers: TeamMemberOption[];
   interviewsByApplication: Record<string, InterviewRow[]>;
 };
@@ -27,6 +29,7 @@ export function ShortlistCard({
   shares,
   appUrl,
   hmOptions,
+  jobStages,
   teamMembers,
   interviewsByApplication,
 }: Props) {
@@ -45,6 +48,7 @@ export function ShortlistCard({
           jobId={jobId}
           jobTitle={jobTitle}
           candidates={candidates}
+          jobStages={jobStages}
           teamMembers={teamMembers}
           interviewsByApplication={interviewsByApplication}
         />

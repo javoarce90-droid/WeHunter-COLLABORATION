@@ -4,6 +4,7 @@ import { can } from "@/lib/auth/roles";
 import {
   listAgendaInterviews,
   listSchedulableApplications,
+  listJobStageOptionsByJob,
 } from "@/features/recruiter/interviews/data/interviews.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
@@ -60,12 +61,14 @@ async function AgendaSection({
   const canWrite = can(membership.role, "interviews.manage");
   const { year, month } = parseMonth(monthParam);
 
-  const [interviews, googleConnection, schedulableApplications, members] = await Promise.all([
-    listAgendaInterviews(membership.organizationId),
-    getConnectionByProfile(user.id, membership.organizationId),
-    canWrite ? listSchedulableApplications(membership.organizationId) : Promise.resolve([]),
-    canWrite ? listMembers(membership.organizationId) : Promise.resolve([]),
-  ]);
+  const [interviews, googleConnection, schedulableApplications, members, jobStagesByJob] =
+    await Promise.all([
+      listAgendaInterviews(membership.organizationId),
+      getConnectionByProfile(user.id, membership.organizationId),
+      canWrite ? listSchedulableApplications(membership.organizationId) : Promise.resolve([]),
+      canWrite ? listMembers(membership.organizationId) : Promise.resolve([]),
+      canWrite ? listJobStageOptionsByJob(membership.organizationId) : Promise.resolve({}),
+    ]);
 
   const teamMembers = members
     .filter((m) => m.status === "active")
@@ -80,6 +83,7 @@ async function AgendaSection({
       googleConfigured={isGoogleCalendarConfigured()}
       googleConnectedEmail={googleConnection?.googleEmail ?? null}
       schedulableApplications={schedulableApplications}
+      jobStagesByJob={jobStagesByJob}
       teamMembers={teamMembers}
     />
   );
@@ -95,6 +99,7 @@ function emptyProps() {
     googleConfigured: false,
     googleConnectedEmail: null,
     schedulableApplications: [],
+    jobStagesByJob: {},
     teamMembers: [],
   };
 }

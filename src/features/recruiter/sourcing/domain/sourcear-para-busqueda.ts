@@ -47,12 +47,19 @@ export type SourcearParaBusquedaDeps = {
   ) => Promise<ScoreApplicationResult>;
 };
 
+/** Tope de skills que se suman al query de sourcing (ítem backlog ago 2026): mandar todos los
+ *  skills como términos obligatorios angosta demasiado la búsqueda en X-Ray (Google trata cada
+ *  palabra como un AND) y puede devolver cero resultados reales para roles no técnicos cuyos
+ *  skills mencionan tecnología de contexto (ej. una búsqueda de Recruiter que sabe reclutar
+ *  perfiles IT). El puesto real sigue siendo el ancla principal del query. */
+const MAX_SOURCING_QUERY_SKILLS = 3;
+
 /** Arma el texto libre de búsqueda a partir del puesto real (o el título), skills, seniority
  *  y ubicación de la búsqueda — sin que el recruiter tenga que tipear nada. */
 export function buildJobSourcingQuery(job: JobSourcingContext): string {
   const terms = [
     job.position?.trim() || job.title.trim() || null,
-    ...(job.skills ?? []),
+    ...(job.skills ?? []).slice(0, MAX_SOURCING_QUERY_SKILLS),
     job.seniority,
     job.location,
   ].filter((t): t is string => Boolean(t && t.trim()));

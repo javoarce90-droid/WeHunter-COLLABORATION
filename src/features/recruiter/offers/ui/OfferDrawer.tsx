@@ -7,6 +7,7 @@ import { Input, fieldClasses, fieldLabelClass } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { AiButton } from "@/components/ui/ai";
 import { useToast } from "@/lib/toast";
+import { todayDateInputValue, isPastDateString } from "@/lib/date";
 import {
   crearOfertaAction,
   editarOfertaAction,
@@ -221,6 +222,7 @@ function OfferForm({
           id="startDate"
           name="startDate"
           type="date"
+          min={isPastDateString(detail?.startDate) ? undefined : todayDateInputValue()}
           defaultValue={detail?.startDate ?? ""}
         />
         <Input
@@ -228,6 +230,7 @@ function OfferForm({
           id="validUntil"
           name="validUntil"
           type="date"
+          min={isPastDateString(detail?.validUntil) ? undefined : todayDateInputValue()}
           defaultValue={detail?.validUntil ?? ""}
         />
       </div>

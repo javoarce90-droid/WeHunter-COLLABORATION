@@ -56,6 +56,7 @@ import { PostuladoDetailSheet, type ScreeningAnswerLine } from "./PostuladoDetai
 import { AiAnalysisDialog, type AiAnalysisSubject } from "./AiAnalysisDialog";
 import { ScheduleInterviewDialog } from "./ScheduleInterviewDialog";
 import { AddNoteDialog } from "./AddNoteDialog";
+import { EditStageDialog } from "./EditStageDialog";
 import { SendWhatsappDialog } from "./SendWhatsappDialog";
 import { ContactarDialog } from "./ContactarDialog";
 import { TagsDialog } from "@/features/recruiter/candidates/ui/TagsDialog";
@@ -130,89 +131,23 @@ function staggerDelay(index: number, stepMs: number, cap: number): CSSProperties
   return { animationDelay: `${Math.min(index, cap) * stepMs}ms` };
 }
 
-// ── Controles inline del header de columna ──────────────────────────────────
+// ── Controles del header de columna ─────────────────────────────────────────
 
-function StageNameInput({
-  value,
-  onCommit,
-  autoFocus,
-  onConsumedAutoFocus,
-}: {
-  value: string;
-  onCommit: (name: string) => void;
-  autoFocus?: boolean;
-  onConsumedAutoFocus?: () => void;
-}) {
-  const [local, setLocal] = useState(value);
-  const ref = useRef<HTMLInputElement>(null);
+/** Ícono de reloj chico — hace el SLA reconocible de un vistazo, sin depender del hover
+ *  sobre el `title` para enterarse de qué es el número. */
+const CLOCK_ICON = (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 3" />
+  </svg>
+);
 
-  useEffect(() => {
-    if (autoFocus && ref.current) {
-      ref.current.focus();
-      ref.current.select();
-      onConsumedAutoFocus?.();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoFocus]);
-
-  function commit() {
-    const name = local.trim();
-    if (name.length < 2 || name === value) {
-      setLocal(value);
-      return;
-    }
-    onCommit(name);
-  }
-
-  return (
-    <input
-      ref={ref}
-      type="text"
-      value={local}
-      onChange={(e) => setLocal(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-      aria-label={`Nombre de la etapa ${value}`}
-      className="min-w-0 flex-1 truncate rounded border border-transparent bg-transparent px-1 py-1 text-sm font-semibold text-text outline-none transition-colors hover:border-border focus:border-primary focus:bg-surface"
-    />
-  );
-}
-
-function SlaInputInline({
-  value,
-  onChange,
-}: {
-  value: number | null;
-  onChange: (v: number | null) => void;
-}) {
-  const [local, setLocal] = useState(value !== null ? String(value) : "");
-
-  function commit() {
-    const n = local.trim() === "" ? null : parseInt(local, 10);
-    if (n !== null && (isNaN(n) || n < 1)) {
-      setLocal(value !== null ? String(value) : "");
-      return;
-    }
-    onChange(n);
-  }
-
-  return (
-    <div className="flex shrink-0 items-center gap-1" title="SLA en días">
-      <input
-        type="number"
-        min={1}
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => e.key === "Enter" && commit()}
-        placeholder="—"
-        aria-label="SLA en días"
-        className="w-8 rounded border border-transparent bg-transparent px-1 py-1 text-center text-xs font-medium text-muted outline-none transition-colors hover:border-border focus:border-primary focus:bg-surface focus:text-text"
-      />
-      <span className="text-[11px] text-muted">d</span>
-    </div>
-  );
-}
+const EDIT_ICON = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </svg>
+);
 
 function AddStageTile({ onAdd, disabled }: { onAdd: () => void; disabled?: boolean }) {
   return (
@@ -252,11 +187,8 @@ type ColumnProps = {
   onAddNote: (applicationId: string) => void;
   analyzingIds: Set<string>;
   canConfigureStages: boolean;
-  onRenameStage: (stageId: string, name: string) => void;
-  onSlaChange: (stageId: string, slaDays: number | null) => void;
+  onEditStage: (stage: JobStage) => void;
   onDeleteStage: (stage: JobStage) => void;
-  autoFocusName: boolean;
-  onConsumedAutoFocus: () => void;
 };
 
 type ColumnBodyProps = ColumnProps & {
@@ -287,11 +219,8 @@ function PipelineColumn({
   onAddNote,
   analyzingIds,
   canConfigureStages,
-  onRenameStage,
-  onSlaChange,
+  onEditStage,
   onDeleteStage,
-  autoFocusName,
-  onConsumedAutoFocus,
   setNodeRef,
   style,
   isOver,
@@ -341,30 +270,33 @@ function PipelineColumn({
           style={{ background: KIND_DOT[stage.kind] }}
           aria-hidden
         />
-        {canConfigureStages ? (
-          <StageNameInput
-            value={stage.name}
-            onCommit={(name) => onRenameStage(stage.id, name)}
-            autoFocus={autoFocusName}
-            onConsumedAutoFocus={onConsumedAutoFocus}
-          />
-        ) : (
-          <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-text">{stage.name}</h3>
+        <h3
+          title={stage.name}
+          className="min-w-0 flex-1 truncate text-sm font-semibold text-text"
+        >
+          {stage.name}
+        </h3>
+        {!sinSla && stage.slaDays && (
+          <span
+            className="flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-muted"
+            title={`SLA: ${stage.slaDays} días`}
+          >
+            {CLOCK_ICON}
+            {stage.slaDays}d
+          </span>
         )}
-        {!sinSla &&
-          (canConfigureStages ? (
-            <SlaInputInline
-              value={stage.slaDays}
-              onChange={(v) => onSlaChange(stage.id, v)}
-            />
-          ) : (
-            stage.slaDays && (
-              <span className="shrink-0 text-[11px] font-medium text-muted" title={`SLA: ${stage.slaDays} días`}>
-                /{stage.slaDays}d
-              </span>
-            )
-          ))}
         <span className="shrink-0 text-xs font-semibold text-muted tabular-nums">{cards.length}</span>
+        {canConfigureStages && (
+          <IconButton
+            aria-label={`Editar ${stage.name}`}
+            size="sm"
+            title="Editar etapa"
+            onClick={() => onEditStage(stage)}
+            className="shrink-0 opacity-0 transition-opacity hover:text-primary focus-visible:opacity-100 group-hover/col:opacity-100"
+          >
+            {EDIT_ICON}
+          </IconButton>
+        )}
         {canConfigureStages && !sinBorrado && (
           <IconButton
             aria-label={`Eliminar ${stage.name}`}
@@ -480,7 +412,32 @@ export function PipelineView({
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [addingStage, setAddingStage] = useState(false);
-  const [focusStageId, setFocusStageId] = useState<string | null>(null);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  // Flechas de scroll sticky (footer-style, mismo patrón que el footer flotante de JobForm):
+  // el scrollbar nativo del navegador queda al pie de las columnas, que con `min-h-[60vh]`
+  // cae fuera de vista sin bajar la página entera — feedback QA ago 2026. Antes probamos
+  // duplicar el scrollbar mirrorizado, pero quedaba un segundo scrollbar visible pisando al
+  // nativo (confuso) — flechas es más simple y no duplica nada.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  function updateScrollArrows() {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }
+
+  // Sin deps a propósito: se recalcula en cada render para reflejar cambios de contenido
+  // (agregar/eliminar etapas, filtrar) además de resize de ventana.
+  useEffect(() => {
+    updateScrollArrows();
+  });
+
+  function scrollBoardBy(dir: 1 | -1) {
+    scrollRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
+  }
 
   const onScheduleInterview = (applicationId: string) =>
     setQuickDialog({ kind: "interview", applicationId });
@@ -624,7 +581,7 @@ export function PipelineView({
         toast({ message: res.error ?? "No se pudo agregar la etapa.", variant: "danger" });
         return;
       }
-      if (res.stageId) setFocusStageId(res.stageId);
+      if (res.stageId) setEditingStageId(res.stageId);
     });
   }
 
@@ -759,6 +716,13 @@ export function PipelineView({
     .sort((a, b) => a.position - b.position)
     .filter((s) => !anyFilterActive || cardsFor(s.id).length > 0);
 
+  // Para el selector "Tipo" al agendar entrevista: TODAS las etapas reales (sin el filtro
+  // de tarjetas de `visibleStages`, que oculta columnas vacías con un filtro activo).
+  const interviewJobStages = [...optimisticStages]
+    .filter((s) => s.kind !== "inbox")
+    .sort((a, b) => a.position - b.position)
+    .map((s) => ({ id: s.id, name: s.name }));
+
   // Las etapas de cierre (oferta/contratado/descartado) quedan siempre al final y fijas —
   // solo las `in_process` que agrega el recruiter se reordenan por drag.
   const inProcessStages = visibleStages.filter((s) => s.kind === "in_process");
@@ -811,11 +775,11 @@ export function PipelineView({
     onAddNote,
     analyzingIds,
     canConfigureStages,
-    onRenameStage,
-    onSlaChange,
+    onEditStage: (stage: JobStage) => setEditingStageId(stage.id),
     onDeleteStage,
-    onConsumedAutoFocus: () => setFocusStageId(null),
   };
+
+  const editingStage = editingStageId ? stageById.get(editingStageId) ?? null : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -920,7 +884,11 @@ export function PipelineView({
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div className="flex gap-3 overflow-x-auto overflow-y-hidden pb-4">
+          <div
+            ref={scrollRef}
+            onScroll={updateScrollArrows}
+            className="flex gap-3 overflow-x-auto overflow-y-hidden pb-4"
+          >
             <SortableContext
               items={inProcessStages.map((s) => s.id)}
               strategy={horizontalListSortingStrategy}
@@ -933,7 +901,6 @@ export function PipelineView({
                   columnIndex={columnIndexById.get(stage.id) ?? 0}
                   cards={cardsFor(stage.id)}
                   canDrag={canEditPipelineShape}
-                  autoFocusName={focusStageId === stage.id}
                 />
               ))}
             </SortableContext>
@@ -945,10 +912,42 @@ export function PipelineView({
                 stage={stage}
                 columnIndex={columnIndexById.get(stage.id) ?? 0}
                 cards={cardsFor(stage.id)}
-                autoFocusName={focusStageId === stage.id}
               />
             ))}
           </div>
+
+          {(canScrollLeft || canScrollRight) && (
+            <div className="sticky bottom-4 z-10 flex justify-between px-1">
+              <button
+                type="button"
+                onClick={() => scrollBoardBy(-1)}
+                aria-label="Ver etapas anteriores"
+                tabIndex={canScrollLeft ? 0 : -1}
+                className={[
+                  "flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface/95 text-muted shadow-[var(--shadow)] backdrop-blur-sm transition-opacity hover:text-primary hover:border-primary/40",
+                  canScrollLeft ? "opacity-100" : "pointer-events-none opacity-0",
+                ].join(" ")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollBoardBy(1)}
+                aria-label="Ver etapas siguientes"
+                tabIndex={canScrollRight ? 0 : -1}
+                className={[
+                  "flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface/95 text-muted shadow-[var(--shadow)] backdrop-blur-sm transition-opacity hover:text-primary hover:border-primary/40",
+                  canScrollRight ? "opacity-100" : "pointer-events-none opacity-0",
+                ].join(" ")}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+          )}
 
           <DragOverlay>
             {draggingIsColumn && draggingStage ? (
@@ -1011,6 +1010,7 @@ export function PipelineView({
         jobId={jobId}
         candidateName={quickApp?.candidate.fullName ?? ""}
         interviews={quickApp ? (interviewsByApplication[quickApp.id] ?? []) : []}
+        jobStages={interviewJobStages}
         teamMembers={teamMembers}
         onClose={closeQuickDialog}
       />
@@ -1022,6 +1022,15 @@ export function PipelineView({
         candidateName={quickApp?.candidate.fullName ?? ""}
         notes={quickApp ? (notesByApplication[quickApp.id] ?? []) : []}
         onClose={closeQuickDialog}
+      />
+
+      <EditStageDialog
+        key={editingStageId ?? "stage-closed"}
+        stage={editingStage}
+        hideSla={editingStage ? SIN_SLA_KINDS.has(editingStage.kind) : false}
+        onRename={onRenameStage}
+        onSlaChange={onSlaChange}
+        onClose={() => setEditingStageId(null)}
       />
 
       <ContactarDialog

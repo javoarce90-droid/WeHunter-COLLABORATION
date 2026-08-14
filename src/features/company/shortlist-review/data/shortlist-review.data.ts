@@ -124,11 +124,16 @@ export async function requestInterviewRpc(args: {
   slots: Date[];
 }): Promise<boolean> {
   try {
+    // postgres-js infiere mal el tipo de un array de `Date` nativos (lo manda como
+    // timestamptz escalar, no array — "cannot cast type timestamp with time zone to
+    // timestamp with time zone[]"), sea cual sea el cast de destino. Bug real confirmado
+    // empíricamente contra la base: mandar ISO strings en vez de Date[] lo resuelve.
+    const isoSlots = args.slots.map((d) => d.toISOString());
     const rows = await admin.execute<{ ok: boolean }>(
       sql`select request_shortlist_interview(
         ${args.token},
         ${args.shortlistCandidateId}::uuid,
-        ${args.slots}::timestamp[]
+        ${isoSlots}::timestamptz[]
       ) as ok`,
     );
     return rows[0]?.ok === true;

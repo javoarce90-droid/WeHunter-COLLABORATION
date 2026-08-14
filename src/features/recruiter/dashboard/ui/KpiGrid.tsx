@@ -84,7 +84,9 @@ export function KpiGrid({ kpis }: { kpis: DashboardKpis }) {
               <p className="mt-2 font-display text-3xl font-bold text-text tabular-nums">
                 {item.value}
               </p>
-              {item.hint && <p className="mt-1 text-xs text-muted">{item.hint}</p>}
+              {/* Siempre se renderiza (aunque no haya hint) para que las 4 cards midan lo
+                  mismo — antes "Postulaciones sin revisar" quedaba más baja que el resto. */}
+              <p className="mt-1 text-xs text-muted">{item.hint || " "}</p>
             </div>
           </Card>
         </Link>

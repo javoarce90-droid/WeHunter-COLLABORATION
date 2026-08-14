@@ -4,7 +4,11 @@ import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { AgendaInterview, SchedulableApplication } from "../data/interviews.queries";
+import type {
+  AgendaInterview,
+  SchedulableApplication,
+  JobStageOption,
+} from "../data/interviews.queries";
 import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS, TYPE_BADGE, TYPE_LABELS } from "../schema";
 import { AgendaCalendarGrid } from "./AgendaCalendarGrid";
 import { ScheduleInterviewModal, type ScheduleModalMode } from "./ScheduleInterviewModal";
@@ -66,7 +70,9 @@ function InterviewRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="truncate font-semibold text-text">{interview.candidateName}</span>
-          <Badge variant={TYPE_BADGE[interview.type]}>{TYPE_LABELS[interview.type]}</Badge>
+          <Badge variant={TYPE_BADGE[interview.type] ?? "blue"}>
+            {TYPE_LABELS[interview.type] ?? interview.type}
+          </Badge>
           <Badge variant={STATUS_BADGE[interview.status]}>{STATUS_LABELS[interview.status]}</Badge>
         </div>
         <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted">
@@ -132,6 +138,7 @@ type Props = {
   googleConfigured: boolean;
   googleConnectedEmail: string | null;
   schedulableApplications: SchedulableApplication[];
+  jobStagesByJob: Record<string, JobStageOption[]>;
   teamMembers: TeamMemberOption[];
 };
 
@@ -143,6 +150,7 @@ export function AgendaView({
   googleConfigured,
   googleConnectedEmail,
   schedulableApplications,
+  jobStagesByJob,
   teamMembers,
 }: Props) {
   const [modalMode, setModalMode] = useState<ScheduleModalMode | null>(null);
@@ -271,6 +279,7 @@ export function AgendaView({
         onClose={() => setModalMode(null)}
         mode={modalMode ?? { type: "new" }}
         schedulableApplications={schedulableApplications}
+        jobStagesByJob={jobStagesByJob}
         teamMembers={teamMembers}
       />
     </div>

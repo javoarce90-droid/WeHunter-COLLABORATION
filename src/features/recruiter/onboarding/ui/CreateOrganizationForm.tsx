@@ -9,28 +9,9 @@ import type { WorkspaceType } from "../schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { WorkspaceTypePicker } from "./WorkspaceTypePicker";
 
 const initialState: OnboardingFormState = {};
-
-/** El tipo de workspace decide qué se le ofrece después (clientes externos, hiring managers),
- *  por eso se pregunta en el alta y no en configuración. */
-const USOS: { type: WorkspaceType; label: string; detail: string }[] = [
-  {
-    type: "freelance",
-    label: "Trabajo de forma independiente",
-    detail: "Recruiter freelance, con tus propios clientes.",
-  },
-  {
-    type: "team",
-    label: "Trabajo en un equipo de Recruiting",
-    detail: "Consultora o área de Talent Acquisition.",
-  },
-  {
-    type: "enterprise",
-    label: "Represento a una empresa",
-    detail: "Contratación interna, con hiring managers involucrados.",
-  },
-];
 
 export function CreateOrganizationForm() {
   const [state, formAction, pending] = useActionState(
@@ -65,38 +46,7 @@ export function CreateOrganizationForm() {
               ¿Cómo vas a usar WeHunter?
             </span>
             <input type="hidden" name="workspaceType" value={uso ?? ""} />
-            <div
-              role="radiogroup"
-              aria-label="Cómo vas a usar WeHunter"
-              className="flex flex-col gap-2"
-            >
-              {USOS.map((o) => {
-                const active = uso === o.type;
-                return (
-                  <button
-                    key={o.type}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => setUso(o.type)}
-                    className={[
-                      "rounded-[var(--radius)] border px-3.5 py-2.5 text-left outline-none transition-colors",
-                      "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
-                      active
-                        ? "border-primary bg-primary-light"
-                        : "border-border bg-surface hover:border-primary/40",
-                    ].join(" ")}
-                  >
-                    <span
-                      className={`block text-sm font-semibold ${active ? "text-primary-hover" : "text-text"}`}
-                    >
-                      {o.label}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-muted">{o.detail}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <WorkspaceTypePicker value={uso} onChange={setUso} ariaLabel="Cómo vas a usar WeHunter" />
           </div>
 
           {state.error && <p className="text-xs text-danger">{state.error}</p>}

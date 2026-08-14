@@ -81,3 +81,25 @@ export const CV_EXT_BY_TYPE: Record<string, string> = {
 };
 
 export const CV_ALLOWED_TYPES = Object.keys(CV_EXT_BY_TYPE);
+
+// Importación masiva: mapeo de columnas del archivo subido a campos del candidato. fullName/
+// email vienen del select del form (siempre un string, "" si no se eligió columna).
+const optionalColumn = z.preprocess(emptyToUndef, z.string().max(200).optional());
+
+export const columnMappingSchema = z.object({
+  fullName: z.string().trim().min(1, "Elegí qué columna es el nombre."),
+  email: z.string().trim().min(1, "Elegí qué columna es el email."),
+  phone: optionalColumn,
+  location: optionalColumn,
+  linkedinUrl: optionalColumn,
+  headline: optionalColumn,
+  skills: optionalColumn,
+});
+
+// Restricciones del archivo de importación (CSV/XLSX).
+export const IMPORT_FILE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+export const IMPORT_FILE_ALLOWED_TYPES = [
+  "text/csv",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];

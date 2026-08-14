@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   agregarExperienciaAction,
   editarExperienciaAction,
@@ -27,6 +27,7 @@ export function ExperienceForm({
   hiddenFields,
 }: Props) {
   const isEdit = Boolean(experience);
+  const [currentlyWorking, setCurrentlyWorking] = useState(isEdit && !experience?.endDate);
 
   const [state, dispatch, isPending] = useActionState<ResumeActionState, FormData>(
     async (prev, formData) => {
@@ -86,11 +87,22 @@ export function ExperienceForm({
             type="date"
             name="endDate"
             defaultValue={experience?.endDate ?? ""}
+            disabled={currentlyWorking}
             placeholder="Actualidad"
-            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary"
+            className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1.5 text-sm text-text outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
           />
         </label>
       </div>
+
+      <label className="flex items-center gap-2 text-[11px] font-medium text-muted">
+        <input
+          type="checkbox"
+          checked={currentlyWorking}
+          onChange={(e) => setCurrentlyWorking(e.target.checked)}
+          className="h-3.5 w-3.5 rounded border-border accent-primary"
+        />
+        Actualmente trabajo aquí
+      </label>
 
       <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
         Descripción

@@ -9,7 +9,10 @@ import {
   listSharesForShortlists,
 } from "@/features/recruiter/shortlists/data/shortlists.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
-import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
+import {
+  listInterviewsByJob,
+  listJobStageOptions,
+} from "@/features/recruiter/interviews/data/interviews.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { CrearShortlistForm } from "@/features/recruiter/shortlists/ui/CrearShortlistForm";
@@ -33,12 +36,13 @@ export default async function ShortlistsPage({ params }: Props) {
   const proto = reqHeaders.get("x-forwarded-proto") ?? "http";
   const appUrl = host ? `${proto}://${host}` : "";
 
-  const [job, applications, summaries, members, jobInterviews] = await Promise.all([
+  const [job, applications, summaries, members, jobInterviews, jobStages] = await Promise.all([
     getJobById(jobId, membership.organizationId), // cache() por request: gratis (ya lo pidió el layout)
     listApplicationOptionsByJob(jobId, membership.organizationId),
     listShortlistsByJob(jobId, membership.organizationId),
     listMembers(membership.organizationId),
     listInterviewsByJob(jobId, membership.organizationId),
+    listJobStageOptions(jobId, membership.organizationId),
   ]);
   if (!job) notFound();
 
@@ -116,6 +120,7 @@ export default async function ShortlistsPage({ params }: Props) {
               shares={sl.shares}
               appUrl={appUrl}
               hmOptions={hmOptions}
+              jobStages={jobStages}
               teamMembers={teamMembers}
               interviewsByApplication={interviewsByApplication}
             />

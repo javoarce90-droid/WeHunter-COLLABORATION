@@ -12,6 +12,7 @@ import type {
   Benefit,
 } from "../domain/job-details";
 import { Button } from "@/components/ui/button";
+import { todayDateInputValue, isPastDateString } from "@/lib/date";
 import { IconButton } from "@/components/ui/icon-button";
 import { Input, fieldClasses } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -411,7 +412,13 @@ export function JobForm({
                 <Input label="Moneda (ISO)" name="salaryCurrency" type="text" maxLength={3} placeholder="USD" defaultValue={defaults?.salaryCurrency ?? ""} />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Input label="Deadline" name="deadline" type="date" defaultValue={defaults?.deadline ?? ""} />
+                <Input
+                  label="Deadline"
+                  name="deadline"
+                  type="date"
+                  min={isPastDateString(defaults?.deadline) ? undefined : todayDateInputValue()}
+                  defaultValue={defaults?.deadline ?? ""}
+                />
               </div>
             </CardContent>
           </Card>
@@ -496,18 +503,18 @@ export function JobForm({
                   placeholder: "Ej: 🎯 Liderar la arquitectura de microservicios...",
                 },
                 {
-                  field: "requirements" as const,
-                  label: "Requisitos",
-                  value: requirements,
-                  setValue: setRequirements,
-                  placeholder: "Ej: 💻 4+ años de experiencia con Node.js / TypeScript...",
-                },
-                {
                   field: "responsibilities" as const,
                   label: "Responsabilidades",
                   value: responsibilities,
                   setValue: setResponsibilities,
                   placeholder: "Ej: 🚀 Diseñar y desarrollar APIs REST seguras...",
+                },
+                {
+                  field: "requirements" as const,
+                  label: "Requisitos",
+                  value: requirements,
+                  setValue: setRequirements,
+                  placeholder: "Ej: 💻 4+ años de experiencia con Node.js / TypeScript...",
                 },
               ].map((f) => (
                 <RichMarkdownInput

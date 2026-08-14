@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ScheduleInterviewDialog } from "@/features/recruiter/applications/ui/ScheduleInterviewDialog";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import type { JobStageOption } from "@/features/recruiter/interviews/data/interviews.queries";
 import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
 import type { ShortlistCandidateWithFeedback } from "../data/shortlists.queries";
 import { ShortlistCandidateRows } from "./ShortlistCandidateRows";
@@ -14,6 +15,7 @@ type Props = {
   jobId: string;
   jobTitle: string;
   candidates: ShortlistCandidateWithFeedback[];
+  jobStages: JobStageOption[];
   teamMembers: TeamMemberOption[];
   interviewsByApplication: Record<string, InterviewRow[]>;
 };
@@ -26,6 +28,7 @@ export function ShortlistCardCandidates({
   jobId,
   jobTitle,
   candidates,
+  jobStages,
   teamMembers,
   interviewsByApplication,
 }: Props) {
@@ -76,6 +79,7 @@ export function ShortlistCardCandidates({
         jobId={jobId}
         candidateName={selectedRow?.fullName ?? ""}
         interviews={schedulingApplicationId ? (interviewsByApplication[schedulingApplicationId] ?? []) : []}
+        jobStages={jobStages}
         teamMembers={teamMembers}
         defaultScheduledAt={scheduleDefault}
         onClose={() => setSchedulingApplicationId(null)}

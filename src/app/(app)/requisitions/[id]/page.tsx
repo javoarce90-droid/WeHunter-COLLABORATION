@@ -111,6 +111,7 @@ export default async function RequisitionDetailPage({
       <Section title="Objetivos del puesto" body={requisition.objectives} />
       <Section title="Requisitos" body={requisition.requirements} />
       <Section title="Responsabilidades" body={requisition.responsibilities} />
+      <Section title="Comentarios adicionales" body={requisition.additionalComments} />
 
       <section className="rounded-[var(--radius)] border border-border bg-surface p-5 shadow-[var(--shadow)]">
         <h2 className="mb-3 text-sm font-bold text-text">Revisión</h2>

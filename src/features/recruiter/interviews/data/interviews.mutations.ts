@@ -105,14 +105,25 @@ export async function deleteInterview(interviewId: string): Promise<void> {
 /** Persiste el resultado de un intento de sync con Google Calendar (no toca otros campos). */
 export async function updateInterviewGoogleSync(
   interviewId: string,
-  sync: { googleEventId: string | null; googleSyncError: string | null },
+  sync: {
+    googleEventId: string | null;
+    googleSyncError: string | null;
+    /** Google Meet autogenerado al crear el evento (entrevista remota sin location propia) —
+     *  se guarda como location de la entrevista. undefined = no se pidió, no tocar location. */
+    meetLink?: string | null;
+  },
 ): Promise<void> {
+  const { meetLink, ...rest } = sync;
   const db = await getDb();
   await db.rls(
     (tx) =>
       tx
         .update(interviews)
-        .set({ ...sync, updatedAt: new Date() })
+        .set({
+          ...rest,
+          ...(meetLink ? { location: meetLink } : {}),
+          updatedAt: new Date(),
+        })
         .where(eq(interviews.id, interviewId)),
     "db.interviews.google-sync",
   );

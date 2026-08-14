@@ -14,6 +14,9 @@ import { isCandidateRoute } from "@/lib/auth/route-realms";
 
 export interface AuthFormState {
   error?: string;
+  /** Qué campo generó el error de validación (Zod) — el form hace foco ahí en vez de perder
+   *  de vista dónde corregir. */
+  field?: string;
   message?: string;
 }
 
@@ -87,7 +90,11 @@ export async function register(
     fullName: formData.get("fullName"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    const issue = parsed.error.issues[0];
+    return {
+      error: issue?.message ?? "Datos inválidos",
+      field: issue?.path[0] ? String(issue.path[0]) : undefined,
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -97,13 +104,16 @@ export async function register(
     options: { data: { full_name: parsed.data.fullName, account_type: "recruiter" } },
   });
   if (error) {
-    return { error: error.message };
+    return { error: error.message, field: "email" };
   }
 
   // Supabase no devuelve error por un email ya registrado (protección anti-enumeración):
   // responde éxito sin sesión y sin crear usuario. La señal es identities vacío.
   if (data.user && data.user.identities && data.user.identities.length === 0) {
-    return { error: "Ese email ya tiene una cuenta. Iniciá sesión, o registrate con un email distinto." };
+    return {
+      error: "Ese email ya tiene una cuenta. Iniciá sesión, o registrate con un email distinto.",
+      field: "email",
+    };
   }
 
   // Si el proyecto exige verificación de email, no hay sesión todavía.

@@ -14,6 +14,7 @@ import type {
 } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { Input, fieldClasses } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CANDIDATE_SOURCE_LABELS } from "./source-meta";
@@ -69,6 +70,7 @@ export function CandidateForm({
   // Únicos campos obligatorios (email solo al crear): trackeados para deshabilitar el submit.
   const [fullNameValue, setFullNameValue] = useState(defaults?.fullName ?? "");
   const [emailValue, setEmailValue] = useState(defaults?.email ?? "");
+  const [phoneValue, setPhoneValue] = useState(defaults?.phone ?? "");
   const missingRequired = !fullNameValue.trim() || (!candidateId && !emailValue.trim());
 
   // Chequeo de email en vivo
@@ -187,12 +189,12 @@ export function CandidateForm({
                     setEmailValue(e.target.value);
                   }}
                 />
-                <Input
+                <PhoneInput
                   label="Teléfono (opcional)"
                   name="phone"
-                  type="tel"
-                  placeholder="Ej: +54 9 351 555-1234"
-                  defaultValue={defaults?.phone ?? ""}
+                  value={phoneValue}
+                  onChange={(v) => setPhoneValue(v ?? "")}
+                  placeholder="Ej: 9 351 555-1234"
                 />
               </div>
 
