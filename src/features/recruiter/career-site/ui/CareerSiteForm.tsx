@@ -259,7 +259,7 @@ export function CareerSiteForm({
         <Button type="submit" disabled={pending}>
           {pending ? "Guardando…" : "Guardar"}
         </Button>
-        {state.ok && <span className="text-xs font-semibold text-success">Guardado ✓</span>}
+        {state.ok && !pending && <span className="text-xs font-semibold text-success">Guardado ✓</span>}
         {state.error && <span className="text-xs text-danger">{state.error}</span>}
       </div>
     </form>

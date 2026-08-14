@@ -57,7 +57,6 @@ export default async function CandidateDetailPage({
   const resumeHiddenFields = { candidateId: candidate.id };
 
   const facts: { label: string; value: string }[] = [
-    { label: "Email", value: candidate.email || "—" },
     { label: "Búsquedas", value: String(apps.length) },
     { label: "En el pool desde", value: dateFmt.format(candidate.createdAt) },
   ];
@@ -68,6 +67,20 @@ export default async function CandidateDetailPage({
     <div className="flex flex-col gap-5">
       {/* Datos clave */}
       <dl className="grid grid-cols-1 gap-px overflow-hidden rounded-[var(--radius)] border border-border bg-border sm:grid-cols-3">
+        {candidate.email && (
+          <div className="bg-surface px-4 py-3">
+            <dt className="text-xs font-medium text-muted">Email</dt>
+            <dd className="mt-0.5 truncate font-semibold text-text">
+              <a
+                href={`mailto:${candidate.email}`}
+                className="text-primary hover:text-primary-hover"
+                title="Escribirle un mail a este candidato"
+              >
+                {candidate.email}
+              </a>
+            </dd>
+          </div>
+        )}
         {facts.map((f) => (
           <div key={f.label} className="bg-surface px-4 py-3">
             <dt className="text-xs font-medium text-muted">{f.label}</dt>

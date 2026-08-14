@@ -24,6 +24,7 @@ export type RequisitionDraft = {
   objectives: string | null;
   requirements: string | null;
   responsibilities: string | null;
+  additionalComments: string | null;
 };
 
 export type SolicitarBusquedaInput = {
@@ -42,6 +43,7 @@ export type SolicitarBusquedaInput = {
   objectives?: string | null;
   requirements?: string | null;
   responsibilities?: string | null;
+  additionalComments?: string | null;
 };
 
 export type SolicitarBusquedaDeps = {
@@ -91,6 +93,7 @@ export async function solicitarBusqueda(
       objectives: clean(input.objectives),
       requirements: clean(input.requirements),
       responsibilities: clean(input.responsibilities),
+      additionalComments: clean(input.additionalComments),
     },
   });
 

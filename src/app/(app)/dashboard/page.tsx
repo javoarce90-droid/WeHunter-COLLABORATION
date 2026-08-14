@@ -240,7 +240,9 @@ async function DashboardDaily({
                   <p className="truncate text-xs text-muted">{iv.jobTitle}</p>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1">
-                  <Badge variant={TYPE_BADGE[iv.type]}>{TYPE_LABELS[iv.type]}</Badge>
+                  <Badge variant={TYPE_BADGE[iv.type] ?? "blue"}>
+                    {TYPE_LABELS[iv.type] ?? iv.type}
+                  </Badge>
                   <span className="text-xs text-muted">
                     {timeFormatter.format(iv.scheduledAt)} · {MODE_LABELS[iv.mode]}
                   </span>

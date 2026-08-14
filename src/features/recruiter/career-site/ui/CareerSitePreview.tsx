@@ -21,7 +21,7 @@ export function CareerSitePreview({ slug, version }: { slug: string; version: st
       </div>
       <iframe
         key={version}
-        src={`/careers/${slug}`}
+        src={`/careers/${slug}?preview=1`}
         title="Vista previa del Career Site"
         className="h-[480px] w-full bg-bg"
       />

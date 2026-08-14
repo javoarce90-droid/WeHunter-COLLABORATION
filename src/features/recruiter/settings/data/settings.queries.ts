@@ -12,6 +12,8 @@ export interface OwnProfile {
   location: string | null;
   linkedinUrl: string | null;
   bio: string | null;
+  specialties: string[] | null;
+  yearsOfExperience: number | null;
   createdAt: Date; // "miembro desde"
   visibleInCommunity: boolean;
 }
@@ -32,6 +34,8 @@ export async function getOwnProfile(): Promise<OwnProfile | null> {
           location: profiles.location,
           linkedinUrl: profiles.linkedinUrl,
           bio: profiles.bio,
+          specialties: profiles.specialties,
+          yearsOfExperience: profiles.yearsOfExperience,
           createdAt: profiles.createdAt,
           visibleInCommunity: profiles.visibleInCommunity,
         })

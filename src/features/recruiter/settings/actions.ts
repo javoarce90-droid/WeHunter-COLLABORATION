@@ -47,6 +47,8 @@ export async function actualizarPerfilAction(
     location: formData.get("location"),
     linkedinUrl: formData.get("linkedinUrl"),
     bio: formData.get("bio"),
+    specialties: formData.get("specialties"),
+    yearsOfExperience: formData.get("yearsOfExperience"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -71,6 +73,8 @@ export async function actualizarPerfilAction(
     location: parsed.data.location ?? null,
     linkedinUrl: parsed.data.linkedinUrl ?? null,
     bio: parsed.data.bio ?? null,
+    specialties: parsed.data.specialties ?? null,
+    yearsOfExperience: parsed.data.yearsOfExperience ?? null,
     // Checkbox nativo: si no viene en el FormData es porque está destildado.
     visibleInCommunity: formData.get("visibleInCommunity") === "on",
     ...(avatarUrl ? { avatarUrl } : {}),

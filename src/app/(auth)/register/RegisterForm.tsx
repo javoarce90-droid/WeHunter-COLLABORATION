@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { register, type AuthFormState } from "../actions";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,30 @@ const initialState: AuthFormState = {};
 export function RegisterForm() {
   const [state, formAction, pending] = useActionState(register, initialState);
 
+  // Controlados a propósito: `useActionState` remonta los inputs no controlados de un form
+  // cuando la action termina (incluso si el resultado es un error) — sin esto, tipear una
+  // contraseña corta y enviar borraba nombre y email también. Feedback QA ago 2026.
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+
+  const fullNameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  // Foco en el campo que falló en vez de dejar el error solo abajo del form.
+  useEffect(() => {
+    if (!state.error) return;
+    const target =
+      state.field === "fullName"
+        ? fullNameRef.current
+        : state.field === "password"
+          ? passwordRef.current
+          : emailRef.current;
+    target?.focus();
+  }, [state.error, state.field]);
+
   return (
     <>
       {!state.message && <AccountTypeTabs />}
@@ -25,31 +49,50 @@ export function RegisterForm() {
           ) : (
             <form action={formAction} className="flex flex-col gap-4">
               <Input
+                ref={fullNameRef}
                 label="Nombre completo"
                 name="fullName"
                 type="text"
                 autoComplete="name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                error={state.field === "fullName" ? state.error : undefined}
                 required
               />
               <Input
+                ref={emailRef}
                 label="Email"
                 name="email"
                 type="email"
                 autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                error={state.field === "email" ? state.error : undefined}
                 required
               />
               <Input
+                ref={passwordRef}
                 label="Contraseña"
                 name="password"
                 type="password"
                 autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                helperText="Mínimo 8 caracteres."
+                error={state.field === "password" ? state.error : undefined}
                 required
               />
-              {state.error && (
+              {state.error && !state.field && (
                 <p className="text-xs text-danger">{state.error}</p>
               )}
               <label className="inline-flex cursor-pointer items-start gap-2 text-xs text-text">
-                <Checkbox name="acceptTerms" required className="mt-0.5" />
+                <Checkbox
+                  name="acceptTerms"
+                  checked={acceptTerms}
+                  onChange={(e) => setAcceptTerms(e.target.checked)}
+                  required
+                  className="mt-1"
+                />
                 <span>
                   Acepto los{" "}
                   <Link href="/legal/terminos" target="_blank" className="font-semibold text-primary hover:underline">

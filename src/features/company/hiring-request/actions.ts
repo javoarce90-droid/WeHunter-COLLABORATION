@@ -62,6 +62,7 @@ export async function solicitarBusquedaAction(
     objectives: formData.get("objectives"),
     requirements: formData.get("requirements"),
     responsibilities: formData.get("responsibilities"),
+    additionalComments: formData.get("additionalComments"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
@@ -98,6 +99,7 @@ export async function editarSolicitudAction(
     objectives: formData.get("objectives"),
     requirements: formData.get("requirements"),
     responsibilities: formData.get("responsibilities"),
+    additionalComments: formData.get("additionalComments"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };

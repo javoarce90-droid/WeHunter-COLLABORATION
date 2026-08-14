@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
-import type { AgendaInterview, SchedulableApplication } from "../data/interviews.queries";
+import type {
+  AgendaInterview,
+  SchedulableApplication,
+  JobStageOption,
+} from "../data/interviews.queries";
 import { InterviewForm, type TeamMemberOption } from "./InterviewForm";
 
 export type ScheduleModalMode = { type: "new" } | { type: "edit"; interview: AgendaInterview };
@@ -12,6 +16,7 @@ type Props = {
   onClose: () => void;
   mode: ScheduleModalMode;
   schedulableApplications: SchedulableApplication[];
+  jobStagesByJob: Record<string, JobStageOption[]>;
   teamMembers: TeamMemberOption[];
 };
 
@@ -31,6 +36,7 @@ export function ScheduleInterviewModal({
   onClose,
   mode,
   schedulableApplications,
+  jobStagesByJob,
   teamMembers,
 }: Props) {
   const [jobId, setJobId] = useState<string | null>(null);
@@ -49,6 +55,7 @@ export function ScheduleInterviewModal({
           applicationId={mode.interview.applicationId}
           jobId={mode.interview.jobId}
           interview={mode.interview}
+          jobStages={jobStagesByJob[mode.interview.jobId] ?? []}
           teamMembers={teamMembers}
           onDone={handleClose}
         />
@@ -118,6 +125,7 @@ export function ScheduleInterviewModal({
           <InterviewForm
             applicationId={applicationId}
             jobId={jobId}
+            jobStages={jobStagesByJob[jobId] ?? []}
             teamMembers={teamMembers}
             onDone={handleClose}
           />

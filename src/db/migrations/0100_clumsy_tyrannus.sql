@@ -1,0 +1,1 @@
+ALTER TABLE "profiles" ALTER COLUMN "visible_in_community" SET DEFAULT false;

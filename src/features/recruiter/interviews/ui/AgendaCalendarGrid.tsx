@@ -113,12 +113,12 @@ export function AgendaCalendarGrid({ year, month, interviews, onSelectInterview 
                       onClick={() => onSelectInterview(iv)}
                       className="block w-full truncate text-left"
                     >
-                      <Badge variant={TYPE_BADGE[iv.type]} className="block w-full truncate">
+                      <Badge variant={TYPE_BADGE[iv.type] ?? "blue"} className="block w-full truncate">
                         {timeFmt.format(iv.scheduledAt)} {iv.candidateName.split(" ")[0]}
                       </Badge>
                     </button>
                   ) : (
-                    <Badge key={iv.id} variant={TYPE_BADGE[iv.type]} className="block w-full truncate">
+                    <Badge key={iv.id} variant={TYPE_BADGE[iv.type] ?? "blue"} className="block w-full truncate">
                       {timeFmt.format(iv.scheduledAt)} {iv.candidateName.split(" ")[0]}
                     </Badge>
                   ),

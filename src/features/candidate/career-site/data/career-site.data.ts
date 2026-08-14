@@ -1,6 +1,8 @@
 import { cache } from "react";
+import { and, eq } from "drizzle-orm";
 import { sql } from "drizzle-orm";
-import { admin } from "@/db/client";
+import { admin, getDb } from "@/db/client";
+import { memberships } from "@/db/schema";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import type {
   JobModality,
@@ -101,6 +103,35 @@ export const getCareerSite = cache(async (slug: string): Promise<CareerSite | nu
   const org = await resolveOrg(raw);
   return { ...org, jobs: raw.jobs };
 });
+
+/**
+ * El visitante de esta página pública, SI está logueado (misma cookie de sesión que el resto
+ * de la app — esta ruta no la exige, pero la respeta si está), ¿es miembro activo de la org
+ * dueña de este Career Site? Feedback QA ago 2026: un recruiter navegando su propio sitio no
+ * debería ver "también podés mirar estas búsquedas" de otras orgs, sea que llegue por el
+ * iframe de preview de Settings o por la URL pública directa. `own_memberships` (RLS) alcanza
+ * con el userId de la sesión, sin depender de cuál sea su org activa.
+ */
+export async function isViewerMemberOfOrg(organizationId: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db.userId) return false;
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ id: memberships.id })
+        .from(memberships)
+        .where(
+          and(
+            eq(memberships.profileId, db.userId!),
+            eq(memberships.organizationId, organizationId),
+            eq(memberships.status, "active"),
+          ),
+        )
+        .limit(1),
+    "db.career-site.viewer-membership",
+  );
+  return rows.length > 0;
+}
 
 export type CareerSiteSuggestion = {
   organizationId: string;

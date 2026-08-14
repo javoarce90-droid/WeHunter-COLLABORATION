@@ -40,8 +40,10 @@ export function CandidateResumeFields({
   const [certifications, setCertifications] = useState<CandidateCertification[]>(initialCertifications);
   const [languages, setLanguages] = useState<CandidateLanguage[]>(initialLanguages);
 
-  // Form states para agregar items
+  // Form states para agregar/editar items. `editingXId` != null => el form de arriba edita
+  // ese item en vez de crear uno nuevo (mismo form, reusado — ver handleSave*/handleEdit*).
   const [addingExp, setAddingExp] = useState(false);
+  const [editingExpId, setEditingExpId] = useState<string | null>(null);
   const [expForm, setExpForm] = useState({
     company: "",
     position: "",
@@ -54,6 +56,7 @@ export function CandidateResumeFields({
   });
 
   const [addingEdu, setAddingEdu] = useState(false);
+  const [editingEduId, setEditingEduId] = useState<string | null>(null);
   const [eduForm, setEduForm] = useState({
     institution: "",
     degree: "",
@@ -64,36 +67,21 @@ export function CandidateResumeFields({
   });
 
   const [addingCert, setAddingCert] = useState(false);
+  const [editingCertId, setEditingCertId] = useState<string | null>(null);
   const [certForm, setCertForm] = useState({
     name: "",
     url: "",
   });
 
   const [addingLang, setAddingLang] = useState(false);
+  const [editingLangId, setEditingLangId] = useState<string | null>(null);
   const [langForm, setLangForm] = useState({
     language: "",
     level: "intermedio",
   });
 
   // Handlers Experiencia
-  const handleAddExperience = () => {
-    if (!expForm.company.trim() || !expForm.position.trim()) return;
-    const newExp: CandidateWorkExperience = {
-      id: "temp-" + Date.now(),
-      profileId: null,
-      candidateId: null,
-      company: expForm.company.trim(),
-      position: expForm.position.trim(),
-      startDate: expForm.startDate || null,
-      endDate: expForm.endDate || null,
-      description: expForm.description.trim() || null,
-      employmentType: (expForm.employmentType as CandidateWorkExperience["employmentType"]) || null,
-      modality: (expForm.modality as CandidateWorkExperience["modality"]) || null,
-      skills: expForm.skillsStr ? expForm.skillsStr.split(",").map((s) => s.trim()).filter(Boolean) : null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    setExperiences((prev) => [...prev, newExp]);
+  function resetExpForm() {
     setExpForm({
       company: "",
       position: "",
@@ -105,6 +93,52 @@ export function CandidateResumeFields({
       skillsStr: "",
     });
     setAddingExp(false);
+    setEditingExpId(null);
+  }
+
+  const handleSaveExperience = () => {
+    if (!expForm.company.trim() || !expForm.position.trim()) return;
+    const fields = {
+      company: expForm.company.trim(),
+      position: expForm.position.trim(),
+      startDate: expForm.startDate || null,
+      endDate: expForm.endDate || null,
+      description: expForm.description.trim() || null,
+      employmentType: (expForm.employmentType as CandidateWorkExperience["employmentType"]) || null,
+      modality: (expForm.modality as CandidateWorkExperience["modality"]) || null,
+      skills: expForm.skillsStr ? expForm.skillsStr.split(",").map((s) => s.trim()).filter(Boolean) : null,
+    };
+    if (editingExpId) {
+      setExperiences((prev) =>
+        prev.map((item) => (item.id === editingExpId ? { ...item, ...fields } : item)),
+      );
+    } else {
+      const newExp: CandidateWorkExperience = {
+        id: "temp-" + Date.now(),
+        profileId: null,
+        candidateId: null,
+        ...fields,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      setExperiences((prev) => [...prev, newExp]);
+    }
+    resetExpForm();
+  };
+
+  const handleEditExperience = (exp: CandidateWorkExperience) => {
+    setExpForm({
+      company: exp.company,
+      position: exp.position,
+      startDate: exp.startDate ?? "",
+      endDate: exp.endDate ?? "",
+      description: exp.description ?? "",
+      employmentType: exp.employmentType ?? "",
+      modality: exp.modality ?? "",
+      skillsStr: exp.skills?.join(", ") ?? "",
+    });
+    setEditingExpId(exp.id);
+    setAddingExp(true);
   };
 
   const handleRemoveExperience = (id: string) => {
@@ -112,24 +146,7 @@ export function CandidateResumeFields({
   };
 
   // Handlers Educación
-  const handleAddEducation = () => {
-    if (!eduForm.institution.trim() || !eduForm.degree.trim()) return;
-    const newEdu: CandidateEducation = {
-      id: "temp-" + Date.now(),
-      profileId: null,
-      candidateId: null,
-      institution: eduForm.institution.trim(),
-      degree: eduForm.degree.trim(),
-      fieldOfStudy: eduForm.fieldOfStudy.trim() || null,
-      startDate: eduForm.startDate || null,
-      endDate: eduForm.endDate || null,
-      description: eduForm.description.trim() || null,
-      grade: null,
-      activities: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    setEducation((prev) => [...prev, newEdu]);
+  function resetEduForm() {
     setEduForm({
       institution: "",
       degree: "",
@@ -139,6 +156,50 @@ export function CandidateResumeFields({
       description: "",
     });
     setAddingEdu(false);
+    setEditingEduId(null);
+  }
+
+  const handleSaveEducation = () => {
+    if (!eduForm.institution.trim() || !eduForm.degree.trim()) return;
+    const fields = {
+      institution: eduForm.institution.trim(),
+      degree: eduForm.degree.trim(),
+      fieldOfStudy: eduForm.fieldOfStudy.trim() || null,
+      startDate: eduForm.startDate || null,
+      endDate: eduForm.endDate || null,
+      description: eduForm.description.trim() || null,
+    };
+    if (editingEduId) {
+      setEducation((prev) =>
+        prev.map((item) => (item.id === editingEduId ? { ...item, ...fields } : item)),
+      );
+    } else {
+      const newEdu: CandidateEducation = {
+        id: "temp-" + Date.now(),
+        profileId: null,
+        candidateId: null,
+        ...fields,
+        grade: null,
+        activities: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      setEducation((prev) => [...prev, newEdu]);
+    }
+    resetEduForm();
+  };
+
+  const handleEditEducation = (edu: CandidateEducation) => {
+    setEduForm({
+      institution: edu.institution,
+      degree: edu.degree,
+      fieldOfStudy: edu.fieldOfStudy ?? "",
+      startDate: edu.startDate ?? "",
+      endDate: edu.endDate ?? "",
+      description: edu.description ?? "",
+    });
+    setEditingEduId(edu.id);
+    setAddingEdu(true);
   };
 
   const handleRemoveEducation = (id: string) => {
@@ -146,20 +207,37 @@ export function CandidateResumeFields({
   };
 
   // Handlers Certificaciones
-  const handleAddCertification = () => {
-    if (!certForm.name.trim()) return;
-    const newCert: CandidateCertification = {
-      id: "temp-" + Date.now(),
-      profileId: null,
-      candidateId: null,
-      name: certForm.name.trim(),
-      url: certForm.url.trim() || null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    setCertifications((prev) => [...prev, newCert]);
+  function resetCertForm() {
     setCertForm({ name: "", url: "" });
     setAddingCert(false);
+    setEditingCertId(null);
+  }
+
+  const handleSaveCertification = () => {
+    if (!certForm.name.trim()) return;
+    const fields = { name: certForm.name.trim(), url: certForm.url.trim() || null };
+    if (editingCertId) {
+      setCertifications((prev) =>
+        prev.map((item) => (item.id === editingCertId ? { ...item, ...fields } : item)),
+      );
+    } else {
+      const newCert: CandidateCertification = {
+        id: "temp-" + Date.now(),
+        profileId: null,
+        candidateId: null,
+        ...fields,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      setCertifications((prev) => [...prev, newCert]);
+    }
+    resetCertForm();
+  };
+
+  const handleEditCertification = (c: CandidateCertification) => {
+    setCertForm({ name: c.name, url: c.url ?? "" });
+    setEditingCertId(c.id);
+    setAddingCert(true);
   };
 
   const handleRemoveCertification = (id: string) => {
@@ -167,20 +245,40 @@ export function CandidateResumeFields({
   };
 
   // Handlers Idiomas
-  const handleAddLanguage = () => {
-    if (!langForm.language.trim()) return;
-    const newLang: CandidateLanguage = {
-      id: "temp-" + Date.now(),
-      profileId: null,
-      candidateId: null,
-      language: langForm.language.trim(),
-      level: (langForm.level as LanguageLevel) || "intermedio",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    setLanguages((prev) => [...prev, newLang]);
+  function resetLangForm() {
     setLangForm({ language: "", level: "intermedio" });
     setAddingLang(false);
+    setEditingLangId(null);
+  }
+
+  const handleSaveLanguage = () => {
+    if (!langForm.language.trim()) return;
+    const fields = {
+      language: langForm.language.trim(),
+      level: (langForm.level as LanguageLevel) || "intermedio",
+    };
+    if (editingLangId) {
+      setLanguages((prev) =>
+        prev.map((item) => (item.id === editingLangId ? { ...item, ...fields } : item)),
+      );
+    } else {
+      const newLang: CandidateLanguage = {
+        id: "temp-" + Date.now(),
+        profileId: null,
+        candidateId: null,
+        ...fields,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      setLanguages((prev) => [...prev, newLang]);
+    }
+    resetLangForm();
+  };
+
+  const handleEditLanguage = (l: CandidateLanguage) => {
+    setLangForm({ language: l.language, level: l.level });
+    setEditingLangId(l.id);
+    setAddingLang(true);
   };
 
   const handleRemoveLanguage = (id: string) => {
@@ -261,14 +359,24 @@ export function CandidateResumeFields({
                       </div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveExperience(exp.id)}
-                    className="text-muted hover:text-danger shrink-0 p-1 font-bold text-sm transition-colors"
-                    title="Eliminar experiencia"
-                  >
-                    ✕
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleEditExperience(exp)}
+                      className="text-muted hover:text-primary p-1 text-[11px] font-semibold transition-colors"
+                      title="Editar experiencia"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveExperience(exp.id)}
+                      className="text-muted hover:text-danger p-1 font-bold text-sm transition-colors"
+                      title="Eliminar experiencia"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -354,17 +462,17 @@ export function CandidateResumeFields({
               <div className="flex justify-end gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setAddingExp(false)}
+                  onClick={resetExpForm}
                   className="px-3 py-1.5 font-semibold text-muted hover:text-text transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  onClick={handleAddExperience}
+                  onClick={handleSaveExperience}
                   className="px-4 py-1.5 bg-primary text-white font-semibold rounded-[var(--radius)] hover:bg-primary-hover transition-colors shadow-sm"
                 >
-                  Guardar experiencia
+                  {editingExpId ? "Guardar cambios" : "Guardar experiencia"}
                 </button>
               </div>
             </div>
@@ -420,14 +528,24 @@ export function CandidateResumeFields({
                     <p className="font-bold text-sm text-text">{edu.degree}</p>
                     <p className="text-muted font-medium">{edu.institution} {edu.fieldOfStudy && `· ${edu.fieldOfStudy}`}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveEducation(edu.id)}
-                    className="text-muted hover:text-danger shrink-0 p-1 font-bold text-sm transition-colors"
-                    title="Eliminar estudio"
-                  >
-                    ✕
-                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleEditEducation(edu)}
+                      className="text-muted hover:text-primary p-1 text-[11px] font-semibold transition-colors"
+                      title="Editar estudio"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveEducation(edu.id)}
+                      className="text-muted hover:text-danger p-1 font-bold text-sm transition-colors"
+                      title="Eliminar estudio"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -460,17 +578,17 @@ export function CandidateResumeFields({
               <div className="flex justify-end gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setAddingEdu(false)}
+                  onClick={resetEduForm}
                   className="px-3 py-1.5 font-semibold text-muted hover:text-text transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
-                  onClick={handleAddEducation}
+                  onClick={handleSaveEducation}
                   className="px-4 py-1.5 bg-primary text-white font-semibold rounded-[var(--radius)] hover:bg-primary-hover transition-colors shadow-sm"
                 >
-                  Guardar estudio
+                  {editingEduId ? "Guardar cambios" : "Guardar estudio"}
                 </button>
               </div>
             </div>
@@ -517,7 +635,10 @@ export function CandidateResumeFields({
                 {certifications.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-2 p-3 rounded-[var(--radius)] border border-border/80 bg-bg/40 text-xs animate-pop-in">
                     <span className="font-semibold text-text truncate">{c.name}</span>
-                    <button type="button" onClick={() => handleRemoveCertification(c.id)} className="text-muted hover:text-danger p-1 font-bold text-xs transition-colors">✕</button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button type="button" onClick={() => handleEditCertification(c)} className="text-muted hover:text-primary p-1 text-[11px] font-semibold transition-colors">Editar</button>
+                      <button type="button" onClick={() => handleRemoveCertification(c.id)} className="text-muted hover:text-danger p-1 font-bold text-xs transition-colors">✕</button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -539,8 +660,10 @@ export function CandidateResumeFields({
                   placeholder="https://..."
                 />
                 <div className="flex justify-end gap-2 pt-1">
-                  <button type="button" onClick={() => setAddingCert(false)} className="px-3 py-1 text-muted hover:text-text">Cancelar</button>
-                  <button type="button" onClick={handleAddCertification} className="px-4 py-1.5 bg-primary text-white rounded-[var(--radius)] font-semibold hover:bg-primary-hover shadow-sm">Guardar</button>
+                  <button type="button" onClick={resetCertForm} className="px-3 py-1 text-muted hover:text-text">Cancelar</button>
+                  <button type="button" onClick={handleSaveCertification} className="px-4 py-1.5 bg-primary text-white rounded-[var(--radius)] font-semibold hover:bg-primary-hover shadow-sm">
+                    {editingCertId ? "Guardar cambios" : "Guardar"}
+                  </button>
                 </div>
               </div>
             )}
@@ -583,7 +706,9 @@ export function CandidateResumeFields({
               <div className="flex flex-wrap gap-2">
                 {languages.map((l) => (
                   <span key={l.id} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary-light/70 text-primary-hover text-xs font-semibold border border-primary/20 animate-pop-in">
-                    {l.language} ({LEVEL_LABELS[l.level] || l.level})
+                    <button type="button" onClick={() => handleEditLanguage(l)} className="hover:underline" title="Editar idioma">
+                      {l.language} ({LEVEL_LABELS[l.level] || l.level})
+                    </button>
                     <button type="button" onClick={() => handleRemoveLanguage(l.id)} className="hover:text-danger font-bold ml-1 transition-colors">✕</button>
                   </span>
                 ))}
@@ -613,8 +738,10 @@ export function CandidateResumeFields({
                   </select>
                 </label>
                 <div className="flex justify-end gap-2 pt-1">
-                  <button type="button" onClick={() => setAddingLang(false)} className="px-3 py-1 text-muted hover:text-text">Cancelar</button>
-                  <button type="button" onClick={handleAddLanguage} className="px-4 py-1.5 bg-primary text-white rounded-[var(--radius)] font-semibold hover:bg-primary-hover shadow-sm">Guardar</button>
+                  <button type="button" onClick={resetLangForm} className="px-3 py-1 text-muted hover:text-text">Cancelar</button>
+                  <button type="button" onClick={handleSaveLanguage} className="px-4 py-1.5 bg-primary text-white rounded-[var(--radius)] font-semibold hover:bg-primary-hover shadow-sm">
+                    {editingLangId ? "Guardar cambios" : "Guardar"}
+                  </button>
                 </div>
               </div>
             )}

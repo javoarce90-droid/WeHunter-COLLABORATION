@@ -18,6 +18,9 @@ export type RawCommunityProfile = {
   avatarUrl: string | null; // path crudo del bucket privado `avatars`
   jobTitle: string | null;
   bio: string | null;
+  location: string | null;
+  specialties: string[] | null;
+  yearsOfExperience: number | null;
   linkedinUrl: string | null;
   phone: string | null;
   organizationName: string;
@@ -49,4 +52,19 @@ export async function getCommunityProfiles(): Promise<CommunityProfile[]> {
       avatarUrl: profile.avatarUrl ? await getAvatarSignedUrl(profile.avatarUrl) : null,
     })),
   );
+}
+
+/** Perfil público individual (CTA "Ver perfil" de la card) — null si no existe, no es
+ *  elegible (visibleInCommunity/rol) o le falta algún dato mínimo (mismo gate que la lista). */
+export async function getCommunityProfileById(id: string): Promise<CommunityProfile | null> {
+  const rows = await admin.execute<{ result: RawCommunityProfile | null }>(
+    sql`select get_community_profile(${id}::uuid) as result`,
+  );
+  const profile = rows[0]?.result;
+  if (!profile) return null;
+
+  return {
+    ...profile,
+    avatarUrl: profile.avatarUrl ? await getAvatarSignedUrl(profile.avatarUrl) : null,
+  };
 }

@@ -56,6 +56,45 @@ export async function insertCandidate(
   return { candidateId: rows[0]!.id };
 }
 
+/** Insert en lote de la importación masiva — un solo statement para todas las filas válidas
+ *  del archivo, no un insert por fila (database.md regla #3). */
+export async function insertCandidatesBatch(
+  organizationId: string,
+  candidatesToInsert: {
+    fullName: string;
+    email: string;
+    phone: string | null;
+    location: string | null;
+    linkedinUrl: string | null;
+    headline: string | null;
+    skills: string[] | null;
+  }[],
+): Promise<{ inserted: number }> {
+  if (candidatesToInsert.length === 0) return { inserted: 0 };
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .insert(candidates)
+        .values(
+          candidatesToInsert.map((c) => ({
+            organizationId,
+            fullName: c.fullName,
+            email: c.email,
+            phone: c.phone,
+            location: c.location,
+            linkedinUrl: c.linkedinUrl,
+            headline: c.headline,
+            skills: c.skills,
+            source: "manual" as const,
+          })),
+        )
+        .returning({ id: candidates.id }),
+    "db.candidates.insert-batch",
+  );
+  return { inserted: rows.length };
+}
+
 export async function updateCandidateFields(
   candidateId: string,
   organizationId: string,

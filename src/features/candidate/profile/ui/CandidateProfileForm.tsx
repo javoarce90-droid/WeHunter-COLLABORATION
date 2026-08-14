@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { actualizarPerfilAction, type ProfileFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { SkillsPillsInput } from "./SkillsPillsInput";
@@ -154,13 +155,12 @@ export function CandidateProfileForm({
               onChange={(e) => setHeadline(e.target.value)}
               placeholder="Ej. Frontend Developer SSR"
             />
-            <Input
+            <PhoneInput
               label="Teléfono"
               name="phone"
-              type="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Ej: +54 9 11 1234 5678"
+              onChange={(v) => setPhone(v ?? "")}
+              placeholder="Ej: 9 11 1234 5678"
             />
           </div>
 

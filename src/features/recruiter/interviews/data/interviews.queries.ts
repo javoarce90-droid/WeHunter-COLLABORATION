@@ -1,4 +1,4 @@
-import { and, eq, asc, count, gte, lt, isNotNull } from "drizzle-orm";
+import { and, eq, asc, count, gte, lt, isNotNull, ne } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { interviews, applications, candidates, jobs, jobStages } from "@/db/schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
@@ -347,4 +347,52 @@ export async function getDashboardAgendaSummary(
       todayCount: Number(todayRows[0]?.n ?? 0),
     };
   }, "db.interviews.dashboard-summary");
+}
+
+export type JobStageOption = { id: string; name: string };
+
+/** Etapas del pipeline de UN job, para el selector "Tipo" al agendar — ya no es un enum
+ *  fijo, lista las etapas reales de esa búsqueda (ver InterviewForm). Excluye "inbox"
+ *  (bandeja, no es una etapa de entrevista) — mismo criterio que `getJobStageCounts`. */
+export async function listJobStageOptions(
+  jobId: string,
+  organizationId: string,
+): Promise<JobStageOption[]> {
+  const db = await getDb();
+  return db.rls(
+    (tx) =>
+      tx
+        .select({ id: jobStages.id, name: jobStages.name })
+        .from(jobStages)
+        .where(
+          and(
+            eq(jobStages.jobId, jobId),
+            eq(jobStages.organizationId, organizationId),
+            ne(jobStages.kind, "inbox"),
+          ),
+        )
+        .orderBy(asc(jobStages.position)),
+    "db.interviews.job-stage-options",
+  );
+}
+
+/** Igual que `listJobStageOptions` pero para TODOS los jobs con candidatos agendables de la
+ *  org (agenda org-wide) — una sola query agrupada, no una por job (database.md #3). */
+export async function listJobStageOptionsByJob(
+  organizationId: string,
+): Promise<Record<string, JobStageOption[]>> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ jobId: jobStages.jobId, id: jobStages.id, name: jobStages.name })
+        .from(jobStages)
+        .where(and(eq(jobStages.organizationId, organizationId), ne(jobStages.kind, "inbox")))
+        .orderBy(asc(jobStages.position)),
+    "db.interviews.job-stage-options-by-job",
+  );
+  return rows.reduce<Record<string, JobStageOption[]>>((acc, r) => {
+    (acc[r.jobId] ??= []).push({ id: r.id, name: r.name });
+    return acc;
+  }, {});
 }

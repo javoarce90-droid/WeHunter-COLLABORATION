@@ -9,6 +9,8 @@ export interface ProfilePatch {
   location?: string | null;
   linkedinUrl?: string | null;
   bio?: string | null;
+  specialties?: string[] | null;
+  yearsOfExperience?: number | null;
   avatarUrl?: string | null;
   visibleInCommunity?: boolean;
 }

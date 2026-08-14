@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { and, eq, desc, or, ilike, sql } from "drizzle-orm";
+import { and, eq, desc, or, ilike, sql, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { candidates, type Candidate } from "@/db/schema";
 import {
@@ -254,4 +254,30 @@ export async function findDuplicateCandidate(
   const matchedBy: "email" | "linkedin" =
     email && normalizeEmailKey(match.email) === email ? "email" : "linkedin";
   return { id: match.id, fullName: match.fullName, matchedBy };
+}
+
+/** Qué emails (de la lista dada, ya normalizados por el caller) ya existen en el pool de la
+ *  organización — UNA query para todo el lote, nunca una por fila (importación masiva). */
+export async function findExistingEmails(
+  organizationId: string,
+  emails: string[],
+): Promise<Set<string>> {
+  if (emails.length === 0) return new Set();
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ email: candidates.email })
+        .from(candidates)
+        .where(
+          and(
+            eq(candidates.organizationId, organizationId),
+            inArray(sql`lower(${candidates.email})`, emails),
+          ),
+        ),
+    "db.candidates.find-existing-emails",
+  );
+  return new Set(
+    rows.map((r) => normalizeEmailKey(r.email)).filter((e): e is string => e !== null),
+  );
 }

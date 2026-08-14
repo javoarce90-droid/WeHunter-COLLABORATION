@@ -25,12 +25,13 @@ const baseInput: SincronizarEntrevistaInput = {
   startsAt: new Date(Date.now() + 86_400_000),
   location: null,
   attendeeEmails: ["ana@example.com"],
+  requestMeetLink: false,
 };
 
 function makeDeps(overrides?: Partial<SincronizarEntrevistaDeps>): SincronizarEntrevistaDeps {
   return {
     getConnection: vi.fn().mockResolvedValue(connection),
-    createEvent: vi.fn().mockResolvedValue({ eventId: "gcal-1" }),
+    createEvent: vi.fn().mockResolvedValue({ eventId: "gcal-1", meetLink: null }),
     updateEvent: vi.fn().mockResolvedValue({ ok: true }),
     deleteEvent: vi.fn().mockResolvedValue({ ok: true }),
     saveSyncResult: vi.fn().mockResolvedValue(undefined),
@@ -61,6 +62,29 @@ describe("sincronizarEntrevista", () => {
     expect(deps.saveSyncResult).toHaveBeenCalledWith("int-1", {
       googleEventId: "gcal-1",
       googleSyncError: null,
+      meetLink: null,
+    });
+  });
+
+  it("created remota sin location: pide el Meet a Google y lo guarda como location", async () => {
+    const createEvent = vi
+      .fn()
+      .mockResolvedValue({ eventId: "gcal-2", meetLink: "https://meet.google.com/abc-defg-hij" });
+    const deps = makeDeps({ createEvent });
+    const result = await sincronizarEntrevista(
+      { ...baseInput, requestMeetLink: true },
+      ctx,
+      deps,
+    );
+    expect(result.ok).toBe(true);
+    expect(createEvent).toHaveBeenCalledWith(
+      connection,
+      expect.objectContaining({ requestMeetLink: true }),
+    );
+    expect(deps.saveSyncResult).toHaveBeenCalledWith("int-1", {
+      googleEventId: "gcal-2",
+      googleSyncError: null,
+      meetLink: "https://meet.google.com/abc-defg-hij",
     });
   });
 

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input, fieldClasses } from "@/components/ui/input";
+import { todayDateInputValue } from "@/lib/date";
 import {
   AREA_LABELS,
   MODALITY_LABELS,
@@ -111,7 +112,12 @@ export function CargarSolicitudForm({ reviewers }: { reviewers: ReviewerOption[]
         </Field>
 
         <Input name="budget" label="Presupuesto" placeholder="USD 3.000 – 4.000 brutos" />
-        <Input name="estimatedStartDate" label="Fecha estimada de ingreso" type="date" />
+        <Input
+          name="estimatedStartDate"
+          label="Fecha estimada de ingreso"
+          type="date"
+          min={todayDateInputValue()}
+        />
       </div>
 
       <Input name="skills" label="Skills (separadas por coma)" placeholder="sql, python, power bi" />

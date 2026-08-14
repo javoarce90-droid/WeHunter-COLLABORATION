@@ -15,6 +15,7 @@ import {
 } from "@/features/recruiter/jobs/ui/field-meta";
 import { Badge } from "@/components/ui/badge";
 import { SectionCard } from "@/components/ui/section-card";
+import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
@@ -182,15 +183,11 @@ export default async function JobDetailPage({
                     <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-label">
                       {s.title}
                     </h3>
-                    <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
-                      {s.body}
-                    </p>
+                    <JobMarkdown text={s.body} className="max-w-[70ch] text-sm text-text/80" />
                   </div>
                 ))
               : job.posting && (
-                  <p className="max-w-[70ch] whitespace-pre-wrap text-sm leading-relaxed text-text/80">
-                    {job.posting}
-                  </p>
+                  <JobMarkdown text={job.posting} className="max-w-[70ch] text-sm text-text/80" />
                 )}
             {(job.benefits?.length ?? 0) > 0 && (
               <div>

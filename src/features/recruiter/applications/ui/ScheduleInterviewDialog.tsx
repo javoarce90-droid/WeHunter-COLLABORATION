@@ -3,6 +3,7 @@
 import { Dialog } from "@/components/ui/dialog";
 import { InterviewsSection } from "@/features/recruiter/interviews/ui/InterviewsSection";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
+import type { JobStageOption } from "@/features/recruiter/interviews/data/interviews.queries";
 import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
   jobId: string;
   candidateName: string;
   interviews: InterviewRow[];
+  jobStages: JobStageOption[];
   teamMembers: TeamMemberOption[];
   onClose: () => void;
   /** Sugerencia inicial de fecha/hora (ver `InterviewsSection`) — ej. el primer horario que
@@ -27,6 +29,7 @@ export function ScheduleInterviewDialog({
   jobId,
   candidateName,
   interviews,
+  jobStages,
   teamMembers,
   onClose,
   defaultScheduledAt,
@@ -44,6 +47,7 @@ export function ScheduleInterviewDialog({
           applicationId={applicationId}
           jobId={jobId}
           interviews={interviews}
+          jobStages={jobStages}
           teamMembers={teamMembers}
           defaultScheduledAt={defaultScheduledAt}
         />

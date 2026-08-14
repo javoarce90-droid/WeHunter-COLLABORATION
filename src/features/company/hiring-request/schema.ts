@@ -67,6 +67,7 @@ export const solicitarBusquedaSchema = z.object({
   objectives: markdownField(5000),
   requirements: markdownField(5000),
   responsibilities: markdownField(5000),
+  additionalComments: markdownField(2000),
 });
 
 export const editarSolicitudSchema = solicitarBusquedaSchema.extend({

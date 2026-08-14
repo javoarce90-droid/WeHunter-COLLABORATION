@@ -5,6 +5,7 @@ import { useActionState, useRef, useState, useTransition } from "react";
 import { AiButton, SparkleIcon } from "@/components/ui/ai";
 import { Button } from "@/components/ui/button";
 import { Input, fieldClasses } from "@/components/ui/input";
+import { todayDateInputValue, isPastDateString } from "@/lib/date";
 import {
   AREA_LABELS,
   MODALITY_LABELS,
@@ -247,6 +248,7 @@ export function RequisitionForm({
           name="estimatedStartDate"
           label="Fecha estimada de ingreso"
           type="date"
+          min={isPastDateString(initialValues?.estimatedStartDate) ? undefined : todayDateInputValue()}
           defaultValue={initialValues?.estimatedStartDate ?? ""}
         />
       </div>
@@ -315,6 +317,17 @@ export function RequisitionForm({
           maxLength={5000}
           className={textareaClass}
           defaultValue={draft?.responsibilities ?? initialValues?.responsibilities ?? ""}
+        />
+      </Field>
+
+      <Field label="Comentarios adicionales (opcional)">
+        <textarea
+          name="additionalComments"
+          rows={3}
+          maxLength={2000}
+          placeholder="Cualquier detalle extra que no entre en los campos de arriba."
+          className={textareaClass}
+          defaultValue={initialValues?.additionalComments ?? ""}
         />
       </Field>
 
