@@ -37,7 +37,7 @@ export default async function PortalPage() {
         cvUrl: candidate?.cvUrl ?? null,
       }}
       notificationBell={
-        <Suspense fallback={<CandidateNotificationBellFallback />}>
+        <Suspense key="candidate-notification-bell" fallback={<CandidateNotificationBellFallback />}>
           <CandidateNotificationBellLoader />
         </Suspense>
       }
