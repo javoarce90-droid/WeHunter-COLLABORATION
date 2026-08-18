@@ -57,6 +57,27 @@ describe("editarCandidato", () => {
     );
   });
 
+  it("normaliza seniority (undefined → null, valor real se propaga)", async () => {
+    const d = deps();
+    await editarCandidato({ candidateId: "cand-1", fullName: "Ada Lovelace" }, ctx, d);
+    expect(d.updateCandidateFields).toHaveBeenCalledWith(
+      "cand-1",
+      "org-1",
+      expect.objectContaining({ seniority: null }),
+    );
+
+    await editarCandidato(
+      { candidateId: "cand-1", fullName: "Ada Lovelace", seniority: "senior" },
+      ctx,
+      d,
+    );
+    expect(d.updateCandidateFields).toHaveBeenCalledWith(
+      "cand-1",
+      "org-1",
+      expect.objectContaining({ seniority: "senior" }),
+    );
+  });
+
   it("reemplaza el CV cuando se adjunta uno nuevo", async () => {
     const uploadCv = vi.fn(async () => ({ path: "org-1/nuevo.pdf" }));
     const d = { ...deps(), uploadCv };

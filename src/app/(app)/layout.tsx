@@ -26,22 +26,24 @@ import { SetupChecklistWidgetLoader } from "@/features/recruiter/dashboard/ui/Se
  * La navegación vive en la barra lateral (Sidebar); el header queda como topbar de cuenta.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const user = await getCurrentUser();
+  // Las tres son independientes entre sí (solo dependen de la sesión, no unas de otras) —
+  // en paralelo en vez de 3 awaits seguidos (database.md #3).
+  const [user, accountType, memberships] = await Promise.all([
+    getCurrentUser(),
+    getAccountType(),
+    getMyMemberships(),
+  ]);
   if (!user) {
     redirect("/login");
   }
-
-  const accountType = await getAccountType();
   if (accountType === "candidate") {
     redirect("/portal");
   }
-
-  // Misma query cacheada: getActiveMembership() reusa este resultado (cache() por request),
-  // no dispara una segunda transacción por pedir la lista completa acá para el sidebar.
-  const memberships = await getMyMemberships();
   if (memberships.length === 0) {
     redirect("/onboarding");
   }
+  // Misma query cacheada: getActiveMembership() reusa getMyMemberships() (cache() por
+  // request), no dispara una segunda transacción por pedir la lista completa acá arriba.
   const membership = await getActiveMembership();
   if (!membership) {
     redirect("/onboarding");

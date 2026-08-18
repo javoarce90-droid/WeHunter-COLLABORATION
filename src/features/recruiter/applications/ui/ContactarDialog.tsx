@@ -9,12 +9,17 @@ import { useToast } from "@/lib/toast";
 import { CHANNEL_LABELS, MESSAGE_CHANNELS } from "@/features/recruiter/messaging/schema";
 import type { MessageChannel } from "@/features/recruiter/messaging/schema";
 import { contactarPostuladosAction } from "../actions";
+import { personalizarMensaje } from "../domain/personalizar-mensaje";
 
 type Props = {
   /** Postulaciones destino. null = diálogo cerrado. */
   target: string[] | null;
   jobId: string;
   jobTitle: string;
+  /** Nombre del candidato, si `target` tiene un solo elemento — precompleta {{candidato}}
+   *  en el mensaje inicial. Sin este dato (lote de varios), la variable queda sin resolver:
+   *  cada destinatario recibe el mensaje con su propio nombre recién al enviar. */
+  candidateName?: string;
   onClose: () => void;
   onSent: () => void;
   /** Si viene, fija el canal y oculta el selector (ej. "Enviar Email" desde el menú de una
@@ -36,6 +41,7 @@ export function ContactarDialog({
   target,
   jobId,
   jobTitle,
+  candidateName,
   onClose,
   onSent,
   fixedChannel,
@@ -43,7 +49,9 @@ export function ContactarDialog({
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [channel, setChannel] = useState<MessageChannel>(fixedChannel ?? "email");
-  const [body, setBody] = useState(PLANTILLA_BASE);
+  const [body, setBody] = useState(() =>
+    personalizarMensaje(PLANTILLA_BASE, { puesto: jobTitle, candidato: candidateName }),
+  );
 
   const count = target?.length ?? 0;
 
@@ -95,7 +103,7 @@ export function ContactarDialog({
           </Select>
         )}
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <Textarea
             label="Mensaje"
             rows={6}
@@ -103,9 +111,12 @@ export function ContactarDialog({
             onChange={(e) => setBody(e.target.value)}
             className="resize-y"
           />
-          <p className="text-[11px] text-muted">
-            Variables: <code>{"{{candidato}}"}</code> y <code>{"{{puesto}}"}</code> ({jobTitle}).
-          </p>
+          {!candidateName && (
+            <p className="text-[11px] text-muted">
+              Cada candidato recibe el mensaje con su propio nombre en lugar
+              de <code>{"{{candidato}}"}</code>.
+            </p>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-3">

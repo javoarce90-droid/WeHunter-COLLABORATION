@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { CandidateFormState } from "../actions";
 import { verificarEmailCandidatoAction } from "../actions";
 import type { CandidateSource } from "../domain/candidate-details";
+import type { JobSeniority } from "@/features/recruiter/jobs/domain/job-details";
 import type { VerificarCandidatoPorEmailResult } from "../domain/verificar-candidato-por-email";
 import type {
   CandidateWorkExperience,
@@ -18,6 +19,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CANDIDATE_SOURCE_LABELS } from "./source-meta";
+import { SENIORITY_LABELS } from "@/features/recruiter/jobs/ui/field-meta";
 import { SkillsPillsInput } from "@/features/candidate/profile/ui/SkillsPillsInput";
 import { CandidateResumeFields } from "./CandidateResumeFields";
 
@@ -41,6 +43,7 @@ interface CandidateFormProps {
     linkedinUrl?: string | null;
     summary?: string | null;
     skills?: string[] | null;
+    seniority?: JobSeniority | null;
     source?: CandidateSource | null;
     initialResume?: {
       experiences?: CandidateWorkExperience[];
@@ -198,7 +201,7 @@ export function CandidateForm({
                 />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <Input
                   label="Ubicación (opcional)"
                   name="location"
@@ -213,6 +216,21 @@ export function CandidateForm({
                   placeholder="Ej: Frontend Senior @ Acme"
                   defaultValue={defaults?.headline ?? ""}
                 />
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-muted">Seniority (opcional)</span>
+                  <select
+                    name="seniority"
+                    defaultValue={defaults?.seniority ?? ""}
+                    className={selectClass}
+                  >
+                    <option value="">Sin especificar</option>
+                    {Object.entries(SENIORITY_LABELS).map(([v, l]) => (
+                      <option key={v} value={v}>
+                        {l}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
 
               {checkingEmail && !shownDuplicate && !shownProfileMatch && (

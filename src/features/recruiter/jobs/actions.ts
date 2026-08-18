@@ -21,7 +21,7 @@ import {
   updateJobAssignedTo,
   updateJobSourcer,
 } from "./data/jobs.mutations";
-import { getJobById, getJobStatus } from "./data/jobs.queries";
+import { getJobById, getJobStatus, invalidateJobCache } from "./data/jobs.queries";
 import { getMembershipById } from "@/features/recruiter/team/data/team.queries";
 import { getAiProvider } from "@/lib/ai";
 import { notifyProfile } from "@/features/recruiter/notifications/data/notifications.mutations";
@@ -245,6 +245,7 @@ export async function editarBusquedaAction(
   if (!result.ok) {
     return { error: result.error };
   }
+  if (membership) invalidateJobCache(jobId, membership.organizationId);
 
   if (parsed.data.screeningQuestions) {
     await definirPreguntasScreening(
@@ -293,6 +294,7 @@ export async function editarAvisoBusquedaAction(
   if (!result.ok) {
     return { error: result.error };
   }
+  if (membership) invalidateJobCache(jobId, membership.organizationId);
 
   revalidatePath(`/jobs/${jobId}/aviso`);
   return {};
@@ -316,6 +318,7 @@ export async function cambiarEstadoBusquedaAction(
     },
     { getJobStatus, updateJobStatus },
   );
+  if (membership) invalidateJobCache(jobId, membership.organizationId);
 
   revalidatePath("/jobs");
   // Las pantallas de la búsqueda también muestran el estado (ej. publicar desde el aviso):
@@ -340,6 +343,7 @@ export async function registrarCompartidaBusquedaAction(formData: FormData): Pro
     { incrementShareCount },
   );
   if (!result.ok) return;
+  if (membership) invalidateJobCache(jobId, membership.organizationId);
 
   revalidatePath("/jobs");
 }
@@ -389,6 +393,7 @@ export async function reasignarResponsableAction(
     { getMembership: getMembershipById, updateAssignedTo: updateJobAssignedTo },
   );
   if (!result.ok) return { error: result.error };
+  invalidateJobCache(jobId, membership.organizationId);
 
   revalidatePath(`/jobs/${jobId}`, "layout");
   return {};
@@ -414,6 +419,7 @@ export async function actualizarSourcerAction(
     { getMembership: getMembershipById, updateSourcer: updateJobSourcer },
   );
   if (!result.ok) return { error: result.error };
+  invalidateJobCache(jobId, membership.organizationId);
 
   revalidatePath(`/jobs/${jobId}`, "layout");
   return {};

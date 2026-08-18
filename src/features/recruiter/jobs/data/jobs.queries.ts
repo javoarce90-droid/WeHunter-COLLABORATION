@@ -12,6 +12,7 @@ import {
 } from "@/db/schema";
 import { assignedToMembership } from "./job-scope";
 import { paginationRange } from "@/lib/pagination";
+import { createKeyedCache } from "@/lib/keyed-cache";
 import type { JobFilter, JobSortKey } from "../ui/job-filters";
 
 /** Las 6 combinaciones de `JOB_SORT_KEYS`, todas sobre columnas reales de `jobs`. */
@@ -226,14 +227,28 @@ export async function listRecentOpenJobs(
   );
 }
 
-/**
- * Una búsqueda por id. Cacheada por request (`cache()` de React): el layout del workspace y
- * la pestaña Detalle la piden ambos en un mismo render y comparten una única transacción RLS.
- */
+// Ver `keyed-cache.ts`: dedupea `getJobById` ENTRE requests (cambio de tab), no solo dentro
+// de uno. 7 de las 8 tabs de una búsqueda lo piden. Cualquier mutación de `jobs` tiene que
+// invalidar con `invalidateJobCache(jobId, organizationId)` o esta lectura queda vieja.
+const jobCache = createKeyedCache<Job | null>(30_000);
+
+function jobCacheKey(jobId: string, organizationId: string): string {
+  return `${organizationId}:${jobId}`;
+}
+
+export function invalidateJobCache(jobId: string, organizationId: string): void {
+  jobCache.invalidate(jobCacheKey(jobId, organizationId));
+}
+
+/** Una búsqueda por id. */
 export const getJobById = cache(async function getJobById(
   jobId: string,
   organizationId: string,
 ): Promise<Job | null> {
+  const key = jobCacheKey(jobId, organizationId);
+  const cached = jobCache.get(key);
+  if (cached !== undefined) return cached;
+
   const db = await getDb();
   const rows = await db.rls(
     (tx) =>
@@ -244,7 +259,9 @@ export const getJobById = cache(async function getJobById(
         .limit(1),
     "db.jobs.get",
   );
-  return rows[0] ?? null;
+  const job = rows[0] ?? null;
+  jobCache.set(key, job);
+  return job;
 });
 
 export type JobAssignee = {

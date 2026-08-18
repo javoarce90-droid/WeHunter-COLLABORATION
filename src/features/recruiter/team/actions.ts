@@ -30,6 +30,7 @@ import {
   getMembershipById,
   getInvitationForResend,
   countMembersAndPendingInvitations,
+  invalidateMembersCache,
 } from "./data/team.queries";
 import { sendInvitationEmail } from "./data/email-client";
 
@@ -171,6 +172,7 @@ export async function actualizarMiembroAction(
   );
 
   if (!result.ok) return { ok: false, error: result.error };
+  invalidateMembersCache(membership.organizationId);
   revalidatePath("/team");
   return { ok: true };
 }
@@ -196,6 +198,7 @@ export async function eliminarMiembroAction(
   );
 
   if (!result.ok) return { ok: false, error: result.error };
+  invalidateMembersCache(membership.organizationId);
   revalidatePath("/team");
   return { ok: true };
 }

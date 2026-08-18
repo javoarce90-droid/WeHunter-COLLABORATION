@@ -56,6 +56,24 @@ describe("cargarCandidato", () => {
     );
   });
 
+  it("carga el candidato con seniority cuando viene, null cuando no", async () => {
+    const d = deps("cand-9");
+    await cargarCandidato(
+      { fullName: "Ada Lovelace", email: "ada@example.com", seniority: "senior" },
+      ctx,
+      d,
+    );
+    expect(d.insertCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({ seniority: "senior" }),
+    );
+
+    const d2 = deps("cand-10");
+    await cargarCandidato({ fullName: "Ada Lovelace", email: "ada2@example.com" }, ctx, d2);
+    expect(d2.insertCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({ seniority: null }),
+    );
+  });
+
   it("rechaza si el email viene vacío o solo espacios (obligatorio al cargar)", async () => {
     const d = deps();
     const res = await cargarCandidato({ fullName: "Grace Hopper", email: "   " }, ctx, d);

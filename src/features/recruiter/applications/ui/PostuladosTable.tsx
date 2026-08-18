@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useOptimistic, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +21,7 @@ import { useToast } from "@/lib/toast";
 import { PAGE_SIZE, totalPages as calcTotalPages } from "@/lib/pagination";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import { AgregarCandidatos } from "./AgregarCandidatos";
-import { SourcingIADialog } from "./SourcingIADialog";
-import {
-  CompareCandidatesDialog,
-  type CompareSubject,
-} from "../../sourcing/ui/CompareCandidatesDialog";
+import type { CompareSubject } from "../../sourcing/ui/CompareCandidatesDialog";
 import type { CandidateSource } from "@/features/recruiter/candidates/domain/candidate-details";
 import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import {
@@ -33,11 +30,9 @@ import {
   REJECTION_REASON_LABELS,
   DEFAULT_REJECTION_MESSAGE,
 } from "../schema";
+import { personalizarMensaje } from "../domain/personalizar-mensaje";
 import type { RejectionReason } from "../schema";
-import type {
-  PostuladoRow,
-  StageHistoryEvent,
-} from "../data/applications.queries";
+import type { PostuladoRow } from "../data/applications.queries";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import {
   rechazarVariosAction,
@@ -47,11 +42,24 @@ import {
 } from "../actions";
 import { CriteriosChip } from "./CriteriosChip";
 import { MatchCell } from "./MatchCell";
-import { AiAnalysisDialog, type AiAnalysisSubject } from "./AiAnalysisDialog";
-import {
-  PostuladoDetailSheet,
-  type ScreeningAnswerLine,
-} from "./PostuladoDetailSheet";
+import type { AiAnalysisSubject } from "./AiAnalysisDialog";
+import type { ScreeningAnswerLine } from "./PostuladoDetailSheet";
+
+// Diálogos que se abren, como mucho, para UNA fila por vez, y la mayoría de las filas de la
+// bandeja nunca los abren — con `next/dynamic` su JS se descarga recién al abrirlos, no en
+// el load inicial de Postulados (ver plan de performance, `next/dynamic`).
+const SourcingIADialog = dynamic(() =>
+  import("./SourcingIADialog").then((m) => m.SourcingIADialog),
+);
+const CompareCandidatesDialog = dynamic(() =>
+  import("../../sourcing/ui/CompareCandidatesDialog").then((m) => m.CompareCandidatesDialog),
+);
+const AiAnalysisDialog = dynamic(() =>
+  import("./AiAnalysisDialog").then((m) => m.AiAnalysisDialog),
+);
+const PostuladoDetailSheet = dynamic(() =>
+  import("./PostuladoDetailSheet").then((m) => m.PostuladoDetailSheet),
+);
 
 type PoolCandidate = { id: string; fullName: string; email: string | null };
 
@@ -64,7 +72,6 @@ type Props = {
   /** Cuántos criterios definió el aviso. 0 = no se muestra la columna. */
   totalCriterios: number;
   notesByApplication: Record<string, TimelineNote[]>;
-  stageEventsByApplication: Record<string, StageHistoryEvent[]>;
   /** Candidatos del pool que todavía no están postulados a esta búsqueda — para "Cargar
    *  candidatos" (única entrada a esta acción: ya no vive en Pipeline). */
   poolCandidates: PoolCandidate[];
@@ -134,7 +141,6 @@ export function PostuladosTable({
   screeningByApplication,
   totalCriterios,
   notesByApplication,
-  stageEventsByApplication,
   poolCandidates,
 }: Props) {
   const toast = useToast();
@@ -382,7 +388,16 @@ export function PostuladosTable({
     setReason(REJECTION_REASONS[0]);
     setNote("");
     setNotifyCandidate(false);
-    setMessage(DEFAULT_REJECTION_MESSAGE);
+    const soloUnCandidato =
+      ids.size === 1
+        ? postulados.find((p) => ids.has(p.id))?.candidate.fullName
+        : undefined;
+    setMessage(
+      personalizarMensaje(DEFAULT_REJECTION_MESSAGE, {
+        puesto: jobTitle,
+        candidato: soloUnCandidato,
+      }),
+    );
   }
 
   function doReject() {
@@ -842,9 +857,6 @@ export function PostuladosTable({
           detailRow ? (screeningByApplication[detailRow.id] ?? []) : []
         }
         notes={detailRow ? (notesByApplication[detailRow.id] ?? []) : []}
-        stageEvents={
-          detailRow ? (stageEventsByApplication[detailRow.id] ?? []) : []
-        }
         onClose={() => setDetailId(null)}
         onPasarAlPipeline={(r) => onPasarAlPipeline([r.id])}
         onGuardarEnPool={(r) => openPoolDialog([r.id])}
@@ -952,9 +964,13 @@ export function PostuladosTable({
                 className="resize-y"
               />
               <p className="text-[11px] text-muted">
-                Variables: <code>{"{{candidato}}"}</code> y{" "}
-                <code>{"{{puesto}}"}</code> ({jobTitle}
-                ). No incluye la nota interna.
+                {(rejectTarget?.size ?? 0) > 1 && (
+                  <>
+                    Cada candidato recibe el mensaje con su propio nombre en
+                    lugar de <code>{"{{candidato}}"}</code>.{" "}
+                  </>
+                )}
+                No incluye la nota interna.
               </p>
             </div>
           )}

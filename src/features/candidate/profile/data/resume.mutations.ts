@@ -171,6 +171,24 @@ export async function insertCertification(
   return rows[0];
 }
 
+export async function updateCertification(
+  id: string,
+  owner: ResumeOwner,
+  data: CertificationFields,
+): Promise<boolean> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .update(candidateCertifications)
+        .set(data as Partial<typeof candidateCertifications.$inferInsert>)
+        .where(and(eq(candidateCertifications.id, id), ownerFilter(candidateCertifications, owner)))
+        .returning({ id: candidateCertifications.id }),
+    "db.resume.updateCertification",
+  );
+  return rows.length > 0;
+}
+
 export async function deleteCertification(id: string, owner: ResumeOwner): Promise<boolean> {
   const db = await getDb();
   const rows = await db.rls(
@@ -205,6 +223,24 @@ export async function insertLanguage(
     "db.resume.insertLanguage",
   );
   return rows[0];
+}
+
+export async function updateLanguage(
+  id: string,
+  owner: ResumeOwner,
+  data: LanguageFields,
+): Promise<boolean> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .update(candidateLanguages)
+        .set(data as Partial<typeof candidateLanguages.$inferInsert>)
+        .where(and(eq(candidateLanguages.id, id), ownerFilter(candidateLanguages, owner)))
+        .returning({ id: candidateLanguages.id }),
+    "db.resume.updateLanguage",
+  );
+  return rows.length > 0;
 }
 
 export async function deleteLanguage(id: string, owner: ResumeOwner): Promise<boolean> {

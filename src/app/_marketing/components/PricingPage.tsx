@@ -26,7 +26,7 @@ const PLANS = [
       "Dashboard y métricas.",
       "Entrevistas, agenda y feedbacks.",
     ],
-    notes: "🎁 15 días gratis. Sin tarjeta de crédito. Luego: USD 29,99 / mes.",
+    notes: "🎁 15 días gratis. Sin tarjeta de crédito. Luego: ARS 59.999 o USD 29,99 / mes.",
     ctaLabel: "Comenzar prueba gratuita",
     ctaVariant: "secondary" as const,
     featured: false,

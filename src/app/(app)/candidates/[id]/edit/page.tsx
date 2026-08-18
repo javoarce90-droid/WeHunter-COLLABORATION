@@ -57,6 +57,7 @@ export default async function EditCandidatePage({
           linkedinUrl: candidate.linkedinUrl,
           summary: candidate.summary,
           skills: candidate.skills,
+          seniority: candidate.seniority,
           source: candidate.source,
           initialResume: resume,
         }}

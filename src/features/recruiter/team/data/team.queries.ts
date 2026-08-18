@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import { memberships, profiles, invitations } from "@/db/schema";
 import type { OrgRole, MembershipStatus } from "../domain/gestionar-equipo";
 import { paginationRange } from "@/lib/pagination";
+import { createKeyedCache } from "@/lib/keyed-cache";
 
 export type MemberRow = {
   membershipId: string;
@@ -14,13 +15,25 @@ export type MemberRow = {
   status: MembershipStatus;
 };
 
+// Ver keyed-cache.ts: dedupea `listMembers` ENTRE requests (el layout de /jobs/[id] la pide,
+// pero también Pipeline y Shortlists por separado al cambiar de tab). Invalidar con
+// `invalidateMembersCache(organizationId)` en altas/bajas/cambios de rol de equipo. No cubre
+// ediciones de nombre/email del propio perfil (Configuración) — eso queda solo al TTL, es
+// bajo impacto (un selector con un nombre desactualizado por hasta 30s).
+const membersCache = createKeyedCache<MemberRow[]>(30_000);
+
+export function invalidateMembersCache(organizationId: string): void {
+  membersCache.invalidate(organizationId);
+}
+
 /** Todos los miembros (hasta 100) — usado por selectores/pickers de otras pantallas
- *  (agenda, pipeline, shortlists, solicitudes) que necesitan la lista completa, no una página.
- *  `cache()`: el layout de `/jobs/[id]` y varias de sus tabs (ej. Shortlists) la piden en el
- *  mismo request — sin esto, cada una dispara su propia transacción `db.team.members`. */
+ *  (agenda, pipeline, shortlists, solicitudes) que necesitan la lista completa, no una página. */
 export const listMembers = cache(async function listMembers(
   organizationId: string,
 ): Promise<MemberRow[]> {
+  const cached = membersCache.get(organizationId);
+  if (cached !== undefined) return cached;
+
   const db = await getDb();
   const rows = await db.rls((tx) =>
     tx
@@ -39,11 +52,13 @@ export const listMembers = cache(async function listMembers(
       .limit(100),
     "db.team.members",
   );
-  return rows.map((r) => ({
+  const members = rows.map((r) => ({
     ...r,
     role: r.role as OrgRole,
     status: r.status as MembershipStatus,
   }));
+  membersCache.set(organizationId, members);
+  return members;
 });
 
 /** Página de miembros para la tabla de `/team` (10 por página) — distinta de `listMembers`,

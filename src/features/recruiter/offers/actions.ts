@@ -17,6 +17,7 @@ import {
   acceptOfferTx,
 } from "./data/offers.mutations";
 import { getOfferStatusRow, getOfferDetail, type OfferDetail } from "./data/offers.queries";
+import { invalidateJobCache } from "../jobs/data/jobs.queries";
 import { getApplicationById } from "../applications/data/applications.queries";
 import { getAiProvider } from "@/lib/ai";
 import { notifyOrg } from "../notifications/data/notifications.mutations";
@@ -149,8 +150,10 @@ export async function cambiarEstadoOfertaAction(
 
   if (!result.ok) return { ok: false, error: result.error };
 
-  // Aceptar es un hito: notificamos al equipo (no crítico → fuera de la tx de aceptación).
+  // Aceptar es un hito: cierra la búsqueda (acceptOfferTx) — invalida su cache — y
+  // notificamos al equipo (no crítico → fuera de la tx de aceptación).
   if (parsed.data.toStatus === "accepted") {
+    invalidateJobCache(jobId, membership.organizationId);
     const detail = await getOfferDetail(offerId, membership.organizationId);
     await notifyOrg(membership.organizationId, {
       type: "hire",

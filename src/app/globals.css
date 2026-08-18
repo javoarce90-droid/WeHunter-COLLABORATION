@@ -1,3 +1,20 @@
+/* Declara el orden de layers ANTES de que Tailwind declare las suyas (theme/base/components/
+ * utilities vía @import de abajo): en CSS Cascade Layers, el orden relativo entre layers
+ * queda fijado la primera vez que se las nombra juntas, sin importar cuándo llega el
+ * contenido real de cada una. legacy-marketing (landing.css, pricing.css — sitio de
+ * marketing viejo, sin Tailwind) va A PROPÓSITO entre `base` y `components`:
+ *   - Por ENCIMA de `theme`/`base` (el preflight/reset de Tailwind): sus propios resets y
+ *     tipografía (`* {margin:0}`, `body {font-family:...}`, etc.) tienen que seguir ganando
+ *     en sus propias páginas (/, /precios, /legal) — si quedara por debajo de `base`, el
+ *     preflight de Tailwind le pisaría la tipografía aunque esas páginas no usen Tailwind.
+ *   - Por DEBAJO de `utilities`: así sus selectores sueltos (main, header, body, *, etc.)
+ *     nunca le ganan a una utility de Tailwind en OTRA página (ver comentario en
+ *     landing.css) — este es el bug real que motivó todo esto: si esta hoja queda pegada en
+ *     el <head> tras una navegación client-side a una página que sí usa Tailwind (Next.js
+ *     App Router no siempre limpia un CSS global importado por una page al navegar a otra
+ *     ruta), antes le ganaba a Tailwind ahí; ahora no. */
+@layer theme, base, legacy-marketing, components, utilities;
+
 @import "tailwindcss";
 
 :root {

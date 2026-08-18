@@ -8,6 +8,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { SkillsPillsInput } from "@/features/candidate/profile/ui/SkillsPillsInput";
 import { actualizarPerfilAction } from "../actions";
 import type { OwnProfile } from "../data/settings.queries";
+import { evaluarElegibilidadComunidad } from "../domain/evaluar-elegibilidad-comunidad";
 
 const fieldClass =
   "w-full rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-sm text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)]";
@@ -48,7 +49,10 @@ export function ProfileSection({
   const fileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [phone, setPhone] = useState(profile?.phone ?? "");
-  const name = profile?.fullName ?? "";
+  const [fullName, setFullName] = useState(profile?.fullName ?? "");
+  const [jobTitle, setJobTitle] = useState(profile?.jobTitle ?? "");
+  const [bio, setBio] = useState(profile?.bio ?? "");
+  const elegibilidadComunidad = evaluarElegibilidadComunidad({ fullName, jobTitle, bio });
 
   return (
     <form action={dispatch} className="flex flex-col gap-5">
@@ -61,7 +65,7 @@ export function ProfileSection({
           // eslint-disable-next-line @next/next/no-img-element
           <img src="/settings/avatar" alt="" className="h-16 w-16 rounded-full object-cover" />
         ) : (
-          <Avatar name={name || email} size="lg" className="h-16 w-16 text-base" />
+          <Avatar name={fullName || email} size="lg" className="h-16 w-16 text-base" />
         )}
         <div className="flex flex-col gap-1.5">
           <input
@@ -88,13 +92,25 @@ export function ProfileSection({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Nombre">
-          <input name="fullName" defaultValue={name} required className={fieldClass} />
+          <input
+            name="fullName"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            className={fieldClass}
+          />
         </Field>
         <Field label="Email">
           <input value={email} disabled className={`${fieldClass} opacity-60`} />
         </Field>
         <Field label="Cargo">
-          <input name="jobTitle" defaultValue={profile?.jobTitle ?? ""} className={fieldClass} placeholder="Ej. Talent Acquisition Lead" />
+          <input
+            name="jobTitle"
+            value={jobTitle}
+            onChange={(e) => setJobTitle(e.target.value)}
+            className={fieldClass}
+            placeholder="Ej. Talent Acquisition Lead"
+          />
         </Field>
         <PhoneInput label="Teléfono" name="phone" value={phone} onChange={(v) => setPhone(v ?? "")} />
         <Field label="Ubicación">
@@ -127,7 +143,8 @@ export function ProfileSection({
       <Field label="Bio (máx. 500 caracteres)">
         <textarea
           name="bio"
-          defaultValue={profile?.bio ?? ""}
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
           maxLength={500}
           rows={3}
           className={`${fieldClass} resize-y`}
@@ -136,12 +153,46 @@ export function ProfileSection({
       </Field>
 
       {showCommunityCheckbox && (
-        <Checkbox
-          name="visibleInCommunity"
-          defaultChecked={profile?.visibleInCommunity ?? false}
-          label="Aparecer en la Comunidad WeHunter"
-          helpText="Activá esto para que tu perfil sea visible en el directorio público de recruiters. Por defecto no aparecés."
-        />
+        <div className="flex flex-col gap-3 rounded-[var(--radius)] border border-border bg-bg p-4">
+          <Checkbox
+            name="visibleInCommunity"
+            defaultChecked={profile?.visibleInCommunity ?? false}
+            label="Aparecer en la Comunidad WeHunter"
+            helpText="Activá esto para que tu perfil sea visible en el directorio público de recruiters. Por defecto no aparecés."
+          />
+
+          {elegibilidadComunidad.elegible ? (
+            <p className="flex items-center gap-2 text-xs font-semibold text-success">
+              <span aria-hidden>✓</span> Cumplís los requisitos para aparecer en la Comunidad.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2 border-t border-border pt-3">
+              <p className="text-xs font-semibold text-muted">
+                Para aparecer en la Comunidad, completá:
+              </p>
+              <ul className="flex flex-col gap-2">
+                {elegibilidadComunidad.requisitos.map((r) => (
+                  <li key={r.campo} className="flex items-center gap-2 text-xs">
+                    <span
+                      className={[
+                        "grid h-4 w-4 shrink-0 place-items-center rounded border text-[10px] font-bold",
+                        r.cumplido
+                          ? "border-primary bg-primary text-white"
+                          : "border-border text-transparent",
+                      ].join(" ")}
+                      aria-hidden
+                    >
+                      ✓
+                    </span>
+                    <span className={r.cumplido ? "text-muted line-through" : "text-text"}>
+                      {r.label}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="flex items-center gap-3">

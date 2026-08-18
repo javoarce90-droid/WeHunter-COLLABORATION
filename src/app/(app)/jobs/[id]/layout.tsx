@@ -38,7 +38,14 @@ export default async function JobLayout({
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!user || !membership) notFound();
 
-  const job = await getJobById(id, membership.organizationId);
+  // assignees/members/orgSlug no dependen del job (solo de la org), así que van en el mismo
+  // Promise.all en vez de esperar a getJobById primero (database.md #3).
+  const [job, assignees, members, orgSlug] = await Promise.all([
+    getJobById(id, membership.organizationId),
+    getJobAssignees(id, membership.organizationId),
+    listMembers(membership.organizationId),
+    getOrganizationSlug(membership.organizationId),
+  ]);
   if (!job) notFound();
   // Autorización primaria (database.md): un rol acotado por asignación no entra a una
   // búsqueda que no es la suya ni por URL directa, no solo se le oculta del listado.
@@ -49,12 +56,6 @@ export default async function JobLayout({
   ) {
     notFound();
   }
-
-  const [assignees, members, orgSlug] = await Promise.all([
-    getJobAssignees(id, membership.organizationId),
-    listMembers(membership.organizationId),
-    getOrganizationSlug(membership.organizationId),
-  ]);
   if (!assignees) notFound();
 
   const meta = JOB_STATUS_META[job.status];

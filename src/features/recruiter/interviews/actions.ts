@@ -17,6 +17,7 @@ import {
   getApplicationForInterview,
   getInterviewById,
   getInterviewSyncContext,
+  invalidateInterviewsCache,
 } from "./data/interviews.queries";
 import {
   insertInterview,
@@ -37,9 +38,12 @@ export interface InterviewActionState {
 
 /** Revalida el pipeline del job (donde se ve embebida) y la Agenda (org-wide) —
  *  una entrevista pudo agendarse/editarse/borrarse desde cualquiera de las dos. */
-function revalidateInterviewViews(formData: FormData) {
+function revalidateInterviewViews(formData: FormData, organizationId: string) {
   const jobId = String(formData.get("jobId") ?? "");
-  if (jobId) revalidatePath(`/jobs/${jobId}/pipeline`);
+  if (jobId) {
+    invalidateInterviewsCache(jobId, organizationId);
+    revalidatePath(`/jobs/${jobId}/pipeline`);
+  }
   revalidatePath("/agenda");
 }
 
@@ -159,7 +163,7 @@ export async function agendarInterviewAction(
     organizationId: membership.organizationId,
   });
 
-  revalidateInterviewViews(formData);
+  revalidateInterviewViews(formData, membership.organizationId);
   return {};
 }
 
@@ -213,7 +217,7 @@ export async function actualizarInterviewAction(
     organizationId: membership.organizationId,
   });
 
-  revalidateInterviewViews(formData);
+  revalidateInterviewViews(formData, membership.organizationId);
   return {};
 }
 
@@ -265,6 +269,6 @@ export async function eliminarInterviewAction(
     });
   }
 
-  revalidateInterviewViews(formData);
+  revalidateInterviewViews(formData, membership.organizationId);
   return {};
 }

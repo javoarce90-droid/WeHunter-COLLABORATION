@@ -1,3 +1,9 @@
+/* Todo este archivo va en una layer explícita, por debajo de las de Tailwind (ver
+   `@layer legacy-marketing;` en globals.css) — mismo criterio que landing.css: evita que sus
+   selectores sueltos (*, body, nav, .page, etc.) le ganen a una utility de Tailwind en otra
+   página si esta hoja queda pegada en el <head> tras una navegación client-side. */
+@layer legacy-marketing {
+
 /* .wh-pricing {
   font-family: var(--font-manrope);
   background: #fff;
@@ -618,3 +624,5 @@ nav {
     font-size: 15px;
   }
 }
+
+} /* fin @layer legacy-marketing */

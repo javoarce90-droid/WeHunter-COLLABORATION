@@ -17,7 +17,7 @@ import type { LanguageLevel } from "@/db/schema";
 import type { JobStage } from "@/features/recruiter/pipeline-stages/schema";
 import { isClosingKind } from "@/features/recruiter/pipeline-stages/schema";
 import { STAGE_LABELS } from "../schema";
-import type { PostuladoRow, StageHistoryEvent } from "../data/applications.queries";
+import type { PostuladoRow } from "../data/applications.queries";
 import { getFichaCandidatoAction, type FichaCandidatoData } from "../actions";
 import { CriteriosChip } from "./CriteriosChip";
 import { MatchCell } from "./MatchCell";
@@ -35,7 +35,6 @@ type Props = {
   criterios: CriteriosEvaluados | null;
   screening: ScreeningAnswerLine[];
   notes: TimelineNote[];
-  stageEvents: StageHistoryEvent[];
   onClose: () => void;
   onPasarAlPipeline: (row: PostuladoRow) => void;
   onGuardarEnPool: (row: PostuladoRow) => void;
@@ -77,10 +76,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 /**
  * Ficha de un postulado, con las mismas 4 pestañas del prototipo (Perfil / Notas /
- * Postulaciones / Historial). Notas e historial de etapa ya llegan precargados por job
- * (una sola query para toda la bandeja, ver postulados/page.tsx); el currículum y las
- * otras búsquedas del candidato son más pesados y se piden recién al abrir la ficha
- * (database.md #6/#7 — la mayoría de las filas nunca se abren).
+ * Postulaciones / Historial). Las notas llegan precargadas por job (se muestran también como
+ * contador en cada card de Pipeline, y tienen su propio flujo de alta — moverlas a este
+ * fetch bajo demanda rompería que se vean al instante después de agregar una). El resto
+ * (currículum, otras búsquedas, historial de etapa, resumen del candidato) se pide recién al
+ * abrir la ficha: es más pesado y la mayoría de las filas nunca se abren (database.md #6/#7).
  *
  * Sheet lateral, no modal: mantiene la lista visible detrás para poder seguir triando.
  */
@@ -90,7 +90,6 @@ export function PostuladoDetailSheet({
   criterios,
   screening,
   notes,
-  stageEvents,
   onClose,
   onPasarAlPipeline,
   onGuardarEnPool,
@@ -102,17 +101,18 @@ export function PostuladoDetailSheet({
   const [ficha, setFicha] = useState<FichaCandidatoData | null>(null);
   const [loadingFicha, startLoadFicha] = useTransition();
   const candidateId = postulado?.candidate.id ?? null;
+  const applicationId = postulado?.id ?? null;
 
   // `tab`/`ficha` arrancan limpios en cada apertura porque PostuladosTable le da a este
   // componente un `key` distinto por candidato (remount, no reset manual — evita el
   // cascading-render que marca react-hooks/set-state-in-effect).
   useEffect(() => {
-    if (!candidateId) return;
+    if (!candidateId || !applicationId) return;
     startLoadFicha(async () => {
-      const res = await getFichaCandidatoAction(candidateId);
+      const res = await getFichaCandidatoAction(candidateId, applicationId);
       if (res.ok) setFicha(res.data);
     });
-  }, [candidateId]);
+  }, [candidateId, applicationId]);
 
   if (!postulado) return null;
 
@@ -262,17 +262,15 @@ export function PostuladoDetailSheet({
               <dl className="flex flex-col gap-1.5 text-sm">
                 <div className="flex gap-2">
                   <dt className="w-20 shrink-0 text-muted">Email</dt>
-                  <dd className="min-w-0 truncate text-text">
-                    {ficha?.candidate.email ?? candidate.email ?? "—"}
-                  </dd>
+                  <dd className="min-w-0 truncate text-text">{candidate.email ?? "—"}</dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-20 shrink-0 text-muted">Teléfono</dt>
-                  <dd className="text-text">{ficha?.candidate.phone ?? candidate.phone ?? "—"}</dd>
+                  <dd className="text-text">{candidate.phone ?? "—"}</dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-20 shrink-0 text-muted">Ubicación</dt>
-                  <dd className="text-text">{ficha?.candidate.location ?? "—"}</dd>
+                  <dd className="text-text">{candidate.location ?? "—"}</dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="w-20 shrink-0 text-muted">Fuente</dt>
@@ -285,7 +283,7 @@ export function PostuladoDetailSheet({
                 </div>
               </dl>
               <div className="mt-2 flex flex-wrap gap-2">
-                {(ficha?.candidate.cvUrl ?? candidate.cvUrl) && (
+                {candidate.cvUrl && (
                   <a
                     href={`/candidates/${candidate.id}/cv`}
                     target="_blank"
@@ -295,9 +293,9 @@ export function PostuladoDetailSheet({
                     Ver CV
                   </a>
                 )}
-                {ficha?.candidate.linkedinUrl && (
+                {candidate.linkedinUrl && (
                   <a
-                    href={ficha.candidate.linkedinUrl}
+                    href={candidate.linkedinUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex w-fit items-center gap-1.5 rounded-[var(--radius)] border border-border px-3 py-1.5 text-sm font-semibold text-text outline-none transition-colors hover:border-primary hover:text-primary focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
@@ -315,10 +313,10 @@ export function PostuladoDetailSheet({
             ) : (
               ficha && (
                 <>
-                  {ficha.candidate.summary && (
+                  {ficha.candidateSummary && (
                     <Section title="Resumen">
                       <p className="text-sm leading-relaxed text-text/80">
-                        {ficha.candidate.summary}
+                        {ficha.candidateSummary}
                       </p>
                     </Section>
                   )}
@@ -357,10 +355,10 @@ export function PostuladoDetailSheet({
                     </Section>
                   )}
 
-                  {ficha.candidate.skills && ficha.candidate.skills.length > 0 && (
+                  {candidate.skills && candidate.skills.length > 0 && (
                     <Section title="Skills">
                       <div className="flex flex-wrap gap-1.5">
-                        {ficha.candidate.skills.map((skill) => (
+                        {candidate.skills.map((skill) => (
                           <span
                             key={skill}
                             className="rounded-full bg-primary-light px-2.5 py-1 text-xs font-semibold text-primary-hover"
@@ -477,7 +475,13 @@ export function PostuladoDetailSheet({
                 Ver historial completo →
               </Link>
             </div>
-            <StageHistoryTimeline events={stageEvents} />
+            {loadingFicha && !ficha ? (
+              <div className="flex items-center gap-2 py-4 text-sm text-muted">
+                <Spinner /> Cargando historial…
+              </div>
+            ) : (
+              <StageHistoryTimeline events={ficha?.stageEvents ?? []} />
+            )}
           </div>
         )}
 

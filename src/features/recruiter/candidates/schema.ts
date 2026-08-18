@@ -21,6 +21,8 @@ export const candidateSourceSchema = z.enum([
   "other",
 ]);
 
+export const candidateSenioritySchema = z.enum(["junior", "semisenior", "senior", "lead"]);
+
 export const candidateInputSchema = z.object({
   fullName: z
     .string()
@@ -45,6 +47,7 @@ export const candidateInputSchema = z.object({
   linkedinUrl: z.preprocess(toOptionalUrl, z.string().trim().max(300).optional()),
   summary: z.preprocess(emptyToUndef, z.string().trim().max(5000).optional()),
   skills: skillsField,
+  seniority: z.preprocess(emptyToUndef, candidateSenioritySchema.optional()),
   source: z.preprocess(emptyToUndef, candidateSourceSchema.optional()),
 });
 
