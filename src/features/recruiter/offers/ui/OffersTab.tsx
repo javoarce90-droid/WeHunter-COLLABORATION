@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -24,6 +25,8 @@ type Props = {
   jobTitle: string;
   offers: OfferListRow[];
   applications: ApplicationOption[];
+  /** applicationId a preseleccionar y abrir de entrada (ej. desde el menú del pipeline). */
+  initialApplicationId?: string;
 };
 
 function formatSalary(amount: number | null, currency: string | null): string {
@@ -31,11 +34,28 @@ function formatSalary(amount: number | null, currency: string | null): string {
   return `${currency ? currency + " " : ""}${amount.toLocaleString("es-AR")}`;
 }
 
-export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
+export function OffersTab({
+  jobId,
+  jobTitle,
+  offers,
+  applications,
+  initialApplicationId,
+}: Props) {
   const toast = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const [, startTransition] = useTransition();
-  const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [editing, setEditing] = useState<string | "new" | null>(
+    initialApplicationId ? "new" : null,
+  );
   const [confirmAccept, setConfirmAccept] = useState<OfferListRow | null>(null);
+
+  // Llegó con ?applicationId=... desde el pipeline: ya abrimos el drawer arriba. Limpiamos el
+  // query param para que un refresh no lo vuelva a abrir.
+  useEffect(() => {
+    if (initialApplicationId) router.replace(pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function changeStatus(offer: OfferListRow, to: OfferStatus) {
     startTransition(async () => {
@@ -182,6 +202,7 @@ export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
         jobTitle={jobTitle}
         applications={applications}
         editing={editing}
+        preselectedApplicationId={initialApplicationId}
         onClose={() => setEditing(null)}
         onSaved={() => setEditing(null)}
       />

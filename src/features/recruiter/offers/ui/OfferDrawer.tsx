@@ -25,6 +25,8 @@ type Props = {
   applications: ApplicationOption[];
   /** offerId a editar, "new" para crear, o null (cerrado). */
   editing: string | "new" | null;
+  /** applicationId preseleccionado al crear (ej. desde el menú del pipeline). Editable. */
+  preselectedApplicationId?: string;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -33,7 +35,15 @@ type Props = {
 const focusRing =
   "rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface";
 
-export function OfferDrawer({ jobId, jobTitle, applications, editing, onClose, onSaved }: Props) {
+export function OfferDrawer({
+  jobId,
+  jobTitle,
+  applications,
+  editing,
+  preselectedApplicationId,
+  onClose,
+  onSaved,
+}: Props) {
   const isNew = editing === "new";
 
   // Detalle cargado en modo edición. setState solo en el callback async (no sincrónico):
@@ -71,6 +81,7 @@ export function OfferDrawer({ jobId, jobTitle, applications, editing, onClose, o
           isNew={isNew}
           offerId={isNew ? null : editing}
           detail={detail}
+          preselectedApplicationId={preselectedApplicationId}
           onClose={onClose}
           onSaved={onSaved}
         />
@@ -116,6 +127,7 @@ function OfferForm({
   isNew,
   offerId,
   detail,
+  preselectedApplicationId,
   onClose,
   onSaved,
 }: {
@@ -125,6 +137,7 @@ function OfferForm({
   isNew: boolean;
   offerId: string | null;
   detail: OfferDetail | null;
+  preselectedApplicationId?: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -182,7 +195,7 @@ function OfferForm({
             id="applicationId"
             name="applicationId"
             required
-            defaultValue=""
+            defaultValue={preselectedApplicationId ?? ""}
           >
             <option value="">Seleccioná un candidato…</option>
             {applications.map((a) => (

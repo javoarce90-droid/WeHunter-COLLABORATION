@@ -9,6 +9,7 @@ import {
   type CSSProperties,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   DndContext,
@@ -196,6 +197,8 @@ type ColumnProps = {
   onMoveStage: (applicationId: string, toStageId: string) => void;
   onOpen: (id: string) => void;
   onAnalizar: (applicationId: string) => void;
+  onAddToShortlist: (applicationId: string) => void;
+  onCreateOffer: (applicationId: string) => void;
   onScheduleInterview: (applicationId: string) => void;
   onSendEmail: (applicationId: string) => void;
   onSendWhatsapp: (applicationId: string) => void;
@@ -228,6 +231,8 @@ function PipelineColumn({
   onMoveStage,
   onOpen,
   onAnalizar,
+  onAddToShortlist,
+  onCreateOffer,
   onScheduleInterview,
   onSendEmail,
   onSendWhatsapp,
@@ -351,6 +356,8 @@ function PipelineColumn({
               onMoveStage={onMoveStage}
               onOpen={onOpen}
               onAnalizar={onAnalizar}
+              onAddToShortlist={onAddToShortlist}
+              onCreateOffer={onCreateOffer}
               onScheduleInterview={onScheduleInterview}
               onSendEmail={onSendEmail}
               onSendWhatsapp={onSendWhatsapp}
@@ -416,6 +423,7 @@ export function PipelineView({
   canConfigureStages,
 }: Props) {
   const toast = useToast();
+  const router = useRouter();
   const [, startTransition] = useTransition();
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -456,6 +464,10 @@ export function PipelineView({
   const onAddTag = (applicationId: string) => setQuickDialog({ kind: "tags", applicationId });
   const onAddNote = (applicationId: string) => setQuickDialog({ kind: "note", applicationId });
   const closeQuickDialog = () => setQuickDialog(null);
+  const onAddToShortlist = (applicationId: string) =>
+    router.push(`/jobs/${jobId}/shortlists?candidate=${applicationId}`);
+  const onCreateOffer = (applicationId: string) =>
+    router.push(`/jobs/${jobId}/ofertas?applicationId=${applicationId}`);
 
   function onAnalizar(applicationId: string) {
     setAnalyzingIds((s) => new Set(s).add(applicationId));
@@ -787,6 +799,8 @@ export function PipelineView({
     onMoveStage,
     onOpen: setSelectedId,
     onAnalizar,
+    onAddToShortlist,
+    onCreateOffer,
     onScheduleInterview,
     onSendEmail,
     onSendWhatsapp,
@@ -987,6 +1001,8 @@ export function PipelineView({
                 noteCount={notesByApplication[draggingApp.id]?.length ?? 0}
                 onMoveStage={noop}
                 onOpen={noop}
+                onAddToShortlist={noop}
+                onCreateOffer={noop}
                 onScheduleInterview={noop}
                 onSendEmail={noop}
                 onSendWhatsapp={noop}
