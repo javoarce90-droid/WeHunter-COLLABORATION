@@ -1,19 +1,34 @@
 import { google } from "googleapis";
 
 /**
- * Scopes mínimos: crear/editar/borrar eventos (no lectura de todo el calendario) + el email de
- * la cuenta conectada, para mostrar "Conectado como x@gmail.com" en Configuración.
+ * calendar.events (sensible) + userinfo.email + gmail.send (sensible) — este último para que
+ * el recruiter pueda enviar carta de oferta / contacto / descarte desde su Gmail real (ver
+ * `gmail-client.ts` → `sendGmailMessage`).
  *
- * `gmail.readonly` (sync de hilos con candidatos, §8 backlog) queda afuera a propósito: es un
- * scope "restringido" para Google, que exige verificación + auditoría de seguridad externa
- * (CASA) — semanas y costo, no viable para el lanzamiento. `calendar.events` es solo
- * "sensible" (verificación normal, más rápida). Se reincorpora Gmail cuando haya tiempo para
- * esa auditoría — ver `messaging/ui/Inbox.tsx` (botón "Sincronizar con Gmail" retirado).
+ * `gmail.readonly`/`gmail.modify` (sync de lectura de hilos, §8 backlog) quedan afuera a
+ * propósito: son scopes "restringidos" para Google, que exigen verificación + auditoría de
+ * seguridad externa (CASA) — semanas y costo, no viable para el lanzamiento. `gmail.send`,
+ * a diferencia de esos, es solo "sensible" (verificación normal de marca, como
+ * `calendar.events`) — no exige auditoría CASA. Confirmar igual el estado de verificación del
+ * proyecto OAuth en Google Cloud Console antes de deployar: agregar un scope sensible nuevo a
+ * un proyecto ya verificado puede disparar una re-revisión del consent screen (días, no
+ * instantáneo). Se reincorpora `gmail.readonly` cuando haya tiempo para esa auditoría — ver
+ * `messaging/ui/Inbox.tsx` (botón "Sincronizar con Gmail" retirado).
  */
-export const GOOGLE_CALENDAR_SCOPES = [
+export const GOOGLE_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/gmail.send",
 ];
+
+const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
+
+/** true si la conexión autorizó gmail.send. Conexiones de antes de este campo (`scope` null)
+ *  devuelven false — hay que pedirles reconectar, no asumir que el token alcanza. */
+export function hasGmailSendScope(connection: { scope: string | null } | null | undefined): boolean {
+  if (!connection?.scope) return false;
+  return connection.scope.split(" ").includes(GMAIL_SEND_SCOPE);
+}
 
 function redirectUri(appUrl: string): string {
   return `${appUrl}/settings/google-calendar/callback`;

@@ -9,6 +9,7 @@ export async function upsertConnection(data: {
   accessToken: string;
   refreshToken: string;
   expiresAt: Date;
+  scope: string | null;
 }): Promise<void> {
   const db = await getDb();
   await db.rls(
@@ -26,6 +27,7 @@ export async function upsertConnection(data: {
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
             expiresAt: data.expiresAt,
+            scope: data.scope,
             updatedAt: new Date(),
           },
         }),

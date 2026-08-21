@@ -950,6 +950,10 @@ export const googleCalendarConnections = pgTable("google_calendar_connections", 
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  // Scopes autorizados en el último consent (string separado por espacios, tal cual lo
+  // devuelve Google). null = conexión de antes de este campo — tratarla como "sin
+  // gmail.send" hasta que el usuario reconecte (ver hasGmailSendScope en oauth-client.ts).
+  scope: text("scope"),
   ...timestamps,
 }, (t) => ({
   uniqueMember: uniqueIndex("google_calendar_connections_profile_idx").on(
