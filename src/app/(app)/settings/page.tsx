@@ -40,9 +40,9 @@ export default async function SettingsPage() {
       {org && canEditWorkspace && (
         <SettingsSection
           title="Workspace"
-          description="Nombre y logo de tu organización, tal como se ven en toda la app."
+          description="Nombre de tu organización, tal como se ve en toda la app."
         >
-          <WorkspaceSection org={org} hasLogo={!!org.logoUrl} canEdit={canEditWorkspace} />
+          <WorkspaceSection org={org} canEdit={canEditWorkspace} />
         </SettingsSection>
       )}
 

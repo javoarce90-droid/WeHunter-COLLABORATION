@@ -23,15 +23,6 @@ describe("editarIdentidadWorkspace", () => {
     expect(d.updateOrganization).not.toHaveBeenCalled();
   });
 
-  it("incluye el logo solo si vino un path nuevo", async () => {
-    const d = deps();
-    await editarIdentidadWorkspace({ ...base, logoPath: "org-1/logo.png" }, owner, d);
-    expect(d.updateOrganization).toHaveBeenCalledWith("org-1", {
-      name: "Acme",
-      logoUrl: "org-1/logo.png",
-    });
-  });
-
   it("un admin también puede editar", async () => {
     const d = deps();
     const r = await editarIdentidadWorkspace(base, { ...owner, role: "admin" }, d);

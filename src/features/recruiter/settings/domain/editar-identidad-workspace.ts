@@ -9,7 +9,6 @@ function canEditWorkspace(role: OrgRole): boolean {
 
 export type EditarIdentidadWorkspaceInput = {
   name: string;
-  logoPath?: string | null; // path ya subido a Storage; null = sin cambio gestionado aparte
 };
 
 export type WorkspaceContext = { organizationId: string; role: OrgRole };
@@ -19,9 +18,9 @@ export type EditarIdentidadWorkspaceDeps = {
 };
 
 /**
- * Caso de uso: editar la identidad del workspace (nombre y logo). El Career Site (slug,
- * portada, branding) tiene su propio caso de uso en `features/recruiter/career-site` — son
- * dos pantallas y dos formularios distintos, aunque ambos escriben la misma fila de `organizations`.
+ * Caso de uso: editar el nombre del workspace. El logo se edita desde Career Site
+ * (`features/recruiter/career-site`), que es el único formulario que lo toca — antes se
+ * podía editar acá también, quedaba duplicado entre dos pantallas.
  * Autorización primaria acá (owner/admin) + RLS de respaldo (org_admin_can_update).
  */
 export async function editarIdentidadWorkspace(
@@ -39,9 +38,6 @@ export async function editarIdentidadWorkspace(
   }
 
   const patch: OrgPatch = { name };
-  // Logo: solo se toca si vino un path nuevo (la subida se resuelve en la action).
-  if (input.logoPath) patch.logoUrl = input.logoPath;
-
   await deps.updateOrganization(ctx.organizationId, patch);
   return { ok: true };
 }
