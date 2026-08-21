@@ -97,6 +97,8 @@ type Props = {
   stages: JobStage[];
   /** Puede agregar/renombrar/eliminar/reordenar etapas (capability `stages.configure`). */
   canConfigureStages: boolean;
+  /** true si el recruiter conectó Google con el scope de envío de emails. */
+  canSendEmail: boolean;
 };
 
 /** Adapta una card del tablero al shape que espera el sheet de detalle compartido con
@@ -421,6 +423,7 @@ export function PipelineView({
   tagsByCandidate,
   stages,
   canConfigureStages,
+  canSendEmail,
 }: Props) {
   const toast = useToast();
   const router = useRouter();
@@ -1075,6 +1078,7 @@ export function PipelineView({
         jobTitle={jobTitle}
         candidateName={quickApp?.candidate.fullName}
         fixedChannel="email"
+        canSendEmail={canSendEmail}
         onClose={closeQuickDialog}
         onSent={closeQuickDialog}
       />

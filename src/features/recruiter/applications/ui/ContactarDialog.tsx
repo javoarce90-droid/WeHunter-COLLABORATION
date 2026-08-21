@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/lib/toast";
@@ -25,7 +26,12 @@ type Props = {
   /** Si viene, fija el canal y oculta el selector (ej. "Enviar Email" desde el menú de una
    * card puntual, donde no tiene sentido ofrecer el WhatsApp simulado). */
   fixedChannel?: MessageChannel;
+  /** true si el recruiter conectó Google con el scope de envío — solo importa para el canal
+   *  email (whatsapp sigue mock, no depende de esto). */
+  canSendEmail: boolean;
 };
+
+const ASUNTO_BASE = "Sobre tu postulación a {{puesto}}";
 
 const PLANTILLA_BASE =
   `Hola {{candidato}},\n\n` +
@@ -45,10 +51,15 @@ export function ContactarDialog({
   onClose,
   onSent,
   fixedChannel,
+  canSendEmail,
 }: Props) {
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [channel, setChannel] = useState<MessageChannel>(fixedChannel ?? "email");
+  const blockedByGoogle = channel === "email" && !canSendEmail;
+  const [subject, setSubject] = useState(() =>
+    personalizarMensaje(ASUNTO_BASE, { puesto: jobTitle, candidato: candidateName }),
+  );
   const [body, setBody] = useState(() =>
     personalizarMensaje(PLANTILLA_BASE, { puesto: jobTitle, candidato: candidateName }),
   );
@@ -64,6 +75,7 @@ export function ContactarDialog({
         jobId,
         applicationIds: ids,
         channel,
+        subject,
         body,
       });
       if (!res.ok) {
@@ -89,6 +101,16 @@ export function ContactarDialog({
       className="max-w-md"
     >
       <div className="flex flex-col gap-4">
+        {blockedByGoogle && (
+          <p className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-xs text-muted">
+            Conectá tu Google en{" "}
+            <a href="/settings" className="font-semibold text-primary hover:text-primary-hover">
+              Configuración
+            </a>{" "}
+            para poder enviar emails reales desde tu cuenta.
+          </p>
+        )}
+
         {!fixedChannel && (
           <Select
             label="Canal"
@@ -102,6 +124,12 @@ export function ContactarDialog({
             ))}
           </Select>
         )}
+
+        <Input
+          label="Asunto"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+        />
 
         <div className="flex flex-col gap-2">
           <Textarea
@@ -130,7 +158,7 @@ export function ContactarDialog({
           <Button
             variant="primary"
             loading={isPending}
-            disabled={body.trim().length === 0}
+            disabled={blockedByGoogle || subject.trim().length === 0 || body.trim().length === 0}
             onClick={enviar}
           >
             Enviar

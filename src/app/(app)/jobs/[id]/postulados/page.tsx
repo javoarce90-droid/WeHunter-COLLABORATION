@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
-import { getActiveMembership } from "@/lib/auth/session";
+import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { getPostuladosTabData } from "@/features/recruiter/applications/data/applications.queries";
 import { getJobById } from "@/features/recruiter/jobs/data/jobs.queries";
 import { listCandidateOptions } from "@/features/recruiter/candidates/data/candidates.queries";
+import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
+import { hasGmailSendScope } from "@/features/recruiter/google-calendar/data/oauth-client";
 import { evaluarCriterios } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
@@ -23,13 +25,14 @@ interface Props {
  *  puntual, así que se pide bajo demanda al abrirlo (ver PostuladoDetailSheet). */
 export default async function PostuladosPage({ params }: Props) {
   const { id: jobId } = await params;
-  const membership = await getActiveMembership();
-  if (!membership) notFound();
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  if (!user || !membership) notFound();
 
-  const [job, tabData, candidates] = await Promise.all([
+  const [job, tabData, candidates, googleConnection] = await Promise.all([
     getJobById(jobId, membership.organizationId),
     getPostuladosTabData(jobId, membership.organizationId),
     listCandidateOptions(membership.organizationId),
+    getConnectionByProfile(user.id, membership.organizationId),
   ]);
   if (!job) notFound();
 
@@ -81,6 +84,7 @@ export default async function PostuladosPage({ params }: Props) {
       totalCriterios={questions.filter((q) => q.isCriterion).length}
       notesByApplication={notesByApplication}
       poolCandidates={poolCandidates}
+      canSendEmail={hasGmailSendScope(googleConnection)}
     />
   );
 }

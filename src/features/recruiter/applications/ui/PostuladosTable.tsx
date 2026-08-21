@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
@@ -29,6 +30,7 @@ import {
   REJECTION_REASONS,
   REJECTION_REASON_LABELS,
   DEFAULT_REJECTION_MESSAGE,
+  DEFAULT_REJECTION_SUBJECT,
 } from "../schema";
 import { personalizarMensaje } from "../domain/personalizar-mensaje";
 import type { RejectionReason } from "../schema";
@@ -75,6 +77,9 @@ type Props = {
   /** Candidatos del pool que todavía no están postulados a esta búsqueda — para "Cargar
    *  candidatos" (única entrada a esta acción: ya no vive en Pipeline). */
   poolCandidates: PoolCandidate[];
+  /** true si el recruiter conectó Google con el scope de envío — condiciona "Notificar al
+   *  candidato" al descartar. */
+  canSendEmail: boolean;
 };
 
 /** Foco visible estándar para botones de texto/íconos sin fondo (gap WCAG AA de PRODUCT.md). */
@@ -142,6 +147,7 @@ export function PostuladosTable({
   totalCriterios,
   notesByApplication,
   poolCandidates,
+  canSendEmail,
 }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
@@ -161,6 +167,7 @@ export function PostuladosTable({
   const [note, setNote] = useState("");
   const [poolNote, setPoolNote] = useState("");
   const [notifyCandidate, setNotifyCandidate] = useState(false);
+  const [subject, setSubject] = useState(DEFAULT_REJECTION_SUBJECT);
   const [message, setMessage] = useState(DEFAULT_REJECTION_MESSAGE);
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
     key: "date",
@@ -392,6 +399,12 @@ export function PostuladosTable({
       ids.size === 1
         ? postulados.find((p) => ids.has(p.id))?.candidate.fullName
         : undefined;
+    setSubject(
+      personalizarMensaje(DEFAULT_REJECTION_SUBJECT, {
+        puesto: jobTitle,
+        candidato: soloUnCandidato,
+      }),
+    );
     setMessage(
       personalizarMensaje(DEFAULT_REJECTION_MESSAGE, {
         puesto: jobTitle,
@@ -412,6 +425,7 @@ export function PostuladosTable({
         reason,
         note: note.trim() || undefined,
         notifyCandidate,
+        subject: notifyCandidate ? subject : undefined,
         message: notifyCandidate ? message : undefined,
       });
       if (!res.ok)
@@ -949,29 +963,46 @@ export function PostuladosTable({
           <label className="flex items-center gap-2 text-sm text-text">
             <Checkbox
               checked={notifyCandidate}
+              disabled={!canSendEmail}
               onChange={() => setNotifyCandidate((v) => !v)}
             />
             Notificar al candidato
           </label>
+          {!canSendEmail && (
+            <p className="text-[11px] text-muted">
+              Conectá tu Google en{" "}
+              <a href="/settings" className="font-semibold text-primary hover:text-primary-hover">
+                Configuración
+              </a>{" "}
+              para poder enviar el aviso por email.
+            </p>
+          )}
 
           {notifyCandidate && (
-            <div className="flex flex-col gap-2">
-              <Textarea
-                label="Mensaje para el candidato"
-                rows={4}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                className="resize-y"
+            <div className="flex flex-col gap-4">
+              <Input
+                label="Asunto"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
               />
-              <p className="text-[11px] text-muted">
-                {(rejectTarget?.size ?? 0) > 1 && (
-                  <>
-                    Cada candidato recibe el mensaje con su propio nombre en
-                    lugar de <code>{"{{candidato}}"}</code>.{" "}
-                  </>
-                )}
-                No incluye la nota interna.
-              </p>
+              <div className="flex flex-col gap-2">
+                <Textarea
+                  label="Mensaje para el candidato"
+                  rows={4}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="resize-y"
+                />
+                <p className="text-[11px] text-muted">
+                  {(rejectTarget?.size ?? 0) > 1 && (
+                    <>
+                      Cada candidato recibe el mensaje con su propio nombre en
+                      lugar de <code>{"{{candidato}}"}</code>.{" "}
+                    </>
+                  )}
+                  No incluye la nota interna.
+                </p>
+              </div>
             </div>
           )}
 
@@ -985,7 +1016,10 @@ export function PostuladosTable({
             </button>
             <Button
               variant="destructive"
-              disabled={notifyCandidate && message.trim().length === 0}
+              disabled={
+                notifyCandidate &&
+                (subject.trim().length === 0 || message.trim().length === 0)
+              }
               onClick={doReject}
             >
               Descartar

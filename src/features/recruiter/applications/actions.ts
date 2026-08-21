@@ -69,11 +69,13 @@ import { cargarCandidato } from "../candidates/domain/cargar-candidato";
 import type { DuplicateCandidateMatch } from "../candidates/domain/duplicate-keys";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
 import { enviarMensaje } from "../messaging/domain/enviar-mensaje";
+import { sendViaChannel } from "../messaging/data/gmail-send";
 import { MESSAGE_CHANNELS } from "../messaging/schema";
 import {
   ensureThread,
   recordOutbound,
 } from "../messaging/data/messaging.mutations";
+import { getConnectionByProfile } from "../google-calendar/data/connections.queries";
 import { insertNote } from "../notes/data/notes.mutations";
 import { getAiProvider } from "@/lib/ai";
 
@@ -858,6 +860,7 @@ export async function contactarPostuladosAction(input: {
   jobId: string;
   applicationIds: string[];
   channel: string;
+  subject: string;
   body: string;
 }): Promise<AccionMasivaResult> {
   const parsed = accionMasivaSchema
@@ -865,6 +868,7 @@ export async function contactarPostuladosAction(input: {
       channel: z.enum(MESSAGE_CHANNELS, {
         errorMap: () => ({ message: "Canal inválido." }),
       }),
+      subject: z.string().trim().min(1, "Escribí el asunto."),
       body: z.string().trim().min(1, "Escribí el mensaje."),
     })
     .safeParse(input);
@@ -874,7 +878,7 @@ export async function contactarPostuladosAction(input: {
       error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
     };
   }
-  const { jobId, applicationIds, channel, body } = parsed.data;
+  const { jobId, applicationIds, channel, subject, body } = parsed.data;
 
   const [user, membership] = await Promise.all([
     getCurrentUser(),
@@ -891,6 +895,10 @@ export async function contactarPostuladosAction(input: {
     org,
   );
 
+  // Se resuelve una sola vez, no por candidato (N+1 — database.md #6). Solo se usa para el
+  // canal email; whatsapp la ignora.
+  const googleConnection = user ? await getConnectionByProfile(user.id, org) : null;
+
   let hechas = 0;
   let saltadas = applicationIds.length - destinatarios.length;
   let firstError: string | undefined;
@@ -900,13 +908,15 @@ export async function contactarPostuladosAction(input: {
       {
         candidateId: candidate.id,
         channel,
+        subject: personalizarMensaje(subject, { candidato: candidate.fullName, puesto: job.title }),
         body: personalizarMensaje(body, { candidato: candidate.fullName, puesto: job.title }),
       },
       { organizationId: org, role: membership.role },
       {
         getCandidate: async () => candidate,
         ensureThread: (cId, ch) => ensureThread(org, cId, ch),
-        recordOutbound: (threadId, b) => recordOutbound(org, threadId, b),
+        send: (ch, to, subj, b) => sendViaChannel(ch, to, subj, b, googleConnection),
+        recordOutbound: (threadId, b, externalId) => recordOutbound(org, threadId, b, externalId),
       },
     );
     if (res.ok) hechas += 1;
@@ -942,6 +952,7 @@ export type RechazarPostulacionesInput = {
   reason: RejectionReason;
   note?: string;
   notifyCandidate: boolean;
+  subject?: string;
   message?: string;
 };
 
@@ -969,7 +980,7 @@ export async function rechazarVariosAction(
       error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
     };
   }
-  const { jobId, applicationIds, reason, note, notifyCandidate, message } =
+  const { jobId, applicationIds, reason, note, notifyCandidate, subject, message } =
     parsed.data;
 
   const [user, membership] = await Promise.all([
@@ -993,6 +1004,12 @@ export async function rechazarVariosAction(
     ? await getJobById(jobId, membership.organizationId)
     : null;
 
+  // Se resuelve una sola vez, no por candidato (N+1 — database.md #6).
+  const googleConnection =
+    notifyCandidate && user
+      ? await getConnectionByProfile(user.id, membership.organizationId)
+      : null;
+
   let rejected = 0;
   let skipped = 0;
   let notified = 0;
@@ -1008,22 +1025,24 @@ export async function rechazarVariosAction(
     }
     rejected += 1;
 
-    if (notifyCandidate && job && message) {
+    if (notifyCandidate && job && subject && message) {
       const candidate = await getCandidateById(
         res.data.candidateId,
         membership.organizationId,
       );
       if (!candidate) continue;
+      const mailSubject = personalizarMensaje(subject, { candidato: candidate.fullName, puesto: job.title });
       const body = personalizarMensaje(message, { candidato: candidate.fullName, puesto: job.title });
       const sent = await enviarMensaje(
-        { candidateId: candidate.id, channel: "email", body },
+        { candidateId: candidate.id, channel: "email", subject: mailSubject, body },
         { organizationId: membership.organizationId, role: membership.role },
         {
           getCandidate: getCandidateById,
           ensureThread: (cId, ch) =>
             ensureThread(membership.organizationId, cId, ch),
-          recordOutbound: (threadId, b) =>
-            recordOutbound(membership.organizationId, threadId, b),
+          send: (ch, to, subj, b) => sendViaChannel(ch, to, subj, b, googleConnection),
+          recordOutbound: (threadId, b, externalId) =>
+            recordOutbound(membership.organizationId, threadId, b, externalId),
         },
       );
       if (sent.ok) notified += 1;

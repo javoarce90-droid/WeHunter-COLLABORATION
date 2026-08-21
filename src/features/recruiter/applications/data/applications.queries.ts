@@ -1015,7 +1015,7 @@ export async function getPostuladosTabData(
 export async function listCandidatesForApplications(
   applicationIds: string[],
   organizationId: string,
-): Promise<{ applicationId: string; id: string; fullName: string }[]> {
+): Promise<{ applicationId: string; id: string; fullName: string; email: string | null }[]> {
   if (applicationIds.length === 0) return [];
   const db = await getDb();
   return db.rls(
@@ -1025,6 +1025,7 @@ export async function listCandidatesForApplications(
           applicationId: applications.id,
           id: candidates.id,
           fullName: candidates.fullName,
+          email: candidates.email,
         })
         .from(applications)
         .innerJoin(candidates, eq(applications.candidateId, candidates.id))

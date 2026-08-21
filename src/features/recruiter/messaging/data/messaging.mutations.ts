@@ -25,11 +25,14 @@ export async function ensureThread(
   return { threadId: rows[0]!.id };
 }
 
-/** Inserta el mensaje saliente y actualiza la actividad del hilo, en UNA transacción. */
+/** Inserta el mensaje saliente y actualiza la actividad del hilo, en UNA transacción.
+ *  `externalId` = id real del mensaje en Gmail cuando el envío fue real (canal email); queda
+ *  sin definir en los canales que siguen mock (whatsapp). */
 export async function recordOutbound(
   organizationId: string,
   threadId: string,
   body: string,
+  externalId?: string,
 ): Promise<void> {
   const db = await getDb();
   await db.rls(async (tx) => {
@@ -39,6 +42,7 @@ export async function recordOutbound(
       threadId,
       direction: "outbound",
       body,
+      externalId,
       createdBy: db.userId,
     });
     await tx

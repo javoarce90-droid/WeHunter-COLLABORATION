@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
-import { getActiveMembership } from "@/lib/auth/session";
+import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 import { getPipelineBoardData } from "@/features/recruiter/applications/data/applications.queries";
 import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
+import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
+import { hasGmailSendScope } from "@/features/recruiter/google-calendar/data/oauth-client";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import { ensureJobStages } from "@/features/recruiter/pipeline-stages/data/job-stages.mutations";
 import { evaluarCriterios } from "@/features/recruiter/screening/domain/evaluar-criterios";
@@ -27,15 +29,16 @@ interface Props {
  *  de detalle de UNA postulación puntual, se pide bajo demanda al abrirlo. */
 export default async function PipelinePage({ params }: Props) {
   const { id: jobId } = await params;
-  const membership = await getActiveMembership();
-  if (!membership) notFound();
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  if (!user || !membership) notFound();
 
-  const [job, boardData, interviews, stages, members] = await Promise.all([
+  const [job, boardData, interviews, stages, members, googleConnection] = await Promise.all([
     getJobById(jobId, membership.organizationId),
     getPipelineBoardData(jobId, membership.organizationId),
     listInterviewsByJob(jobId, membership.organizationId),
     ensureJobStages(jobId, membership.organizationId),
     listMembers(membership.organizationId),
+    getConnectionByProfile(user.id, membership.organizationId),
   ]);
   if (!job) notFound();
 
@@ -103,6 +106,7 @@ export default async function PipelinePage({ params }: Props) {
       tagsByCandidate={tagsByCandidate}
       stages={stages}
       canConfigureStages={can(membership.role, "stages.configure")}
+      canSendEmail={hasGmailSendScope(googleConnection)}
     />
   );
 }
