@@ -386,7 +386,15 @@ export async function getPipelineBoardData(
   }, "db.applications.pipeline-board");
 }
 
-export type ApplicationOption = { id: string; stage: ApplicationStage; candidateFullName: string };
+export type ApplicationOption = {
+  id: string;
+  stage: ApplicationStage;
+  /** Nombre real de la etapa del pipeline de ESTA búsqueda (job_stages.name) — el enum fijo
+   *  de `stage` es solo para lógica gruesa (ej. filtrar rechazados), no para mostrar: sus
+   *  valores no reflejan las etapas que configuró el recruiter para este job en particular. */
+  stageName: string | null;
+  candidateFullName: string;
+};
 
 // Ver keyed-cache.ts: dedupea `listApplicationOptionsByJob` ENTRE requests — Shortlists y
 // Ofertas la piden por separado al cambiar de tab. Invalidar con
@@ -425,10 +433,12 @@ export async function listApplicationOptionsByJob(
         .select({
           id: applications.id,
           stage: applications.stage,
+          stageName: jobStages.name,
           candidateFullName: candidates.fullName,
         })
         .from(applications)
         .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
         .where(
           and(
             eq(applications.jobId, jobId),

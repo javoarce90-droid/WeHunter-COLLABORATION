@@ -60,7 +60,9 @@ export default async function ShortlistsPage({ params, searchParams }: Props) {
   const candidateOptions = applications.map((a) => ({
     applicationId: a.id,
     fullName: a.candidateFullName,
-    stage: STAGE_LABELS[a.stage],
+    // Nombre real de la etapa de ESTA búsqueda (job_stages, configurable por el recruiter) —
+    // no el enum fijo, que puede no tener nada que ver con las etapas que tiene este job.
+    stage: a.stageName ?? STAGE_LABELS[a.stage],
   }));
 
   // Solo precargamos si el ?candidate llegado (ej. desde el menú del pipeline) es de este job.

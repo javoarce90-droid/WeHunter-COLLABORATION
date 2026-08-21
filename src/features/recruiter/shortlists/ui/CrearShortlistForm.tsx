@@ -3,9 +3,9 @@
 import { useActionState, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent } from "@/components/ui/card";
 import { crearShortlistAction } from "../actions";
 import type { ShortlistActionState } from "../actions";
 
@@ -24,6 +24,10 @@ type Props = {
 
 const initialState: ShortlistActionState = {};
 
+/** Sheet lateral para crear un shortlist — mismo patrón que `OfferDrawer` (feature hermana:
+ *  ambas ofrecen "acción rápida" sobre postulaciones de un job). Antes era una `Card` inline
+ *  en el header de la tab: con muchos candidatos quedaba muy alta y rompía el layout de esa
+ *  fila (el párrafo de al lado quedaba centrado verticalmente contra un vecino altísimo). */
 export function CrearShortlistForm({ jobId, candidates, preselectedApplicationId }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -37,24 +41,20 @@ export function CrearShortlistForm({ jobId, candidates, preselectedApplicationId
     initialState,
   );
 
-  // Llegó con ?candidate=... desde el pipeline: ya abrimos el form arriba. Limpiamos el query
+  // Llegó con ?candidate=... desde el pipeline: ya abrimos el sheet arriba. Limpiamos el query
   // param para que un refresh no lo vuelva a abrir.
   useEffect(() => {
     if (preselectedApplicationId) router.replace(pathname, { scroll: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!open) {
-    return (
+  return (
+    <>
       <Button type="button" onClick={() => setOpen(true)} disabled={candidates.length === 0}>
         + Crear shortlist
       </Button>
-    );
-  }
 
-  return (
-    <Card>
-      <CardContent>
+      <Dialog open={open} onClose={() => setOpen(false)} side="right" title="Crear shortlist">
         <form action={dispatch} className="flex flex-col gap-4">
           <input type="hidden" name="jobId" value={jobId} />
 
@@ -103,7 +103,7 @@ export function CrearShortlistForm({ jobId, candidates, preselectedApplicationId
             </Button>
           </div>
         </form>
-      </CardContent>
-    </Card>
+      </Dialog>
+    </>
   );
 }
