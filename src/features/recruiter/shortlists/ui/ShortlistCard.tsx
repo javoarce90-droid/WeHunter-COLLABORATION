@@ -6,11 +6,14 @@ import type { ShortlistCandidateWithFeedback, ShareRow } from "../data/shortlist
 import { ShareControls, type HMOption } from "./ShareControls";
 import { ShortlistCardCandidates } from "./ShortlistCardCandidates";
 
+const dateFmt = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short" });
+
 type Props = {
   shortlistId: string;
   jobId: string;
   jobTitle: string;
   name: string;
+  createdAt: Date;
   candidates: ShortlistCandidateWithFeedback[];
   shares: ShareRow[];
   appUrl: string;
@@ -25,6 +28,7 @@ export function ShortlistCard({
   jobId,
   jobTitle,
   name,
+  createdAt,
   candidates,
   shares,
   appUrl,
@@ -40,6 +44,8 @@ export function ShortlistCard({
           <h3 className="font-semibold text-text">{name}</h3>
           <span className="text-xs text-muted">
             {candidates.length} candidato{candidates.length !== 1 ? "s" : ""}
+            <span aria-hidden> · </span>
+            creada el {dateFmt.format(createdAt)}
           </span>
         </div>
 

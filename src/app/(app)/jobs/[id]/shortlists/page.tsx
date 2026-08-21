@@ -129,6 +129,7 @@ export default async function ShortlistsPage({ params, searchParams }: Props) {
               jobId={jobId}
               jobTitle={job.title}
               name={sl.name}
+              createdAt={sl.createdAt}
               candidates={sl.candidates}
               shares={sl.shares}
               appUrl={appUrl}

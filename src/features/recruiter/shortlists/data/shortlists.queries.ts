@@ -11,6 +11,7 @@ import {
   memberships,
   profiles,
   jobs,
+  jobStages,
 } from "@/db/schema";
 import type { ApplicationStage } from "@/features/recruiter/applications/schema";
 import type { FeedbackDecision } from "@/features/company/shortlist-review/domain/registrar-feedback";
@@ -304,6 +305,9 @@ export type ShortlistCandidateWithFeedback = {
   fullName: string;
   email: string | null;
   stage: ApplicationStage;
+  /** Nombre real de la etapa del pipeline de esta búsqueda (job_stages.name) — ver
+   *  `ApplicationOption.stageName` en applications.queries.ts, mismo motivo. */
+  stageName: string | null;
   feedbackDecision: FeedbackDecision | null;
   feedbackComment: string | null;
   interviewRequestedAt: Date | null;
@@ -325,6 +329,7 @@ export async function listShortlistCandidates(
         fullName: candidates.fullName,
         email: candidates.email,
         stage: applications.stage,
+        stageName: jobStages.name,
         feedbackDecision: shortlistFeedback.decision,
         feedbackComment: shortlistFeedback.comment,
         interviewRequestedAt: shortlistCandidates.interviewRequestedAt,
@@ -333,6 +338,7 @@ export async function listShortlistCandidates(
       .from(shortlistCandidates)
       .innerJoin(applications, eq(shortlistCandidates.applicationId, applications.id))
       .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
       .leftJoin(
         shortlistFeedback,
         eq(shortlistFeedback.shortlistCandidateId, shortlistCandidates.id),
@@ -352,6 +358,7 @@ export async function listShortlistCandidates(
     fullName: r.fullName,
     email: r.email,
     stage: r.stage as ApplicationStage,
+    stageName: r.stageName,
     feedbackDecision: (r.feedbackDecision as FeedbackDecision | null) ?? null,
     feedbackComment: r.feedbackComment,
     interviewRequestedAt: r.interviewRequestedAt,
@@ -381,6 +388,7 @@ export async function listShortlistCandidatesForShortlists(
         fullName: candidates.fullName,
         email: candidates.email,
         stage: applications.stage,
+        stageName: jobStages.name,
         feedbackDecision: shortlistFeedback.decision,
         feedbackComment: shortlistFeedback.comment,
         interviewRequestedAt: shortlistCandidates.interviewRequestedAt,
@@ -389,6 +397,7 @@ export async function listShortlistCandidatesForShortlists(
       .from(shortlistCandidates)
       .innerJoin(applications, eq(shortlistCandidates.applicationId, applications.id))
       .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
       .leftJoin(
         shortlistFeedback,
         eq(shortlistFeedback.shortlistCandidateId, shortlistCandidates.id),
@@ -409,6 +418,7 @@ export async function listShortlistCandidatesForShortlists(
     fullName: r.fullName,
     email: r.email,
     stage: r.stage as ApplicationStage,
+    stageName: r.stageName,
     feedbackDecision: (r.feedbackDecision as FeedbackDecision | null) ?? null,
     feedbackComment: r.feedbackComment,
     interviewRequestedAt: r.interviewRequestedAt,
