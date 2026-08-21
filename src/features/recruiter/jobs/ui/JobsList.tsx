@@ -13,6 +13,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { JOB_STATUS_META, relativeTime } from "./status-meta";
 import { STATUS_ACTIONS } from "./status-actions";
 import { PublishConfirmDialog } from "./PublishConfirmButton";
+import { CloseConfirmDialog } from "./CloseConfirmButton";
 import { PRIORITY_LABELS, PRIORITY_BADGE } from "./field-meta";
 import {
   cambiarEstadoBusquedaAction,
@@ -164,6 +165,7 @@ function JobRow({
   const toast = useToast();
   const [, startTransition] = useTransition();
   const [confirmPublish, setConfirmPublish] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   function cambiarEstado(to: string) {
     const fd = new FormData();
@@ -286,7 +288,9 @@ function JobRow({
                     onClick={() =>
                       a.to === "open"
                         ? setConfirmPublish(true)
-                        : cambiarEstado(a.to)
+                        : a.to === "closed"
+                          ? setConfirmClose(true)
+                          : cambiarEstado(a.to)
                     }
                     destructive={a.to === "closed" || a.to === "archived"}
                   >
@@ -314,6 +318,12 @@ function JobRow({
         <PublishConfirmDialog
           open={confirmPublish}
           onClose={() => setConfirmPublish(false)}
+          jobId={job.id}
+          jobTitle={job.title}
+        />
+        <CloseConfirmDialog
+          open={confirmClose}
+          onClose={() => setConfirmClose(false)}
           jobId={job.id}
           jobTitle={job.title}
         />
