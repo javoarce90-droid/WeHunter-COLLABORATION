@@ -518,7 +518,7 @@ export function PostuladosTable({
           className="ml-auto flex items-center gap-3"
         >
           <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
-          <SourcingIADialog jobId={jobId} />
+          <SourcingIADialog jobId={jobId} jobTitle={jobTitle} />
           {!isEmpty &&
             (hayPendientesDeAnalizar ? (
               <AiButton
