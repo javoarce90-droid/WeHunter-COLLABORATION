@@ -179,6 +179,7 @@ export type AgendaInterview = InterviewRow & {
   jobTitle: string;
   candidateId: string;
   candidateName: string;
+  candidateEmail: string | null;
 };
 
 /**
@@ -197,6 +198,7 @@ export async function listAgendaInterviews(
         jobTitle: jobs.title,
         candidateId: candidates.id,
         candidateName: candidates.fullName,
+        candidateEmail: candidates.email,
       })
       .from(interviews)
       .innerJoin(applications, eq(interviews.applicationId, applications.id))
@@ -213,6 +215,7 @@ export async function listAgendaInterviews(
     jobTitle: r.jobTitle,
     candidateId: r.candidateId,
     candidateName: r.candidateName,
+    candidateEmail: r.candidateEmail,
   }));
 }
 
@@ -270,6 +273,7 @@ export type SchedulableApplication = {
   jobTitle: string;
   candidateId: string;
   candidateName: string;
+  candidateEmail: string | null;
   stageName: string | null;
 };
 
@@ -285,6 +289,7 @@ export async function listSchedulableApplications(
         jobTitle: jobs.title,
         candidateId: candidates.id,
         candidateName: candidates.fullName,
+        candidateEmail: candidates.email,
         stageName: jobStages.name,
       })
       .from(applications)

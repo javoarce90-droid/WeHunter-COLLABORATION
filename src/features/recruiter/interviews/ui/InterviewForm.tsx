@@ -42,6 +42,9 @@ type Props = {
    *  fijo, ver schema.ts). */
   jobStages: JobStageOption[];
   teamMembers: TeamMemberOption[];
+  /** Email del candidato de esta postulación — se invita automáticamente a Calendar; se
+   *  muestra acá editable por si hay que corregirlo puntualmente para esta entrevista. */
+  candidateEmail?: string | null;
   onDone: () => void;
 };
 
@@ -52,6 +55,7 @@ export function InterviewForm({
   defaultScheduledAt,
   jobStages,
   teamMembers,
+  candidateEmail,
   onDone,
 }: Props) {
   const isEdit = Boolean(interview);
@@ -187,6 +191,18 @@ export function InterviewForm({
             Si lo dejás vacío, generamos un Google Meet automático (necesita tu Google Calendar conectado).
           </span>
         )}
+      </label>
+
+      <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">
+        Email del candidato
+        <input
+          type="email"
+          name="candidateEmail"
+          defaultValue={candidateEmail ?? ""}
+          placeholder="candidato@email.com"
+          className="rounded-[var(--radius)] border border-border bg-bg px-2 py-1 text-xs text-text outline-none focus:border-primary"
+        />
+        <span className="font-normal text-muted/80">Se invita automáticamente a este mail.</span>
       </label>
 
       {teamMembers.length > 0 && (

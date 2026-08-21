@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser, getActiveMembership } from "@/lib/auth/session";
 import {
@@ -74,6 +75,9 @@ async function syncGoogleCalendar(args: {
   mode: InterviewMode;
   location: string | null;
   participantEmails: string[];
+  /** Email del candidato tal como quedó en el form (editable ahí) — pisa el de su ficha
+   *  para esta invitación puntual, si vino uno con formato válido. */
+  candidateEmailOverride?: string | null;
   profileId: string;
   organizationId: string;
 }): Promise<void> {
@@ -82,8 +86,14 @@ async function syncGoogleCalendar(args: {
       ? null
       : await getInterviewSyncContext(args.applicationId, args.organizationId);
 
-  const attendeeEmails = context?.candidateEmail
-    ? Array.from(new Set([...args.participantEmails, context.candidateEmail.toLowerCase()]))
+  const overrideEmail = args.candidateEmailOverride?.trim();
+  const candidateEmail =
+    overrideEmail && z.string().email().safeParse(overrideEmail).success
+      ? overrideEmail
+      : context?.candidateEmail;
+
+  const attendeeEmails = candidateEmail
+    ? Array.from(new Set([...args.participantEmails, candidateEmail.toLowerCase()]))
     : args.participantEmails;
 
   await sincronizarEntrevista(
@@ -159,6 +169,7 @@ export async function agendarInterviewAction(
     mode: result.data.mode,
     location: result.data.location,
     participantEmails: result.data.participantEmails,
+    candidateEmailOverride: String(formData.get("candidateEmail") ?? ""),
     profileId: user.id,
     organizationId: membership.organizationId,
   });
@@ -213,6 +224,7 @@ export async function actualizarInterviewAction(
     mode: result.data.mode,
     location: result.data.location,
     participantEmails: result.data.participantEmails,
+    candidateEmailOverride: String(formData.get("candidateEmail") ?? ""),
     profileId: user.id,
     organizationId: membership.organizationId,
   });

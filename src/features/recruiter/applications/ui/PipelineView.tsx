@@ -1030,6 +1030,7 @@ export function PipelineView({
         interviews={quickApp ? (interviewsByApplication[quickApp.id] ?? []) : []}
         jobStages={interviewJobStages}
         teamMembers={teamMembers}
+        candidateEmail={quickApp?.candidate.email ?? null}
         onClose={closeQuickDialog}
       />
 

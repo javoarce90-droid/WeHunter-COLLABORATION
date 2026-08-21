@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,13 @@ function InterviewRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="truncate font-semibold text-text">{interview.candidateName}</span>
+          <Link
+            href={`/candidates/${interview.candidateId}`}
+            onClick={(e) => e.stopPropagation()}
+            className="truncate rounded-sm font-semibold text-text outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
+          >
+            {interview.candidateName}
+          </Link>
           <Badge variant={TYPE_BADGE[interview.type] ?? "blue"}>
             {TYPE_LABELS[interview.type] ?? interview.type}
           </Badge>
@@ -82,7 +89,19 @@ function InterviewRow({
           {interview.location && (
             <>
               <span aria-hidden>·</span>
-              <span className="truncate">{interview.location}</span>
+              {interview.location.startsWith("http") ? (
+                <a
+                  href={interview.location}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="truncate text-primary hover:text-primary-hover hover:underline"
+                >
+                  {interview.location}
+                </a>
+              ) : (
+                <span className="truncate">{interview.location}</span>
+              )}
             </>
           )}
         </p>

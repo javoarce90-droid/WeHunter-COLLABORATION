@@ -20,6 +20,8 @@ type Props = {
   /** Sugerencia inicial al agendar (ver `InterviewForm`) — cuando viene, el form de alta
    *  arranca abierto de una (no hace falta el clic extra en "+ Agendar entrevista…"). */
   defaultScheduledAt?: Date;
+  /** Email del candidato de esta postulación (ver `InterviewForm`). */
+  candidateEmail?: string | null;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -36,6 +38,7 @@ export function InterviewsSection({
   jobStages,
   teamMembers,
   defaultScheduledAt,
+  candidateEmail,
 }: Props) {
   // null = nada abierto; "new" = form de alta; un id = editando esa entrevista.
   // Con una sugerencia de horario, arranca directo en "new" (venís de "Agendar entrevista"
@@ -59,6 +62,7 @@ export function InterviewsSection({
                   interview={it}
                   jobStages={jobStages}
                   teamMembers={teamMembers}
+                  candidateEmail={candidateEmail}
                   onDone={() => setEditing(null)}
                 />
               </li>
@@ -84,11 +88,23 @@ export function InterviewsSection({
                   </div>
                 </div>
                 <p className="mt-0.5 text-[11px] text-muted">{MODE_LABELS[it.mode]}</p>
-                {it.location && (
-                  <p className="truncate text-[11px] text-muted" title={it.location}>
-                    {it.location}
-                  </p>
-                )}
+                {it.location &&
+                  (it.location.startsWith("http") ? (
+                    <a
+                      href={it.location}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="block truncate text-[11px] text-primary hover:text-primary-hover hover:underline"
+                      title={it.location}
+                    >
+                      {it.location}
+                    </a>
+                  ) : (
+                    <p className="truncate text-[11px] text-muted" title={it.location}>
+                      {it.location}
+                    </p>
+                  ))}
                 {it.googleEventId && (
                   <p className="text-[11px] text-muted">📅 Sincronizada con Google Calendar</p>
                 )}
@@ -120,6 +136,7 @@ export function InterviewsSection({
           jobStages={jobStages}
           teamMembers={teamMembers}
           defaultScheduledAt={defaultScheduledAt}
+          candidateEmail={candidateEmail}
           onDone={() => setEditing(null)}
         />
       ) : (
