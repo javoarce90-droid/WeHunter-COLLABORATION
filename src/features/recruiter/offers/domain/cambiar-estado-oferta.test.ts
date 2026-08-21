@@ -11,16 +11,29 @@ const makeDeps = (status: OfferStatus, over?: Partial<CambiarEstadoDeps>): Cambi
     .mockResolvedValue({ id: "offer-1", status, applicationId: "app-1", jobId: "job-1" }),
   updateStatus: vi.fn().mockResolvedValue(undefined),
   acceptOffer: vi.fn().mockResolvedValue(undefined),
+  sendOfferEmail: vi.fn().mockResolvedValue({ ok: true }),
   ...over,
 });
 
 describe("cambiarEstadoOferta", () => {
-  it("envía un borrador (draft → sent)", async () => {
+  it("envía un borrador (draft → sent): manda el email y recién después actualiza el estado", async () => {
     const deps = makeDeps("draft");
     const res = await cambiarEstadoOferta({ offerId: "offer-1", toStatus: "sent" }, ctx, deps);
     expect(res.ok).toBe(true);
+    expect(deps.sendOfferEmail).toHaveBeenCalledWith("offer-1");
     expect(deps.updateStatus).toHaveBeenCalledWith("offer-1", "sent");
     expect(deps.acceptOffer).not.toHaveBeenCalled();
+  });
+
+  it("no transiciona a sent si el envío del email falla", async () => {
+    const deps = makeDeps("draft", {
+      sendOfferEmail: vi.fn().mockResolvedValue({ ok: false, error: "Conectá tu Google." }),
+    });
+    const res = await cambiarEstadoOferta({ offerId: "offer-1", toStatus: "sent" }, ctx, deps);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.error).toBe("Conectá tu Google.");
+    expect(deps.updateStatus).not.toHaveBeenCalled();
   });
 
   it("aceptar dispara acceptOffer (no el update simple)", async () => {

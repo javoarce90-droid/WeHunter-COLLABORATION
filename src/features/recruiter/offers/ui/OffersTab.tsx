@@ -27,6 +27,8 @@ type Props = {
   applications: ApplicationOption[];
   /** applicationId a preseleccionar y abrir de entrada (ej. desde el menú del pipeline). */
   initialApplicationId?: string;
+  /** true si el recruiter conectó Google con el scope de envío — condiciona "Enviar". */
+  canSendEmail: boolean;
 };
 
 function formatSalary(amount: number | null, currency: string | null): string {
@@ -40,6 +42,7 @@ export function OffersTab({
   offers,
   applications,
   initialApplicationId,
+  canSendEmail,
 }: Props) {
   const toast = useToast();
   const router = useRouter();
@@ -49,6 +52,7 @@ export function OffersTab({
     initialApplicationId ? "new" : null,
   );
   const [confirmAccept, setConfirmAccept] = useState<OfferListRow | null>(null);
+  const [confirmSend, setConfirmSend] = useState<OfferListRow | null>(null);
 
   // Llegó con ?applicationId=... desde el pipeline: ya abrimos el drawer arriba. Limpiamos el
   // query param para que un refresh no lo vuelva a abrir.
@@ -68,7 +72,9 @@ export function OffersTab({
         message:
           to === "accepted"
             ? `Oferta aceptada · ${offer.candidateName} contratado · búsqueda cerrada`
-            : `Oferta → ${OFFER_STATUS_LABELS[to]}`,
+            : to === "sent"
+              ? `Oferta enviada a ${offer.candidateName} por email`
+              : `Oferta → ${OFFER_STATUS_LABELS[to]}`,
         variant: "success",
       });
     });
@@ -76,6 +82,7 @@ export function OffersTab({
 
   function onPickStatus(offer: OfferListRow, to: OfferStatus) {
     if (to === "accepted") setConfirmAccept(offer);
+    else if (to === "sent") setConfirmSend(offer);
     else changeStatus(offer, to);
   }
 
@@ -177,9 +184,14 @@ export function OffersTab({
                                 <MenuItem
                                   key={to}
                                   destructive={to === "rejected"}
+                                  disabled={to === "sent" && !canSendEmail}
                                   onClick={() => onPickStatus(offer, to)}
                                 >
-                                  {to === "accepted" ? "Aceptar (contrata y cierra)" : OFFER_STATUS_LABELS[to]}
+                                  {to === "accepted"
+                                    ? "Aceptar (contrata y cierra)"
+                                    : to === "sent" && !canSendEmail
+                                      ? "Enviar (conectá tu Google)"
+                                      : OFFER_STATUS_LABELS[to]}
                                 </MenuItem>
                               ))}
                             </>
@@ -239,6 +251,43 @@ export function OffersTab({
                 }}
               >
                 Aceptar y contratar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      {/* Confirm de enviar: es un email real desde el Gmail del recruiter, no se puede deshacer. */}
+      <Dialog
+        open={confirmSend !== null}
+        onClose={() => setConfirmSend(null)}
+        side="center"
+        title="¿Enviar la oferta?"
+        className="max-w-sm"
+      >
+        {confirmSend && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted">
+              Se manda un email real a{" "}
+              <span className="font-semibold text-text">{confirmSend.candidateName}</span> desde tu
+              cuenta de Google — no se puede deshacer.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmSend(null)}
+                className="rounded text-sm font-semibold text-muted outline-none transition-colors hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface"
+              >
+                Cancelar
+              </button>
+              <Button
+                onClick={() => {
+                  const o = confirmSend;
+                  setConfirmSend(null);
+                  changeStatus(o, "sent");
+                }}
+              >
+                Enviar oferta
               </Button>
             </div>
           </div>
