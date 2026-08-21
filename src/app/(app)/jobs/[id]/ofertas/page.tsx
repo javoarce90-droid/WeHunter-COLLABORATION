@@ -7,11 +7,13 @@ import { OffersTab } from "@/features/recruiter/offers/ui/OffersTab";
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ applicationId?: string }>;
 }
 
 /** Pestaña Ofertas. El job ya está validado por el layout; getJobById está cacheado. */
-export default async function OfertasPage({ params }: Props) {
+export default async function OfertasPage({ params, searchParams }: Props) {
   const { id: jobId } = await params;
+  const { applicationId } = await searchParams;
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
@@ -27,12 +29,18 @@ export default async function OfertasPage({ params }: Props) {
     .filter((a) => a.stage !== "rejected")
     .map((a) => ({ applicationId: a.id, candidateName: a.candidateFullName }));
 
+  // Solo precargamos si el ?applicationId llegado (ej. desde el menú del pipeline) es ofertable.
+  const initialApplicationId = applications.some((a) => a.applicationId === applicationId)
+    ? applicationId
+    : undefined;
+
   return (
     <OffersTab
       jobId={jobId}
       jobTitle={job.title}
       offers={offers}
       applications={applications}
+      initialApplicationId={initialApplicationId}
     />
   );
 }
