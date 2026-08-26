@@ -12,19 +12,28 @@ interface PhoneInputProps {
   placeholder?: string;
 }
 
+// react-phone-number-input exige que `value` sea E.164 estricto (sin espacios/guiones) o
+// tira error en consola al montar. Datos viejos/importados pueden traer el número "lindo"
+// con espacios — se sanitiza en el borde de lectura, en vez de confiar en que todo lo que
+// haya en la base ya esté limpio.
+function toStrictE164(value?: string): string | undefined {
+  return value ? value.replace(/(?!^\+)[^\d]/g, "") : value;
+}
+
 /**
  * Selector de país + código de área + número, con validación real (usa libphonenumber-js
  * vía react-phone-number-input). El valor circula en formato E.164 (+549...) — mismo formato
  * que usan los links wa.me, así que no hace falta reformatear en ningún lado que lo consuma.
  */
 export function PhoneInput({ name, label, value, onChange, placeholder }: PhoneInputProps) {
+  const sanitizedValue = toStrictE164(value);
   return (
     <div className="flex flex-col gap-1">
       {label && <label className={fieldLabelClass}>{label}</label>}
       <PhoneInputPrimitive
         international
         defaultCountry="AR"
-        value={value}
+        value={sanitizedValue}
         onChange={onChange}
         placeholder={placeholder}
         numberInputProps={{
@@ -37,7 +46,7 @@ export function PhoneInput({ name, label, value, onChange, placeholder }: PhoneI
           "[&_.PhoneInputCountry]:shrink-0 [&_.PhoneInputCountrySelect]:bg-transparent",
         ].join(" ")}
       />
-      <input type="hidden" name={name} value={value ?? ""} />
+      <input type="hidden" name={name} value={sanitizedValue ?? ""} />
     </div>
   );
 }

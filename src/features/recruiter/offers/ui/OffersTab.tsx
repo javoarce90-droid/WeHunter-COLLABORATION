@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -24,6 +25,10 @@ type Props = {
   jobTitle: string;
   offers: OfferListRow[];
   applications: ApplicationOption[];
+  /** applicationId a preseleccionar y abrir de entrada (ej. desde el menú del pipeline). */
+  initialApplicationId?: string;
+  /** true si el recruiter conectó Google con el scope de envío — condiciona "Enviar". */
+  canSendEmail: boolean;
 };
 
 function formatSalary(amount: number | null, currency: string | null): string {
@@ -31,11 +36,30 @@ function formatSalary(amount: number | null, currency: string | null): string {
   return `${currency ? currency + " " : ""}${amount.toLocaleString("es-AR")}`;
 }
 
-export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
+export function OffersTab({
+  jobId,
+  jobTitle,
+  offers,
+  applications,
+  initialApplicationId,
+  canSendEmail,
+}: Props) {
   const toast = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const [, startTransition] = useTransition();
-  const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [editing, setEditing] = useState<string | "new" | null>(
+    initialApplicationId ? "new" : null,
+  );
   const [confirmAccept, setConfirmAccept] = useState<OfferListRow | null>(null);
+  const [confirmSend, setConfirmSend] = useState<OfferListRow | null>(null);
+
+  // Llegó con ?applicationId=... desde el pipeline: ya abrimos el drawer arriba. Limpiamos el
+  // query param para que un refresh no lo vuelva a abrir.
+  useEffect(() => {
+    if (initialApplicationId) router.replace(pathname, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function changeStatus(offer: OfferListRow, to: OfferStatus) {
     startTransition(async () => {
@@ -48,7 +72,9 @@ export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
         message:
           to === "accepted"
             ? `Oferta aceptada · ${offer.candidateName} contratado · búsqueda cerrada`
-            : `Oferta → ${OFFER_STATUS_LABELS[to]}`,
+            : to === "sent"
+              ? `Oferta enviada a ${offer.candidateName} por email`
+              : `Oferta → ${OFFER_STATUS_LABELS[to]}`,
         variant: "success",
       });
     });
@@ -56,6 +82,7 @@ export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
 
   function onPickStatus(offer: OfferListRow, to: OfferStatus) {
     if (to === "accepted") setConfirmAccept(offer);
+    else if (to === "sent") setConfirmSend(offer);
     else changeStatus(offer, to);
   }
 
@@ -157,9 +184,14 @@ export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
                                 <MenuItem
                                   key={to}
                                   destructive={to === "rejected"}
+                                  disabled={to === "sent" && !canSendEmail}
                                   onClick={() => onPickStatus(offer, to)}
                                 >
-                                  {to === "accepted" ? "Aceptar (contrata y cierra)" : OFFER_STATUS_LABELS[to]}
+                                  {to === "accepted"
+                                    ? "Aceptar (contrata y cierra)"
+                                    : to === "sent" && !canSendEmail
+                                      ? "Enviar (conectá tu Google)"
+                                      : OFFER_STATUS_LABELS[to]}
                                 </MenuItem>
                               ))}
                             </>
@@ -182,6 +214,7 @@ export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
         jobTitle={jobTitle}
         applications={applications}
         editing={editing}
+        preselectedApplicationId={initialApplicationId}
         onClose={() => setEditing(null)}
         onSaved={() => setEditing(null)}
       />
@@ -218,6 +251,43 @@ export function OffersTab({ jobId, jobTitle, offers, applications }: Props) {
                 }}
               >
                 Aceptar y contratar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      {/* Confirm de enviar: es un email real desde el Gmail del recruiter, no se puede deshacer. */}
+      <Dialog
+        open={confirmSend !== null}
+        onClose={() => setConfirmSend(null)}
+        side="center"
+        title="¿Enviar la oferta?"
+        className="max-w-sm"
+      >
+        {confirmSend && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted">
+              Se manda un email real a{" "}
+              <span className="font-semibold text-text">{confirmSend.candidateName}</span> desde tu
+              cuenta de Google — no se puede deshacer.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmSend(null)}
+                className="rounded text-sm font-semibold text-muted outline-none transition-colors hover:text-text focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface"
+              >
+                Cancelar
+              </button>
+              <Button
+                onClick={() => {
+                  const o = confirmSend;
+                  setConfirmSend(null);
+                  changeStatus(o, "sent");
+                }}
+              >
+                Enviar oferta
               </Button>
             </div>
           </div>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AiButton } from "@/components/ui/ai";
 import { useToast } from "@/lib/toast";
-import { sourcearParaBusquedaAction } from "../actions";
+import { sourcearParaBusquedaAction, importarSourcingAction } from "../actions";
 import { importarSourcingResultadoAction } from "../../applications/actions";
 import { AiAnalysisDialog } from "../../applications/ui/AiAnalysisDialog";
 import { CompareCandidatesDialog } from "./CompareCandidatesDialog";
@@ -14,8 +14,13 @@ import type { ScoredLinkedInCandidate } from "../domain/sourcear-para-busqueda";
 
 type Decision = "pending" | "imported" | "omitido";
 
+type ImportedVia = "pool" | "postulado";
+
 type Props = {
   jobId: string;
+  /** Título de la búsqueda — se usa solo como label de la opción "postular" del selector de
+   *  cada card (mismo picker que Sourcing Manual, acá con una única búsqueda fija). */
+  jobTitle?: string;
   /** Estado del panel que lo contiene (el `Dialog` de Postulados). No desmonta este componente
    *  al cerrarse — solo lo oculta — así que es la única forma de detectar ese cierre desde acá.
    *  `true` fijo para el caller que no vive en un panel (la tab de /sourcing). */
@@ -34,13 +39,22 @@ type Props = {
  * LinkedIn". Soporta procesar varios candidatos a la vez (selección múltiple + acciones en
  * lote), no solo de a uno.
  */
-export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsChange }: Props) {
+export function AiJobSourcingResults({
+  jobId,
+  jobTitle = "esta búsqueda",
+  open = true,
+  onUnreviewedResultsChange,
+}: Props) {
   const toast = useToast();
   const [results, setResults] = useState<ScoredLinkedInCandidate[] | null>(
     null,
   );
   const [isLiveApi, setIsLiveApi] = useState(true);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
+  const [importedVia, setImportedVia] = useState<Record<string, ImportedVia>>({});
+  // Por candidato: si además de sumarlo al pool se lo postula a `jobId`. Arranca en `true`
+  // (comportamiento previo, único que existía) — el recruiter puede destildarlo por candidato.
+  const [postularByCandidate, setPostularByCandidate] = useState<Record<string, boolean>>({});
   const [searching, startSearch] = useTransition();
   // Ids en curso de importación — uno solo si es individual, varios si es en lote.
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
@@ -103,6 +117,8 @@ export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsCh
       setResults(res.results);
       setIsLiveApi(res.isLiveApi ?? false);
       setDecisions({});
+      setImportedVia({});
+      setPostularByCandidate({});
       setSelected(new Set());
       setCompareIds(null);
     });
@@ -111,22 +127,43 @@ export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsCh
   function limpiar() {
     setResults(null);
     setDecisions({});
+    setImportedVia({});
+    setPostularByCandidate({});
     setIsLiveApi(true);
     setSelected(new Set());
     setCompareIds(null);
   }
 
+  function postularPara(id: string): boolean {
+    return postularByCandidate[id] ?? true;
+  }
+
   async function importarUno(c: ScoredLinkedInCandidate) {
-    const res = await importarSourcingResultadoAction({
-      jobId,
+    const postular = postularPara(c.id);
+    const res = postular
+      ? await importarSourcingResultadoAction({
+          jobId,
+          name: c.name,
+          headline: c.headline,
+          location: c.location,
+          skills: c.skills,
+          linkedinUrl: c.linkedinUrl,
+          summary: c.summary,
+        })
+      : await importarSourcingAction({
+          name: c.name,
+          headline: c.headline,
+          location: c.location,
+          skills: c.skills,
+          linkedinUrl: c.linkedinUrl,
+        });
+    return {
+      id: c.id,
       name: c.name,
-      headline: c.headline,
-      location: c.location,
-      skills: c.skills,
-      linkedinUrl: c.linkedinUrl,
-      summary: c.summary,
-    });
-    return { id: c.id, name: c.name, ok: res.ok, error: res.error };
+      ok: res.ok,
+      error: res.error,
+      via: postular ? ("postulado" as const) : ("pool" as const),
+    };
   }
 
   function agregarYPostular(c: ScoredLinkedInCandidate) {
@@ -146,8 +183,12 @@ export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsCh
         return;
       }
       setDecisions((d) => ({ ...d, [c.id]: "imported" }));
+      setImportedVia((d) => ({ ...d, [c.id]: res.via }));
       toast({
-        message: `${c.name} se sumó al pool y quedó postulado`,
+        message:
+          res.via === "postulado"
+            ? `${c.name} se sumó al pool y quedó postulado`
+            : `${c.name} se sumó al pool`,
         variant: "success",
       });
     });
@@ -173,6 +214,11 @@ export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsCh
           succeeded.forEach((o) => (next[o.id] = "imported"));
           return next;
         });
+        setImportedVia((d) => {
+          const next = { ...d };
+          succeeded.forEach((o) => (next[o.id] = o.via));
+          return next;
+        });
       }
       setSelected((s) => {
         const next = new Set(s);
@@ -182,7 +228,7 @@ export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsCh
 
       if (failed.length === 0) {
         toast({
-          message: `${succeeded.length} candidato${succeeded.length === 1 ? "" : "s"} sumado${succeeded.length === 1 ? "" : "s"} al pool y postulado${succeeded.length === 1 ? "" : "s"}`,
+          message: `${succeeded.length} candidato${succeeded.length === 1 ? "" : "s"} sumado${succeeded.length === 1 ? "" : "s"} al pool`,
           variant: "success",
         });
       } else {
@@ -329,8 +375,9 @@ export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsCh
             size="sm"
             onClick={agregarYPostularSeleccionados}
             loading={pendingIds.size > 0}
+            title="Cada candidato usa lo que elegiste en su propia card (postular o solo pool)"
           >
-            Sumar {selected.size} al pool y postular
+            Sumar {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
           </Button>
           <button
             type="button"
@@ -353,6 +400,7 @@ export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsCh
         const decision = decisions[c.id] ?? "pending";
         if (decision === "omitido") return null;
         const imported = decision === "imported";
+        const postular = postularPara(c.id);
 
         return (
           <SourcingCandidateCard
@@ -368,14 +416,22 @@ export function AiJobSourcingResults({ jobId, open = true, onUnreviewedResultsCh
               summary: c.summary,
               onOpenDetail: () => setDetailId(c.id),
             }}
+            jobPicker={{
+              jobs: [{ id: jobId, title: jobTitle }],
+              value: postular ? jobId : "",
+              onChange: (v) =>
+                setPostularByCandidate((s) => ({ ...s, [c.id]: v !== "" })),
+            }}
             selectable={
               imported
                 ? null
                 : { checked: selected.has(c.id), onToggle: () => toggleSeleccionado(c.id) }
             }
             imported={imported}
-            importedLabel="En el pool y postulado ✓"
-            primaryActionLabel="Sumar al pool y postular"
+            importedLabel={
+              importedVia[c.id] === "postulado" ? "En el pool y postulado ✓" : "En el pool ✓"
+            }
+            primaryActionLabel={postular ? "Sumar al pool y postular" : "Sumar al pool"}
             onPrimaryAction={() => agregarYPostular(c)}
             primaryActionLoading={pendingIds.has(c.id)}
             primaryActionDisabled={pendingIds.size > 0 && !pendingIds.has(c.id)}

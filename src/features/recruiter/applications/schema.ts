@@ -97,6 +97,8 @@ export const DEFAULT_REJECTION_MESSAGE =
   `En esta oportunidad decidimos avanzar con otros perfiles, pero agradecemos mucho ` +
   `tu tiempo e interés en participar del proceso.`;
 
+export const DEFAULT_REJECTION_SUBJECT = "Sobre tu postulación a {{puesto}}";
+
 export const rechazarPostulacionesSchema = z
   .object({
     jobId: z.string().uuid("ID de búsqueda inválido."),
@@ -108,7 +110,12 @@ export const rechazarPostulacionesSchema = z
     }),
     note: z.string().trim().max(500).optional(),
     notifyCandidate: z.boolean(),
+    subject: z.string().trim().optional(),
     message: z.string().trim().optional(),
+  })
+  .refine((data) => !data.notifyCandidate || (data.subject?.length ?? 0) > 0, {
+    message: "Escribí el asunto para el candidato.",
+    path: ["subject"],
   })
   .refine((data) => !data.notifyCandidate || (data.message?.length ?? 0) > 0, {
     message: "Escribí el mensaje para el candidato.",

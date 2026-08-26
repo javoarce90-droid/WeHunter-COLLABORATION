@@ -12,7 +12,7 @@ export default async function MisPostulacionesPage() {
     <MisPostulacionesView
       initialApplications={applications}
       notificationBell={
-        <Suspense fallback={<CandidateNotificationBellFallback />}>
+        <Suspense key="candidate-notification-bell" fallback={<CandidateNotificationBellFallback />}>
           <CandidateNotificationBellLoader />
         </Suspense>
       }

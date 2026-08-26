@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { getActiveMembership } from "@/lib/auth/session";
 import {
   getOAuth2Client,
-  GOOGLE_CALENDAR_SCOPES,
+  GOOGLE_OAUTH_SCOPES,
 } from "@/features/recruiter/google-calendar/data/oauth-client";
 
 const STATE_COOKIE = "wh.gcal.oauth_state";
@@ -36,7 +36,7 @@ export async function GET() {
   const authUrl = client.generateAuthUrl({
     access_type: "offline", // necesario para recibir refresh_token
     prompt: "consent", // fuerza a reemitir el refresh_token aunque ya haya conectado antes
-    scope: GOOGLE_CALENDAR_SCOPES,
+    scope: GOOGLE_OAUTH_SCOPES,
     state,
   });
 

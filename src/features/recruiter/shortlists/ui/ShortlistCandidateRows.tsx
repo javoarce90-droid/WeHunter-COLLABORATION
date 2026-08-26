@@ -30,7 +30,9 @@ export function ShortlistCandidateRows({ candidates, onSelect }: Props) {
                 {c.email && <p className="truncate text-xs text-muted">{c.email}</p>}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Badge variant={c.stage as ApplicationStage}>{STAGE_LABELS[c.stage as ApplicationStage]}</Badge>
+                <Badge variant={c.stage as ApplicationStage}>
+                  {c.stageName ?? STAGE_LABELS[c.stage as ApplicationStage]}
+                </Badge>
                 {fb ? (
                   <Badge variant={fb.variant}>{fb.label}</Badge>
                 ) : (

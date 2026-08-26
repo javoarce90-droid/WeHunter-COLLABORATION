@@ -82,6 +82,7 @@ export function ShortlistCardCandidates({
         jobStages={jobStages}
         teamMembers={teamMembers}
         defaultScheduledAt={scheduleDefault}
+        candidateEmail={selectedRow?.email ?? null}
         onClose={() => setSchedulingApplicationId(null)}
       />
     </>

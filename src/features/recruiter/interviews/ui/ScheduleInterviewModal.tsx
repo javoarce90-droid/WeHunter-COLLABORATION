@@ -57,6 +57,7 @@ export function ScheduleInterviewModal({
           interview={mode.interview}
           jobStages={jobStagesByJob[mode.interview.jobId] ?? []}
           teamMembers={teamMembers}
+          candidateEmail={mode.interview.candidateEmail}
           onDone={handleClose}
         />
       </Dialog>
@@ -127,6 +128,9 @@ export function ScheduleInterviewModal({
             jobId={jobId}
             jobStages={jobStagesByJob[jobId] ?? []}
             teamMembers={teamMembers}
+            candidateEmail={
+              candidateOptions.find((a) => a.applicationId === applicationId)?.candidateEmail
+            }
             onDone={handleClose}
           />
         )}

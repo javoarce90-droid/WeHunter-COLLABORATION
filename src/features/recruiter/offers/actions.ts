@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getActiveMembership } from "@/lib/auth/session";
+import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import {
   crearOfertaSchema,
   editarOfertaSchema,
@@ -10,6 +10,7 @@ import {
 import { crearOferta } from "./domain/crear-oferta";
 import { editarOferta } from "./domain/editar-oferta";
 import { cambiarEstadoOferta } from "./domain/cambiar-estado-oferta";
+import { enviarOferta } from "./domain/enviar-oferta";
 import {
   insertOffer,
   updateOfferFields,
@@ -17,9 +18,13 @@ import {
   acceptOfferTx,
 } from "./data/offers.mutations";
 import { getOfferStatusRow, getOfferDetail, type OfferDetail } from "./data/offers.queries";
+import { invalidateJobCache } from "../jobs/data/jobs.queries";
 import { getApplicationById } from "../applications/data/applications.queries";
 import { getAiProvider } from "@/lib/ai";
 import { notifyOrg } from "../notifications/data/notifications.mutations";
+import { getConnectionByProfile } from "../google-calendar/data/connections.queries";
+import { hasGmailSendScope } from "../google-calendar/data/oauth-client";
+import { sendGmailMessage } from "../google-calendar/data/gmail-client";
 
 export interface OfferActionState {
   error?: string;
@@ -134,8 +139,8 @@ export async function cambiarEstadoOfertaAction(
     return { ok: false, error: "Datos inválidos." };
   }
 
-  const membership = await getActiveMembership();
-  if (!membership) return { ok: false, error: "No autorizado." };
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  if (!user || !membership) return { ok: false, error: "No autorizado." };
 
   const result = await cambiarEstadoOferta(
     parsed.data,
@@ -144,13 +149,37 @@ export async function cambiarEstadoOfertaAction(
       getOffer: getOfferStatusRow,
       updateStatus: updateOfferStatus,
       acceptOffer: acceptOfferTx,
+      sendOfferEmail: async (id) => {
+        const connection = await getConnectionByProfile(user.id, membership.organizationId);
+        if (!connection) {
+          return {
+            ok: false,
+            error: "Conectá tu cuenta de Google en Configuración para poder enviar la oferta.",
+          };
+        }
+        if (!hasGmailSendScope(connection)) {
+          return {
+            ok: false,
+            error: "Tu conexión de Google es anterior a esta función — reconectala en Configuración.",
+          };
+        }
+        return enviarOferta(id, membership.organizationId, {
+          getOfferDetail,
+          sendEmail: async (to, subject, body) => {
+            const sent = await sendGmailMessage(connection, { to, subject, body });
+            return sent.ok ? { ok: true } : { ok: false, error: sent.error };
+          },
+        });
+      },
     },
   );
 
   if (!result.ok) return { ok: false, error: result.error };
 
-  // Aceptar es un hito: notificamos al equipo (no crítico → fuera de la tx de aceptación).
+  // Aceptar es un hito: cierra la búsqueda (acceptOfferTx) — invalida su cache — y
+  // notificamos al equipo (no crítico → fuera de la tx de aceptación).
   if (parsed.data.toStatus === "accepted") {
+    invalidateJobCache(jobId, membership.organizationId);
     const detail = await getOfferDetail(offerId, membership.organizationId);
     await notifyOrg(membership.organizationId, {
       type: "hire",

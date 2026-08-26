@@ -1,6 +1,7 @@
 import type { Job } from "@/db/schema";
 import { STATUS_ACTIONS, StatusButton } from "./status-actions";
 import { PublishConfirmButton } from "./PublishConfirmButton";
+import { CloseConfirmButton } from "./CloseConfirmButton";
 
 /**
  * Transiciones de estado desde la vista previa del aviso: el recruiter revisa cómo se va a
@@ -18,6 +19,13 @@ export function EstadoAvisoControl({ job }: { job: Pick<Job, "id" | "status" | "
       {STATUS_ACTIONS[job.status].map((a, i) =>
         a.to === "open" ? (
           <PublishConfirmButton
+            key={a.to}
+            jobId={job.id}
+            jobTitle={job.title}
+            variant={i === 0 ? "primary" : "ghost"}
+          />
+        ) : a.to === "closed" ? (
+          <CloseConfirmButton
             key={a.to}
             jobId={job.id}
             jobTitle={job.title}

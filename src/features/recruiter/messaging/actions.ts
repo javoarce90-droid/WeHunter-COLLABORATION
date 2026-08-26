@@ -7,6 +7,7 @@ import { getCandidateById } from "../candidates/data/candidates.queries";
 import { getConnectionByProfile } from "../google-calendar/data/connections.queries";
 import { listCandidateGmailMessages } from "../google-calendar/data/gmail-client";
 import { enviarMensaje } from "./domain/enviar-mensaje";
+import { sendViaChannel } from "./data/gmail-send";
 import { sincronizarGmail } from "./domain/sincronizar-gmail";
 import { MESSAGE_CHANNELS } from "./schema";
 import {
@@ -50,17 +51,24 @@ export async function enviarMensajeAction(
     .safeParse({ candidateId, channel, body });
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
 
-  const membership = await getActiveMembership();
-  if (!membership) return { ok: false, error: "No autorizado." };
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  if (!user || !membership) return { ok: false, error: "No autorizado." };
   const org = membership.organizationId;
 
+  // Solo hace falta resolver la conexión si el canal es email — whatsapp sigue mock.
+  const googleConnection =
+    parsed.data.channel === "email" ? await getConnectionByProfile(user.id, org) : null;
+
   const result = await enviarMensaje(
-    parsed.data,
+    // El inbox todavía no tiene campo de asunto propio (Inbox.tsx está marcado para rediseño
+    // en el backlog) — subject genérico hasta que se le sume ese campo.
+    { ...parsed.data, subject: "Novedades sobre tu proceso" },
     { organizationId: org, role: membership.role },
     {
       getCandidate: getCandidateById,
       ensureThread: (cId, ch) => ensureThread(org, cId, ch),
-      recordOutbound: (threadId, b) => recordOutbound(org, threadId, b),
+      send: (ch, to, subject, b) => sendViaChannel(ch, to, subject, b, googleConnection),
+      recordOutbound: (threadId, b, externalId) => recordOutbound(org, threadId, b, externalId),
     },
   );
 

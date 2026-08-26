@@ -1,8 +1,9 @@
-import { and, eq, asc, count, gte, lt, isNotNull, ne } from "drizzle-orm";
+import { and, eq, asc, count, gte, lt, isNotNull, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { interviews, applications, candidates, jobs, jobStages } from "@/db/schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
 import type { InterviewMode, InterviewStatus, InterviewType } from "../schema";
+import { createKeyedCache } from "@/lib/keyed-cache";
 
 /** Lecturas de entrevistas. Cliente RLS; filtramos siempre por organization activa. */
 
@@ -127,10 +128,27 @@ export async function getInterviewById(
  * Todas las entrevistas de un job (a través de sus applications), para pintarlas en el
  * pipeline. Una sola query con join; el caller las agrupa por applicationId (evita N+1).
  */
+// Ver keyed-cache.ts: dedupea `listInterviewsByJob` ENTRE requests — Pipeline y Shortlists la
+// piden por separado al cambiar de tab. Invalidar con
+// `invalidateInterviewsCache(jobId, organizationId)` en cualquier alta/edición/cancelación.
+const interviewsByJobCache = createKeyedCache<InterviewRow[]>(30_000);
+
+function interviewsByJobCacheKey(jobId: string, organizationId: string): string {
+  return `${organizationId}:${jobId}`;
+}
+
+export function invalidateInterviewsCache(jobId: string, organizationId: string): void {
+  interviewsByJobCache.invalidate(interviewsByJobCacheKey(jobId, organizationId));
+}
+
 export async function listInterviewsByJob(
   jobId: string,
   organizationId: string,
 ): Promise<InterviewRow[]> {
+  const key = interviewsByJobCacheKey(jobId, organizationId);
+  const cached = interviewsByJobCache.get(key);
+  if (cached !== undefined) return cached;
+
   const db = await getDb();
   const rows = await db.rls((tx) =>
     tx
@@ -143,10 +161,13 @@ export async function listInterviewsByJob(
           eq(interviews.organizationId, organizationId),
         ),
       )
-      .orderBy(asc(interviews.scheduledAt)),
+      .orderBy(asc(interviews.scheduledAt))
+      .limit(500),
     "db.interviews.by-job",
   );
-  return rows.map(toRow);
+  const result = rows.map(toRow);
+  interviewsByJobCache.set(key, result);
+  return result;
 }
 
 /**
@@ -158,6 +179,7 @@ export type AgendaInterview = InterviewRow & {
   jobTitle: string;
   candidateId: string;
   candidateName: string;
+  candidateEmail: string | null;
 };
 
 /**
@@ -176,6 +198,7 @@ export async function listAgendaInterviews(
         jobTitle: jobs.title,
         candidateId: candidates.id,
         candidateName: candidates.fullName,
+        candidateEmail: candidates.email,
       })
       .from(interviews)
       .innerJoin(applications, eq(interviews.applicationId, applications.id))
@@ -192,6 +215,7 @@ export async function listAgendaInterviews(
     jobTitle: r.jobTitle,
     candidateId: r.candidateId,
     candidateName: r.candidateName,
+    candidateEmail: r.candidateEmail,
   }));
 }
 
@@ -239,13 +263,17 @@ export async function listInterviewsByApplication(
 }
 
 /** Candidato agendable: ya está en el pipeline de esa búsqueda (mismo criterio que
- *  `listApplicationsByJob`). Alimenta el selector Búsqueda→Candidato del modal de Agenda. */
+ *  `listApplicationsByJob`) y ya pasó la primera etapa en proceso (la de menor `position`
+ *  entre las `kind = 'in_process'` del job — "Preseleccionado" por defecto, el nombre lo
+ *  elige el recruiter). Agendar una entrevista no tiene sentido antes de la preselección.
+ *  Alimenta el selector Búsqueda→Candidato del modal de Agenda. */
 export type SchedulableApplication = {
   applicationId: string;
   jobId: string;
   jobTitle: string;
   candidateId: string;
   candidateName: string;
+  candidateEmail: string | null;
   stageName: string | null;
 };
 
@@ -261,6 +289,7 @@ export async function listSchedulableApplications(
         jobTitle: jobs.title,
         candidateId: candidates.id,
         candidateName: candidates.fullName,
+        candidateEmail: candidates.email,
         stageName: jobStages.name,
       })
       .from(applications)
@@ -271,6 +300,15 @@ export async function listSchedulableApplications(
         and(
           eq(applications.organizationId, organizationId),
           isNotNull(applications.pipelineEnteredAt),
+          sql`not exists (
+            select 1 from job_stages js1
+            where js1.id = ${applications.stageId}
+              and js1.kind = 'in_process'
+              and js1.position = (
+                select min(js2.position) from job_stages js2
+                where js2.job_id = js1.job_id and js2.kind = 'in_process'
+              )
+          )`,
         ),
       )
       .orderBy(asc(jobs.title), asc(candidates.fullName))

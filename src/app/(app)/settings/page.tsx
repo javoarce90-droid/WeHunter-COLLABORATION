@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { getOwnProfile, getOrganization } from "@/features/recruiter/settings/data/settings.queries";
 import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
-import { isGoogleCalendarConfigured } from "@/features/recruiter/google-calendar/data/oauth-client";
+import {
+  isGoogleCalendarConfigured,
+  hasGmailSendScope,
+} from "@/features/recruiter/google-calendar/data/oauth-client";
 import { ProfileSection } from "@/features/recruiter/settings/ui/ProfileSection";
 import { WorkspaceSection } from "@/features/recruiter/settings/ui/WorkspaceSection";
 import { GoogleCalendarSection } from "@/features/recruiter/google-calendar/ui/GoogleCalendarSection";
@@ -40,9 +43,9 @@ export default async function SettingsPage() {
       {org && canEditWorkspace && (
         <SettingsSection
           title="Workspace"
-          description="Nombre y logo de tu organización, tal como se ven en toda la app."
+          description="Nombre de tu organización, tal como se ve en toda la app."
         >
-          <WorkspaceSection org={org} hasLogo={!!org.logoUrl} canEdit={canEditWorkspace} />
+          <WorkspaceSection org={org} canEdit={canEditWorkspace} />
         </SettingsSection>
       )}
 
@@ -61,6 +64,7 @@ export default async function SettingsPage() {
             <GoogleCalendarSection
               configured={isGoogleCalendarConfigured()}
               connectedEmail={googleConnection?.googleEmail ?? null}
+              canSendEmail={hasGmailSendScope(googleConnection)}
             />
           </ul>
         </SettingsSection>

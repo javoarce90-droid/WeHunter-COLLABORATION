@@ -48,6 +48,7 @@ export async function importarSourcingAction(result: {
     linkedinUrl: parsed.data.linkedinUrl ?? null,
     summary: null,
     skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
+    seniority: null,
     source: "linkedin",
     phone: null,
   });

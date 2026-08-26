@@ -14,8 +14,8 @@ const TABS: { label: string; segment: string; hidden?: boolean }[] = [
   { label: "Postulados", segment: "postulados" },
   { label: "Pipeline", segment: "pipeline" },
   { label: "Rendimiento", segment: "rendimiento" },
-  { label: "Ofertas", segment: "ofertas" },
   { label: "Shortlists", segment: "shortlists" },
+  { label: "Ofertas", segment: "ofertas" },
   { label: "Editar", segment: "edit" },
 ];
 

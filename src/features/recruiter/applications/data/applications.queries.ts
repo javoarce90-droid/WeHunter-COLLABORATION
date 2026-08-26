@@ -20,6 +20,9 @@ import {
   profiles,
   candidateWorkExperiences,
   candidateEducation,
+  screeningQuestions,
+  screeningAnswers,
+  notes,
   type Job,
 } from "@/db/schema";
 import type {
@@ -29,6 +32,9 @@ import type {
 import type { ApplicationStage, RejectionReason } from "../schema";
 import type { InboxApplicationRow } from "../domain/pasar-al-pipeline";
 import type { StageKind } from "../../pipeline-stages/schema";
+import { createKeyedCache } from "@/lib/keyed-cache";
+import type { ScreeningQuestionRow, ScreeningAnswerRow } from "../../screening/data/screening.queries";
+import type { TimelineNote } from "../../notes/data/notes.queries";
 
 /** Lecturas del pipeline. Cliente RLS; filtramos siempre por organization activa. */
 
@@ -176,7 +182,234 @@ export async function listApplicationsByJob(
   }));
 }
 
-export type ApplicationOption = { id: string; stage: ApplicationStage; candidateFullName: string };
+export type PipelineBoardData = {
+  applications: ApplicationWithCandidate[];
+  notes: TimelineNote[];
+  questions: ScreeningQuestionRow[];
+  answers: ScreeningAnswerRow[];
+  counts: JobApplicationCounts;
+};
+
+/**
+ * Todo lo que necesita el tablero de Pipeline en UNA sola transacción (database.md #3): las
+ * postulaciones en proceso, las notas (necesarias para el contador de cada card, no solo
+ * para el sheet de detalle), screening, y el desglose de conteos por etapa. Antes eran 5
+ * transacciones (`db.rls`) separadas — ahora es 1, con 5 `tx.select` adentro. El historial de
+ * etapa NO se incluye: solo lo usa el sheet de detalle de UNA postulación puntual, se pide
+ * bajo demanda al abrirlo (ver PostuladoDetailSheet), no para todo el tablero.
+ */
+export async function getPipelineBoardData(
+  jobId: string,
+  organizationId: string,
+): Promise<PipelineBoardData> {
+  const db = await getDb();
+  return db.rls(async (tx) => {
+    const applicationRows = await tx
+      .select({
+        id: applications.id,
+        organizationId: applications.organizationId,
+        jobId: applications.jobId,
+        candidateId: applications.candidateId,
+        stage: applications.stage,
+        stageId: applications.stageId,
+        stageKind: jobStages.kind,
+        stageEnteredAt: applications.stageEnteredAt,
+        pipelineEnteredAt: applications.pipelineEnteredAt,
+        selfApplied: applications.selfApplied,
+        aiScore: applications.aiScore,
+        aiSummary: applications.aiSummary,
+        aiRedFlags: applications.aiRedFlags,
+        aiBreakdown: applications.aiBreakdown,
+        aiStrengths: applications.aiStrengths,
+        coverNote: applications.coverNote,
+        expectedSalary: applications.expectedSalary,
+        expectedSalaryCurrency: applications.expectedSalaryCurrency,
+        notes: applications.notes,
+        createdAt: applications.createdAt,
+        updatedAt: applications.updatedAt,
+        candidateId2: candidates.id,
+        candidateFullName: candidates.fullName,
+        candidateEmail: candidates.email,
+        candidatePhone: candidates.phone,
+        candidateCvUrl: candidates.cvUrl,
+        candidateSource: candidates.source,
+        candidateHeadline: candidates.headline,
+        candidateSavedToPool: candidates.savedToPool,
+        candidateLocation: candidates.location,
+        candidateSkills: candidates.skills,
+        candidateLinkedinUrl: candidates.linkedinUrl,
+      })
+      .from(applications)
+      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applications.organizationId, organizationId),
+          isNotNull(applications.pipelineEnteredAt),
+        ),
+      )
+      .limit(200);
+
+    const noteRows = await tx
+      .select({
+        id: notes.id,
+        applicationId: notes.applicationId,
+        body: notes.body,
+        createdAt: notes.createdAt,
+        authorName: profiles.fullName,
+        authorEmail: profiles.email,
+      })
+      .from(notes)
+      .innerJoin(applications, eq(notes.applicationId, applications.id))
+      .leftJoin(profiles, eq(notes.createdBy, profiles.id))
+      .where(and(eq(applications.jobId, jobId), eq(notes.organizationId, organizationId)))
+      .orderBy(asc(notes.createdAt))
+      .limit(500);
+
+    const questionRows = await tx
+      .select({
+        id: screeningQuestions.id,
+        type: screeningQuestions.type,
+        label: screeningQuestions.label,
+        options: screeningQuestions.options,
+        required: screeningQuestions.required,
+        position: screeningQuestions.position,
+        isCriterion: screeningQuestions.isCriterion,
+        expectedValues: screeningQuestions.expectedValues,
+        minValue: screeningQuestions.minValue,
+        maxValue: screeningQuestions.maxValue,
+      })
+      .from(screeningQuestions)
+      .where(and(eq(screeningQuestions.jobId, jobId), eq(screeningQuestions.organizationId, organizationId)))
+      .orderBy(asc(screeningQuestions.position))
+      .limit(100);
+
+    const answerRows = await tx
+      .select({
+        applicationId: screeningAnswers.applicationId,
+        questionId: screeningAnswers.questionId,
+        questionLabel: screeningQuestions.label,
+        questionType: screeningQuestions.type,
+        value: screeningAnswers.value,
+      })
+      .from(screeningAnswers)
+      .innerJoin(screeningQuestions, eq(screeningAnswers.questionId, screeningQuestions.id))
+      .where(and(eq(screeningQuestions.jobId, jobId), eq(screeningAnswers.organizationId, organizationId)))
+      .orderBy(asc(screeningQuestions.position))
+      .limit(500);
+
+    // Mismo agrupamiento que getJobStageCounts (database.md #3): el desglose por etapa y los
+    // totales de la bandeja salen del mismo escaneo, ahora dentro de esta misma transacción.
+    const stageRows = await tx
+      .select({
+        stageId: jobStages.id,
+        name: jobStages.name,
+        kind: jobStages.kind,
+        count: sql<number>`count(${applications.id}) filter (where ${isNotNull(applications.pipelineEnteredAt)})::int`,
+      })
+      .from(jobStages)
+      .leftJoin(
+        applications,
+        and(
+          eq(applications.stageId, jobStages.id),
+          eq(applications.organizationId, organizationId),
+        ),
+      )
+      .where(and(eq(jobStages.jobId, jobId), ne(jobStages.kind, "inbox")))
+      .groupBy(jobStages.id, jobStages.name, jobStages.kind, jobStages.position)
+      .orderBy(asc(jobStages.position));
+
+    const [totalsRow] = await tx
+      .select({
+        recibidas: sql<number>`count(*)::int`,
+        pendientes: sql<number>`count(*) filter (where ${applications.pipelineEnteredAt} is null and ${applications.stage} != 'rejected')::int`,
+      })
+      .from(applications)
+      .where(and(eq(applications.jobId, jobId), eq(applications.organizationId, organizationId)));
+
+    return {
+      applications: applicationRows.map((r) => ({
+        id: r.id,
+        organizationId: r.organizationId,
+        jobId: r.jobId,
+        candidateId: r.candidateId,
+        stage: r.stage as ApplicationStage,
+        stageId: r.stageId,
+        stageKind: r.stageKind as StageKind | null,
+        stageEnteredAt: r.stageEnteredAt,
+        pipelineEnteredAt: r.pipelineEnteredAt,
+        selfApplied: r.selfApplied,
+        aiScore: r.aiScore,
+        aiSummary: r.aiSummary,
+        aiRedFlags: r.aiRedFlags ?? [],
+        aiBreakdown: r.aiBreakdown,
+        aiStrengths: r.aiStrengths ?? [],
+        coverNote: r.coverNote,
+        expectedSalary: r.expectedSalary,
+        expectedSalaryCurrency: r.expectedSalaryCurrency,
+        notes: r.notes,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+        candidate: {
+          id: r.candidateId2,
+          fullName: r.candidateFullName,
+          email: r.candidateEmail,
+          phone: r.candidatePhone,
+          cvUrl: r.candidateCvUrl,
+          source: r.candidateSource,
+          headline: r.candidateHeadline,
+          savedToPool: r.candidateSavedToPool,
+          location: r.candidateLocation,
+          skills: r.candidateSkills,
+          linkedinUrl: r.candidateLinkedinUrl,
+        },
+      })),
+      notes: noteRows.map((r) => ({
+        id: r.id,
+        applicationId: r.applicationId,
+        body: r.body,
+        createdAt: r.createdAt,
+        authorName: r.authorName ?? r.authorEmail ?? null,
+      })),
+      questions: questionRows.map((r) => ({ ...r, type: r.type as ScreeningQuestionRow["type"] })),
+      answers: answerRows.map((r) => ({
+        ...r,
+        questionType: r.questionType as ScreeningAnswerRow["questionType"],
+      })),
+      counts: {
+        stages: stageRows,
+        recibidas: totalsRow?.recibidas ?? 0,
+        pendientes: totalsRow?.pendientes ?? 0,
+      },
+    };
+  }, "db.applications.pipeline-board");
+}
+
+export type ApplicationOption = {
+  id: string;
+  stage: ApplicationStage;
+  /** Nombre real de la etapa del pipeline de ESTA búsqueda (job_stages.name) — el enum fijo
+   *  de `stage` es solo para lógica gruesa (ej. filtrar rechazados), no para mostrar: sus
+   *  valores no reflejan las etapas que configuró el recruiter para este job en particular. */
+  stageName: string | null;
+  candidateFullName: string;
+};
+
+// Ver keyed-cache.ts: dedupea `listApplicationOptionsByJob` ENTRE requests — Shortlists y
+// Ofertas la piden por separado al cambiar de tab. Invalidar con
+// `invalidateApplicationOptionsCache(jobId, organizationId)` al entrar alguien al pipeline o
+// mover de etapa (el `stage` que muestra el picker cambia); descartes/otros cambios menores
+// quedan solo al TTL.
+const applicationOptionsCache = createKeyedCache<ApplicationOption[]>(30_000);
+
+function applicationOptionsCacheKey(jobId: string, organizationId: string): string {
+  return `${organizationId}:${jobId}`;
+}
+
+export function invalidateApplicationOptionsCache(jobId: string, organizationId: string): void {
+  applicationOptionsCache.invalidate(applicationOptionsCacheKey(jobId, organizationId));
+}
 
 /**
  * Igual alcance que `listApplicationsByJob` (mismo job, mismo filtro por `pipelineEnteredAt`)
@@ -189,6 +422,10 @@ export async function listApplicationOptionsByJob(
   jobId: string,
   organizationId: string,
 ): Promise<ApplicationOption[]> {
+  const key = applicationOptionsCacheKey(jobId, organizationId);
+  const cached = applicationOptionsCache.get(key);
+  if (cached !== undefined) return cached;
+
   const db = await getDb();
   const rows = await db.rls(
     (tx) =>
@@ -196,10 +433,12 @@ export async function listApplicationOptionsByJob(
         .select({
           id: applications.id,
           stage: applications.stage,
+          stageName: jobStages.name,
           candidateFullName: candidates.fullName,
         })
         .from(applications)
         .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .leftJoin(jobStages, eq(applications.stageId, jobStages.id))
         .where(
           and(
             eq(applications.jobId, jobId),
@@ -210,7 +449,9 @@ export async function listApplicationOptionsByJob(
         .limit(200),
     "db.applications.options-by-job",
   );
-  return rows.map((r) => ({ ...r, stage: r.stage as ApplicationStage }));
+  const options = rows.map((r) => ({ ...r, stage: r.stage as ApplicationStage }));
+  applicationOptionsCache.set(key, options);
+  return options;
 }
 
 /**
@@ -234,7 +475,8 @@ export async function listCandidateIdsByJob(
             eq(applications.jobId, jobId),
             eq(applications.organizationId, organizationId),
           ),
-        ),
+        )
+        .limit(500),
     "db.applications.candidate-ids-by-job",
   );
   return rows.map((r) => r.candidateId);
@@ -592,6 +834,179 @@ export async function listPostulados(
   }));
 }
 
+export type PostuladosTabData = {
+  postulados: PostuladoRow[];
+  candidateIdsEnLaBusqueda: string[];
+  questions: ScreeningQuestionRow[];
+  answers: ScreeningAnswerRow[];
+  notes: TimelineNote[];
+};
+
+/**
+ * Todo lo que necesita la pestaña Postulados en UNA sola transacción (database.md #3): la
+ * bandeja, los ids de candidatos ya postulados (para el picker de alta), las preguntas y
+ * respuestas de screening, y las notas. Antes eran 5 transacciones (`db.rls`) separadas —
+ * cada una paga su propio BEGIN/SET/COMMIT contra el pooler — ahora es 1 sola, con 5
+ * `tx.select` adentro. El historial de etapa NO se incluye acá: solo lo usa el sheet de
+ * detalle de una postulación puntual, así que se pide bajo demanda al abrirlo
+ * (`getFichaCandidatoAction`), no para las ~200 filas de la bandeja.
+ */
+export async function getPostuladosTabData(
+  jobId: string,
+  organizationId: string,
+): Promise<PostuladosTabData> {
+  const db = await getDb();
+  return db.rls(async (tx) => {
+    const postuladosRows = await tx
+      .select({
+        id: applications.id,
+        stage: applications.stage,
+        pipelineEnteredAt: applications.pipelineEnteredAt,
+        selfApplied: applications.selfApplied,
+        aiScore: applications.aiScore,
+        aiSummary: applications.aiSummary,
+        aiRedFlags: applications.aiRedFlags,
+        aiBreakdown: applications.aiBreakdown,
+        aiStrengths: applications.aiStrengths,
+        coverNote: applications.coverNote,
+        expectedSalary: applications.expectedSalary,
+        expectedSalaryCurrency: applications.expectedSalaryCurrency,
+        createdAt: applications.createdAt,
+        candidateId: candidates.id,
+        candidateFullName: candidates.fullName,
+        candidateEmail: candidates.email,
+        candidatePhone: candidates.phone,
+        candidateCvUrl: candidates.cvUrl,
+        candidateSource: candidates.source,
+        candidateHeadline: candidates.headline,
+        candidateSavedToPool: candidates.savedToPool,
+        candidateLocation: candidates.location,
+        candidateSkills: candidates.skills,
+        candidateLinkedinUrl: candidates.linkedinUrl,
+        applicationCount: sql<number>`(
+          select count(*)::int from ${applications} a2
+          where a2.candidate_id = ${candidates.id} and a2.organization_id = ${organizationId}
+        )`,
+      })
+      .from(applications)
+      .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applications.organizationId, organizationId),
+          isNull(applications.pipelineEnteredAt),
+          ne(applications.stage, "rejected"),
+        ),
+      )
+      .orderBy(desc(applications.createdAt))
+      .limit(200);
+
+    const candidateIdRows = await tx
+      .select({ candidateId: applications.candidateId })
+      .from(applications)
+      .where(
+        and(
+          eq(applications.jobId, jobId),
+          eq(applications.organizationId, organizationId),
+        ),
+      )
+      .limit(500);
+
+    const questionRows = await tx
+      .select({
+        id: screeningQuestions.id,
+        type: screeningQuestions.type,
+        label: screeningQuestions.label,
+        options: screeningQuestions.options,
+        required: screeningQuestions.required,
+        position: screeningQuestions.position,
+        isCriterion: screeningQuestions.isCriterion,
+        expectedValues: screeningQuestions.expectedValues,
+        minValue: screeningQuestions.minValue,
+        maxValue: screeningQuestions.maxValue,
+      })
+      .from(screeningQuestions)
+      .where(and(eq(screeningQuestions.jobId, jobId), eq(screeningQuestions.organizationId, organizationId)))
+      .orderBy(asc(screeningQuestions.position))
+      .limit(100);
+
+    const answerRows = await tx
+      .select({
+        applicationId: screeningAnswers.applicationId,
+        questionId: screeningAnswers.questionId,
+        questionLabel: screeningQuestions.label,
+        questionType: screeningQuestions.type,
+        value: screeningAnswers.value,
+      })
+      .from(screeningAnswers)
+      .innerJoin(screeningQuestions, eq(screeningAnswers.questionId, screeningQuestions.id))
+      .where(and(eq(screeningQuestions.jobId, jobId), eq(screeningAnswers.organizationId, organizationId)))
+      .orderBy(asc(screeningQuestions.position))
+      .limit(500);
+
+    const noteRows = await tx
+      .select({
+        id: notes.id,
+        applicationId: notes.applicationId,
+        body: notes.body,
+        createdAt: notes.createdAt,
+        authorName: profiles.fullName,
+        authorEmail: profiles.email,
+      })
+      .from(notes)
+      .innerJoin(applications, eq(notes.applicationId, applications.id))
+      .leftJoin(profiles, eq(notes.createdBy, profiles.id))
+      .where(and(eq(applications.jobId, jobId), eq(notes.organizationId, organizationId)))
+      .orderBy(asc(notes.createdAt))
+      .limit(500);
+
+    return {
+      postulados: postuladosRows.map((r) => ({
+        id: r.id,
+        stage: r.stage as ApplicationStage,
+        pipelineEnteredAt: r.pipelineEnteredAt,
+        selfApplied: r.selfApplied,
+        aiScore: r.aiScore,
+        aiSummary: r.aiSummary,
+        aiRedFlags: r.aiRedFlags ?? [],
+        aiBreakdown: r.aiBreakdown,
+        aiStrengths: r.aiStrengths ?? [],
+        coverNote: r.coverNote,
+        expectedSalary: r.expectedSalary,
+        expectedSalaryCurrency: r.expectedSalaryCurrency,
+        createdAt: r.createdAt,
+        applicationCount: Number(r.applicationCount),
+        candidate: {
+          id: r.candidateId,
+          fullName: r.candidateFullName,
+          email: r.candidateEmail,
+          phone: r.candidatePhone,
+          cvUrl: r.candidateCvUrl,
+          source: r.candidateSource,
+          savedToPool: r.candidateSavedToPool,
+          headline: r.candidateHeadline,
+          location: r.candidateLocation,
+          skills: r.candidateSkills,
+          linkedinUrl: r.candidateLinkedinUrl,
+        },
+      })),
+      candidateIdsEnLaBusqueda: candidateIdRows.map((r) => r.candidateId),
+      questions: questionRows.map((r) => ({ ...r, type: r.type as ScreeningQuestionRow["type"] })),
+      answers: answerRows.map((r) => ({
+        ...r,
+        questionType: r.questionType as ScreeningAnswerRow["questionType"],
+      })),
+      notes: noteRows.map((r) => ({
+        id: r.id,
+        applicationId: r.applicationId,
+        body: r.body,
+        createdAt: r.createdAt,
+        authorName: r.authorName ?? r.authorEmail ?? null,
+      })),
+    };
+  }, "db.applications.postulados-tab");
+}
+
 /**
  * Candidatos detrás de un conjunto de postulaciones, en UNA query. Lo usa el contacto en
  * lote: sin esto haría dos consultas por fila (postulación y candidato) solo para armar el
@@ -600,7 +1015,7 @@ export async function listPostulados(
 export async function listCandidatesForApplications(
   applicationIds: string[],
   organizationId: string,
-): Promise<{ applicationId: string; id: string; fullName: string }[]> {
+): Promise<{ applicationId: string; id: string; fullName: string; email: string | null }[]> {
   if (applicationIds.length === 0) return [];
   const db = await getDb();
   return db.rls(
@@ -610,6 +1025,7 @@ export async function listCandidatesForApplications(
           applicationId: applications.id,
           id: candidates.id,
           fullName: candidates.fullName,
+          email: candidates.email,
         })
         .from(applications)
         .innerJoin(candidates, eq(applications.candidateId, candidates.id))
@@ -915,6 +1331,53 @@ export async function listStageEventsByJob(
         .orderBy(desc(applicationEvents.createdAt))
         .limit(500),
     "db.applications.stage-events-by-job",
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    applicationId: r.applicationId,
+    fromStage: r.fromStage as ApplicationStage | null,
+    toStage: r.toStage as ApplicationStage,
+    createdAt: r.createdAt,
+    changedByName: r.changedByName ?? r.changedByEmail ?? null,
+    rejectionReason: r.rejectionReason as RejectionReason | null,
+    rejectionNote: r.rejectionNote,
+  }));
+}
+
+/**
+ * Historial de cambios de etapa de UNA postulación puntual — para el tab Historial del sheet
+ * de detalle, que se pide recién al abrirlo (database.md #6/#7): la mayoría de las filas del
+ * tablero/bandeja nunca se abren, así que no vale la pena traer el historial de las demás.
+ */
+export async function listStageEventsByApplication(
+  applicationId: string,
+  organizationId: string,
+): Promise<StageHistoryEvent[]> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: applicationEvents.id,
+          applicationId: applicationEvents.applicationId,
+          fromStage: applicationEvents.fromStage,
+          toStage: applicationEvents.toStage,
+          createdAt: applicationEvents.createdAt,
+          changedByName: profiles.fullName,
+          changedByEmail: profiles.email,
+          rejectionReason: applicationEvents.rejectionReason,
+          rejectionNote: applicationEvents.rejectionNote,
+        })
+        .from(applicationEvents)
+        .leftJoin(profiles, eq(applicationEvents.changedBy, profiles.id))
+        .where(
+          and(
+            eq(applicationEvents.applicationId, applicationId),
+            eq(applicationEvents.organizationId, organizationId),
+          ),
+        )
+        .orderBy(desc(applicationEvents.createdAt)),
+    "db.applications.stage-events-by-application",
   );
   return rows.map((r) => ({
     id: r.id,

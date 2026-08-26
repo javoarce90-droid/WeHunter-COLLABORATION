@@ -9,6 +9,8 @@ import {
   type CSSProperties,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   DndContext,
   DragOverlay,
@@ -33,11 +35,7 @@ import {
   guardarEnTalentPoolAction,
 } from "../actions";
 import { legacyStageFor } from "../domain/mover-a-etapa";
-import type {
-  ApplicationWithCandidate,
-  PostuladoRow,
-  StageHistoryEvent,
-} from "../data/applications.queries";
+import type { ApplicationWithCandidate, PostuladoRow } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/InterviewForm";
 import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
@@ -52,16 +50,36 @@ import {
 } from "@/features/recruiter/pipeline-stages/actions";
 import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import { PipelineCard } from "./PipelineCard";
-import { PostuladoDetailSheet, type ScreeningAnswerLine } from "./PostuladoDetailSheet";
-import { AiAnalysisDialog, type AiAnalysisSubject } from "./AiAnalysisDialog";
-import { ScheduleInterviewDialog } from "./ScheduleInterviewDialog";
-import { AddNoteDialog } from "./AddNoteDialog";
-import { EditStageDialog } from "./EditStageDialog";
-import { SendWhatsappDialog } from "./SendWhatsappDialog";
-import { ContactarDialog } from "./ContactarDialog";
-import { TagsDialog } from "@/features/recruiter/candidates/ui/TagsDialog";
+import type { ScreeningAnswerLine } from "./PostuladoDetailSheet";
+import type { AiAnalysisSubject } from "./AiAnalysisDialog";
 import type { CandidateTagRow } from "@/features/recruiter/candidates/data/tags.queries";
 import { KIND_DOT, getSlaStatus } from "./stage-visual";
+
+// Diálogos de acción rápida: se abren, como mucho, para UNA card por vez, y la mayoría de
+// las cards del tablero nunca los abren — con `next/dynamic` su JS se descarga recién al
+// abrirlos, no en el load inicial de Pipeline (ver plan de performance, `next/dynamic`).
+const PostuladoDetailSheet = dynamic(() =>
+  import("./PostuladoDetailSheet").then((m) => m.PostuladoDetailSheet),
+);
+const AiAnalysisDialog = dynamic(() =>
+  import("./AiAnalysisDialog").then((m) => m.AiAnalysisDialog),
+);
+const ScheduleInterviewDialog = dynamic(() =>
+  import("./ScheduleInterviewDialog").then((m) => m.ScheduleInterviewDialog),
+);
+const AddNoteDialog = dynamic(() => import("./AddNoteDialog").then((m) => m.AddNoteDialog));
+const EditStageDialog = dynamic(() =>
+  import("./EditStageDialog").then((m) => m.EditStageDialog),
+);
+const SendWhatsappDialog = dynamic(() =>
+  import("./SendWhatsappDialog").then((m) => m.SendWhatsappDialog),
+);
+const ContactarDialog = dynamic(() =>
+  import("./ContactarDialog").then((m) => m.ContactarDialog),
+);
+const TagsDialog = dynamic(() =>
+  import("@/features/recruiter/candidates/ui/TagsDialog").then((m) => m.TagsDialog),
+);
 
 type Props = {
   jobId: string;
@@ -72,7 +90,6 @@ type Props = {
   interviewsByApplication: Record<string, InterviewRow[]>;
   teamMembers: TeamMemberOption[];
   notesByApplication: Record<string, TimelineNote[]>;
-  stageEventsByApplication: Record<string, StageHistoryEvent[]>;
   criteriosByApplication: Record<string, CriteriosEvaluados>;
   screeningByApplication: Record<string, ScreeningAnswerLine[]>;
   tagsByCandidate: Record<string, CandidateTagRow[]>;
@@ -80,6 +97,8 @@ type Props = {
   stages: JobStage[];
   /** Puede agregar/renombrar/eliminar/reordenar etapas (capability `stages.configure`). */
   canConfigureStages: boolean;
+  /** true si el recruiter conectó Google con el scope de envío de emails. */
+  canSendEmail: boolean;
 };
 
 /** Adapta una card del tablero al shape que espera el sheet de detalle compartido con
@@ -180,6 +199,8 @@ type ColumnProps = {
   onMoveStage: (applicationId: string, toStageId: string) => void;
   onOpen: (id: string) => void;
   onAnalizar: (applicationId: string) => void;
+  onAddToShortlist: (applicationId: string) => void;
+  onCreateOffer: (applicationId: string) => void;
   onScheduleInterview: (applicationId: string) => void;
   onSendEmail: (applicationId: string) => void;
   onSendWhatsapp: (applicationId: string) => void;
@@ -212,6 +233,8 @@ function PipelineColumn({
   onMoveStage,
   onOpen,
   onAnalizar,
+  onAddToShortlist,
+  onCreateOffer,
   onScheduleInterview,
   onSendEmail,
   onSendWhatsapp,
@@ -335,6 +358,8 @@ function PipelineColumn({
               onMoveStage={onMoveStage}
               onOpen={onOpen}
               onAnalizar={onAnalizar}
+              onAddToShortlist={onAddToShortlist}
+              onCreateOffer={onCreateOffer}
               onScheduleInterview={onScheduleInterview}
               onSendEmail={onSendEmail}
               onSendWhatsapp={onSendWhatsapp}
@@ -393,14 +418,15 @@ export function PipelineView({
   interviewsByApplication,
   teamMembers,
   notesByApplication,
-  stageEventsByApplication,
   criteriosByApplication,
   screeningByApplication,
   tagsByCandidate,
   stages,
   canConfigureStages,
+  canSendEmail,
 }: Props) {
   const toast = useToast();
+  const router = useRouter();
   const [, startTransition] = useTransition();
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -429,12 +455,6 @@ export function PipelineView({
     setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
   }
 
-  // Sin deps a propósito: se recalcula en cada render para reflejar cambios de contenido
-  // (agregar/eliminar etapas, filtrar) además de resize de ventana.
-  useEffect(() => {
-    updateScrollArrows();
-  });
-
   function scrollBoardBy(dir: 1 | -1) {
     scrollRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
   }
@@ -447,6 +467,10 @@ export function PipelineView({
   const onAddTag = (applicationId: string) => setQuickDialog({ kind: "tags", applicationId });
   const onAddNote = (applicationId: string) => setQuickDialog({ kind: "note", applicationId });
   const closeQuickDialog = () => setQuickDialog(null);
+  const onAddToShortlist = (applicationId: string) =>
+    router.push(`/jobs/${jobId}/shortlists?candidate=${applicationId}`);
+  const onCreateOffer = (applicationId: string) =>
+    router.push(`/jobs/${jobId}/ofertas?applicationId=${applicationId}`);
 
   function onAnalizar(applicationId: string) {
     setAnalyzingIds((s) => new Set(s).add(applicationId));
@@ -716,6 +740,16 @@ export function PipelineView({
     .sort((a, b) => a.position - b.position)
     .filter((s) => !anyFilterActive || cardsFor(s.id).length > 0);
 
+  // Recalcula las flechas cuando cambia la cantidad de columnas visibles (agregar/eliminar
+  // etapas, o un filtro que oculta columnas vacías) o el tamaño de ventana. Antes corría sin
+  // deps en cada render — con setState siempre disparando, entraba en loop bajo ciertas
+  // condiciones de layout ("Maximum update depth exceeded").
+  useEffect(() => {
+    updateScrollArrows();
+    window.addEventListener("resize", updateScrollArrows);
+    return () => window.removeEventListener("resize", updateScrollArrows);
+  }, [visibleStages.length]);
+
   // Para el selector "Tipo" al agendar entrevista: TODAS las etapas reales (sin el filtro
   // de tarjetas de `visibleStages`, que oculta columnas vacías con un filtro activo).
   const interviewJobStages = [...optimisticStages]
@@ -768,6 +802,8 @@ export function PipelineView({
     onMoveStage,
     onOpen: setSelectedId,
     onAnalizar,
+    onAddToShortlist,
+    onCreateOffer,
     onScheduleInterview,
     onSendEmail,
     onSendWhatsapp,
@@ -968,6 +1004,8 @@ export function PipelineView({
                 noteCount={notesByApplication[draggingApp.id]?.length ?? 0}
                 onMoveStage={noop}
                 onOpen={noop}
+                onAddToShortlist={noop}
+                onCreateOffer={noop}
                 onScheduleInterview={noop}
                 onSendEmail={noop}
                 onSendWhatsapp={noop}
@@ -988,7 +1026,6 @@ export function PipelineView({
           criterios={criteriosByApplication[selected.id] ?? null}
           screening={screeningByApplication[selected.id] ?? []}
           notes={notesByApplication[selected.id] ?? []}
-          stageEvents={stageEventsByApplication[selected.id] ?? []}
           onClose={() => setSelectedId(null)}
           onPasarAlPipeline={noop}
           onGuardarEnPool={onGuardarEnPool}
@@ -1012,6 +1049,7 @@ export function PipelineView({
         interviews={quickApp ? (interviewsByApplication[quickApp.id] ?? []) : []}
         jobStages={interviewJobStages}
         teamMembers={teamMembers}
+        candidateEmail={quickApp?.candidate.email ?? null}
         onClose={closeQuickDialog}
       />
 
@@ -1038,7 +1076,9 @@ export function PipelineView({
         target={quickDialog?.kind === "email" ? [quickDialog.applicationId] : null}
         jobId={jobId}
         jobTitle={jobTitle}
+        candidateName={quickApp?.candidate.fullName}
         fixedChannel="email"
+        canSendEmail={canSendEmail}
         onClose={closeQuickDialog}
         onSent={closeQuickDialog}
       />

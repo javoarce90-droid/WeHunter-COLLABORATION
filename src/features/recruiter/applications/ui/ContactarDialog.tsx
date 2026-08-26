@@ -3,24 +3,35 @@
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/lib/toast";
 import { CHANNEL_LABELS, MESSAGE_CHANNELS } from "@/features/recruiter/messaging/schema";
 import type { MessageChannel } from "@/features/recruiter/messaging/schema";
 import { contactarPostuladosAction } from "../actions";
+import { personalizarMensaje } from "../domain/personalizar-mensaje";
 
 type Props = {
   /** Postulaciones destino. null = diálogo cerrado. */
   target: string[] | null;
   jobId: string;
   jobTitle: string;
+  /** Nombre del candidato, si `target` tiene un solo elemento — precompleta {{candidato}}
+   *  en el mensaje inicial. Sin este dato (lote de varios), la variable queda sin resolver:
+   *  cada destinatario recibe el mensaje con su propio nombre recién al enviar. */
+  candidateName?: string;
   onClose: () => void;
   onSent: () => void;
   /** Si viene, fija el canal y oculta el selector (ej. "Enviar Email" desde el menú de una
    * card puntual, donde no tiene sentido ofrecer el WhatsApp simulado). */
   fixedChannel?: MessageChannel;
+  /** true si el recruiter conectó Google con el scope de envío — solo importa para el canal
+   *  email (whatsapp sigue mock, no depende de esto). */
+  canSendEmail: boolean;
 };
+
+const ASUNTO_BASE = "Sobre tu postulación a {{puesto}}";
 
 const PLANTILLA_BASE =
   `Hola {{candidato}},\n\n` +
@@ -36,14 +47,22 @@ export function ContactarDialog({
   target,
   jobId,
   jobTitle,
+  candidateName,
   onClose,
   onSent,
   fixedChannel,
+  canSendEmail,
 }: Props) {
   const toast = useToast();
   const [isPending, startTransition] = useTransition();
   const [channel, setChannel] = useState<MessageChannel>(fixedChannel ?? "email");
-  const [body, setBody] = useState(PLANTILLA_BASE);
+  const blockedByGoogle = channel === "email" && !canSendEmail;
+  const [subject, setSubject] = useState(() =>
+    personalizarMensaje(ASUNTO_BASE, { puesto: jobTitle, candidato: candidateName }),
+  );
+  const [body, setBody] = useState(() =>
+    personalizarMensaje(PLANTILLA_BASE, { puesto: jobTitle, candidato: candidateName }),
+  );
 
   const count = target?.length ?? 0;
 
@@ -56,6 +75,7 @@ export function ContactarDialog({
         jobId,
         applicationIds: ids,
         channel,
+        subject,
         body,
       });
       if (!res.ok) {
@@ -81,6 +101,16 @@ export function ContactarDialog({
       className="max-w-md"
     >
       <div className="flex flex-col gap-4">
+        {blockedByGoogle && (
+          <p className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-xs text-muted">
+            Conectá tu Google en{" "}
+            <a href="/settings" className="font-semibold text-primary hover:text-primary-hover">
+              Configuración
+            </a>{" "}
+            para poder enviar emails reales desde tu cuenta.
+          </p>
+        )}
+
         {!fixedChannel && (
           <Select
             label="Canal"
@@ -95,7 +125,13 @@ export function ContactarDialog({
           </Select>
         )}
 
-        <div className="flex flex-col gap-1.5">
+        <Input
+          label="Asunto"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+        />
+
+        <div className="flex flex-col gap-2">
           <Textarea
             label="Mensaje"
             rows={6}
@@ -103,9 +139,12 @@ export function ContactarDialog({
             onChange={(e) => setBody(e.target.value)}
             className="resize-y"
           />
-          <p className="text-[11px] text-muted">
-            Variables: <code>{"{{candidato}}"}</code> y <code>{"{{puesto}}"}</code> ({jobTitle}).
-          </p>
+          {!candidateName && (
+            <p className="text-[11px] text-muted">
+              Cada candidato recibe el mensaje con su propio nombre en lugar
+              de <code>{"{{candidato}}"}</code>.
+            </p>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-3">
@@ -119,7 +158,7 @@ export function ContactarDialog({
           <Button
             variant="primary"
             loading={isPending}
-            disabled={body.trim().length === 0}
+            disabled={blockedByGoogle || subject.trim().length === 0 || body.trim().length === 0}
             onClick={enviar}
           >
             Enviar

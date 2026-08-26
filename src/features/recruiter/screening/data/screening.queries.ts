@@ -41,7 +41,8 @@ export async function listScreeningQuestionsByJob(
         })
         .from(screeningQuestions)
         .where(and(eq(screeningQuestions.jobId, jobId), eq(screeningQuestions.organizationId, organizationId)))
-        .orderBy(asc(screeningQuestions.position)),
+        .orderBy(asc(screeningQuestions.position))
+        .limit(100),
     "db.screening.questions-by-job",
   );
   return rows.map((r) => ({ ...r, type: r.type as ScreeningQuestionType }));
@@ -75,7 +76,8 @@ export async function listScreeningAnswersByJob(
         .from(screeningAnswers)
         .innerJoin(screeningQuestions, eq(screeningAnswers.questionId, screeningQuestions.id))
         .where(and(eq(screeningQuestions.jobId, jobId), eq(screeningAnswers.organizationId, organizationId)))
-        .orderBy(asc(screeningQuestions.position)),
+        .orderBy(asc(screeningQuestions.position))
+        .limit(500),
     "db.screening.answers-by-job",
   );
   return rows.map((r) => ({ ...r, questionType: r.questionType as ScreeningQuestionType }));

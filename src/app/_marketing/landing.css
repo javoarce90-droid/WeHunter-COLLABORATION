@@ -1,3 +1,10 @@
+/* Todo este archivo va en una layer explícita, por debajo de las de Tailwind (ver
+   `@layer legacy-marketing;` en globals.css) — así sus selectores sueltos (main, header,
+   footer, nav, body, *) nunca le ganan a una utility de Tailwind en otra página, aunque esta
+   hoja quede pegada en el <head> tras una navegación client-side (bug real: Next.js App
+   Router no siempre limpia un CSS global importado por una page al navegar a otra ruta). */
+@layer legacy-marketing {
+
 /* Box sizing universal y reset de márgenes */
 *,
 *::before,
@@ -3807,3 +3814,5 @@ label,
     margin-bottom: 8px;
   }
 }
+
+} /* fin @layer legacy-marketing */

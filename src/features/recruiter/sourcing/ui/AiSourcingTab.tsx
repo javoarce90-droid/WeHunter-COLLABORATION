@@ -41,7 +41,11 @@ export function AiSourcingTab({ jobs }: Props) {
       </div>
 
       {selectedJobId ? (
-        <AiJobSourcingResults key={selectedJobId} jobId={selectedJobId} />
+        <AiJobSourcingResults
+          key={selectedJobId}
+          jobId={selectedJobId}
+          jobTitle={jobs.find((j) => j.id === selectedJobId)?.title}
+        />
       ) : (
         <p className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-xs text-muted">
           Elegí una búsqueda para que la IA arme la query y puntúe los

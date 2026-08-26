@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Candidate } from "@/db/schema";
@@ -11,6 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
@@ -25,11 +27,21 @@ import {
   TALENT_STATE_BADGE,
   TALENT_STATE_ORDER,
 } from "./talent-meta";
+import {
+  CANDIDATE_STATUS_FILTERS,
+  CANDIDATE_SENIORITY_OPTIONS,
+  CANDIDATE_COMPLETENESS_OPTIONS,
+} from "./candidate-filters";
+import { CompletenessBadge } from "./completeness-badge";
+import { MatchearPoolDialog } from "./MatchearPoolDialog";
 import type { CandidateSource } from "../domain/candidate-details";
 import type { TalentState } from "../domain/cambiar-estado-talento";
+import type { JobSeniority } from "@/features/recruiter/jobs/domain/job-details";
 import type {
   CandidateFilterKey,
   CandidateFilterCounts,
+  CandidateCompleteness,
+  CompletenessFilter,
 } from "../data/candidates.queries";
 
 type JobOption = { id: string; title: string };
@@ -41,6 +53,10 @@ interface Props {
   jobs: JobOption[];
   filter: CandidateFilterKey;
   query: string;
+  seniority?: JobSeniority;
+  skill: string;
+  completeness?: CompletenessFilter;
+  completenessByCandidateId: Record<string, CandidateCompleteness>;
   counts: CandidateFilterCounts;
   duplicateIds: string[];
   page: number;
@@ -56,10 +72,16 @@ function buildCandidatesHref(
   filter: CandidateFilterKey,
   query: string,
   page: number,
+  seniority: JobSeniority | "" = "",
+  skill: string = "",
+  completeness: CompletenessFilter | "" = "",
 ): string {
   const params = new URLSearchParams();
   if (filter !== "all") params.set("filter", filter);
   if (query) params.set("q", query);
+  if (seniority) params.set("seniority", seniority);
+  if (skill) params.set("skill", skill);
+  if (completeness) params.set("completeness", completeness);
   if (page > 1) params.set("page", String(page));
   return params.size ? `/candidates?${params}` : "/candidates";
 }
@@ -70,9 +92,15 @@ function buildCandidatesHref(
 function CandidatesSearchInput({
   filter,
   initialQuery,
+  seniority,
+  skill,
+  completeness,
 }: {
   filter: CandidateFilterKey;
   initialQuery: string;
+  seniority: JobSeniority | "";
+  skill: string;
+  completeness: CompletenessFilter | "";
 }) {
   const router = useRouter();
   const [value, setValue] = useState(initialQuery);
@@ -84,9 +112,10 @@ function CandidatesSearchInput({
     setValue(next);
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      router.replace(buildCandidatesHref(filter, next.trim(), 1), {
-        scroll: false,
-      });
+      router.replace(
+        buildCandidatesHref(filter, next.trim(), 1, seniority, skill, completeness),
+        { scroll: false },
+      );
     }, SEARCH_DEBOUNCE_MS);
   }
 
@@ -94,9 +123,136 @@ function CandidatesSearchInput({
     <SearchInput
       value={value}
       onChange={handleChange}
-      placeholder="Buscar por nombre o email…"
+      placeholder="Buscar por nombre, email o puesto…"
       aria-label="Buscar candidatos"
     />
+  );
+}
+
+/** Filtros secundarios (uso ocasional: afinar dentro de un estado ya elegido) colapsados
+ *  detrás de un trigger, para no aplanar la fila de chips (uso constante) con controles de
+ *  frecuencia distinta. Popover propio (no `Menu`): `Menu` cierra el panel en cualquier click
+ *  interno, lo que rompería un `<select>`/input de formulario adentro. */
+function MoreFiltersPopover({
+  filter,
+  query,
+  seniority,
+  skill,
+  completeness,
+}: {
+  filter: CandidateFilterKey;
+  query: string;
+  seniority: JobSeniority | "";
+  skill: string;
+  completeness: CompletenessFilter | "";
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [skillValue, setSkillValue] = useState(skill);
+  // Resincroniza si `skill` cambia por afuera (navegación server-driven), ajustado durante el
+  // render en vez de en un efecto — evita un ciclo extra de render (mismo patrón que NotificationBell).
+  const [syncedSkill, setSyncedSkill] = useState(skill);
+  if (skill !== syncedSkill) {
+    setSyncedSkill(skill);
+    setSkillValue(skill);
+  }
+  const containerRef = useRef<HTMLDivElement>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  function navigate(
+    nextSeniority: JobSeniority | "",
+    nextSkill: string,
+    nextCompleteness: CompletenessFilter | "" = completeness,
+  ) {
+    router.replace(
+      buildCandidatesHref(filter, query, 1, nextSeniority, nextSkill, nextCompleteness),
+      { scroll: false },
+    );
+  }
+
+  function handleSkillChange(next: string) {
+    setSkillValue(next);
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => navigate(seniority, next.trim()), SEARCH_DEBOUNCE_MS);
+  }
+
+  const activeCount = (seniority ? 1 : 0) + (skill ? 1 : 0) + (completeness ? 1 : 0);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-xs font-semibold text-text transition-colors hover:bg-bg"
+      >
+        Más filtros
+        {activeCount > 0 && (
+          <span className="grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-white tabular-nums">
+            {activeCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-[var(--z-dropdown)] mt-2 w-64 flex flex-col gap-3 rounded-[var(--radius)] border border-border bg-surface p-3 shadow-[var(--shadow-overlay)] animate-pop-in">
+          <Select
+            label="Seniority"
+            value={seniority}
+            onChange={(e) => navigate(e.target.value as JobSeniority | "", skillValue)}
+          >
+            <option value="">Todos</option>
+            {CANDIDATE_SENIORITY_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+          <Input
+            label="Skill"
+            value={skillValue}
+            onChange={(e) => handleSkillChange(e.target.value)}
+            placeholder="Ej: React"
+          />
+          <Select
+            label="Completitud del perfil"
+            value={completeness}
+            onChange={(e) =>
+              navigate(seniority, skillValue, e.target.value as CompletenessFilter | "")
+            }
+          >
+            <option value="">Todos</option>
+            {CANDIDATE_COMPLETENESS_OPTIONS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </Select>
+          {activeCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSkillValue("");
+                navigate("", "", "");
+              }}
+              className="self-start text-xs font-semibold text-primary hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -105,6 +261,10 @@ export function CandidatesList({
   jobs,
   filter,
   query,
+  seniority,
+  skill,
+  completeness,
+  completenessByCandidateId,
   counts,
   duplicateIds,
   page,
@@ -174,15 +334,6 @@ export function CandidatesList({
     });
   }
 
-  const CHIPS: { key: CandidateFilterKey; label: string }[] = [
-    { key: "all", label: "Todos" },
-    { key: "active", label: TALENT_STATE_LABELS.active },
-    { key: "passive", label: TALENT_STATE_LABELS.passive },
-    { key: "contacted", label: TALENT_STATE_LABELS.contacted },
-    { key: "archived", label: TALENT_STATE_LABELS.archived },
-    { key: "duplicates", label: "Duplicados" },
-  ];
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -190,30 +341,52 @@ export function CandidatesList({
           key={query}
           filter={filter}
           initialQuery={query}
+          seniority={seniority ?? ""}
+          skill={skill}
+          completeness={completeness ?? ""}
         />
         <p className="text-sm text-muted">
           {visible.length} de {counts[filter]}
         </p>
       </div>
 
-      {/* Filter chips por estado operativo + duplicados */}
-      <FilterChipGroup label="Filtrar candidatos por estado">
-        {CHIPS.map((chip) => {
-          const n = counts[chip.key];
-          const isDup = chip.key === "duplicates";
-          return (
-            <FilterChip
-              key={chip.key}
-              href={buildCandidatesHref(chip.key, query, 1)}
-              active={filter === chip.key}
-              count={n}
-              tone={isDup && n > 0 ? "danger" : undefined}
-            >
-              {chip.label}
-            </FilterChip>
-          );
-        })}
-      </FilterChipGroup>
+      {/* Filter chips por estado operativo + duplicados, + filtros avanzados colapsados */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FilterChipGroup label="Filtrar candidatos por estado">
+          {CANDIDATE_STATUS_FILTERS.map((chip) => {
+            const n = counts[chip.key];
+            const isDup = chip.key === "duplicates";
+            return (
+              <FilterChip
+                key={chip.key}
+                href={buildCandidatesHref(
+                  chip.key,
+                  query,
+                  1,
+                  seniority ?? "",
+                  skill,
+                  completeness ?? "",
+                )}
+                active={filter === chip.key}
+                count={n}
+                tone={isDup && n > 0 ? "danger" : undefined}
+              >
+                {chip.label}
+              </FilterChip>
+            );
+          })}
+        </FilterChipGroup>
+        <div className="flex items-center gap-2">
+          <MatchearPoolDialog jobs={jobs} />
+          <MoreFiltersPopover
+            filter={filter}
+            query={query}
+            seniority={seniority ?? ""}
+            skill={skill}
+            completeness={completeness ?? ""}
+          />
+        </div>
+      </div>
 
       {/* Barra de selección (bulk postular) */}
       {selected.size > 0 && (
@@ -265,6 +438,9 @@ export function CandidatesList({
                 <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label md:table-cell">
                   Fuente
                 </th>
+                <th className="hidden py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label lg:table-cell">
+                  Completitud
+                </th>
                 <th className="py-2.5 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
                   Estado
                 </th>
@@ -313,6 +489,16 @@ export function CandidatesList({
                     </td>
                     <td className="hidden py-2.5 pr-3 text-muted md:table-cell">
                       {sourceLabel(candidate.source)}
+                    </td>
+                    <td className="hidden py-2.5 pr-3 lg:table-cell">
+                      {(() => {
+                        const c = completenessByCandidateId[candidate.id];
+                        return c ? (
+                          <CompletenessBadge percent={c.percent} faltantes={c.faltantes} />
+                        ) : (
+                          <span className="text-muted">—</span>
+                        );
+                      })()}
                     </td>
                     <td className="py-2.5 pr-3">
                       <Badge
@@ -389,7 +575,9 @@ export function CandidatesList({
       <Pagination
         page={page}
         totalPages={totalPages}
-        buildHref={(p) => buildCandidatesHref(filter, query, p)}
+        buildHref={(p) =>
+          buildCandidatesHref(filter, query, p, seniority ?? "", skill, completeness ?? "")
+        }
       />
 
       <QuickViewDrawer

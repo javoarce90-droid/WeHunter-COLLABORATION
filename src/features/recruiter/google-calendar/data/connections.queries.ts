@@ -11,6 +11,7 @@ export type GoogleCalendarConnection = {
   accessToken: string;
   refreshToken: string;
   expiresAt: Date;
+  scope: string | null;
 };
 
 export async function getConnectionByProfile(

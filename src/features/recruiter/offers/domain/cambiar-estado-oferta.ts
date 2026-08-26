@@ -24,6 +24,10 @@ export type CambiarEstadoDeps = {
    * con su evento) y cierra la búsqueda (job→closed). Atómico en la capa data.
    */
   acceptOffer: (offerId: string) => Promise<void>;
+  /** Solo se invoca al transicionar a "sent" — envía la carta por Gmail. Si falla, NO se
+   *  llama a `updateStatus`: el estado se queda donde estaba, no queda "sent" mintiendo que
+   *  salió. */
+  sendOfferEmail: (offerId: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 };
 
 export async function cambiarEstadoOferta(
@@ -54,6 +58,10 @@ export async function cambiarEstadoOferta(
   // Aceptar dispara los efectos colaterales (contratar + cerrar búsqueda).
   if (input.toStatus === "accepted") {
     await deps.acceptOffer(input.offerId);
+  } else if (input.toStatus === "sent") {
+    const sent = await deps.sendOfferEmail(input.offerId);
+    if (!sent.ok) return { ok: false, error: sent.error };
+    await deps.updateStatus(input.offerId, input.toStatus);
   } else {
     await deps.updateStatus(input.offerId, input.toStatus);
   }

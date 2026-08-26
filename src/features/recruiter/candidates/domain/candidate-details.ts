@@ -3,6 +3,8 @@
  * El input llega validado por Zod; acá normalizamos undefined/vacío → null para la capa data.
  */
 
+import type { JobSeniority } from "@/features/recruiter/jobs/domain/job-details";
+
 export type CandidateSource =
   | "manual"
   | "linkedin"
@@ -17,6 +19,7 @@ export interface CandidateDetailsInput {
   linkedinUrl?: string | null;
   summary?: string | null;
   skills?: string[] | null;
+  seniority?: JobSeniority | null;
   source?: CandidateSource | null;
   phone?: string | null;
 }
@@ -27,6 +30,7 @@ export interface CandidateDetails {
   linkedinUrl: string | null;
   summary: string | null;
   skills: string[] | null;
+  seniority: JobSeniority | null;
   source: CandidateSource | null;
   phone: string | null;
 }
@@ -40,6 +44,7 @@ export function normalizeCandidateDetails(input: CandidateDetailsInput): Candida
     linkedinUrl: clean(input.linkedinUrl),
     summary: clean(input.summary),
     skills: input.skills && input.skills.length ? input.skills : null,
+    seniority: input.seniority ?? null,
     source: input.source ?? null,
     phone: clean(input.phone),
   };

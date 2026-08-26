@@ -8,9 +8,10 @@ import { AiJobSourcingResults } from "../../sourcing/ui/AiJobSourcingResults";
 
 type Props = {
   jobId: string;
+  jobTitle: string;
 };
 
-export function SourcingIADialog({ jobId }: Props) {
+export function SourcingIADialog({ jobId, jobTitle }: Props) {
   const [open, setOpen] = useState(false);
   const [hasUnreviewedResults, setHasUnreviewedResults] = useState(false);
   const [confirmingClose, setConfirmingClose] = useState(false);
@@ -41,6 +42,7 @@ export function SourcingIADialog({ jobId }: Props) {
       >
         <AiJobSourcingResults
           jobId={jobId}
+          jobTitle={jobTitle}
           open={open}
           onUnreviewedResultsChange={setHasUnreviewedResults}
         />

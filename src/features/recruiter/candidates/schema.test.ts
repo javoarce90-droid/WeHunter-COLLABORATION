@@ -69,6 +69,25 @@ describe("candidateCreateInputSchema.email (obligatorio al cargar, a diferencia 
   });
 });
 
+describe("candidateInputSchema.seniority", () => {
+  it("acepta el campo ausente o vacío como sin especificar", () => {
+    const r1 = candidateInputSchema.safeParse({ fullName: "Ada" });
+    const r2 = candidateInputSchema.safeParse({ fullName: "Ada", seniority: "" });
+    expect(r1.success && r1.data.seniority).toBeUndefined();
+    expect(r2.success && r2.data.seniority).toBeUndefined();
+  });
+
+  it("acepta un valor válido del enum", () => {
+    const r = candidateInputSchema.safeParse({ fullName: "Ada", seniority: "senior" });
+    expect(r.success && r.data.seniority).toBe("senior");
+  });
+
+  it("rechaza un valor fuera del enum", () => {
+    const r = candidateInputSchema.safeParse({ fullName: "Ada", seniority: "master" });
+    expect(r.success).toBe(false);
+  });
+});
+
 describe("CV tipos/extensiones", () => {
   it("la extensión sale del MIME validado y los tipos permitidos derivan del mapa", () => {
     expect(CV_EXT_BY_TYPE["application/pdf"]).toBe(".pdf");

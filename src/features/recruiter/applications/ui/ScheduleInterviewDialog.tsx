@@ -17,6 +17,7 @@ type Props = {
   /** Sugerencia inicial de fecha/hora (ver `InterviewsSection`) — ej. el primer horario que
    *  propuso el Cliente/HM al pedir entrevista desde el shortlist. */
   defaultScheduledAt?: Date;
+  candidateEmail?: string | null;
 };
 
 /**
@@ -33,6 +34,7 @@ export function ScheduleInterviewDialog({
   teamMembers,
   onClose,
   defaultScheduledAt,
+  candidateEmail,
 }: Props) {
   return (
     <Dialog
@@ -50,6 +52,7 @@ export function ScheduleInterviewDialog({
           jobStages={jobStages}
           teamMembers={teamMembers}
           defaultScheduledAt={defaultScheduledAt}
+          candidateEmail={candidateEmail}
         />
       )}
     </Dialog>

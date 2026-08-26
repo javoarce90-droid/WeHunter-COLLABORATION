@@ -552,6 +552,7 @@ export const candidates = pgTable("candidates", {
   linkedinUrl: text("linkedin_url"),
   summary: text("summary"), // experiencia / bio en texto libre
   skills: text("skills").array(),
+  seniority: jobSeniority("seniority"), // nullable, reusa el mismo enum de Jobs/Requisitions
   source: candidateSource("source"),
   // Estado operativo en el pool (lifecycle del candidato, no de una postulación).
   talentState: talentState("talent_state").notNull().default("active"),
@@ -791,6 +792,55 @@ export const applications = pgTable("applications", {
   ),
 }));
 
+// Caché de "Matchear con IA" sobre el pool interno (sourcing interno, ver
+// matchear-pool-interno.ts): candidato todavía no postulado, así que no hay fila de
+// `applications` donde guardar el score. Un registro por par búsqueda+candidato — reintentar
+// el match para la misma búsqueda reusa esto en vez de volver a llamar a la IA, salvo que el
+// candidato o la búsqueda hayan cambiado desde que se calculó (ver *_updated_at snapshot).
+export const poolMatchResults = pgTable(
+  "pool_match_results",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    jobId: uuid("job_id")
+      .references(() => jobs.id, { onDelete: "cascade" })
+      .notNull(),
+    candidateId: uuid("candidate_id")
+      .references(() => candidates.id, { onDelete: "cascade" })
+      .notNull(),
+    score: integer("score").notNull(),
+    summary: text("summary").notNull(),
+    breakdown: jsonb("breakdown")
+      .$type<{
+        experiencia: number;
+        skillsTecnicos: number;
+        seniority: number;
+        idiomas: number;
+        ubicacion: number;
+      }>()
+      .notNull(),
+    strengths: text("strengths").array().notNull(),
+    redFlags: text("red_flags").array().notNull(),
+    // Snapshot de `updated_at` de la búsqueda y el candidato al momento de scorear. Si
+    // cualquiera de los dos avanzó desde entonces, el registro quedó desactualizado y se
+    // vuelve a scorear en vez de servirlo desde caché.
+    jobUpdatedAt: timestamp("job_updated_at").notNull(),
+    candidateUpdatedAt: timestamp("candidate_updated_at").notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    orgIdx: index("pool_match_results_org_idx").on(t.organizationId),
+    // Cache key (búsqueda, candidato) — también es el target del upsert: re-scorear pisa la
+    // fila anterior en vez de duplicar.
+    jobCandidateUnique: uniqueIndex("pool_match_results_job_candidate_unique").on(
+      t.jobId,
+      t.candidateId,
+    ),
+  }),
+);
+
 // Pregunta de screening definida por el recruiter para una búsqueda puntual (§6 backlog).
 // `options` solo aplica a type = 'multiple_choice'. `position` = orden de presentación al
 // candidato (orden de carga en el form, sin drag&drop todavía — mismo criterio que `benefits`).
@@ -900,6 +950,10 @@ export const googleCalendarConnections = pgTable("google_calendar_connections", 
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token").notNull(),
   expiresAt: timestamp("expires_at").notNull(),
+  // Scopes autorizados en el último consent (string separado por espacios, tal cual lo
+  // devuelve Google). null = conexión de antes de este campo — tratarla como "sin
+  // gmail.send" hasta que el usuario reconecte (ver hasGmailSendScope en oauth-client.ts).
+  scope: text("scope"),
   ...timestamps,
 }, (t) => ({
   uniqueMember: uniqueIndex("google_calendar_connections_profile_idx").on(
@@ -1261,6 +1315,7 @@ export type CandidateLanguage = typeof candidateLanguages.$inferSelect;
 export type LanguageLevel = (typeof languageLevel.enumValues)[number];
 export type CandidateJobInteraction = typeof candidateJobInteractions.$inferSelect;
 export type Application = typeof applications.$inferSelect;
+export type PoolMatchResultRow = typeof poolMatchResults.$inferSelect;
 export type ScreeningQuestion = typeof screeningQuestions.$inferSelect;
 export type ScreeningAnswer = typeof screeningAnswers.$inferSelect;
 export type Interview = typeof interviews.$inferSelect;

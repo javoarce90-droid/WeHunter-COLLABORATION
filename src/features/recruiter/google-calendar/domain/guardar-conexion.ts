@@ -7,6 +7,7 @@ export type GuardarConexionInput = {
   accessToken: string;
   refreshToken: string;
   expiresAt: Date;
+  scope: string | null;
 };
 
 export type GuardarConexionDeps = {

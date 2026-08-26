@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { editarCareerSiteAction } from "../actions";
+import { validarDimensionesPortada, COVER_MIN_WIDTH, COVER_MIN_HEIGHT } from "../domain/validar-portada";
 import type { OrgSettings } from "@/features/recruiter/settings/data/settings.queries";
 
 const fieldClass =
@@ -23,6 +24,7 @@ export function CareerSiteForm({
   const [state, dispatch, pending] = useActionState(editarCareerSiteAction, {});
   const coverRef = useRef<HTMLInputElement>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [coverError, setCoverError] = useState<string | null>(null);
   const logoRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const branding = org.branding;
@@ -70,7 +72,7 @@ export function CareerSiteForm({
             Sin portada
           </span>
         )}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <input
             ref={coverRef}
             type="file"
@@ -79,13 +81,35 @@ export function CareerSiteForm({
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
-              setCoverPreview(f ? URL.createObjectURL(f) : null);
+              if (!f) {
+                setCoverPreview(null);
+                setCoverError(null);
+                return;
+              }
+              const url = URL.createObjectURL(f);
+              const img = new Image();
+              img.onload = () => {
+                const check = validarDimensionesPortada(img.naturalWidth, img.naturalHeight);
+                if (!check.ok) {
+                  setCoverError(check.error);
+                  setCoverPreview(null);
+                  if (coverRef.current) coverRef.current.value = "";
+                  URL.revokeObjectURL(url);
+                  return;
+                }
+                setCoverError(null);
+                setCoverPreview(url);
+              };
+              img.src = url;
             }}
           />
           <Button type="button" variant="secondary" onClick={() => coverRef.current?.click()}>
             Cambiar portada
           </Button>
-          <span className="text-xs text-muted">PNG, JPG o WEBP · máx. 2 MB</span>
+          <span className="text-xs text-muted">
+            PNG, JPG o WEBP · máx. 2 MB · mínimo {COVER_MIN_WIDTH}×{COVER_MIN_HEIGHT}px
+          </span>
+          {coverError && <span className="text-xs font-medium text-danger">{coverError}</span>}
         </div>
       </div>
 

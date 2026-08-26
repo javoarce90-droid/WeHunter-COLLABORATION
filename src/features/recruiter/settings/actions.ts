@@ -12,7 +12,7 @@ import {
 } from "./schema";
 import { updateOwnProfile, updateOrganization, deleteOrganization } from "./data/settings.mutations";
 import { getOrganization } from "./data/settings.queries";
-import { uploadAvatar, uploadOrgLogo } from "./data/settings.storage";
+import { uploadAvatar } from "./data/settings.storage";
 import { editarIdentidadWorkspace } from "./domain/editar-identidad-workspace";
 import { eliminarWorkspace } from "./domain/eliminar-workspace";
 import type { OrgRole } from "./domain/editar-identidad-workspace";
@@ -100,17 +100,8 @@ export async function editarWorkspaceAction(
   const membership = await getActiveMembership();
   if (!membership) return { error: "No autorizado." };
 
-  const logoImage = readImage(formData.get("logo"));
-  if ("error" in logoImage) return { error: logoImage.error };
-
-  let logoPath: string | null = null;
-  if (logoImage.file) {
-    const { path } = await uploadOrgLogo(membership.organizationId, logoImage.file);
-    logoPath = path;
-  }
-
   const result = await editarIdentidadWorkspace(
-    { name: parsed.data.name, logoPath },
+    { name: parsed.data.name },
     { organizationId: membership.organizationId, role: membership.role as OrgRole },
     { updateOrganization },
   );

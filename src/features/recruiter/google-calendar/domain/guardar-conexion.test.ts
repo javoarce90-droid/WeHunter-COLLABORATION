@@ -9,6 +9,7 @@ const input: GuardarConexionInput = {
   accessToken: "access-1",
   refreshToken: "refresh-1",
   expiresAt: new Date(Date.now() + 3600_000),
+  scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.send",
 };
 
 const makeDeps = (overrides?: Partial<GuardarConexionDeps>): GuardarConexionDeps => ({

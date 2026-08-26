@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ContactForm } from "./ContactForm";
 import { LegalSection } from "./LegalSection";
 import { NoopLink } from "./NoopLink";
@@ -52,8 +53,7 @@ export function Footer() {
             <div className="footer-col">
               <div className="footer-col-t">Empleos</div>
               <NoopLink>Buscar Empleos</NoopLink>
-              {/* Oculto a propósito (temporal, hasta que la app esté productiva): que nadie
-                  se cree una cuenta fácil desde la landing pública. La ruta /c/register sigue viva. */}
+              <Link href="/c/register">Crear cuenta como candidato</Link>
             </div>
             <div className="footer-col">
               <div className="footer-col-t">Empresa</div>

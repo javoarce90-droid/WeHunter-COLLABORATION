@@ -1,20 +1,13 @@
 import { notFound } from "next/navigation";
-import { getActiveMembership } from "@/lib/auth/session";
+import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
-import {
-  listApplicationsByJob,
-  getJobStageCounts,
-  listStageEventsByJob,
-  type StageHistoryEvent,
-} from "@/features/recruiter/applications/data/applications.queries";
+import { getPipelineBoardData } from "@/features/recruiter/applications/data/applications.queries";
 import { listInterviewsByJob } from "@/features/recruiter/interviews/data/interviews.queries";
 import { listMembers } from "@/features/recruiter/team/data/team.queries";
-import { listNotesByJob, type TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
+import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
+import { hasGmailSendScope } from "@/features/recruiter/google-calendar/data/oauth-client";
+import type { TimelineNote } from "@/features/recruiter/notes/data/notes.queries";
 import { ensureJobStages } from "@/features/recruiter/pipeline-stages/data/job-stages.mutations";
-import {
-  listScreeningQuestionsByJob,
-  listScreeningAnswersByJob,
-} from "@/features/recruiter/screening/data/screening.queries";
 import { evaluarCriterios } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import type { CriteriosEvaluados } from "@/features/recruiter/screening/domain/evaluar-criterios";
 import type { ScreeningAnswerLine } from "@/features/recruiter/applications/ui/PostuladoDetailSheet";
@@ -30,36 +23,26 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
-/** Pestaña Pipeline. La cabecera (título + estado + breadcrumb) la pone el layout del workspace. */
+/** Pestaña Pipeline. La cabecera (título + estado + breadcrumb) la pone el layout del workspace.
+ *  `getPipelineBoardData` trae postulaciones + notas + screening + conteos en UNA sola
+ *  transacción (database.md #3). El historial de etapa NO se trae acá: solo lo usa el sheet
+ *  de detalle de UNA postulación puntual, se pide bajo demanda al abrirlo. */
 export default async function PipelinePage({ params }: Props) {
   const { id: jobId } = await params;
-  const membership = await getActiveMembership();
-  if (!membership) notFound();
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  if (!user || !membership) notFound();
 
-  const [
-    job,
-    applications,
-    interviews,
-    notes,
-    stages,
-    stageEvents,
-    members,
-    questions,
-    screeningAnswers,
-    counts,
-  ] = await Promise.all([
+  const [job, boardData, interviews, stages, members, googleConnection] = await Promise.all([
     getJobById(jobId, membership.organizationId),
-    listApplicationsByJob(jobId, membership.organizationId),
+    getPipelineBoardData(jobId, membership.organizationId),
     listInterviewsByJob(jobId, membership.organizationId),
-    listNotesByJob(jobId, membership.organizationId),
     ensureJobStages(jobId, membership.organizationId),
-    listStageEventsByJob(jobId, membership.organizationId),
     listMembers(membership.organizationId),
-    listScreeningQuestionsByJob(jobId, membership.organizationId),
-    listScreeningAnswersByJob(jobId, membership.organizationId),
-    getJobStageCounts(jobId, membership.organizationId),
+    getConnectionByProfile(user.id, membership.organizationId),
   ]);
   if (!job) notFound();
+
+  const { applications, notes, questions, answers: screeningAnswers, counts } = boardData;
 
   // Depende de `applications` (los candidateId), así que va después del Promise.all de
   // arriba — pero sigue siendo UNA sola query bulk para todo el tablero, no N+1.
@@ -87,13 +70,6 @@ export default async function PipelinePage({ params }: Props) {
     (acc[n.applicationId] ??= []).push(n);
     return acc;
   }, {});
-  const stageEventsByApplication = stageEvents.reduce<Record<string, StageHistoryEvent[]>>(
-    (acc, e) => {
-      (acc[e.applicationId] ??= []).push(e);
-      return acc;
-    },
-    {},
-  );
   const answersByApplication = new Map<string, Record<string, string>>();
   for (const a of screeningAnswers) {
     const bucket = answersByApplication.get(a.applicationId) ?? {};
@@ -125,12 +101,12 @@ export default async function PipelinePage({ params }: Props) {
       interviewsByApplication={interviewsByApplication}
       teamMembers={teamMembers}
       notesByApplication={notesByApplication}
-      stageEventsByApplication={stageEventsByApplication}
       criteriosByApplication={criteriosByApplication}
       screeningByApplication={screeningByApplication}
       tagsByCandidate={tagsByCandidate}
       stages={stages}
       canConfigureStages={can(membership.role, "stages.configure")}
+      canSendEmail={hasGmailSendScope(googleConnection)}
     />
   );
 }

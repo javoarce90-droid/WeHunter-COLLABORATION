@@ -18,6 +18,7 @@ import { pasarAlPipeline } from "./domain/pasar-al-pipeline";
 import { guardarEnTalentPool } from "./domain/guardar-en-talent-pool";
 import { rechazarPostulacion } from "./domain/rechazar-postulacion";
 import { puntuarPostulaciones } from "./domain/puntuar-postulaciones";
+import { personalizarMensaje } from "./domain/personalizar-mensaje";
 import {
   getJobForPipeline,
   getApplicationById,
@@ -27,7 +28,10 @@ import {
   listApplicationsForScoring,
   listCandidatesForApplications,
   listApplicationsByCandidate,
+  listStageEventsByApplication,
+  invalidateApplicationOptionsCache,
   type CandidateApplication,
+  type StageHistoryEvent,
 } from "./data/applications.queries";
 import {
   debeNotificarCandidato,
@@ -51,6 +55,7 @@ import { ensureJobStages } from "../pipeline-stages/data/job-stages.mutations";
 import { legacyStageFor } from "./domain/mover-a-etapa";
 import {
   getCandidateById,
+  getCandidateSummary,
   findDuplicateCandidate,
 } from "../candidates/data/candidates.queries";
 import { getCandidateResume } from "../candidates/data/resume.queries";
@@ -64,11 +69,13 @@ import { cargarCandidato } from "../candidates/domain/cargar-candidato";
 import type { DuplicateCandidateMatch } from "../candidates/domain/duplicate-keys";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
 import { enviarMensaje } from "../messaging/domain/enviar-mensaje";
+import { sendViaChannel } from "../messaging/data/gmail-send";
 import { MESSAGE_CHANNELS } from "../messaging/schema";
 import {
   ensureThread,
   recordOutbound,
 } from "../messaging/data/messaging.mutations";
+import { getConnectionByProfile } from "../google-calendar/data/connections.queries";
 import { insertNote } from "../notes/data/notes.mutations";
 import { getAiProvider } from "@/lib/ai";
 
@@ -311,6 +318,7 @@ export async function importarSourcingResultadoAction(input: {
           linkedinUrl: parsed.data.linkedinUrl,
           summary: parsed.data.summary ?? null,
           skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
+          seniority: null,
           source: "linkedin",
           phone: null,
         })
@@ -401,6 +409,7 @@ export async function moverEtapaAction(
     }
   }
 
+  invalidateApplicationOptionsCache(result.data.jobId, membership.organizationId);
   revalidatePath(`/jobs/${result.data.jobId}/pipeline`);
   revalidatePath(`/jobs/${result.data.jobId}/postulados`);
   return {};
@@ -481,6 +490,7 @@ export async function moverAEtapaAction(
     }
   }
 
+  invalidateApplicationOptionsCache(application.jobId, membership.organizationId);
   revalidatePath(`/jobs/${application.jobId}/pipeline`);
   revalidatePath(`/jobs/${application.jobId}/postulados`);
   return {};
@@ -753,6 +763,7 @@ export async function pasarAlPipelineAction(input: {
     }
   }
 
+  invalidateApplicationOptionsCache(jobId, membership.organizationId);
   revalidatePath(`/jobs/${jobId}/postulados`);
   revalidatePath(`/jobs/${jobId}/pipeline`);
   return { ok: true, hechas, saltadas };
@@ -849,6 +860,7 @@ export async function contactarPostuladosAction(input: {
   jobId: string;
   applicationIds: string[];
   channel: string;
+  subject: string;
   body: string;
 }): Promise<AccionMasivaResult> {
   const parsed = accionMasivaSchema
@@ -856,6 +868,7 @@ export async function contactarPostuladosAction(input: {
       channel: z.enum(MESSAGE_CHANNELS, {
         errorMap: () => ({ message: "Canal inválido." }),
       }),
+      subject: z.string().trim().min(1, "Escribí el asunto."),
       body: z.string().trim().min(1, "Escribí el mensaje."),
     })
     .safeParse(input);
@@ -865,7 +878,7 @@ export async function contactarPostuladosAction(input: {
       error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
     };
   }
-  const { jobId, applicationIds, channel, body } = parsed.data;
+  const { jobId, applicationIds, channel, subject, body } = parsed.data;
 
   const [user, membership] = await Promise.all([
     getCurrentUser(),
@@ -882,6 +895,10 @@ export async function contactarPostuladosAction(input: {
     org,
   );
 
+  // Se resuelve una sola vez, no por candidato (N+1 — database.md #6). Solo se usa para el
+  // canal email; whatsapp la ignora.
+  const googleConnection = user ? await getConnectionByProfile(user.id, org) : null;
+
   let hechas = 0;
   let saltadas = applicationIds.length - destinatarios.length;
   let firstError: string | undefined;
@@ -891,13 +908,15 @@ export async function contactarPostuladosAction(input: {
       {
         candidateId: candidate.id,
         channel,
-        body: personalizeMessage(body, candidate.fullName, job.title),
+        subject: personalizarMensaje(subject, { candidato: candidate.fullName, puesto: job.title }),
+        body: personalizarMensaje(body, { candidato: candidate.fullName, puesto: job.title }),
       },
       { organizationId: org, role: membership.role },
       {
         getCandidate: async () => candidate,
         ensureThread: (cId, ch) => ensureThread(org, cId, ch),
-        recordOutbound: (threadId, b) => recordOutbound(org, threadId, b),
+        send: (ch, to, subj, b) => sendViaChannel(ch, to, subj, b, googleConnection),
+        recordOutbound: (threadId, b, externalId) => recordOutbound(org, threadId, b, externalId),
       },
     );
     if (res.ok) hechas += 1;
@@ -933,20 +952,9 @@ export type RechazarPostulacionesInput = {
   reason: RejectionReason;
   note?: string;
   notifyCandidate: boolean;
+  subject?: string;
   message?: string;
 };
-
-/** Reemplaza {{candidato}} y {{puesto}} en el mensaje editable. Cada candidato del lote
- *  recibe su propio nombre; el puesto es el mismo para todo el job. */
-function personalizeMessage(
-  template: string,
-  candidateName: string,
-  jobTitle: string,
-): string {
-  return template
-    .replaceAll("{{candidato}}", candidateName)
-    .replaceAll("{{puesto}}", jobTitle);
-}
 
 /**
  * Rechaza una o varias postulaciones de una (sirve tanto para el rechazo individual como
@@ -972,7 +980,7 @@ export async function rechazarVariosAction(
       error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
     };
   }
-  const { jobId, applicationIds, reason, note, notifyCandidate, message } =
+  const { jobId, applicationIds, reason, note, notifyCandidate, subject, message } =
     parsed.data;
 
   const [user, membership] = await Promise.all([
@@ -996,6 +1004,12 @@ export async function rechazarVariosAction(
     ? await getJobById(jobId, membership.organizationId)
     : null;
 
+  // Se resuelve una sola vez, no por candidato (N+1 — database.md #6).
+  const googleConnection =
+    notifyCandidate && user
+      ? await getConnectionByProfile(user.id, membership.organizationId)
+      : null;
+
   let rejected = 0;
   let skipped = 0;
   let notified = 0;
@@ -1011,22 +1025,24 @@ export async function rechazarVariosAction(
     }
     rejected += 1;
 
-    if (notifyCandidate && job && message) {
+    if (notifyCandidate && job && subject && message) {
       const candidate = await getCandidateById(
         res.data.candidateId,
         membership.organizationId,
       );
       if (!candidate) continue;
-      const body = personalizeMessage(message, candidate.fullName, job.title);
+      const mailSubject = personalizarMensaje(subject, { candidato: candidate.fullName, puesto: job.title });
+      const body = personalizarMensaje(message, { candidato: candidate.fullName, puesto: job.title });
       const sent = await enviarMensaje(
-        { candidateId: candidate.id, channel: "email", body },
+        { candidateId: candidate.id, channel: "email", subject: mailSubject, body },
         { organizationId: membership.organizationId, role: membership.role },
         {
           getCandidate: getCandidateById,
           ensureThread: (cId, ch) =>
             ensureThread(membership.organizationId, cId, ch),
-          recordOutbound: (threadId, b) =>
-            recordOutbound(membership.organizationId, threadId, b),
+          send: (ch, to, subj, b) => sendViaChannel(ch, to, subj, b, googleConnection),
+          recordOutbound: (threadId, b, externalId) =>
+            recordOutbound(membership.organizationId, threadId, b, externalId),
         },
       );
       if (sent.ok) notified += 1;
@@ -1053,6 +1069,7 @@ export async function rechazarVariosAction(
     }
   }
 
+  invalidateApplicationOptionsCache(jobId, membership.organizationId);
   revalidatePath(`/jobs/${jobId}/postulados`);
   revalidatePath(`/jobs/${jobId}/pipeline`);
   return {
@@ -1064,55 +1081,50 @@ export async function rechazarVariosAction(
 }
 
 export type FichaCandidatoData = {
-  candidate: {
-    email: string | null;
-    phone: string | null;
-    location: string | null;
-    linkedinUrl: string | null;
-    summary: string | null;
-    skills: string[] | null;
-    cvUrl: string | null;
-  };
+  /** Bio/resumen del candidato — el único campo que el sheet no recibe ya por props (el
+   *  resto — email, teléfono, ubicación, skills, CV, LinkedIn — viene en `PostuladoRow.candidate`,
+   *  ya cargado por `listPostulados`/`listApplicationsByJob`; pedirlo de nuevo acá sería
+   *  redundante). */
+  candidateSummary: string | null;
   resume: Awaited<ReturnType<typeof getCandidateResume>>;
   otherApplications: CandidateApplication[];
+  /** Historial de etapa de ESTA postulación puntual — se pide acá, no por job, por el mismo
+   *  motivo que el resto de esta acción (database.md #6/#7). */
+  stageEvents: StageHistoryEvent[];
 };
 
 /**
- * Datos "profundos" de un candidato para la pestaña Perfil/Postulaciones de su ficha
- * (abierta desde "Ver detalle" en Postulados) — a diferencia de notas/historial, que ya
- * llegan precargados por job (ver postulados/page.tsx), esto se pide bajo demanda recién
- * cuando se abre la ficha: es más pesado (currículum completo) y la mayoría de las filas de
- * la bandeja nunca llegan a abrirse (database.md #6/#7).
+ * Datos "profundos" de una postulación para la pestaña Perfil/Postulaciones/Historial de su
+ * ficha (abierta desde "Ver detalle" en Postulados/Pipeline) — se piden bajo demanda recién
+ * cuando se abre la ficha: son más pesados (currículum completo, historial) y la mayoría de
+ * las filas del tablero/bandeja nunca llegan a abrirse (database.md #6/#7). Las notas SÍ
+ * siguen llegando precargadas por props (se muestran también como contador en Pipeline y
+ * tienen su propio flujo de alta con revalidación de página — moverlas acá rompería que se
+ * vean al instante después de agregar una).
  */
 export async function getFichaCandidatoAction(
   candidateId: string,
+  applicationId: string,
 ): Promise<
   { ok: true; data: FichaCandidatoData } | { ok: false; error: string }
 > {
   const membership = await getActiveMembership();
   if (!membership) return { ok: false, error: "No autorizado." };
 
-  const [candidate, resume, otherApplications] = await Promise.all([
-    getCandidateById(candidateId, membership.organizationId),
+  const [candidateSummary, resume, otherApplications, stageEvents] = await Promise.all([
+    getCandidateSummary(candidateId, membership.organizationId),
     getCandidateResume(candidateId),
     listApplicationsByCandidate(candidateId, membership.organizationId),
+    listStageEventsByApplication(applicationId, membership.organizationId),
   ]);
-  if (!candidate) return { ok: false, error: "Candidato no encontrado." };
 
   return {
     ok: true,
     data: {
-      candidate: {
-        email: candidate.email,
-        phone: candidate.phone,
-        location: candidate.location,
-        linkedinUrl: candidate.linkedinUrl,
-        summary: candidate.summary,
-        skills: candidate.skills,
-        cvUrl: candidate.cvUrl,
-      },
+      candidateSummary,
       resume,
       otherApplications,
+      stageEvents,
     },
   };
 }

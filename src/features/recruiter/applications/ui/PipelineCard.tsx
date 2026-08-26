@@ -5,7 +5,7 @@ import { useDraggable } from "@dnd-kit/core";
 import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
 import { AiScore, SparkleIcon } from "@/components/ui/ai";
-import { Menu, MenuItem } from "@/components/ui/menu";
+import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { JobStage } from "@/features/recruiter/pipeline-stages/schema";
@@ -24,6 +24,8 @@ type Props = {
   onOpen: (applicationId: string) => void;
   /** Analiza esta postulación puntual con IA. Se omite (no se muestra el botón) si no se pasa. */
   onAnalizar?: (applicationId: string) => void;
+  onAddToShortlist: (applicationId: string) => void;
+  onCreateOffer: (applicationId: string) => void;
   onScheduleInterview: (applicationId: string) => void;
   onSendEmail: (applicationId: string) => void;
   onSendWhatsapp: (applicationId: string) => void;
@@ -56,6 +58,8 @@ export function PipelineCard({
   onMoveStage,
   onOpen,
   onAnalizar,
+  onAddToShortlist,
+  onCreateOffer,
   onScheduleInterview,
   onSendEmail,
   onSendWhatsapp,
@@ -186,6 +190,12 @@ export function PipelineCard({
               }
             >
               <MenuItem onClick={() => onOpen(application.id)}>Ver ficha</MenuItem>
+              <MenuSeparator />
+              <MenuItem onClick={() => onAddToShortlist(application.id)}>
+                Agregar a shortlist
+              </MenuItem>
+              <MenuItem onClick={() => onCreateOffer(application.id)}>Crear oferta</MenuItem>
+              <MenuSeparator />
               {application.aiScore != null && onAnalizar && (
                 <MenuItem onClick={() => onAnalizar(application.id)}>
                   Re-analizar con IA

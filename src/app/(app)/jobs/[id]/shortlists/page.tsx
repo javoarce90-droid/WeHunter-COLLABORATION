@@ -21,11 +21,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ candidate?: string }>;
 }
 
 /** Pestaña Shortlists. La cabecera del workspace la pone el layout. */
-export default async function ShortlistsPage({ params }: Props) {
+export default async function ShortlistsPage({ params, searchParams }: Props) {
   const { id: jobId } = await params;
+  const { candidate } = await searchParams;
   const membership = await getActiveMembership();
   if (!membership) notFound();
 
@@ -58,8 +60,15 @@ export default async function ShortlistsPage({ params }: Props) {
   const candidateOptions = applications.map((a) => ({
     applicationId: a.id,
     fullName: a.candidateFullName,
-    stage: STAGE_LABELS[a.stage],
+    // Nombre real de la etapa de ESTA búsqueda (job_stages, configurable por el recruiter) —
+    // no el enum fijo, que puede no tener nada que ver con las etapas que tiene este job.
+    stage: a.stageName ?? STAGE_LABELS[a.stage],
   }));
+
+  // Solo precargamos si el ?candidate llegado (ej. desde el menú del pipeline) es de este job.
+  const preselectedApplicationId = candidateOptions.some((c) => c.applicationId === candidate)
+    ? candidate
+    : undefined;
 
   // Compartir con HM solo existe en Enterprise (§9) — ahí es donde el rol tiene sentido.
   const hmOptions =
@@ -99,7 +108,11 @@ export default async function ShortlistsPage({ params }: Props) {
         <p className="max-w-[60ch] text-sm text-muted">
           Compartí una selección de candidatos con la empresa por un enlace seguro.
         </p>
-        <CrearShortlistForm jobId={jobId} candidates={candidateOptions} />
+        <CrearShortlistForm
+          jobId={jobId}
+          candidates={candidateOptions}
+          preselectedApplicationId={preselectedApplicationId}
+        />
       </div>
 
       {shortlists.length === 0 ? (
@@ -116,6 +129,7 @@ export default async function ShortlistsPage({ params }: Props) {
               jobId={jobId}
               jobTitle={job.title}
               name={sl.name}
+              createdAt={sl.createdAt}
               candidates={sl.candidates}
               shares={sl.shares}
               appUrl={appUrl}

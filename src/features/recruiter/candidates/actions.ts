@@ -40,7 +40,20 @@ import {
   getCandidateById,
   findDuplicateCandidate,
   findExistingEmails,
+  listCandidatesForPoolMatch,
+  invalidateCandidateOptionsCache,
 } from "./data/candidates.queries";
+import { getCandidateResume } from "./data/resume.queries";
+import { getJobById } from "../jobs/data/jobs.queries";
+import { getAiProvider } from "@/lib/ai";
+import {
+  matchearPoolConBusqueda,
+  POOL_MATCH_MAX_CANDIDATES,
+  type PoolMatchResult,
+  type PoolMatchCache,
+} from "../sourcing/domain/matchear-pool-interno";
+import { getCachedPoolMatches } from "./data/pool-match-cache.queries";
+import { savePoolMatchResults } from "./data/pool-match-cache.mutations";
 import { parseCandidatesFile } from "./data/candidates-import.data";
 import { findTagByName } from "./data/tags.queries";
 import { insertTag, linkCandidateTag, unlinkCandidateTag } from "./data/tags.mutations";
@@ -51,9 +64,17 @@ import {
 } from "./data/candidates.storage";
 import {
   insertExperience,
+  updateExperience,
+  deleteExperience,
   insertEducation,
+  updateEducation,
+  deleteEducation,
   insertCertification,
+  updateCertification,
+  deleteCertification,
   insertLanguage,
+  updateLanguage,
+  deleteLanguage,
 } from "@/features/candidate/profile/data/resume.mutations";
 
 export interface CandidateFormState {
@@ -62,88 +83,118 @@ export interface CandidateFormState {
   profileMatch?: true;
 }
 
+/** Parsea el JSON de una sección de currículum del form. Nunca tira: JSON inválido o algo
+ *  que no sea un array se trata como "sin items" (no rompe el guardado del resto del form). */
+function parseResumeItems(raw: FormDataEntryValue | null): Record<string, unknown>[] {
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Los items nuevos (agregados en esta sesión de edición, sin guardar todavía) llegan con
+ *  este id temporal — ver CandidateResumeFields.tsx. Todo lo demás ya existe en la base. */
+function isNewResumeItem(item: Record<string, unknown>): boolean {
+  return typeof item.id === "string" && item.id.startsWith("temp-");
+}
+
+/**
+ * Sincroniza una sección de currículum (experiencia/educación/certificaciones/idiomas) contra
+ * lo que el reclutador dejó armado en el form: borra lo que ya no está, actualiza lo que sigue
+ * (edición in-place) e inserta lo nuevo. El form siempre manda la lista COMPLETA de la sección
+ * (no solo lo que cambió) — sin este diff contra `current`, cada guardado del candidato
+ * reinsertaba TODO de nuevo (bug: cargar 1 estudio y guardar dos veces lo duplicaba).
+ */
+async function syncResumeSection<T extends { id: string }>(
+  current: T[],
+  submitted: Record<string, unknown>[],
+  isValid: (item: Record<string, unknown>) => boolean,
+  deleteOne: (id: string) => Promise<unknown>,
+  insertOne: (fields: Record<string, unknown>) => Promise<unknown>,
+  updateOne: (id: string, fields: Record<string, unknown>) => Promise<unknown>,
+  toFields: (item: Record<string, unknown>) => Record<string, unknown>,
+) {
+  const keptIds = new Set(
+    submitted.filter((item) => !isNewResumeItem(item)).map((item) => item.id as string),
+  );
+  await Promise.all(
+    current.filter((item) => !keptIds.has(item.id)).map((item) => deleteOne(item.id)),
+  );
+
+  for (const item of submitted) {
+    if (!isValid(item)) continue;
+    if (isNewResumeItem(item)) {
+      await insertOne(toFields(item));
+    } else {
+      await updateOne(item.id as string, toFields(item));
+    }
+  }
+}
+
 async function saveCandidateResumeItems(candidateId: string, formData: FormData) {
   const owner = { kind: "candidate" as const, candidateId };
+  const current = await getCandidateResume(candidateId);
 
-  const experiencesRaw = formData.get("experiencesJson");
-  if (typeof experiencesRaw === "string" && experiencesRaw.trim()) {
-    try {
-      const items = JSON.parse(experiencesRaw);
-      if (Array.isArray(items)) {
-        for (const item of items) {
-          if (item.company && item.position) {
-            await insertExperience(owner, {
-              company: String(item.company),
-              position: String(item.position),
-              startDate: item.startDate || null,
-              endDate: item.endDate || null,
-              description: item.description || null,
-              employmentType: item.employmentType || null,
-              modality: item.modality || null,
-              skills: Array.isArray(item.skills) ? item.skills : null,
-            });
-          }
-        }
-      }
-    } catch {}
-  }
+  await syncResumeSection(
+    current.experiences,
+    parseResumeItems(formData.get("experiencesJson")),
+    (item) => Boolean(item.company && item.position),
+    (id) => deleteExperience(id, owner),
+    (fields) => insertExperience(owner, fields as never),
+    (id, fields) => updateExperience(id, owner, fields as never),
+    (item) => ({
+      company: String(item.company),
+      position: String(item.position),
+      startDate: item.startDate || null,
+      endDate: item.endDate || null,
+      description: item.description || null,
+      employmentType: item.employmentType || null,
+      modality: item.modality || null,
+      skills: Array.isArray(item.skills) ? item.skills : null,
+    }),
+  );
 
-  const educationRaw = formData.get("educationJson");
-  if (typeof educationRaw === "string" && educationRaw.trim()) {
-    try {
-      const items = JSON.parse(educationRaw);
-      if (Array.isArray(items)) {
-        for (const item of items) {
-          if (item.institution && item.degree) {
-            await insertEducation(owner, {
-              institution: String(item.institution),
-              degree: String(item.degree),
-              fieldOfStudy: item.fieldOfStudy || null,
-              startDate: item.startDate || null,
-              endDate: item.endDate || null,
-              description: item.description || null,
-              grade: item.grade || null,
-              activities: item.activities || null,
-            });
-          }
-        }
-      }
-    } catch {}
-  }
+  await syncResumeSection(
+    current.education,
+    parseResumeItems(formData.get("educationJson")),
+    (item) => Boolean(item.institution && item.degree),
+    (id) => deleteEducation(id, owner),
+    (fields) => insertEducation(owner, fields as never),
+    (id, fields) => updateEducation(id, owner, fields as never),
+    (item) => ({
+      institution: String(item.institution),
+      degree: String(item.degree),
+      fieldOfStudy: item.fieldOfStudy || null,
+      startDate: item.startDate || null,
+      endDate: item.endDate || null,
+      description: item.description || null,
+      grade: item.grade || null,
+      activities: item.activities || null,
+    }),
+  );
 
-  const certsRaw = formData.get("certificationsJson");
-  if (typeof certsRaw === "string" && certsRaw.trim()) {
-    try {
-      const items = JSON.parse(certsRaw);
-      if (Array.isArray(items)) {
-        for (const item of items) {
-          if (item.name) {
-            await insertCertification(owner, {
-              name: String(item.name),
-              url: item.url || null,
-            });
-          }
-        }
-      }
-    } catch {}
-  }
+  await syncResumeSection(
+    current.certifications,
+    parseResumeItems(formData.get("certificationsJson")),
+    (item) => Boolean(item.name),
+    (id) => deleteCertification(id, owner),
+    (fields) => insertCertification(owner, fields as never),
+    (id, fields) => updateCertification(id, owner, fields as never),
+    (item) => ({ name: String(item.name), url: item.url || null }),
+  );
 
-  const languagesRaw = formData.get("languagesJson");
-  if (typeof languagesRaw === "string" && languagesRaw.trim()) {
-    try {
-      const items = JSON.parse(languagesRaw);
-      if (Array.isArray(items)) {
-        for (const item of items) {
-          if (item.language && item.level) {
-            await insertLanguage(owner, {
-              language: String(item.language),
-              level: String(item.level),
-            });
-          }
-        }
-      }
-    } catch {}
-  }
+  await syncResumeSection(
+    current.languages,
+    parseResumeItems(formData.get("languagesJson")),
+    (item) => Boolean(item.language && item.level),
+    (id) => deleteLanguage(id, owner),
+    (fields) => insertLanguage(owner, fields as never),
+    (id, fields) => updateLanguage(id, owner, fields as never),
+    (item) => ({ language: String(item.language), level: String(item.level) }),
+  );
 }
 
 export async function cambiarEstadoTalentoAction(
@@ -242,6 +293,7 @@ function candidateFormFields(formData: FormData) {
     linkedinUrl: formData.get("linkedinUrl"),
     summary: formData.get("summary"),
     skills: formData.get("skills"),
+    seniority: formData.get("seniority"),
     source: formData.get("source"),
   };
 }
@@ -310,6 +362,7 @@ export async function cargarCandidatoAction(
   if (!result.ok) {
     return { error: result.error, duplicate: result.duplicate, profileMatch: result.profileMatch };
   }
+  if (membership) invalidateCandidateOptionsCache(membership.organizationId);
 
   await saveCandidateResumeItems(result.data.candidateId, formData);
 
@@ -461,7 +514,65 @@ export async function importarCandidatosMasivoAction(
     { findExistingEmails, insertCandidatesBatch },
   );
   if (!result.ok) return { error: result.error };
+  if (membership) invalidateCandidateOptionsCache(membership.organizationId);
 
   revalidatePath("/candidates");
   return { ok: true, ...result.data };
+}
+
+// ---- Matchear pool con IA contra una búsqueda (sourcing interno) ----
+
+/**
+ * Elige una búsqueda y matchea con IA hasta `POOL_MATCH_MAX_CANDIDATES` candidatos del pool
+ * interno ya prefiltrados por skills/seniority del puesto (`listCandidatesForPoolMatch`) —
+ * mismo contrato de IA que Postulados y Sourcing externo, ver `matchear-pool-interno.ts`.
+ */
+export async function matchearPoolConBusquedaAction(jobId: string): Promise<{
+  ok: boolean;
+  results?: PoolMatchResult[];
+  poolFiltrado?: number;
+  error?: string;
+}> {
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { ok: false, error: "Tu rol no permite usar sourcing." };
+  }
+
+  const job = await getJobById(jobId, membership.organizationId);
+  if (!job) return { ok: false, error: "Búsqueda no encontrada." };
+
+  const candidatos = await listCandidatesForPoolMatch(
+    membership.organizationId,
+    { skills: job.skills, seniority: job.seniority },
+    POOL_MATCH_MAX_CANDIDATES,
+  );
+  if (candidatos.length === 0) {
+    return { ok: false, error: "No hay candidatos en el pool que matcheen con esta búsqueda." };
+  }
+
+  const provider = getAiProvider();
+  const cache: PoolMatchCache = {
+    getCached: (jobId, candidateIds) =>
+      getCachedPoolMatches(membership.organizationId, jobId, candidateIds),
+    save: (jobId, jobUpdatedAt, entries) =>
+      savePoolMatchResults(membership.organizationId, jobId, jobUpdatedAt, entries),
+  };
+  const results = await matchearPoolConBusqueda(
+    {
+      id: job.id,
+      updatedAt: job.updatedAt,
+      title: job.title,
+      position: job.position,
+      skills: job.skills,
+      objectives: job.objectives,
+      requirements: job.requirements,
+      responsibilities: job.responsibilities,
+    },
+    candidatos,
+    provider,
+    cache,
+  );
+
+  return { ok: true, results, poolFiltrado: candidatos.length };
 }

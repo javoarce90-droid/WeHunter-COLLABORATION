@@ -58,6 +58,7 @@ export async function GET(request: Request) {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         expiresAt: new Date(tokens.expiry_date),
+        scope: tokens.scope ?? null,
       },
       { upsertConnection },
     );
