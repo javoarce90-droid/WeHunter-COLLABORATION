@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   crearOrganizationAction,
   type OnboardingFormState,
@@ -23,6 +23,12 @@ export function CreateOrganizationForm({
     initialState,
   );
   const [uso, setUso] = useState<WorkspaceType | null>(null);
+
+  // Navegación en el cliente al terminar (ver comentario en crearOrganizationAction). Hard
+  // nav para que el shell de `(app)` cargue con la nueva membership desde cero.
+  useEffect(() => {
+    if (state.ok) window.location.assign("/dashboard");
+  }, [state.ok]);
 
   return (
     <Card>
@@ -59,8 +65,8 @@ export function CreateOrganizationForm({
           </div>
 
           {state.error && <p className="text-xs text-danger">{state.error}</p>}
-          <Button type="submit" disabled={pending || uso === null}>
-            {pending ? "Creando…" : "Crear workspace"}
+          <Button type="submit" disabled={pending || state.ok || uso === null}>
+            {pending || state.ok ? "Creando…" : "Crear workspace"}
           </Button>
         </form>
       </CardContent>
