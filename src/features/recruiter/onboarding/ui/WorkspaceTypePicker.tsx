@@ -3,10 +3,8 @@
 import { Badge } from "@/components/ui/badge";
 import type { WorkspaceType } from "../schema";
 
-/** Por ahora solo Freelancer está habilitado para crear workspace (backlog QA ago 2026).
- *  Único lugar donde se define esta lista — CreateOrganizationForm (alta inicial) y
- *  WorkspaceSwitcher (crear un workspace adicional) comparten este componente para que un
- *  cambio acá no pueda volver a quedar aplicado en un solo lugar y no en el otro. */
+/** Enterprise todavía no es autogestionado (es contacto comercial). Freelancer y Teams sí.
+ *  Único lugar donde se define esta lista. */
 export const WORKSPACE_USOS: {
   type: WorkspaceType;
   label: string;
@@ -21,8 +19,7 @@ export const WORKSPACE_USOS: {
   {
     type: "team",
     label: "Trabajo en un equipo de Recruiting",
-    detail: "Consultora o área de Talent Acquisition.",
-    comingSoon: true,
+    detail: "Consultora o área de Talent Acquisition, hasta 5 personas.",
   },
   {
     type: "enterprise",
@@ -36,15 +33,19 @@ export function WorkspaceTypePicker({
   value,
   onChange,
   ariaLabel,
+  prices = {},
 }: {
   value: WorkspaceType | null;
   onChange: (type: WorkspaceType) => void;
   ariaLabel: string;
+  /** Etiqueta de precio por tipo de workspace (tabla `plans`). Ej: { freelance: "USD 29,99" }. */
+  prices?: Partial<Record<WorkspaceType, string>>;
 }) {
   return (
     <div role="radiogroup" aria-label={ariaLabel} className="flex flex-col gap-2">
       {WORKSPACE_USOS.map((o) => {
         const active = value === o.type;
+        const price = prices[o.type];
         return (
           <button
             key={o.type}
@@ -63,17 +64,17 @@ export function WorkspaceTypePicker({
                   : "border-border bg-surface hover:border-primary/40",
             ].join(" ")}
           >
-            <span className="flex items-center gap-2">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className={`text-sm font-semibold ${active ? "text-primary-hover" : "text-text"}`}>
                 {o.label}
               </span>
               {o.comingSoon && <Badge variant="muted">Próximamente</Badge>}
-              {o.type === "freelance" && (
-                <span className="text-xs font-semibold">
-                  <span className="text-muted line-through">$59.999</span>{" "}
-                  <span className="text-success">$49.999</span>
+              {!o.comingSoon && price ? (
+                <span className="text-xs font-semibold text-text">
+                  {price}
+                  <span className="font-medium text-muted">/mes · 14 días gratis</span>
                 </span>
-              )}
+              ) : null}
             </span>
             <span className="mt-1 block text-xs text-muted">{o.detail}</span>
           </button>

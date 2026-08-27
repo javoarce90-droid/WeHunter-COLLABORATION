@@ -1,4 +1,4 @@
-import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
+import { STAGE_LABELS, type ApplicationStage } from "@/features/recruiter/applications/schema";
 import { STAGE_DOT } from "@/features/recruiter/applications/ui/stage-visual";
 import { SectionCard } from "@/components/ui/section-card";
 import type { JobPerformance } from "../domain/job-performance";
@@ -14,7 +14,15 @@ function formatDays(days: number): string {
  * Las métricas se basan solo en postulaciones con historial registrado — lo decimos
  * explícitamente para no dar una falsa sensación de completitud.
  */
-export function StageTiming({ perf }: { perf: JobPerformance }) {
+export function StageTiming({
+  perf,
+  labels,
+}: {
+  perf: JobPerformance;
+  /** Nombres de etapa reales de la búsqueda (de `job_stages`); sin esto se usa el label
+   *  genérico del enum. */
+  labels?: Partial<Record<ApplicationStage, string>>;
+}) {
   const { timeToHireDays, avgTimeInStage, trackedCount } = perf;
 
   return (
@@ -60,14 +68,17 @@ export function StageTiming({ perf }: { perf: JobPerformance }) {
                 // para esa etapa) no agrega nada a la fila (PRODUCT.md: "confianza sin
                 // ceremonia", no confirma que todo está bien, solo avisa cuando no lo está).
                 const overSla = s.slaDays != null && s.days > s.slaDays;
+                const label = labels?.[s.stage] ?? STAGE_LABELS[s.stage];
                 return (
-                  <div key={s.stage} className="flex items-center gap-2.5 text-sm">
+                  <div key={s.stage} className="flex items-center gap-3 text-sm">
                     <span
                       className="h-2 w-2 shrink-0 rounded-full"
                       style={{ background: STAGE_DOT[s.stage] }}
                       aria-hidden
                     />
-                    <span className="flex-1 text-text">{STAGE_LABELS[s.stage]}</span>
+                    <span className="min-w-0 flex-1 truncate text-text" title={label}>
+                      {label}
+                    </span>
                     {overSla && (
                       <span className="text-xs font-semibold text-warning">
                         Supera el SLA de {s.slaDays} d

@@ -92,7 +92,7 @@ export function ComparativeTable() {
                 <span className="check-icon">✓</span>
               </td>
               <td>
-                <span className="cross-icon">✕</span>
+                <span className="check-icon">✓</span>
               </td>
               <td>
                 <span className="cross-icon">✕</span>

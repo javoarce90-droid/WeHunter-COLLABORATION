@@ -40,6 +40,9 @@ export interface ActiveMembership {
    *  — el widget flotante y el checklist de Inicio dejan de consultarse una vez que esto se
    *  setea (evita recalcular progreso en cada navegación). */
   organizationSetupCompletedAt: Date | null;
+  /** Cuándo se creó el workspace — arranque del período de prueba de 15 días mientras no
+   *  exista fila en `subscriptions` (ver features/recruiter/billing). */
+  organizationCreatedAt: Date;
 }
 
 /**
@@ -77,6 +80,7 @@ export const getMyMemberships = cache(async (): Promise<ActiveMembership[]> => {
           assignedClientId: memberships.assignedClientId,
           workspaceType: organizations.workspaceType,
           organizationSetupCompletedAt: organizations.setupChecklistCompletedAt,
+          organizationCreatedAt: organizations.createdAt,
         })
         .from(memberships)
         .innerJoin(organizations, eq(memberships.organizationId, organizations.id))

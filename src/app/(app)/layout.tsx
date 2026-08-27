@@ -17,6 +17,9 @@ import {
   NotificationBellFallback,
 } from "@/features/recruiter/notifications/ui/NotificationBellLoader";
 import { SetupChecklistWidgetLoader } from "@/features/recruiter/dashboard/ui/SetupChecklistWidgetLoader";
+import { getWorkspaceAccess } from "@/features/recruiter/billing/data/workspace-access";
+import { TrialBanner } from "@/features/recruiter/billing/ui/TrialBanner";
+import { PaywallScreen } from "@/features/recruiter/billing/ui/PaywallScreen";
 
 /**
  * Shell de las pantallas del reclutador (rutas protegidas). Resuelve el contexto base:
@@ -48,6 +51,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (!membership) {
     redirect("/onboarding");
   }
+
+  // Gate de facturación: la prueba de 15 días y el corte por falta de pago (ver
+  // features/recruiter/billing). El shell (sidebar + header) queda; solo cambia el <main>.
+  const access = await getWorkspaceAccess();
 
   const sidebarCollapsed =
     (await cookies()).get("wh.sidebar.collapsed")?.value === "1";
@@ -82,23 +89,39 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               </form>
             </div>
           </header>
+          {access?.state === "trial" && (
+            <TrialBanner
+              daysLeft={access.daysLeft}
+              hasPaymentMethod={access.hasPaymentMethod}
+            />
+          )}
           {/* pb-24 extra: deja lugar al widget flotante de setup (esquina inferior derecha,
               fixed) mientras puede estar visible — evita que tape contenido pegado abajo. */}
           <main
             className={[
               "flex-1 overflow-auto p-6",
-              !membership.organizationSetupCompletedAt &&
+              access?.state !== "blocked" &&
+                !membership.organizationSetupCompletedAt &&
                 (membership.role === "owner" || membership.role === "admin") &&
                 "pb-24",
             ]
               .filter(Boolean)
               .join(" ")}
           >
-            {children}
+            {access?.state === "blocked" ? (
+              <PaywallScreen
+                reason={access.reason}
+                role={membership.role}
+                plan={access.plan}
+              />
+            ) : (
+              children
+            )}
           </main>
         </div>
       </AppChrome>
-      {(membership.role === "owner" || membership.role === "admin") && (
+      {access?.state !== "blocked" &&
+        (membership.role === "owner" || membership.role === "admin") && (
         <Suspense fallback={null}>
           <SetupChecklistWidgetLoader
             organizationId={membership.organizationId}

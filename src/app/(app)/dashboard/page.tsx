@@ -8,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import type { OrgRole, WorkspaceType } from "@/lib/auth/session";
 import { can, isAssignmentScoped } from "@/lib/auth/roles";
+import { getWorkspaceAccess } from "@/features/recruiter/billing/data/workspace-access";
+import { ConnectPlanCard } from "@/features/recruiter/billing/ui/ConnectPlanCard";
 import { getOwnProfile } from "@/features/recruiter/settings/data/settings.queries";
 import { obtenerKpis, type DashboardKpis } from "@/features/recruiter/dashboard/domain/obtener-kpis";
 import { getDashboardCounts } from "@/features/recruiter/dashboard/data/dashboard.queries";
@@ -51,14 +53,23 @@ async function DashboardContent() {
   const user = await getCurrentUser();
   if (!user) notFound();
 
-  const [profile, kpisResult] = await Promise.all([
+  const [profile, kpisResult, access] = await Promise.all([
     getOwnProfile(),
     obtenerKpis(
       { organizationId: membership.organizationId },
       { getCounts: getDashboardCounts },
     ),
+    getWorkspaceAccess(),
   ]);
   const firstName = profile?.fullName?.trim().split(/\s+/)[0] ?? "";
+
+  // En prueba y todavía sin tarjeta: el llamado a conectar dLocal Go va arriba de todo, para
+  // quien administra la facturación (owner/admin). El banner del shell lo acompaña.
+  const showConnectPlan =
+    access?.state === "trial" &&
+    !access.hasPaymentMethod &&
+    access.plan !== null &&
+    (membership.role === "owner" || membership.role === "admin");
 
   if (!kpisResult.ok) {
     return (
@@ -86,6 +97,10 @@ async function DashboardContent() {
             : "Esto es lo que pasa hoy en tu workspace."}
         </p>
       </div>
+
+      {showConnectPlan && access?.state === "trial" && access.plan && (
+        <ConnectPlanCard plan={access.plan} daysLeft={access.daysLeft} />
+      )}
 
       {isDay1 ? (
         <DashboardDay1

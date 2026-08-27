@@ -1,6 +1,5 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { crearOrganizationSchema } from "./schema";
 import { crearOrganization } from "./domain/crear-organization";
@@ -10,6 +9,10 @@ import { replaceStageTemplate } from "@/features/recruiter/pipeline-stages/data/
 
 export interface OnboardingFormState {
   error?: string;
+  /** El workspace se creó — el form navega a /dashboard en el cliente. Se hace así y no con
+   *  `redirect()` del server porque, invocado vía useActionState, la navegación se perdía
+   *  (el usuario quedaba en /onboarding con el form vacío). */
+  ok?: boolean;
 }
 
 /** Puerta de entrada del onboarding: valida (Zod), obtiene el usuario y llama al dominio. */
@@ -41,5 +44,5 @@ export async function crearOrganizationAction(
   // Etapas por defecto — esto es solo el punto de partida.
   await replaceStageTemplate(result.data.organizationId, buildDefaultStageTemplate());
 
-  redirect("/dashboard");
+  return { ok: true };
 }

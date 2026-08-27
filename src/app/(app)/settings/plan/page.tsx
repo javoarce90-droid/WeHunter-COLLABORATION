@@ -1,24 +1,62 @@
 import { notFound } from "next/navigation";
 import { getActiveMembership } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
-import { SettingsSection } from "@/features/recruiter/settings/ui/SettingsSection";
-import { Badge } from "@/components/ui/badge";
+import { ToastOnMount } from "@/components/ui/toast-on-mount";
+import { getWorkspaceAccess } from "@/features/recruiter/billing/data/workspace-access";
+import {
+  getSubscriptionByOrg,
+  listSubscriptionPayments,
+} from "@/features/recruiter/billing/data/subscriptions.queries";
+import { getActivePlans } from "@/features/recruiter/billing/data/plans.queries";
+import { formatPrice } from "@/features/recruiter/billing/plan";
+import { PlanStatusPanel } from "@/features/recruiter/billing/ui/PlanStatusPanel";
+import { PaymentHistoryPanel } from "@/features/recruiter/billing/ui/PaymentHistoryPanel";
+import { UpgradePlanPanel } from "@/features/recruiter/billing/ui/UpgradePlanPanel";
 
 export default async function SettingsPlanPage() {
   const membership = await getActiveMembership();
   if (!membership || !can(membership.role, "billing.view")) notFound();
 
+  const [access, subscription, payments, plans] = await Promise.all([
+    getWorkspaceAccess(),
+    getSubscriptionByOrg(membership.organizationId),
+    listSubscriptionPayments(membership.organizationId),
+    getActivePlans(),
+  ]);
+
+  const currentPlan = access?.plan ?? null;
+  // Plan superior disponible al que todavía no llegó (hoy: Freelancer → Teams).
+  const upgradeTarget = currentPlan
+    ? plans.find((p) => p.sortOrder > currentPlan.sortOrder) ?? null
+    : null;
+
   return (
     <div className="flex flex-col gap-5">
-      <SettingsSection title="Mi plan">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-text">Plan Free</p>
-            <p className="text-xs text-muted">Sin límites de uso durante la etapa de producto.</p>
-          </div>
-          <Badge variant="muted">Gestión próximamente</Badge>
-        </div>
-      </SettingsSection>
+      <ToastOnMount param="activada" message="Suscripción conectada. Ya está tu plan." />
+      <ToastOnMount
+        param="checkout"
+        message="Cancelaste la conexión con dLocal Go. Podés retomarla cuando quieras."
+        variant="default"
+      />
+
+      {access && (
+        <PlanStatusPanel access={access} subscription={subscription} plan={currentPlan} />
+      )}
+
+      {upgradeTarget && (
+        <UpgradePlanPanel
+          targetCode={upgradeTarget.code}
+          targetName={upgradeTarget.name}
+          targetPriceLabel={formatPrice(upgradeTarget.price, upgradeTarget.currency)}
+          perks={[
+            `Hasta ${upgradeTarget.maxMembers} miembros en el workspace`,
+            "Roles y permisos por miembro",
+            "Asignación de búsquedas y clientes entre recruiters",
+          ]}
+        />
+      )}
+
+      {payments.length > 0 && <PaymentHistoryPanel payments={payments} />}
     </div>
   );
 }

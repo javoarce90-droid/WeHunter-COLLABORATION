@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { getJobReportData } from "@/features/recruiter/reports/data/reports.queries";
 import { computeJobPerformance } from "@/features/recruiter/reports/domain/job-performance";
 import { bucketJobStageSla } from "@/features/recruiter/reports/domain/job-stage-sla";
+import { bucketJobStageLabels } from "@/features/recruiter/reports/domain/job-stage-labels";
 import { FunnelChart } from "@/features/recruiter/dashboard/ui/FunnelChart";
 import { SourceBreakdown } from "@/features/recruiter/reports/ui/SourceBreakdown";
 import { StageTiming } from "@/features/recruiter/reports/ui/StageTiming";
@@ -24,6 +25,7 @@ export default async function RendimientoPage({ params }: Props) {
 
   const raw = await getJobReportData(jobId, membership.organizationId);
   const stageSla = bucketJobStageSla(raw.jobStages);
+  const stageLabels = bucketJobStageLabels(raw.jobStages);
   const perf = computeJobPerformance({ ...raw, now: new Date(), stageSla });
 
   // Sin candidatos no hay nada que graficar: un solo empty state a nivel tab en vez de
@@ -46,10 +48,10 @@ export default async function RendimientoPage({ params }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-4 lg:grid-cols-2">
-        <FunnelChart funnel={perf.funnel} />
+        <FunnelChart funnel={perf.funnel} labels={stageLabels} />
         <SourceBreakdown breakdown={perf.sourceBreakdown} />
       </div>
-      <StageTiming perf={perf} />
+      <StageTiming perf={perf} labels={stageLabels} />
       <ReportInsights jobId={jobId} />
     </div>
   );

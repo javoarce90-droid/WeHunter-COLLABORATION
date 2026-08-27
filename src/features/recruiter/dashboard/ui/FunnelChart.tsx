@@ -1,4 +1,4 @@
-import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
+import { STAGE_LABELS, type ApplicationStage } from "@/features/recruiter/applications/schema";
 import { STAGE_DOT, readableTextOn } from "@/features/recruiter/applications/ui/stage-visual";
 import { SectionCard } from "@/components/ui/section-card";
 import type { DashboardKpis } from "../domain/obtener-kpis";
@@ -8,7 +8,15 @@ import type { DashboardKpis } from "../domain/obtener-kpis";
  * proporcionales al máximo, en el orden del pipeline. Lectura agregada en una sola query
  * (reusa el byStage del KPI, sin transacción extra — database.md #3).
  */
-export function FunnelChart({ funnel }: { funnel: DashboardKpis["funnel"] }) {
+export function FunnelChart({
+  funnel,
+  labels,
+}: {
+  funnel: DashboardKpis["funnel"];
+  /** Nombres de etapa de una búsqueda puntual (de `job_stages`). Sin esto se usa el label
+   *  genérico del enum — el caso del dashboard org-wide, que no tiene una búsqueda única. */
+  labels?: Partial<Record<ApplicationStage, string>>;
+}) {
   const total = funnel.reduce((sum, f) => sum + f.count, 0);
   const max = Math.max(1, ...funnel.map((f) => f.count));
 
@@ -31,10 +39,14 @@ export function FunnelChart({ funnel }: { funnel: DashboardKpis["funnel"] }) {
           {funnel.map((f) => {
             const pct = Math.round((f.count / max) * 100);
             const share = total > 0 ? Math.round((f.count / total) * 100) : 0;
+            const label = labels?.[f.stage] ?? STAGE_LABELS[f.stage];
             return (
               <div key={f.stage} className="flex items-center gap-3">
-                <span className="w-24 shrink-0 text-xs font-medium text-muted">
-                  {STAGE_LABELS[f.stage]}
+                <span
+                  className="w-28 shrink-0 truncate text-xs font-medium text-muted"
+                  title={label}
+                >
+                  {label}
                 </span>
                 <div className="h-6 flex-1 overflow-hidden rounded-md bg-bg">
                   <div
