@@ -1,8 +1,14 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(lsof -i:3000 -sTCP:LISTEN -n -P)",
+      "Bash(ps -p 132235 -o pid,ppid,cmd)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit",
+        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
@@ -26,11 +32,6 @@
       }
     ]
   },
-  "description": "Impeccable design detector: immediate-tier checks after Edit/Write/MultiEdit on UI files, full-rule deep pass on Stop.",
-  "permissions": {
-    "allow": [
-      "Bash(lsof -i:3000 -sTCP:LISTEN -n -P)",
-      "Bash(ps -p 132235 -o pid,ppid,cmd)"
-    ]
-  }
+  "prefersReducedMotion": false,
+  "description": "Impeccable design detector: immediate-tier checks after Edit/Write on UI files, full-rule deep pass on Stop."
 }
