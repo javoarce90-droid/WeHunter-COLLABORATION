@@ -547,8 +547,11 @@ export async function matchearPoolConBusquedaAction(jobId: string): Promise<{
     { skills: job.skills, seniority: job.seniority },
     POOL_MATCH_MAX_CANDIDATES,
   );
+  // Sin candidatos que pasen el prefiltro: es un resultado válido (el pool no tiene nadie con
+  // esos skills/seniority), no un error — cae en el empty-state de la UI en vez de un toast
+  // que se pierde sin dejar ningún rastro persistente.
   if (candidatos.length === 0) {
-    return { ok: false, error: "No hay candidatos en el pool que matcheen con esta búsqueda." };
+    return { ok: true, results: [], poolFiltrado: 0 };
   }
 
   const provider = getAiProvider();
