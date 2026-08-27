@@ -25,6 +25,76 @@ type JobPicker = {
   onChange: (jobId: string) => void;
 };
 
+const segmentClass = (active: boolean) =>
+  [
+    "rounded-[8px] px-3 py-2 text-xs font-semibold whitespace-nowrap outline-none transition-colors",
+    "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+    active ? "bg-surface text-primary shadow-[var(--shadow)]" : "text-muted hover:text-text",
+  ].join(" ");
+
+/** Elige el destino del candidato: solo pool, o postular a una búsqueda puntual. Dos formas
+ *  según cuántas búsquedas ofrece el picker — con una sola (Sourcing con IA, la búsqueda ya
+ *  está fija para toda la tab) la decisión es binaria y se ve entera de un vistazo, sin abrir
+ *  nada; con varias (Sourcing Manual) no entran como toggle y se resuelve con un select, pero
+ *  con el mismo label "Postular a" siempre visible — antes era un <select> sin ningún texto
+ *  que lo identificara, mezclado con "Ver perfil"/"Omitir" como si fuera un control más, y la
+ *  opción de dejarlo solo en el pool pasaba desapercibida. */
+function DestinationPicker({ jobPicker, name }: { jobPicker: JobPicker; name: string }) {
+  const onlyJob = jobPicker.jobs.length === 1 ? jobPicker.jobs[0] : null;
+
+  if (onlyJob) {
+    const postulando = jobPicker.value === onlyJob.id;
+    return (
+      <div
+        role="group"
+        aria-label={`Destino para ${name}`}
+        className="inline-flex items-center gap-1 rounded-[var(--radius)] border border-border bg-bg p-1"
+      >
+        <button
+          type="button"
+          onClick={() => jobPicker.onChange("")}
+          aria-pressed={!postulando}
+          className={segmentClass(!postulando)}
+        >
+          Solo pool
+        </button>
+        <button
+          type="button"
+          onClick={() => jobPicker.onChange(onlyJob.id)}
+          aria-pressed={postulando}
+          title={`Postular a ${onlyJob.title}`}
+          className={segmentClass(postulando)}
+        >
+          <span className="inline-block max-w-40 truncate align-bottom">
+            Postular a {onlyJob.title}
+          </span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-stretch overflow-hidden rounded-[var(--radius)] border border-border bg-bg">
+      <span className="flex items-center border-r border-border px-3 text-xs font-semibold text-muted">
+        Postular a
+      </span>
+      <select
+        value={jobPicker.value}
+        onChange={(e) => jobPicker.onChange(e.target.value)}
+        aria-label={`Búsqueda a la que postular a ${name}`}
+        className="bg-transparent px-3 py-2 text-xs text-text outline-none transition-colors focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <option value="">Solo pool (sin postular)</option>
+        {jobPicker.jobs.map((j) => (
+          <option key={j.id} value={j.id}>
+            {j.title}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 type Props = {
   name: string;
   headline: string;
@@ -123,7 +193,7 @@ export function SourcingCandidateCard({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
         <a
           href={linkedinUrl}
           target="_blank"
@@ -138,29 +208,17 @@ export function SourcingCandidateCard({
           <Badge variant="success">{importedLabel}</Badge>
         ) : (
           <>
-            {jobPicker && (
-              <select
-                value={jobPicker.value}
-                onChange={(e) => jobPicker.onChange(e.target.value)}
-                aria-label={`Búsqueda a la que postular a ${name}`}
-                className="rounded-[var(--radius)] border border-border bg-bg px-2 py-2 text-xs text-text outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-50"
+            <div className="flex items-center gap-2">
+              {jobPicker && <DestinationPicker jobPicker={jobPicker} name={name} />}
+              <Button
+                size="sm"
+                onClick={onPrimaryAction}
+                loading={primaryActionLoading}
+                disabled={primaryActionDisabled}
               >
-                <option value="">Solo pool (sin postular)</option>
-                {jobPicker.jobs.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.title}
-                  </option>
-                ))}
-              </select>
-            )}
-            <Button
-              size="sm"
-              onClick={onPrimaryAction}
-              loading={primaryActionLoading}
-              disabled={primaryActionDisabled}
-            >
-              {primaryActionLabel}
-            </Button>
+                {primaryActionLabel}
+              </Button>
+            </div>
             <button
               type="button"
               onClick={onOmit}

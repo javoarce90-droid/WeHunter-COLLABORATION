@@ -841,6 +841,74 @@ export const poolMatchResults = pgTable(
   }),
 );
 
+// Sesión de trabajo en curso de "Sourcing con IA" (job + recruiter): permite restaurar los
+// resultados si el recruiter navega afuera mientras la búsqueda corre en el servidor, en vez de
+// perderlos (ver AiJobSourcingResults.tsx). Una sola fila por par — se PISA en cada tanda
+// (primera búsqueda o "Buscar más candidatos"), no es historial. A diferencia de
+// pool_match_results, acá los perfiles de LinkedIn todavía no existen en `candidates` (id
+// sintético, no FK real), así que viajan embebidos en el jsonb en vez de por referencia. Sin
+// snapshot de staleness a propósito: es estado de trabajo en curso, no un caché estable — si el
+// job cambió, el recruiter limpia y vuelve a buscar.
+export const sourcingSearchSessions = pgTable(
+  "sourcing_search_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    jobId: uuid("job_id")
+      .references(() => jobs.id, { onDelete: "cascade" })
+      .notNull(),
+    // Por-recruiter, no por-org: dos recruiters sourceando el mismo job no se pisan resultados.
+    profileId: uuid("profile_id")
+      .references(() => profiles.id, { onDelete: "cascade" })
+      .notNull(),
+    // Última variante de query usada (ver SOURCING_MAX_QUERY_ATTEMPTS) — "Buscar más
+    // candidatos" sigue desde acá en vez de repetir la variante 0.
+    attempt: integer("attempt").notNull(),
+    // Array ACUMULADO completo que la UI está mostrando (todas las tandas sumadas hasta el
+    // momento, deduplicadas — ver mergeSourcingBatch), no solo la última tanda.
+    results: jsonb("results")
+      .$type<
+        {
+          id: string;
+          name: string;
+          headline: string;
+          location: string;
+          skills: string[];
+          linkedinUrl: string;
+          snippet?: string | null;
+          score: number;
+          summary: string;
+          breakdown: {
+            experiencia: number;
+            skillsTecnicos: number;
+            seniority: number;
+            idiomas: number;
+            ubicacion: number;
+          };
+          strengths: string[];
+          redFlags: string[];
+        }[]
+      >()
+      .notNull(),
+    // Métricas de la ÚLTIMA tanda (no acumuladas) — mismo criterio que la UI.
+    metrics: jsonb("metrics")
+      .$type<{ encontrados: number; enPool: number; nuevos: number }>()
+      .notNull(),
+    isLiveApi: boolean("is_live_api").notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    orgIdx: index("sourcing_search_sessions_org_idx").on(t.organizationId),
+    // Cache key real: un recruiter tiene a lo sumo una sesión en curso por job. Target del upsert.
+    jobProfileUnique: uniqueIndex("sourcing_search_sessions_job_profile_unique").on(
+      t.jobId,
+      t.profileId,
+    ),
+  }),
+);
+
 // Pregunta de screening definida por el recruiter para una búsqueda puntual (§6 backlog).
 // `options` solo aplica a type = 'multiple_choice'. `position` = orden de presentación al
 // candidato (orden de carga en el form, sin drag&drop todavía — mismo criterio que `benefits`).
@@ -1316,6 +1384,7 @@ export type LanguageLevel = (typeof languageLevel.enumValues)[number];
 export type CandidateJobInteraction = typeof candidateJobInteractions.$inferSelect;
 export type Application = typeof applications.$inferSelect;
 export type PoolMatchResultRow = typeof poolMatchResults.$inferSelect;
+export type SourcingSearchSessionRow = typeof sourcingSearchSessions.$inferSelect;
 export type ScreeningQuestion = typeof screeningQuestions.$inferSelect;
 export type ScreeningAnswer = typeof screeningAnswers.$inferSelect;
 export type Interview = typeof interviews.$inferSelect;

@@ -5,14 +5,29 @@ import { revalidatePath } from "next/cache";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { insertCandidate } from "../candidates/data/candidates.mutations";
 import {
+  findDuplicateCandidate,
+  findExistingLinkedinUrls,
+} from "../candidates/data/candidates.queries";
+import {
   scoreLinkedInCandidate,
   sourcearParaBusqueda,
+  mergeSourcingBatch,
+  SOURCING_MAX_QUERY_ATTEMPTS,
   type ScoredLinkedInCandidate,
+  type SourcingMetrics,
 } from "./domain/sourcear-para-busqueda";
 import { getJobById } from "../jobs/data/jobs.queries";
 import { getAiProvider } from "@/lib/ai";
 import { can } from "@/lib/auth/roles";
 import { notifyProfile } from "../notifications/data/notifications.mutations";
+import {
+  getSourcingSession,
+  type SourcingSession,
+} from "./data/sourcing-sessions.queries";
+import {
+  saveSourcingSession,
+  deleteSourcingSession,
+} from "./data/sourcing-sessions.mutations";
 
 const importSchema = z.object({
   name: z.string().trim().min(1),
@@ -38,20 +53,27 @@ export async function importarSourcingAction(result: {
     return { ok: false, error: "Tu rol no permite usar sourcing." };
   }
 
-  await insertCandidate({
-    organizationId: membership.organizationId,
-    fullName: parsed.data.name,
-    email: null,
-    cvUrl: null,
-    headline: parsed.data.headline,
-    location: parsed.data.location,
-    linkedinUrl: parsed.data.linkedinUrl ?? null,
-    summary: null,
-    skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
-    seniority: null,
-    source: "linkedin",
-    phone: null,
+  // Mismo criterio que importarSourcingResultadoAction (camino "postular"): si ya está en el
+  // pool por linkedinUrl, no lo duplica — ya está donde el recruiter lo quería.
+  const duplicate = await findDuplicateCandidate(membership.organizationId, {
+    linkedinUrl: parsed.data.linkedinUrl,
   });
+  if (!duplicate) {
+    await insertCandidate({
+      organizationId: membership.organizationId,
+      fullName: parsed.data.name,
+      email: null,
+      cvUrl: null,
+      headline: parsed.data.headline,
+      location: parsed.data.location,
+      linkedinUrl: parsed.data.linkedinUrl ?? null,
+      summary: null,
+      skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
+      seniority: null,
+      source: "linkedin",
+      phone: null,
+    });
+  }
 
   revalidatePath("/candidates");
   return { ok: true };
@@ -87,18 +109,33 @@ export async function buscarLinkedinAction(input: { query: string }): Promise<{
   return { ok: true, candidates: res.candidates, isLiveApi: res.isLiveApi };
 }
 
+const sourcearParaBusquedaSchema = z.object({
+  attempt: z.number().int().min(0).max(SOURCING_MAX_QUERY_ATTEMPTS - 1),
+});
+
 /**
  * Sourcing con IA de un clic desde Postulados (ítem 9.4): busca en LinkedIn usando el contexto
  * de la búsqueda (puesto, skills, seniority, ubicación), sin que el recruiter tipee nada, y
- * scorea cada resultado con IA — devuelve todos los que encuentra (sin filtrar por score),
- * ordenados de mayor a menor match, hasta 10.
+ * scorea con IA solo a los candidatos que todavía no están en el pool de la organización —
+ * devuelve todos los que quedan (sin filtrar por score), ordenados de mayor a menor match, hasta
+ * 10, más las métricas de la tanda (cuántos encontró, cuántos ya estaban en el pool). `attempt`
+ * (0 en el primer click) elige una variante de query más amplia en cada reintento — Serper no
+ * pagina, así que es la única forma de tener chance de traer perfiles distintos en vez de
+ * repegarle siempre a la misma query (ver `buildJobSourcingQueryVariant`).
  */
-export async function sourcearParaBusquedaAction(jobId: string): Promise<{
+export async function sourcearParaBusquedaAction(
+  jobId: string,
+  attempt = 0,
+): Promise<{
   ok: boolean;
   results?: ScoredLinkedInCandidate[];
   isLiveApi?: boolean;
+  metrics?: SourcingMetrics;
   error?: string;
 }> {
+  const parsedAttempt = sourcearParaBusquedaSchema.safeParse({ attempt });
+  if (!parsedAttempt.success) return { ok: false, error: "Intento inválido." };
+
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!membership) return { ok: false, error: "No autorizado." };
   if (!can(membership.role, "candidates.manage")) {
@@ -125,28 +162,63 @@ export async function sourcearParaBusquedaAction(jobId: string): Promise<{
     {
       search: (query) => searchLinkedInCandidates({ query }),
       scoreApplication: (input) => provider.scoreApplication(input),
+      findExistingLinkedinUrls: (urls) =>
+        findExistingLinkedinUrls(membership.organizationId, urls),
     },
+    parsedAttempt.data.attempt,
   );
 
   if (!result.ok) return { ok: false, error: result.error };
 
   // El recruiter puede haber navegado a otra subtab mientras esto corría (el sourcing tarda:
-  // búsqueda + hasta 10 scorings de IA) — si ya no está montado para ver `results`, esto es lo
-  // único que le avisa que terminó. No persiste los resultados: si vuelve desde el link, tiene
-  // que repetir la búsqueda.
+  // búsqueda + hasta 10 scorings de IA) — si ya no está montado para ver `results`, la sesión
+  // persistida abajo es lo que le permite restaurarlos al volver, y esta notificación es lo que
+  // le avisa que terminó.
   if (user) {
+    // Persiste ANTES de notificar, para que si el recruiter clickea la notificación ya haya
+    // algo para restaurar. attempt 0 reemplaza entero; los siguientes mergean con lo ya
+    // guardado usando el mismo criterio de dedup que la UI usa para acumular en pantalla.
     try {
+      const previa =
+        parsedAttempt.data.attempt === 0
+          ? null
+          : await getSourcingSession(membership.organizationId, jobId, user.id);
+      const acumulado =
+        parsedAttempt.data.attempt === 0
+          ? result.results
+          : mergeSourcingBatch(previa?.results ?? [], result.results);
+      await saveSourcingSession(membership.organizationId, jobId, user.id, {
+        attempt: parsedAttempt.data.attempt,
+        results: acumulado,
+        metrics: result.metrics,
+        isLiveApi: result.isLiveApi,
+      });
+    } catch {
+      // no-op: el sourcing ya terminó, un fallo al persistir no debe hacer fallar la respuesta.
+    }
+
+    try {
+      const { nuevos } = result.metrics;
+      const title =
+        nuevos > 0
+          ? `Encontramos ${nuevos} candidato${nuevos === 1 ? "" : "s"} nuevo${nuevos === 1 ? "" : "s"} para "${job.title}"`
+          : `No encontramos candidatos nuevos para "${job.title}" — ya revisaste todos los perfiles de esta tanda`;
       await notifyProfile(membership.organizationId, user.id, {
         type: "background_job",
-        title: `Terminó el sourcing con IA para "${job.title}"`,
-        link: `/jobs/${jobId}/postulados`,
+        title,
+        link: `/jobs/${jobId}/postulados?sourcing=1`,
       });
     } catch {
       // no-op: el sourcing ya terminó, un fallo al notificar no debe hacer fallar la respuesta.
     }
   }
 
-  return { ok: true, results: result.results, isLiveApi: result.isLiveApi };
+  return {
+    ok: true,
+    results: result.results,
+    isLiveApi: result.isLiveApi,
+    metrics: result.metrics,
+  };
 }
 
 const scorearCandidatoSchema = z.object({
@@ -212,4 +284,44 @@ export async function scorearCandidatoSourcingAction(input: {
   );
 
   return { ok: true, result };
+}
+
+const sourcingSessionSchema = z.object({ jobId: z.string().uuid("ID de búsqueda inválido.") });
+
+/** Hidrata `AiJobSourcingResults` al montar: si este recruiter tiene una sesión en curso para
+ *  este job (no la limpió, no navegó afuera antes de revisarla), la devuelve para restaurarla
+ *  sin repetir la búsqueda. */
+export async function getSourcingSessionAction(jobId: string): Promise<{
+  ok: boolean;
+  session?: SourcingSession | null;
+  error?: string;
+}> {
+  const parsed = sourcingSessionSchema.safeParse({ jobId });
+  if (!parsed.success) return { ok: false, error: "ID de búsqueda inválido." };
+
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  if (!user || !membership) return { ok: false, error: "No autorizado." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { ok: false, error: "Tu rol no permite usar sourcing." };
+  }
+
+  const session = await getSourcingSession(membership.organizationId, jobId, user.id);
+  return { ok: true, session };
+}
+
+/** Borra la sesión persistida — se llama desde "Limpiar" en el cliente. */
+export async function limpiarSourcingSessionAction(
+  jobId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const parsed = sourcingSessionSchema.safeParse({ jobId });
+  if (!parsed.success) return { ok: false, error: "ID de búsqueda inválido." };
+
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  if (!user || !membership) return { ok: false, error: "No autorizado." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { ok: false, error: "Tu rol no permite usar sourcing." };
+  }
+
+  await deleteSourcingSession(membership.organizationId, jobId, user.id);
+  return { ok: true };
 }
