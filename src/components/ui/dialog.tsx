@@ -21,6 +21,12 @@ interface DialogProps {
    *  `className` de arriba solo llega al wrapper interior, no alcanza para ensanchar el modal
    *  más allá del `max-w-lg` por defecto. No aplica al sheet lateral. */
   maxWidthClassName?: string;
+  /** Difumina lo que hay detrás del backdrop — para procesos que exigen atención (ej. el
+   *  progreso de un lote). Opt-in: los modales normales no lo llevan. */
+  blurBackdrop?: boolean;
+  /** `false` = el modal no se puede cerrar (sin "✕", sin Esc, sin click en backdrop). Para
+   *  una operación en curso que no se debe interrumpir. Default `true`. */
+  dismissable?: boolean;
 }
 
 /**
@@ -38,6 +44,8 @@ export function Dialog({
   children,
   className = "",
   maxWidthClassName,
+  blurBackdrop = false,
+  dismissable = true,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -49,14 +57,31 @@ export function Dialog({
     else if (!open && el.open) el.close();
   }, [open]);
 
-  // Esc/`cancel` y submit de form method=dialog disparan `close` → avisamos al padre.
+  // Esc/`cancel` y submit de form method=dialog disparan `close` → avisamos al padre (salvo
+  // que el modal no sea cerrable: ahí lo reabrimos para bloquear el Esc del navegador).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const handleClose = () => onClose();
+    const handleCancel = (e: Event) => {
+      if (!dismissable) {
+        e.preventDefault();
+        return;
+      }
+    };
+    const handleClose = () => {
+      if (!dismissable && open) {
+        el.showModal();
+        return;
+      }
+      onClose();
+    };
+    el.addEventListener("cancel", handleCancel);
     el.addEventListener("close", handleClose);
-    return () => el.removeEventListener("close", handleClose);
-  }, [onClose]);
+    return () => {
+      el.removeEventListener("cancel", handleCancel);
+      el.removeEventListener("close", handleClose);
+    };
+  }, [onClose, dismissable, open]);
 
   const isSheet = side === "right";
 
@@ -64,15 +89,16 @@ export function Dialog({
     <dialog
       ref={ref}
       aria-label={ariaLabel ?? title}
-      // Click en el backdrop (fuera del panel) cierra.
+      // Click en el backdrop (fuera del panel) cierra, salvo modal no cerrable.
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        if (dismissable && e.target === ref.current) onClose();
       }}
       className={[
         "bg-transparent p-0 text-text backdrop:bg-[rgba(15,10,26,0.45)] backdrop:animate-fade-in",
+        blurBackdrop ? "backdrop:backdrop-blur-sm" : "",
         isSheet
           ? "m-0 ml-auto h-dvh max-h-dvh w-full max-w-[440px]"
-          : `m-auto w-full ${maxWidthClassName ?? "max-w-lg"} rounded-[var(--radius)]`,
+          : `m-auto w-[calc(100%-2rem)] ${maxWidthClassName ?? "max-w-lg"} rounded-[var(--radius)]`,
       ].join(" ")}
     >
       <div
@@ -91,25 +117,27 @@ export function Dialog({
                 {title}
               </h2>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Cerrar"
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-bg hover:text-text"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                aria-hidden
+            {dismissable && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Cerrar"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-bg hover:text-text"
               >
-                <path d="m4 4 8 8M12 4l-8 8" />
-              </svg>
-            </button>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  aria-hidden
+                >
+                  <path d="m4 4 8 8M12 4l-8 8" />
+                </svg>
+              </button>
+            )}
           </header>
         )}
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>

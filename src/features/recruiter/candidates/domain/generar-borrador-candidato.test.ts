@@ -43,6 +43,17 @@ describe("generarBorradorCandidato", () => {
     expect(deps.draftProfile).not.toHaveBeenCalled();
   });
 
+  it("rechaza LinkedIn sin CV — el CV es obligatorio", async () => {
+    const deps = { draftProfile: vi.fn() };
+    const res = await generarBorradorCandidato(
+      { linkedinUrl: "https://linkedin.com/in/x" },
+      ctx,
+      deps,
+    );
+    expect(res).toEqual({ ok: false, error: "Subí el CV en PDF o .docx." });
+    expect(deps.draftProfile).not.toHaveBeenCalled();
+  });
+
   it("acepta un CV en PDF y devuelve el borrador", async () => {
     const deps = { draftProfile: vi.fn().mockResolvedValue(fakeDraft) };
     const input = { cvFile: { base64: "abc", mimeType: "application/pdf" as const } };

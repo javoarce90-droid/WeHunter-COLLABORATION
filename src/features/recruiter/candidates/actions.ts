@@ -12,16 +12,15 @@ import {
   CV_MAX_BYTES,
   IMPORT_FILE_MAX_BYTES,
   AI_CV_ALLOWED_TYPES,
-  AI_BATCH_MAX_CVS,
 } from "./schema";
 import { normalizeUrl } from "@/lib/url";
 import { cargarCandidato } from "./domain/cargar-candidato";
 import { generarBorradorCandidato } from "./domain/generar-borrador-candidato";
 import {
-  crearCandidatosDesdeCvs,
+  procesarCvParaPool,
   type CvSource,
-  type CrearCandidatosDesdeCvsResult,
-} from "./domain/crear-candidatos-desde-cvs";
+  type CvParaPoolOutcome,
+} from "./domain/procesar-cv-para-pool";
 import { extractCvForAi } from "@/lib/cv-extract";
 import { insertCandidateResumeItems } from "./data/candidate-resume.mutations";
 import type { DraftCandidateProfile } from "@/lib/ai";
@@ -439,26 +438,19 @@ export async function generarBorradorCandidatoConIaAction(
       ? normalizeUrl(linkedinUrlRaw)
       : "";
 
-  const hasCv = formData.get("cv") instanceof File && (formData.get("cv") as File).size > 0;
-  if (!hasCv && !linkedinUrl) {
-    return { error: "Subí un CV o ingresá una URL de LinkedIn." };
-  }
+  // El CV es obligatorio — la URL de LinkedIn sola no da nada que analizar de forma fiable.
+  const cv = readAiCvFile(formData);
+  if ("error" in cv) return { error: cv.error };
 
-  let cvSource: CvSource | undefined;
+  const extracted = await extractCvForAi(cv.file);
+  if ("error" in extracted) return { error: extracted.error };
+  const cvSource = cvSourceFromExtract(extracted) ?? undefined;
+
   let uploaded: { path: string } | null = null;
-  if (hasCv) {
-    const cv = readAiCvFile(formData);
-    if ("error" in cv) return { error: cv.error };
-
-    const extracted = await extractCvForAi(cv.file);
-    if ("error" in extracted) return { error: extracted.error };
-    cvSource = cvSourceFromExtract(extracted) ?? undefined;
-
-    try {
-      uploaded = await uploadCandidateCv(membership.organizationId, cv.file);
-    } catch {
-      return { error: "No se pudo subir el CV. Revisá el archivo e intentá de nuevo." };
-    }
+  try {
+    uploaded = await uploadCandidateCv(membership.organizationId, cv.file);
+  } catch {
+    return { error: "No se pudo subir el CV. Revisá el archivo e intentá de nuevo." };
   }
 
   const result = await generarBorradorCandidato(
@@ -483,56 +475,40 @@ export async function generarBorradorCandidatoConIaAction(
   };
 }
 
-export interface CrearCandidatosLoteState {
-  ok?: boolean;
-  error?: string;
-  result?: CrearCandidatosDesdeCvsResult;
-}
+export type ProcesarCvState = { fileName: string; outcome: CvParaPoolOutcome };
 
 /**
- * Alta por lote: hasta `AI_BATCH_MAX_CVS` CVs → la IA extrae cada uno y crea el candidato
- * (SIN revisión individual). Saltea y reporta duplicados y CVs ilegibles. Bloqueante: cada
- * CV es una llamada a Gemini, se procesan con concurrencia limitada dentro de esta request.
+ * Procesa UN CV del lote: extrae, lo sube, la IA arma el perfil y se crea el candidato (sin
+ * revisión). El cliente (`CvBatchProgressDialog`) llama esta action una vez por CV, con
+ * concurrencia limitada, para mostrar progreso por archivo. Nunca tira: devuelve un outcome.
  */
-export async function crearCandidatosDesdeCvsAction(
-  _prev: CrearCandidatosLoteState,
-  formData: FormData,
-): Promise<CrearCandidatosLoteState> {
+export async function procesarUnCvParaPoolAction(formData: FormData): Promise<ProcesarCvState> {
+  const raw = formData.get("cv");
+  const fileName = raw instanceof File ? raw.name : "CV";
+
   const membership = await getActiveMembership();
-  if (!membership) return { error: "No autorizado." };
-  if (!can(membership.role, "candidates.manage")) {
-    return { error: "No tenés permisos para cargar candidatos." };
+  if (!membership || !can(membership.role, "candidates.manage")) {
+    return { fileName, outcome: { status: "failed", reason: "Sin permisos para cargar candidatos." } };
   }
 
-  const raw = formData.getAll("cvs").filter((f): f is File => f instanceof File && f.size > 0);
-  if (raw.length === 0) return { error: "Subí al menos un CV." };
-  if (raw.length > AI_BATCH_MAX_CVS) {
-    return { error: `Podés subir hasta ${AI_BATCH_MAX_CVS} CVs por tanda.` };
+  const cv = readAiCvFile(formData);
+  if ("error" in cv) return { fileName, outcome: { status: "failed", reason: cv.error } };
+
+  const extracted = await extractCvForAi(cv.file);
+  if ("error" in extracted) {
+    return { fileName, outcome: { status: "failed", reason: extracted.error } };
   }
+  const cvSource = cvSourceFromExtract(extracted);
+  if (!cvSource) {
+    return { fileName, outcome: { status: "failed", reason: "No se pudo preparar el CV." } };
+  }
+  // El CV se guarda adjunto al candidato; si la subida falla, se crea igual sin archivo.
+  const uploaded = await uploadCandidateCv(membership.organizationId, cv.file).catch(() => null);
 
-  // id opaco → File real; el fileName es solo para el reporte de fallidos.
-  const byId = new Map<string, File>();
-  const files = raw.map((file, i) => {
-    const id = String(i);
-    byId.set(id, file);
-    return { id, fileName: file.name };
-  });
-
-  const result = await crearCandidatosDesdeCvs(
-    { files },
+  const outcome = await procesarCvParaPool(
+    { cv: cvSource, cvUrl: uploaded?.path ?? null },
     { organizationId: membership.organizationId, role: membership.role },
     {
-      extractCv: async (id) => {
-        const file = byId.get(id);
-        if (!file) return { error: "Archivo no encontrado." };
-        const extracted = await extractCvForAi(file);
-        if ("error" in extracted) return extracted;
-        const cv = cvSourceFromExtract(extracted);
-        if (!cv) return { error: "No se pudo preparar el CV." };
-        // El CV se guarda adjunto al candidato; si la subida falla, se crea igual sin archivo.
-        const uploaded = await uploadCandidateCv(membership.organizationId, file).catch(() => null);
-        return { cv, cvUrl: uploaded?.path ?? null };
-      },
       draftProfile: (src) =>
         getAiProvider().draftCandidateProfile(
           "cvFile" in src ? { cvFile: src.cvFile } : { cvText: src.cvText },
@@ -547,10 +523,11 @@ export async function crearCandidatosDesdeCvsAction(
     },
   );
 
-  if (!result.ok) return { error: result.error };
-  invalidateCandidateOptionsCache(membership.organizationId);
-  revalidatePath("/candidates");
-  return { ok: true, result: result.data };
+  if (outcome.status === "created") {
+    invalidateCandidateOptionsCache(membership.organizationId);
+    revalidatePath("/candidates");
+  }
+  return { fileName, outcome };
 }
 
 export async function editarCandidatoAction(

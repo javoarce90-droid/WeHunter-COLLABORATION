@@ -220,6 +220,10 @@ export type DraftCandidateProfile = {
    * real. Ausente/false cuando no hubo error (incluye el caso "no hay API key", que usa el mock
    * directamente sin haber intentado Gemini). */
   extractionFailed?: boolean;
+  /** Por qué falló, cuando `extractionFailed` es true. `quota` = límite de la API de IA (429),
+   * se reintenta más tarde sin cambiar el archivo. `unreadable` = el modelo no pudo con este CV
+   * (PDF escaneado, protegido, etc.). */
+  failureReason?: "quota" | "unreadable";
 };
 
 export interface AiProvider {

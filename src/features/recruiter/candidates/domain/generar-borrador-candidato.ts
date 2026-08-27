@@ -5,8 +5,9 @@ import type { DraftCandidateProfile } from "@/lib/ai";
 
 /**
  * Caso de uso: generar con IA un borrador de candidato a partir de un CV (PDF o texto ya
- * extraído de un .docx) y/o una URL de LinkedIn. NO persiste nada — el recruiter revisa y
- * edita el borrador en el formulario antes de guardar (mismo criterio que el onboarding del
+ * extraído de un .docx). La URL de LinkedIn es opcional y solo suma contexto — el CV es
+ * obligatorio (sin archivo no hay nada que analizar). NO persiste nada — el recruiter revisa
+ * y edita el borrador en el formulario antes de guardar (mismo criterio que el onboarding del
  * candidato, `generar-perfil-con-ia.ts`). Autorización primaria: rol `candidates.manage`.
  */
 
@@ -36,8 +37,8 @@ export async function generarBorradorCandidato(
   if (!can(ctx.role, "candidates.manage")) {
     return err("No tenés permisos para cargar candidatos.");
   }
-  if (!input.linkedinUrl && !input.cvFile && !input.cvText) {
-    return err("Subí un CV o ingresá una URL de LinkedIn.");
+  if (!input.cvFile && !input.cvText) {
+    return err("Subí el CV en PDF o .docx.");
   }
 
   const draft = await deps.draftProfile(input);
