@@ -37,14 +37,36 @@ si editás en el dashboard, actualizá también acá.
 - `{{ if .Data.full_name }}…{{ end }}` — nombre del usuario (viene de `raw_user_meta_data`,
   lo setea el `signUp` con `options.data.full_name`). El `if` cubre el caso sin nombre.
 
-## Config relacionada (dashboard, no en estos archivos)
+## A dónde cae el usuario al clickear el link del mail
 
-- **Site URL** (`Authentication → URL Configuration`): debería ser `https://www.we-hunter.com`
-  (dominio canónico con `www`). Sin barra final — si no, `{{ .SiteURL }}/login` queda `//login`.
-- **A dónde cae el usuario después de confirmar el signup**: hoy `signUp()` no pasa
-  `emailRedirectTo`, así que `{{ .ConfirmationURL }}` redirige a la Site URL. Para que caiga
-  en `/login`, o se agrega `emailRedirectTo` en `src/app/(auth)/actions.ts` /
-  `src/app/c/actions.ts`, o se ajusta la config de redirect.
+No se cambia la **Site URL** por mail. La Site URL es UN valor fijo (el fallback). El destino
+puntual se pasa **desde el código** al disparar cada email, y `{{ .ConfirmationURL }}` lo
+respeta solo para ese mail.
+
+1. **Site URL** (`Authentication → URL Configuration`): se setea una vez a
+   `https://www.we-hunter.com` (canónico, con `www`, sin barra final). Es a dónde va cualquier
+   link que no traiga un destino propio. No se toca más.
+2. **Redirect URLs** (misma pantalla): allowlist de destinos válidos. Agregar:
+   - `https://www.we-hunter.com/**`
+   - `http://localhost:3000/**` (dev)
+   - `https://*.vercel.app/**` (previews, si hace falta)
+   Si un `redirect_to` no matchea la allowlist, Supabase lo ignora y usa la Site URL.
+3. **Por flujo**, se pasa el destino en el código:
+   - `signUp({ options: { emailRedirectTo: "…/auth/callback?next=/login" } })` — confirmación → login.
+   - `resetPasswordForEmail(email, { redirectTo: "…/auth/callback?next=<pantalla reset>" })`
+     — ya lo hace `src/app/auth/actions.ts`.
+   - `signInWithOtp({ options: { emailRedirectTo: "<deep link>" } })` — magic link a cualquier lado.
+   - Sin `emailRedirectTo`/`redirectTo` → cae en la Site URL.
+4. **Cómo funciona**: `{{ .ConfirmationURL }}` es
+   `https://<proj>.supabase.co/auth/v1/verify?token=…&redirect_to=<destino>`. El usuario clickea
+   → Supabase valida el token → redirige a `<destino>`. La ruta `src/app/auth/callback/route.ts`
+   ya canjea el código y sigue al `?next=` — ese es el patrón para deep links.
+
+**Hoy**: `signUp()` no pasa `emailRedirectTo` → la confirmación cae en la Site URL. Para que
+vaya a `/login`, agregar `emailRedirectTo` en `src/app/(auth)/actions.ts` y `src/app/c/actions.ts`.
+
+## Otra config de dashboard
+
 - **SMTP**: Supabase Auth → SMTP Settings apunta a SendGrid (`smtp.sendgrid.net:587`, user
   `apikey`). Remitente verificado: `dev@we-hunter.com` hasta que se verifique el dominio.
 - **Rate limit**: con SMTP propio, Authentication → Rate Limits deja subir el tope de emails/hora.
