@@ -171,7 +171,15 @@ export function NotificationBell({
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-text">{n.title}</p>
-                  <p className="text-xs text-muted">{relative(n.createdAt)}</p>
+                  {/* `relative()` depende de `Date.now()` — entre el render en el servidor y
+                      la hidratación en el cliente pasa tiempo real, así que el texto puede
+                      diferir ("hace 41 min" vs "hace 42 min"). Es un mismatch inevitable de
+                      timestamps relativos, no un bug de datos: se le avisa a React que lo
+                      ignore en vez de descartar el árbol (guía oficial de React para este
+                      patrón exacto). */}
+                  <p className="text-xs text-muted" suppressHydrationWarning>
+                    {relative(n.createdAt)}
+                  </p>
                 </div>
               </div>
             );
