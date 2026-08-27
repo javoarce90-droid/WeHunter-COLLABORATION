@@ -19,7 +19,9 @@ export interface CambiarPlanInput {
 export interface CambiarPlanCtx {
   organizationId: string;
   role: OrgRole;
-  currentWorkspaceType: WorkspaceType | null;
+  /** Plan actual del workspace, resuelto igual que en `getWorkspaceAccess` (por la
+   *  suscripción si existe, si no por el tipo de workspace). null = enterprise / legado. */
+  currentPlanId: string | null;
 }
 
 export interface CambiarPlanDeps {
@@ -45,7 +47,9 @@ export async function cambiarPlan(
   const target = plans.find((p) => p.code === input.targetPlanCode);
   if (!target) return err("Ese plan no está disponible.");
 
-  const current = plans.find((p) => p.workspaceType === ctx.currentWorkspaceType) ?? null;
+  const current = ctx.currentPlanId
+    ? plans.find((p) => p.id === ctx.currentPlanId) ?? null
+    : null;
   if (current && current.id === target.id) {
     return err("Ya estás en ese plan.");
   }

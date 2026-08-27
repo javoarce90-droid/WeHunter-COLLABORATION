@@ -30,7 +30,7 @@ const deps = (over: Partial<CambiarPlanDeps> = {}): CambiarPlanDeps => ({
   ...over,
 });
 
-const ctx = { organizationId: "org-1", role: "owner" as const, currentWorkspaceType: "freelance" as const };
+const ctx = { organizationId: "org-1", role: "owner" as const, currentPlanId: "free" };
 
 describe("cambiarPlan", () => {
   it("rechaza a un rol sin billing.view", async () => {
@@ -51,11 +51,19 @@ describe("cambiarPlan", () => {
     });
   });
 
+  it("upgrade aunque el workspace_type ya sea team pero la suscripción esté en Freelancer", async () => {
+    // Estado inconsistente real: lo resuelve el upgrade alineando ambos.
+    const d = deps();
+    const res = await cambiarPlan({ targetPlanCode: "teams" }, { ...ctx, currentPlanId: "free" }, d);
+    expect(res.ok).toBe(true);
+    expect(d.applyPlanChange).toHaveBeenCalled();
+  });
+
   it("rechaza el downgrade Teams → Freelancer", async () => {
     const d = deps();
     const res = await cambiarPlan(
       { targetPlanCode: "freelancer" },
-      { ...ctx, currentWorkspaceType: "team" },
+      { ...ctx, currentPlanId: "team" },
       d,
     );
     expect(res.ok).toBe(false);

@@ -73,12 +73,17 @@ export async function cambiarPlanAction(targetPlanCode: string): Promise<Billing
   const membership = await getActiveMembership();
   if (!membership) return { error: "No pudimos identificar tu workspace." };
 
+  const currentPlan = await resolvePlan(
+    membership.organizationId,
+    membership.workspaceType,
+  );
+
   const result = await cambiarPlan(
     { targetPlanCode },
     {
       organizationId: membership.organizationId,
       role: membership.role,
-      currentWorkspaceType: membership.workspaceType,
+      currentPlanId: currentPlan?.id ?? null,
     },
     { getActivePlans, applyPlanChange },
   );
