@@ -4,6 +4,7 @@ import {
   text,
   timestamp,
   integer,
+  numeric,
   date,
   boolean,
   jsonb,
@@ -226,6 +227,19 @@ export const notificationType = pgEnum("notification_type", [
 
 export const languageLevel = pgEnum("language_level", ["basico", "intermedio", "avanzado", "nativo"]);
 
+// Estado de la suscripción del workspace al plan pago (dLocal Go). Ver
+// features/recruiter/billing. `pending` = fila creada pero el recruiter todavía no cargó la
+// tarjeta en dLocal; `trialing` = tarjeta cargada, dentro de los 15 días sin cobro;
+// `active` = cobrando; `past_due` = un cobro falló; `cancelled` = dada de baja (el acceso
+// se mantiene hasta `current_period_ends_at`).
+export const subscriptionStatus = pgEnum("subscription_status", [
+  "pending",
+  "trialing",
+  "active",
+  "past_due",
+  "cancelled",
+]);
+
 // ---- Tenancy ----
 
 // El tenant. Todo dato de dominio cuelga de acá.
@@ -347,6 +361,79 @@ export const invitations = pgTable("invitations", {
 }, (t) => ({
   orgIdx: index("invitations_org_idx").on(t.organizationId),
   tokenIdx: uniqueIndex("invitations_token_idx").on(t.token),
+}));
+
+// Catálogo de planes pagos. Casi estático: se siembra por migración y (versión posterior) se
+// editará desde un backoffice — NUNCA CRUD desde la app del reclutador. `code` es la identidad
+// estable; `workspace_type` mapea qué plan corresponde a cada tipo de workspace elegido en el
+// onboarding (freelance→freelancer, team→teams). Enterprise no tiene plan self-serve.
+// Precio en `numeric` para no perder decimales (drizzle lo devuelve como string).
+export const plans = pgTable("plans", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  workspaceType: workspaceType("workspace_type").notNull(),
+  price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+  currency: text("currency").notNull().default("USD"),
+  trialDays: integer("trial_days").notNull().default(14),
+  maxMembers: integer("max_members").notNull(),
+  // Token + URL del plan/checkout en dLocal Go. null hasta que se cree con el script
+  // `scripts/dlocal-create-plan.mjs`.
+  dlocalPlanToken: text("dlocal_plan_token"),
+  dlocalSubscribeUrl: text("dlocal_subscribe_url"),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...timestamps,
+}, (t) => ({
+  codeIdx: uniqueIndex("plans_code_idx").on(t.code),
+}));
+
+// Suscripción del workspace a un plan pago, gestionada con dLocal Go. 1:1 con la organización
+// (`organization_id` único). El período de prueba arranca con `organizations.created_at`
+// mientras no exista esta fila; una vez que el recruiter conecta dLocal Go se crea con
+// `status = trialing` y `trial_ends_at` = fecha del primer cobro que informa dLocal.
+export const subscriptions = pgTable("subscriptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  // A qué plan está suscripta. Nullable solo para filas legado; se setea siempre al crear.
+  planId: uuid("plan_id").references(() => plans.id),
+  provider: text("provider").notNull().default("dlocal_go"),
+  dlocalSubscriptionId: text("dlocal_subscription_id"),
+  dlocalSubscriptionToken: text("dlocal_subscription_token"),
+  status: subscriptionStatus("status").notNull().default("pending"),
+  // Fin del período sin cobro (lo informa dLocal como `scheduled_date` del primer cobro).
+  trialEndsAt: timestamp("trial_ends_at"),
+  // Hasta cuándo está paga la suscripción. El gate de acceso suma unos días de gracia.
+  currentPeriodEndsAt: timestamp("current_period_ends_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: uniqueIndex("subscriptions_org_idx").on(t.organizationId),
+  statusIdx: index("subscriptions_status_idx").on(t.status),
+}));
+
+// Cada cobro que dLocal Go concreta sobre una suscripción. Histórico para `/settings/plan`.
+// `dlocal_payment_id` único: el webhook puede reintentar el mismo pago y no debe duplicar.
+export const subscriptionPayments = pgTable("subscription_payments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  subscriptionId: uuid("subscription_id")
+    .references(() => subscriptions.id, { onDelete: "cascade" })
+    .notNull(),
+  dlocalPaymentId: text("dlocal_payment_id").notNull(),
+  // Monto cobrado tal cual lo informa dLocal (ej. 29.99). Numeric para no perder decimales.
+  amount: numeric("amount", { precision: 10, scale: 2 }),
+  currency: text("currency"),
+  status: text("status"),
+  paidAt: timestamp("paid_at"),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("subscription_payments_org_idx").on(t.organizationId),
+  paymentIdx: uniqueIndex("subscription_payments_dlocal_payment_idx").on(t.dlocalPaymentId),
 }));
 
 // Notificación dirigida a un miembro de la org, o a un candidato con postulaciones en esa
@@ -1422,6 +1509,10 @@ export type MessageTemplate = typeof messageTemplates.$inferSelect;
 export type MessageThread = typeof messageThreads.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type Invitation = typeof invitations.$inferSelect;
+export type Plan = typeof plans.$inferSelect;
+export type Subscription = typeof subscriptions.$inferSelect;
+export type SubscriptionStatus = (typeof subscriptionStatus.enumValues)[number];
+export type SubscriptionPayment = typeof subscriptionPayments.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Shortlist = typeof shortlists.$inferSelect;
 export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;

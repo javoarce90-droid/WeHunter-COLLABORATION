@@ -12,7 +12,7 @@ const PLANS = [
     desc: "Para Recruiters Independientes.",
     users: "Empezá gratis. Descubrí una nueva forma de reclutar. 🚀.",
     users2:
-      "Probá WeHunter durante 15 días sin costo y descubrí cómo la IA puede ayudarte a encontrar talento más rápido.",
+      "Probá WeHunter durante 14 días sin costo y descubrí cómo la IA puede ayudarte a encontrar talento más rápido.",
     features: [
       "1 usuario.",
       "ATS completo + Pipeline.",
@@ -26,7 +26,7 @@ const PLANS = [
       "Dashboard y métricas.",
       "Entrevistas, agenda y feedbacks.",
     ],
-    notes: "🎁 15 días gratis. Sin tarjeta de crédito. Luego: ARS 59.999 o USD 29,99 / mes.",
+    notes: "🎁 14 días gratis, después USD 29,99 / mes. Cargás la tarjeta al activar; el primer cobro es al día 14.",
     ctaLabel: "Comenzar prueba gratuita",
     ctaVariant: "secondary" as const,
     featured: false,
@@ -45,8 +45,8 @@ const PLANS = [
       "Soporte prioritario.",
       "Onboarding personalizado.",
     ],
-    notes: "Precio según la cantidad de usuarios.",
-    ctaLabel: "Contactar a ventas",
+    notes: "🎁 14 días gratis, después USD 99,99 / mes por workspace (hasta 5 usuarios). Cargás la tarjeta al activar; el primer cobro es al día 14.",
+    ctaLabel: "Comenzar prueba gratuita",
     ctaVariant: "primary" as const,
     featured: true,
   },

@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
 import { getAccountType, getActiveMembership } from "@/lib/auth/session";
+import type { WorkspaceType } from "@/lib/auth/session";
+import { getActivePlans } from "@/features/recruiter/billing/data/plans.queries";
+import { formatPrice } from "@/features/recruiter/billing/plan";
 import { CreateOrganizationForm } from "@/features/recruiter/onboarding/ui/CreateOrganizationForm";
 
 /**
@@ -18,10 +21,16 @@ export default async function OnboardingPage() {
     redirect("/dashboard");
   }
 
+  const plans = await getActivePlans();
+  const prices: Partial<Record<WorkspaceType, string>> = {};
+  for (const p of plans) {
+    prices[p.workspaceType] = formatPrice(p.price, p.currency);
+  }
+
   return (
     <div className="flex min-h-dvh items-center justify-center bg-bg px-4 py-12">
       <div className="w-full max-w-md">
-        <CreateOrganizationForm />
+        <CreateOrganizationForm prices={prices} />
       </div>
     </div>
   );

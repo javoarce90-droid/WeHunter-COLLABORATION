@@ -13,7 +13,11 @@ import { WorkspaceTypePicker } from "./WorkspaceTypePicker";
 
 const initialState: OnboardingFormState = {};
 
-export function CreateOrganizationForm() {
+export function CreateOrganizationForm({
+  prices = {},
+}: {
+  prices?: Partial<Record<WorkspaceType, string>>;
+}) {
   const [state, formAction, pending] = useActionState(
     crearOrganizationAction,
     initialState,
@@ -46,7 +50,12 @@ export function CreateOrganizationForm() {
               ¿Cómo vas a usar WeHunter?
             </span>
             <input type="hidden" name="workspaceType" value={uso ?? ""} />
-            <WorkspaceTypePicker value={uso} onChange={setUso} ariaLabel="Cómo vas a usar WeHunter" />
+            <WorkspaceTypePicker
+              value={uso}
+              onChange={setUso}
+              ariaLabel="Cómo vas a usar WeHunter"
+              prices={prices}
+            />
           </div>
 
           {state.error && <p className="text-xs text-danger">{state.error}</p>}
