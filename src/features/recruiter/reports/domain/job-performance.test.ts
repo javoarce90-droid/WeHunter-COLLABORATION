@@ -53,8 +53,8 @@ describe("computeJobPerformance", () => {
     const r = computeJobPerformance({ stageCounts: [], sourceCounts: [], events, now: NOW });
 
     // new: de día -10 a día -6 = 4 días. screening: de día -6 a ahora = 6 días.
-    expect(r.avgTimeInStage).toContainEqual({ stage: "new", days: 4 });
-    expect(r.avgTimeInStage).toContainEqual({ stage: "screening", days: 6 });
+    expect(r.avgTimeInStage).toContainEqual({ stage: "new", days: 4, slaDays: null });
+    expect(r.avgTimeInStage).toContainEqual({ stage: "screening", days: 6, slaDays: null });
     expect(r.trackedCount).toBe(1);
   });
 
@@ -69,7 +69,38 @@ describe("computeJobPerformance", () => {
     ];
     const r = computeJobPerformance({ stageCounts: [], sourceCounts: [], events, now: NOW });
     // promedio en new = (2 + 4) / 2 = 3
-    expect(r.avgTimeInStage).toContainEqual({ stage: "new", days: 3 });
+    expect(r.avgTimeInStage).toContainEqual({ stage: "new", days: 3, slaDays: null });
+  });
+
+  it("suma el SLA configurado por etapa a avgTimeInStage", () => {
+    const events: EventRow[] = [
+      { applicationId: "a1", fromStage: null, toStage: "new", createdAt: day(10) },
+      { applicationId: "a1", fromStage: "new", toStage: "screening", createdAt: day(6) },
+    ];
+    const r = computeJobPerformance({
+      stageCounts: [],
+      sourceCounts: [],
+      events,
+      now: NOW,
+      stageSla: { new: 3, screening: null },
+    });
+    expect(r.avgTimeInStage).toContainEqual({ stage: "new", days: 4, slaDays: 3 });
+    expect(r.avgTimeInStage).toContainEqual({ stage: "screening", days: 6, slaDays: null });
+  });
+
+  it("una etapa sin entrada en stageSla queda con slaDays null", () => {
+    const events: EventRow[] = [
+      { applicationId: "a1", fromStage: null, toStage: "new", createdAt: day(10) },
+      { applicationId: "a1", fromStage: "new", toStage: "screening", createdAt: day(6) },
+    ];
+    const r = computeJobPerformance({
+      stageCounts: [],
+      sourceCounts: [],
+      events,
+      now: NOW,
+      stageSla: { new: 5 },
+    });
+    expect(r.avgTimeInStage.find((s) => s.stage === "screening")?.slaDays).toBeNull();
   });
 
   it("calcula time-to-hire promedio solo sobre los contratados", () => {

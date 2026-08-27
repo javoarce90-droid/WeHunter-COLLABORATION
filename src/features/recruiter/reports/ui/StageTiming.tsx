@@ -55,19 +55,35 @@ export function StageTiming({ perf }: { perf: JobPerformance }) {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-label">
                 Promedio por etapa
               </h3>
-              {avgTimeInStage.map((s) => (
-                <div key={s.stage} className="flex items-center gap-2.5 text-sm">
-                  <span
-                    className="h-2 w-2 shrink-0 rounded-full"
-                    style={{ background: STAGE_DOT[s.stage] }}
-                    aria-hidden
-                  />
-                  <span className="flex-1 text-text">{STAGE_LABELS[s.stage]}</span>
-                  <span className="font-medium text-muted tabular-nums">
-                    {formatDays(s.days)}
-                  </span>
-                </div>
-              ))}
+              {avgTimeInStage.map((s) => {
+                // Solo se marca cuando SUPERA el SLA — dentro del SLA (o sin SLA configurado
+                // para esa etapa) no agrega nada a la fila (PRODUCT.md: "confianza sin
+                // ceremonia", no confirma que todo está bien, solo avisa cuando no lo está).
+                const overSla = s.slaDays != null && s.days > s.slaDays;
+                return (
+                  <div key={s.stage} className="flex items-center gap-2.5 text-sm">
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: STAGE_DOT[s.stage] }}
+                      aria-hidden
+                    />
+                    <span className="flex-1 text-text">{STAGE_LABELS[s.stage]}</span>
+                    {overSla && (
+                      <span className="text-xs font-semibold text-warning">
+                        Supera el SLA de {s.slaDays} d
+                      </span>
+                    )}
+                    <span
+                      className={[
+                        "font-medium tabular-nums",
+                        overSla ? "text-warning" : "text-muted",
+                      ].join(" ")}
+                    >
+                      {formatDays(s.days)}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
