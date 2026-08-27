@@ -5,17 +5,28 @@ import { plans, type Plan } from "@/db/schema";
 import type { WorkspaceType } from "@/lib/auth/session";
 
 /**
- * Lecturas del catálogo de planes. Tabla chica y casi estática — `cache()` por request para
- * no repetir la query aunque la pidan varios lados (layout + page + form de onboarding).
- * RLS: `read_all` deja leerla a cualquier autenticado.
+ * Lecturas del catálogo de planes. Tabla chica y casi estática (cambia solo por migración o,
+ * más adelante, un backoffice). Se cachea:
+ *  - `cache()` de React → una sola query por request aunque la pidan layout + page + form.
+ *  - caché de módulo con TTL corto → ~una query por minuto por instancia, no por navegación
+ *    (evita sumar una transacción RLS al shell en cada page load — ver database.md).
+ * RLS: la política `read_all` deja leerla a cualquier autenticado.
  */
 
+const CACHE_TTL_MS = 60_000;
+let moduleCache: { at: number; plans: Plan[] } | null = null;
+
 export const getActivePlans = cache(async (): Promise<Plan[]> => {
+  if (moduleCache && Date.now() - moduleCache.at < CACHE_TTL_MS) {
+    return moduleCache.plans;
+  }
   const db = await getDb();
-  return db.rls(
+  const rows = await db.rls(
     (tx) => tx.select().from(plans).where(eq(plans.active, true)).orderBy(plans.sortOrder),
     "db.plans",
   );
+  moduleCache = { at: Date.now(), plans: rows };
+  return rows;
 });
 
 export async function getPlanById(id: string): Promise<Plan | null> {
