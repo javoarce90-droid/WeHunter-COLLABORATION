@@ -124,16 +124,17 @@ export async function requestInterviewRpc(args: {
   slots: Date[];
 }): Promise<boolean> {
   try {
-    // postgres-js infiere mal el tipo de un array de `Date` nativos (lo manda como
-    // timestamptz escalar, no array — "cannot cast type timestamp with time zone to
-    // timestamp with time zone[]"), sea cual sea el cast de destino. Bug real confirmado
-    // empíricamente contra la base: mandar ISO strings en vez de Date[] lo resuelve.
-    const isoSlots = args.slots.map((d) => d.toISOString());
+    // El `sql` de drizzle-orm (a diferencia del tag de la librería `postgres`) no serializa
+    // un array JS al formato de array literal de Postgres ("{...}") — lo manda tal cual
+    // (similar a JSON, "[...]"), y la función recibe "malformed array literal" al castear a
+    // timestamptz[]. Bug real confirmado contra la base (2026-08-27). Se arma el literal a
+    // mano y se manda como un solo parámetro de texto, ya en formato que Postgres entiende.
+    const pgArrayLiteral = `{${args.slots.map((d) => `"${d.toISOString()}"`).join(",")}}`;
     const rows = await admin.execute<{ ok: boolean }>(
       sql`select request_shortlist_interview(
         ${args.token},
         ${args.shortlistCandidateId}::uuid,
-        ${isoSlots}::timestamptz[]
+        ${pgArrayLiteral}::timestamptz[]
       ) as ok`,
     );
     return rows[0]?.ok === true;
