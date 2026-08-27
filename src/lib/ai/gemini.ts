@@ -433,6 +433,7 @@ export class GeminiAiProvider implements AiProvider {
 
     const prompt = prompts.draftCandidateProfile({
       hasCvFile: !!input.cvFile,
+      cvText: input.cvText?.trim() || null,
       linkedinText: linkedinFetch?.text ?? null,
       linkedinFetchFailed: linkedinFetch?.status === "failed",
     });
@@ -456,6 +457,7 @@ export class GeminiAiProvider implements AiProvider {
             type: Type.OBJECT,
             properties: {
               fullName: { type: Type.STRING },
+              email: { type: Type.STRING },
               phone: { type: Type.STRING },
               headline: { type: Type.STRING },
               location: { type: Type.STRING },
@@ -529,6 +531,7 @@ export class GeminiAiProvider implements AiProvider {
 
       return {
         fullName: str(parsed.fullName),
+        email: str(parsed.email)?.toLowerCase() ?? null,
         phone: str(parsed.phone),
         headline: parsed.headline.trim(),
         location: str(parsed.location),

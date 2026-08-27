@@ -3,6 +3,7 @@ import { generarPerfilConIa } from "./generar-perfil-con-ia";
 
 const fakeDraft = {
   fullName: null,
+  email: null,
   phone: null,
   headline: "Frontend Senior",
   location: null,

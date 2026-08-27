@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CandidateForm } from "@/features/recruiter/candidates/ui/CandidateForm";
 import { cargarCandidatoAction } from "@/features/recruiter/candidates/actions";
+import { SparkleIcon } from "@/components/ui/ai";
 
 export default function NewCandidatePage() {
   return (
@@ -19,6 +20,13 @@ export default function NewCandidatePage() {
         <p className="text-sm text-muted">
           Sumá una persona al pool de tu workspace. El CV es opcional.
         </p>
+        <Link
+          href="/candidates/new/ia"
+          className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary transition-colors hover:text-primary-hover"
+        >
+          <SparkleIcon size={13} />
+          ¿Tenés el CV? Crealo con IA
+        </Link>
       </div>
       <CandidateForm
         action={cargarCandidatoAction}

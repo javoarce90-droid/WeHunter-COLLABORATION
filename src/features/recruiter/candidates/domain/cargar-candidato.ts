@@ -25,6 +25,9 @@ export interface CargarCandidatoInput extends CandidateDetailsInput {
   linkProfile?: boolean;
   /** true = el recruiter vio que existe una cuenta y decidió NO vincularla, crear igual. */
   skipProfileLink?: boolean;
+  /** Path de un CV ya subido a Storage (flujo "Crear con IA": el CV se sube al generar el
+   *  borrador, antes de este paso). Se usa como `cvUrl` cuando no hay `deps.uploadCv`. */
+  existingCvUrl?: string | null;
 }
 
 export interface CargarCandidatoCtx {
@@ -127,7 +130,8 @@ export async function cargarCandidato(
 
   // El CV se sube recién acá (post-autorización). Una falla de subida es recuperable
   // (archivo, policy, red): devolvemos err para mostrarla en el form, no crasheamos.
-  let cvUrl: string | null = null;
+  // `existingCvUrl` es el camino del flujo con IA: el archivo ya está en Storage.
+  let cvUrl: string | null = input.existingCvUrl?.trim() || null;
   if (deps.uploadCv) {
     try {
       cvUrl = (await deps.uploadCv()).path;

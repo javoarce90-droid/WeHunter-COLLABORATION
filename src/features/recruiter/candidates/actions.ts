@@ -11,8 +11,20 @@ import {
   CV_ALLOWED_TYPES,
   CV_MAX_BYTES,
   IMPORT_FILE_MAX_BYTES,
+  AI_CV_ALLOWED_TYPES,
+  AI_BATCH_MAX_CVS,
 } from "./schema";
+import { normalizeUrl } from "@/lib/url";
 import { cargarCandidato } from "./domain/cargar-candidato";
+import { generarBorradorCandidato } from "./domain/generar-borrador-candidato";
+import {
+  crearCandidatosDesdeCvs,
+  type CvSource,
+  type CrearCandidatosDesdeCvsResult,
+} from "./domain/crear-candidatos-desde-cvs";
+import { extractCvForAi } from "@/lib/cv-extract";
+import { insertCandidateResumeItems } from "./data/candidate-resume.mutations";
+import type { DraftCandidateProfile } from "@/lib/ai";
 import { editarCandidato } from "./domain/editar-candidato";
 import {
   importarCandidatosMasivo,
@@ -61,6 +73,7 @@ import { findLinkableProfile } from "./data/profile-link.queries";
 import {
   uploadCandidateCv,
   deleteCandidateCv,
+  getCvSignedUrl,
 } from "./data/candidates.storage";
 import {
   insertExperience,
@@ -340,9 +353,13 @@ export async function cargarCandidatoAction(
   const confirmDuplicate = formData.get("confirmDuplicate") === "true";
   const linkProfile = formData.get("linkProfile") === "true";
   const skipProfileLink = formData.get("skipProfileLink") === "true";
+  // Flujo "Crear con IA": el CV ya se subió al generar el borrador — se reusa ese path en vez
+  // de volver a pedir el archivo.
+  const existingCvUrlRaw = formData.get("existingCvUrl");
+  const existingCvUrl = typeof existingCvUrlRaw === "string" ? existingCvUrlRaw : null;
 
   const result = await cargarCandidato(
-    { ...parsed.data, confirmDuplicate, linkProfile, skipProfileLink },
+    { ...parsed.data, confirmDuplicate, linkProfile, skipProfileLink, existingCvUrl },
     {
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
@@ -367,6 +384,173 @@ export async function cargarCandidatoAction(
   await saveCandidateResumeItems(result.data.candidateId, formData);
 
   redirect("/candidates");
+}
+
+// ---- Crear candidato con IA desde el CV ----
+
+export interface BorradorCandidatoState {
+  error?: string;
+  draft?: DraftCandidateProfile;
+  /** Path del CV ya subido a Storage en este paso — se reusa en el guardado. */
+  cvUrl?: string;
+  cvDownloadUrl?: string | null;
+}
+
+/** Valida un CV para el flujo con IA (PDF o .docx). Devuelve el File o un mensaje de error. */
+function readAiCvFile(formData: FormData): { file: File } | { error: string } {
+  const raw = formData.get("cv");
+  if (!(raw instanceof File) || raw.size === 0) {
+    return { error: "Subí el CV en PDF o .docx." };
+  }
+  if (!AI_CV_ALLOWED_TYPES.includes(raw.type)) {
+    return { error: "El asistente acepta CV en PDF o .docx. Convertí el archivo e intentá de nuevo." };
+  }
+  if (raw.size > CV_MAX_BYTES) {
+    return { error: "El CV supera el límite de 5 MB." };
+  }
+  return { file: raw };
+}
+
+function cvSourceFromExtract(
+  extracted: Awaited<ReturnType<typeof extractCvForAi>>,
+): CvSource | null {
+  if ("pdf" in extracted) {
+    return { cvFile: { base64: extracted.pdf.base64, mimeType: "application/pdf" } };
+  }
+  if ("text" in extracted) return { cvText: extracted.text };
+  return null;
+}
+
+/**
+ * Genera un borrador de candidato con IA a partir de un CV (+ LinkedIn opcional). No persiste
+ * el candidato — el recruiter revisa/edita el borrador en el formulario y recién ahí guarda.
+ * El CV sí se sube a Storage acá, para no volver a pedir el archivo en el paso de revisión.
+ */
+export async function generarBorradorCandidatoConIaAction(
+  _prev: BorradorCandidatoState,
+  formData: FormData,
+): Promise<BorradorCandidatoState> {
+  const membership = await getActiveMembership();
+  if (!membership) return { error: "No autorizado." };
+
+  const linkedinUrlRaw = formData.get("linkedinUrl");
+  const linkedinUrl =
+    typeof linkedinUrlRaw === "string" && linkedinUrlRaw.trim()
+      ? normalizeUrl(linkedinUrlRaw)
+      : "";
+
+  const hasCv = formData.get("cv") instanceof File && (formData.get("cv") as File).size > 0;
+  if (!hasCv && !linkedinUrl) {
+    return { error: "Subí un CV o ingresá una URL de LinkedIn." };
+  }
+
+  let cvSource: CvSource | undefined;
+  let uploaded: { path: string } | null = null;
+  if (hasCv) {
+    const cv = readAiCvFile(formData);
+    if ("error" in cv) return { error: cv.error };
+
+    const extracted = await extractCvForAi(cv.file);
+    if ("error" in extracted) return { error: extracted.error };
+    cvSource = cvSourceFromExtract(extracted) ?? undefined;
+
+    try {
+      uploaded = await uploadCandidateCv(membership.organizationId, cv.file);
+    } catch {
+      return { error: "No se pudo subir el CV. Revisá el archivo e intentá de nuevo." };
+    }
+  }
+
+  const result = await generarBorradorCandidato(
+    {
+      linkedinUrl: linkedinUrl || undefined,
+      cvFile: cvSource && "cvFile" in cvSource ? cvSource.cvFile : undefined,
+      cvText: cvSource && "cvText" in cvSource ? cvSource.cvText : undefined,
+    },
+    { organizationId: membership.organizationId, role: membership.role },
+    { draftProfile: (input) => getAiProvider().draftCandidateProfile(input) },
+  );
+
+  if (!result.ok) {
+    if (uploaded) await deleteCandidateCv(uploaded.path).catch(() => {});
+    return { error: result.error };
+  }
+
+  return {
+    draft: result.data,
+    cvUrl: uploaded?.path,
+    cvDownloadUrl: uploaded ? await getCvSignedUrl(uploaded.path) : null,
+  };
+}
+
+export interface CrearCandidatosLoteState {
+  ok?: boolean;
+  error?: string;
+  result?: CrearCandidatosDesdeCvsResult;
+}
+
+/**
+ * Alta por lote: hasta `AI_BATCH_MAX_CVS` CVs → la IA extrae cada uno y crea el candidato
+ * (SIN revisión individual). Saltea y reporta duplicados y CVs ilegibles. Bloqueante: cada
+ * CV es una llamada a Gemini, se procesan con concurrencia limitada dentro de esta request.
+ */
+export async function crearCandidatosDesdeCvsAction(
+  _prev: CrearCandidatosLoteState,
+  formData: FormData,
+): Promise<CrearCandidatosLoteState> {
+  const membership = await getActiveMembership();
+  if (!membership) return { error: "No autorizado." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { error: "No tenés permisos para cargar candidatos." };
+  }
+
+  const raw = formData.getAll("cvs").filter((f): f is File => f instanceof File && f.size > 0);
+  if (raw.length === 0) return { error: "Subí al menos un CV." };
+  if (raw.length > AI_BATCH_MAX_CVS) {
+    return { error: `Podés subir hasta ${AI_BATCH_MAX_CVS} CVs por tanda.` };
+  }
+
+  // id opaco → File real; el fileName es solo para el reporte de fallidos.
+  const byId = new Map<string, File>();
+  const files = raw.map((file, i) => {
+    const id = String(i);
+    byId.set(id, file);
+    return { id, fileName: file.name };
+  });
+
+  const result = await crearCandidatosDesdeCvs(
+    { files },
+    { organizationId: membership.organizationId, role: membership.role },
+    {
+      extractCv: async (id) => {
+        const file = byId.get(id);
+        if (!file) return { error: "Archivo no encontrado." };
+        const extracted = await extractCvForAi(file);
+        if ("error" in extracted) return extracted;
+        const cv = cvSourceFromExtract(extracted);
+        if (!cv) return { error: "No se pudo preparar el CV." };
+        // El CV se guarda adjunto al candidato; si la subida falla, se crea igual sin archivo.
+        const uploaded = await uploadCandidateCv(membership.organizationId, file).catch(() => null);
+        return { cv, cvUrl: uploaded?.path ?? null };
+      },
+      draftProfile: (src) =>
+        getAiProvider().draftCandidateProfile(
+          "cvFile" in src ? { cvFile: src.cvFile } : { cvText: src.cvText },
+        ),
+      cargarCandidato: (input) =>
+        cargarCandidato(
+          input,
+          { organizationId: membership.organizationId, role: membership.role },
+          { findDuplicateCandidate, findLinkableProfile, insertCandidate },
+        ),
+      persistResume: insertCandidateResumeItems,
+    },
+  );
+
+  if (!result.ok) return { error: result.error };
+  invalidateCandidateOptionsCache(membership.organizationId);
+  revalidatePath("/candidates");
+  return { ok: true, result: result.data };
 }
 
 export async function editarCandidatoAction(

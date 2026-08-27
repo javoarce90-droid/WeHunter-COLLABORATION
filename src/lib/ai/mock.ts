@@ -257,6 +257,7 @@ export class MockAiProvider implements AiProvider {
     // determinístico, listo para revisar/editar. Los arrays quedan vacíos (no hay parseo real).
     return {
       fullName: null,
+      email: null,
       phone: null,
       headline: "Perfil de talento",
       location: null,

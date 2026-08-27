@@ -159,8 +159,10 @@ export type ReportInsightsInput = {
  * revisar/editar antes de guardar — mismo criterio que draftJobOffer (nunca se guarda directo).
  */
 export type DraftCandidateProfileInput = {
-  /** CV del candidato. Solo PDF: Gemini lo entiende nativamente, sin parseo previo. */
+  /** CV del candidato en PDF: Gemini lo entiende nativamente, sin parseo previo. */
   cvFile?: { base64: string; mimeType: "application/pdf" };
+  /** Texto plano ya extraído de un CV (ej. `.docx` vía mammoth). Alternativa a `cvFile`. */
+  cvText?: string;
   /** URL de un perfil de LinkedIn. Best-effort: LinkedIn bloquea el fetch seguido. */
   linkedinUrl?: string;
 };
@@ -196,6 +198,10 @@ export type DraftCertification = {
 export type DraftCandidateProfile = {
   /** Nombre completo si aparece en el CV/LinkedIn, si no null (se usa el de la cuenta). */
   fullName: string | null;
+  /** Email de contacto si aparece en el CV/LinkedIn, si no null. Lo usa el alta por lote del
+   *  recruiter (sin revisión manual, necesita el email para dedup); en el onboarding del
+   *  candidato se ignora (ya está logueado). */
+  email: string | null;
   /** Teléfono si aparece en el CV/LinkedIn, si no null. */
   phone: string | null;
   /** Puesto/título actual, ej "Frontend Senior". */

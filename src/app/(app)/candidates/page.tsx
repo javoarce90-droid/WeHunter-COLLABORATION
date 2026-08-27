@@ -13,6 +13,7 @@ import {
 } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listJobs } from "@/features/recruiter/jobs/data/jobs.queries";
 import { CandidatesList } from "@/features/recruiter/candidates/ui/CandidatesList";
+import { SparkleIcon } from "@/components/ui/ai";
 import {
   isCandidateSeniority,
   isCompletenessFilter,
@@ -89,9 +90,16 @@ export default async function CandidatesPage({
           </Link>
           <Link
             href="/candidates/new"
-            className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+            className="inline-flex items-center justify-center rounded-[var(--radius)] border border-border bg-surface px-4 py-3 text-sm font-semibold text-text transition-colors hover:bg-bg"
           >
-            Cargar candidato
+            Cargar a mano
+          </Link>
+          <Link
+            href="/candidates/new/ia"
+            className="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius)] bg-gradient-to-r from-primary to-[#7C3AED] px-4 py-3 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <SparkleIcon size={14} />
+            Crear con IA
           </Link>
         </div>
       </div>
