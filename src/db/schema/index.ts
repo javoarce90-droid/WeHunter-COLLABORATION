@@ -412,6 +412,30 @@ export const clientShares = pgTable("client_shares", {
   tokenIdx: uniqueIndex("client_shares_token_idx").on(t.token),
 }));
 
+// Email que un recruiter le envió a un cliente desde su ficha (`/clients/[id]`). Registro
+// histórico: el envío real sale por el Gmail conectado del recruiter (mismo mecanismo que la
+// carta de oferta). `to_email` es un snapshot del destinatario al momento del envío (el
+// `contact_email` del cliente puede cambiar después). `external_id` = id del mensaje en Gmail,
+// igual criterio de trazabilidad que `messages.external_id`.
+export const clientEmails = pgTable("client_emails", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  clientId: uuid("client_id")
+    .references(() => clients.id, { onDelete: "cascade" })
+    .notNull(),
+  toEmail: text("to_email").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  externalId: text("external_id"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("client_emails_org_idx").on(t.organizationId),
+  clientActivityIdx: index("client_emails_client_activity_idx").on(t.clientId, t.createdAt),
+}));
+
 // Búsqueda / aviso.
 export const jobs = pgTable("jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -1372,6 +1396,7 @@ export type Organization = typeof organizations.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type ClientShare = typeof clientShares.$inferSelect;
+export type ClientEmail = typeof clientEmails.$inferSelect;
 export type PipelineStageRow = typeof pipelineStages.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Requisition = typeof requisitions.$inferSelect;
