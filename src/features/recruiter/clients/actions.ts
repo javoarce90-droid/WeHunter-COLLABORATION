@@ -7,14 +7,20 @@ import {
   clientInputSchema,
   generarClientShareSchema,
   revocarClientShareSchema,
+  enviarEmailAClienteSchema,
 } from "./schema";
 import { crearCliente } from "./domain/crear-cliente";
 import { editarCliente } from "./domain/editar-cliente";
 import { generarClientShare } from "./domain/generar-client-share";
 import { revocarClientShare } from "./domain/revocar-client-share";
 import { asignarRecruiterACliente } from "./domain/asignar-recruiter-a-cliente";
+import { enviarEmailACliente } from "./domain/enviar-email-a-cliente";
 import { insertClient, updateClientFields, assignRecruiterToClient } from "./data/clients.mutations";
 import { getClientById } from "./data/clients.queries";
+import { recordClientEmail } from "./data/client-emails.data";
+import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
+import { hasGmailSendScope } from "@/features/recruiter/google-calendar/data/oauth-client";
+import { sendGmailMessage } from "@/features/recruiter/google-calendar/data/gmail-client";
 import { getMembershipById, getSoleActiveMembershipId } from "@/features/recruiter/team/data/team.queries";
 import {
   createClientShare,
@@ -156,6 +162,67 @@ export async function revocarClientShareAction(
   const clientId = String(formData.get("clientId") ?? "");
   if (clientId) revalidatePath(`/clients/${clientId}`);
   return {};
+}
+
+export interface EnviarEmailAClienteState {
+  ok?: boolean;
+  error?: string;
+}
+
+export async function enviarEmailAClienteAction(
+  _prev: EnviarEmailAClienteState,
+  formData: FormData,
+): Promise<EnviarEmailAClienteState> {
+  const parsed = enviarEmailAClienteSchema.safeParse({
+    clientId: formData.get("clientId"),
+    subject: formData.get("subject"),
+    body: formData.get("body"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  if (!user || !membership) return { error: "No autorizado." };
+
+  // La conexión de Google del recruiter (mismo mecanismo que la carta de oferta) se resuelve
+  // acá, una sola vez, y se le pasa al dominio como `sendEmail`.
+  const connection = await getConnectionByProfile(user.id, membership.organizationId);
+  if (!connection) {
+    return {
+      error: "Conectá tu cuenta de Google en Configuración para poder enviar emails.",
+    };
+  }
+  if (!hasGmailSendScope(connection)) {
+    return {
+      error: "Tu conexión de Google es anterior a esta función — reconectala en Configuración.",
+    };
+  }
+
+  const result = await enviarEmailACliente(
+    parsed.data,
+    { organizationId: membership.organizationId, role: membership.role, userId: user.id },
+    {
+      getClient: getClientById,
+      sendEmail: async (to, subject, body) => {
+        const sent = await sendGmailMessage(connection, { to, subject, body });
+        return sent.ok
+          ? { ok: true, externalId: sent.externalId }
+          : { ok: false, error: sent.error };
+      },
+      recordSent: (args) =>
+        recordClientEmail({
+          ...args,
+          organizationId: membership.organizationId,
+          createdBy: user.id,
+        }),
+    },
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/clients/${parsed.data.clientId}`);
+  return { ok: true };
 }
 
 export interface AsignarRecruiterState {

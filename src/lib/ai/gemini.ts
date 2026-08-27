@@ -433,6 +433,7 @@ export class GeminiAiProvider implements AiProvider {
 
     const prompt = prompts.draftCandidateProfile({
       hasCvFile: !!input.cvFile,
+      cvText: input.cvText?.trim() || null,
       linkedinText: linkedinFetch?.text ?? null,
       linkedinFetchFailed: linkedinFetch?.status === "failed",
     });
@@ -456,6 +457,7 @@ export class GeminiAiProvider implements AiProvider {
             type: Type.OBJECT,
             properties: {
               fullName: { type: Type.STRING },
+              email: { type: Type.STRING },
               phone: { type: Type.STRING },
               headline: { type: Type.STRING },
               location: { type: Type.STRING },
@@ -529,6 +531,7 @@ export class GeminiAiProvider implements AiProvider {
 
       return {
         fullName: str(parsed.fullName),
+        email: str(parsed.email)?.toLowerCase() ?? null,
         phone: str(parsed.phone),
         headline: parsed.headline.trim(),
         location: str(parsed.location),
@@ -551,7 +554,11 @@ export class GeminiAiProvider implements AiProvider {
       // para el usuario), acá el mock es un placeholder casi vacío — sin esta marca, un fallo real
       // de Gemini es indistinguible de "el candidato eligió completar todo a mano" (bug reportado).
       const fallback = await this.fallback.draftCandidateProfile(input);
-      return { ...fallback, extractionFailed: true };
+      return {
+        ...fallback,
+        extractionFailed: true,
+        failureReason: isQuotaError(err) ? "quota" : "unreadable",
+      };
     }
   }
 
@@ -606,6 +613,16 @@ function logFallback(op: string, err: unknown) {
     `[ai/gemini] ${op} falló, usando fallback mock:`,
     err instanceof Error ? err.message : err,
   );
+}
+
+/** 429 de la API de Gemini (rate limit o cuota diaria del free tier). El mensaje del SDK trae
+ *  `"code":429` / `RESOURCE_EXHAUSTED`; algunos errores además exponen `.status`. */
+function isQuotaError(err: unknown): boolean {
+  if (err && typeof err === "object" && "status" in err && (err as { status?: number }).status === 429) {
+    return true;
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  return /"code":\s*429|RESOURCE_EXHAUSTED|exceeded your current quota/i.test(msg);
 }
 
 // Gemini a veces devuelve el string literal "null" en vez de JSON null para campos STRING sin

@@ -12,6 +12,7 @@ import { PostuladosTable } from "@/features/recruiter/applications/ui/Postulados
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ sourcing?: string }>;
 }
 
 /** Pestaña Postulados: bandeja de entrada de la búsqueda. El job ya está validado por el layout.
@@ -23,8 +24,9 @@ interface Props {
  *  trae postulados + candidatos + screening + notas en UNA sola transacción (database.md #3).
  *  El historial de etapa NO se trae acá: solo lo usa el sheet de detalle de UNA postulación
  *  puntual, así que se pide bajo demanda al abrirlo (ver PostuladoDetailSheet). */
-export default async function PostuladosPage({ params }: Props) {
+export default async function PostuladosPage({ params, searchParams }: Props) {
   const { id: jobId } = await params;
+  const { sourcing } = await searchParams;
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!user || !membership) notFound();
 
@@ -85,6 +87,7 @@ export default async function PostuladosPage({ params }: Props) {
       notesByApplication={notesByApplication}
       poolCandidates={poolCandidates}
       canSendEmail={hasGmailSendScope(googleConnection)}
+      autoOpenSourcing={sourcing === "1"}
     />
   );
 }

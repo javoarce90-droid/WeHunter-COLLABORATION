@@ -80,6 +80,9 @@ type Props = {
   /** true si el recruiter conectó Google con el scope de envío — condiciona "Notificar al
    *  candidato" al descartar. */
   canSendEmail: boolean;
+  /** true si se llegó acá con `?sourcing=1` (link de la notificación de "Terminó el sourcing
+   *  con IA") — abre el panel de Sourcing con IA directo. */
+  autoOpenSourcing?: boolean;
 };
 
 /** Foco visible estándar para botones de texto/íconos sin fondo (gap WCAG AA de PRODUCT.md). */
@@ -148,6 +151,7 @@ export function PostuladosTable({
   notesByApplication,
   poolCandidates,
   canSendEmail,
+  autoOpenSourcing = false,
 }: Props) {
   const toast = useToast();
   const [, startTransition] = useTransition();
@@ -532,7 +536,7 @@ export function PostuladosTable({
           className="ml-auto flex items-center gap-3"
         >
           <AgregarCandidatos jobId={jobId} poolCandidates={poolCandidates} />
-          <SourcingIADialog jobId={jobId} jobTitle={jobTitle} />
+          <SourcingIADialog jobId={jobId} jobTitle={jobTitle} autoOpenSourcing={autoOpenSourcing} />
           {!isEmpty &&
             (hayPendientesDeAnalizar ? (
               <AiButton

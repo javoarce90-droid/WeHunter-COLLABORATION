@@ -3,6 +3,7 @@ import { getActiveMembership } from "@/lib/auth/session";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getJobReportData } from "@/features/recruiter/reports/data/reports.queries";
 import { computeJobPerformance } from "@/features/recruiter/reports/domain/job-performance";
+import { bucketJobStageSla } from "@/features/recruiter/reports/domain/job-stage-sla";
 import { FunnelChart } from "@/features/recruiter/dashboard/ui/FunnelChart";
 import { SourceBreakdown } from "@/features/recruiter/reports/ui/SourceBreakdown";
 import { StageTiming } from "@/features/recruiter/reports/ui/StageTiming";
@@ -22,7 +23,8 @@ export default async function RendimientoPage({ params }: Props) {
   if (!membership) notFound();
 
   const raw = await getJobReportData(jobId, membership.organizationId);
-  const perf = computeJobPerformance({ ...raw, now: new Date() });
+  const stageSla = bucketJobStageSla(raw.jobStages);
+  const perf = computeJobPerformance({ ...raw, now: new Date(), stageSla });
 
   // Sin candidatos no hay nada que graficar: un solo empty state a nivel tab en vez de
   // tres paneles vacíos repitiendo "todavía no hay…".

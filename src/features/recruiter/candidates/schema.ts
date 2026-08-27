@@ -85,6 +85,17 @@ export const CV_EXT_BY_TYPE: Record<string, string> = {
 
 export const CV_ALLOWED_TYPES = Object.keys(CV_EXT_BY_TYPE);
 
+// Flujo "Crear con IA": PDF (Gemini lo lee nativo) y .docx (se extrae el texto con mammoth).
+// El .doc binario viejo NO entra acá — se pide convertir. Ver src/lib/cv-extract.ts.
+export const AI_CV_ALLOWED_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+// Tope de CVs por tanda en el alta con IA por lote: cada uno es 1 llamada a Gemini y el
+// procesamiento es bloqueante (sin infra de jobs). 10 mantiene el request bajo el timeout.
+export const AI_BATCH_MAX_CVS = 10;
+
 // Importación masiva: mapeo de columnas del archivo subido a campos del candidato. fullName/
 // email vienen del select del form (siempre un string, "" si no se eligió columna).
 const optionalColumn = z.preprocess(emptyToUndef, z.string().max(200).optional());

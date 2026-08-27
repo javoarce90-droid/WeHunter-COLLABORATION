@@ -412,6 +412,30 @@ export const clientShares = pgTable("client_shares", {
   tokenIdx: uniqueIndex("client_shares_token_idx").on(t.token),
 }));
 
+// Email que un recruiter le envió a un cliente desde su ficha (`/clients/[id]`). Registro
+// histórico: el envío real sale por el Gmail conectado del recruiter (mismo mecanismo que la
+// carta de oferta). `to_email` es un snapshot del destinatario al momento del envío (el
+// `contact_email` del cliente puede cambiar después). `external_id` = id del mensaje en Gmail,
+// igual criterio de trazabilidad que `messages.external_id`.
+export const clientEmails = pgTable("client_emails", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  clientId: uuid("client_id")
+    .references(() => clients.id, { onDelete: "cascade" })
+    .notNull(),
+  toEmail: text("to_email").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  externalId: text("external_id"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("client_emails_org_idx").on(t.organizationId),
+  clientActivityIdx: index("client_emails_client_activity_idx").on(t.clientId, t.createdAt),
+}));
+
 // Búsqueda / aviso.
 export const jobs = pgTable("jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -837,6 +861,74 @@ export const poolMatchResults = pgTable(
     jobCandidateUnique: uniqueIndex("pool_match_results_job_candidate_unique").on(
       t.jobId,
       t.candidateId,
+    ),
+  }),
+);
+
+// Sesión de trabajo en curso de "Sourcing con IA" (job + recruiter): permite restaurar los
+// resultados si el recruiter navega afuera mientras la búsqueda corre en el servidor, en vez de
+// perderlos (ver AiJobSourcingResults.tsx). Una sola fila por par — se PISA en cada tanda
+// (primera búsqueda o "Buscar más candidatos"), no es historial. A diferencia de
+// pool_match_results, acá los perfiles de LinkedIn todavía no existen en `candidates` (id
+// sintético, no FK real), así que viajan embebidos en el jsonb en vez de por referencia. Sin
+// snapshot de staleness a propósito: es estado de trabajo en curso, no un caché estable — si el
+// job cambió, el recruiter limpia y vuelve a buscar.
+export const sourcingSearchSessions = pgTable(
+  "sourcing_search_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    jobId: uuid("job_id")
+      .references(() => jobs.id, { onDelete: "cascade" })
+      .notNull(),
+    // Por-recruiter, no por-org: dos recruiters sourceando el mismo job no se pisan resultados.
+    profileId: uuid("profile_id")
+      .references(() => profiles.id, { onDelete: "cascade" })
+      .notNull(),
+    // Última variante de query usada (ver SOURCING_MAX_QUERY_ATTEMPTS) — "Buscar más
+    // candidatos" sigue desde acá en vez de repetir la variante 0.
+    attempt: integer("attempt").notNull(),
+    // Array ACUMULADO completo que la UI está mostrando (todas las tandas sumadas hasta el
+    // momento, deduplicadas — ver mergeSourcingBatch), no solo la última tanda.
+    results: jsonb("results")
+      .$type<
+        {
+          id: string;
+          name: string;
+          headline: string;
+          location: string;
+          skills: string[];
+          linkedinUrl: string;
+          snippet?: string | null;
+          score: number;
+          summary: string;
+          breakdown: {
+            experiencia: number;
+            skillsTecnicos: number;
+            seniority: number;
+            idiomas: number;
+            ubicacion: number;
+          };
+          strengths: string[];
+          redFlags: string[];
+        }[]
+      >()
+      .notNull(),
+    // Métricas de la ÚLTIMA tanda (no acumuladas) — mismo criterio que la UI.
+    metrics: jsonb("metrics")
+      .$type<{ encontrados: number; enPool: number; nuevos: number }>()
+      .notNull(),
+    isLiveApi: boolean("is_live_api").notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    orgIdx: index("sourcing_search_sessions_org_idx").on(t.organizationId),
+    // Cache key real: un recruiter tiene a lo sumo una sesión en curso por job. Target del upsert.
+    jobProfileUnique: uniqueIndex("sourcing_search_sessions_job_profile_unique").on(
+      t.jobId,
+      t.profileId,
     ),
   }),
 );
@@ -1304,6 +1396,7 @@ export type Organization = typeof organizations.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
 export type Client = typeof clients.$inferSelect;
 export type ClientShare = typeof clientShares.$inferSelect;
+export type ClientEmail = typeof clientEmails.$inferSelect;
 export type PipelineStageRow = typeof pipelineStages.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Requisition = typeof requisitions.$inferSelect;
@@ -1316,6 +1409,7 @@ export type LanguageLevel = (typeof languageLevel.enumValues)[number];
 export type CandidateJobInteraction = typeof candidateJobInteractions.$inferSelect;
 export type Application = typeof applications.$inferSelect;
 export type PoolMatchResultRow = typeof poolMatchResults.$inferSelect;
+export type SourcingSearchSessionRow = typeof sourcingSearchSessions.$inferSelect;
 export type ScreeningQuestion = typeof screeningQuestions.$inferSelect;
 export type ScreeningAnswer = typeof screeningAnswers.$inferSelect;
 export type Interview = typeof interviews.$inferSelect;

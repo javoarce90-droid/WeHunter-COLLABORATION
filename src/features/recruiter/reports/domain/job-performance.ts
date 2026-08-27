@@ -23,6 +23,9 @@ export type JobReportInput = {
   sourceCounts: SourceCountRow[];
   events: EventRow[];
   now: Date;
+  /** SLA configurado por etapa (días) — opcional; sin esto no hay comparación de SLA en
+   *  `avgTimeInStage` (ej. el insight de IA no la necesita, solo `StageTiming`). */
+  stageSla?: Partial<Record<ApplicationStage, number | null>>;
 };
 
 export type JobPerformance = {
@@ -32,8 +35,9 @@ export type JobPerformance = {
   sourceBreakdown: { source: string; count: number }[];
   /** Días promedio desde la postulación hasta la contratación. null si nadie fue contratado. */
   timeToHireDays: number | null;
-  /** Días promedio que las postulaciones pasaron en cada etapa. */
-  avgTimeInStage: { stage: ApplicationStage; days: number }[];
+  /** Días promedio que las postulaciones pasaron en cada etapa, con el SLA configurado para
+   *  esa etapa (si hay) para que la UI marque cuando lo supera. */
+  avgTimeInStage: { stage: ApplicationStage; days: number; slaDays: number | null }[];
   /** Cuántas postulaciones tienen historial (base de las métricas de tiempo). */
   trackedCount: number;
 };
@@ -42,7 +46,7 @@ const MS_PER_DAY = 86_400_000;
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 export function computeJobPerformance(input: JobReportInput): JobPerformance {
-  const { stageCounts, sourceCounts, events, now } = input;
+  const { stageCounts, sourceCounts, events, now, stageSla } = input;
 
   // Funnel: una fila por etapa canónica, en orden, con su count (0 si no aparece).
   const stageMap = new Map(stageCounts.map((r) => [r.stage, r.count]));
@@ -93,7 +97,11 @@ export function computeJobPerformance(input: JobReportInput): JobPerformance {
 
   const avgTimeInStage = APPLICATION_STAGES.map((stage) => {
     const acc = stageDurationTotals.get(stage);
-    return { stage, days: acc && acc.n > 0 ? round1(acc.sum / acc.n / MS_PER_DAY) : 0 };
+    return {
+      stage,
+      days: acc && acc.n > 0 ? round1(acc.sum / acc.n / MS_PER_DAY) : 0,
+      slaDays: stageSla?.[stage] ?? null,
+    };
   }).filter((s) => s.days > 0);
 
   const timeToHireDays =

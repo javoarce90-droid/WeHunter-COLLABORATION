@@ -1,16 +1,18 @@
 import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { applications, applicationEvents, candidates, jobs, profiles } from "@/db/schema";
+import { applications, applicationEvents, candidates, jobs, profiles, jobStages } from "@/db/schema";
 import type {
   StageCountRow,
   SourceCountRow,
   EventRow,
 } from "../domain/job-performance";
+import type { JobStageSlaRow } from "../domain/job-stage-sla";
 
 export type JobReportRaw = {
   stageCounts: StageCountRow[];
   sourceCounts: SourceCountRow[];
   events: EventRow[];
+  jobStages: JobStageSlaRow[];
 };
 
 export type OrgReportRaw = {
@@ -141,7 +143,7 @@ export async function getJobReportData(
 ): Promise<JobReportRaw> {
   const db = await getDb();
   return db.rls(async (tx) => {
-    const [stageCounts, sourceCounts, events] = await Promise.all([
+    const [stageCounts, sourceCounts, events, stages] = await Promise.all([
       tx
         .select({
           stage: applications.stage,
@@ -187,12 +189,27 @@ export async function getJobReportData(
           ),
         )
         .orderBy(applicationEvents.createdAt),
+
+      tx
+        .select({
+          id: jobStages.id,
+          name: jobStages.name,
+          position: jobStages.position,
+          kind: jobStages.kind,
+          legacyStage: jobStages.legacyStage,
+          slaDays: jobStages.slaDays,
+        })
+        .from(jobStages)
+        .where(
+          and(eq(jobStages.jobId, jobId), eq(jobStages.organizationId, organizationId)),
+        ),
     ]);
 
     return {
       stageCounts,
       sourceCounts,
       events,
+      jobStages: stages,
     } as JobReportRaw;
   }, "db.reports.job");
 }

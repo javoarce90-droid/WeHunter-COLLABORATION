@@ -129,3 +129,10 @@ Con label y estado de error. Focus ring: `2px rgba(123,47,219,0.2)`.
 - **Kanban**: columnas en `--bg`, cards blancas con hover shadow
 - **KPI cards**: accent line de 3-4px en el top con gradiente del color semántico
 - **AI elements**: gradiente `primary → ai (#9D6DF1)`, badge "AI" cuadrado `bg-primary text-white`
+- **Operación IA larga — dos patrones según si se puede interrumpir:**
+  - *Se puede seguir en background* (ej. Sourcing con IA): **sheet lateral** dismissable; al
+    cerrar sigue corriendo en el server y avisa por la campanita. Conserva el contexto.
+  - *No se debe interrumpir* porque escribe registros (ej. alta de candidatos por lote de CVs):
+    **modal centrado** con `blurBackdrop` + `dismissable={false}`, barra de progreso determinada
+    y resultado por ítem. Sale solo por botón explícito; al terminar dispara un toast persistente
+    para que el resultado sobreviva al cierre.

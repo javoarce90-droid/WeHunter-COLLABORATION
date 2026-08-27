@@ -5,8 +5,10 @@ import { buttonVariants } from "@/components/ui/button";
 import { SectionCard } from "@/components/ui/section-card";
 import { AssignedRecruiterControl } from "./AssignedRecruiterControl";
 import { ClientShareControls } from "./ClientShareControls";
+import { SendClientEmailDialog, type EmailLink } from "./SendClientEmailDialog";
 import type { AssignableRecruiter } from "../data/clients.queries";
 import type { ClientShareRow } from "../data/client-shares.data";
+import type { ClientEmailRow } from "../data/client-emails.data";
 import type { RequisitionByClientRow } from "@/features/recruiter/requisitions/data/requisitions.queries";
 import {
   REQUISITION_STATUS_META,
@@ -14,6 +16,12 @@ import {
 } from "@/features/recruiter/requisitions/ui/requisition-meta";
 import { JOB_STATUS_META, relativeTime } from "@/features/recruiter/jobs/ui/status-meta";
 import type { Client, Job } from "@/db/schema";
+
+const emailDateFmt = new Intl.DateTimeFormat("es-AR", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
 
 type ClientJob = { id: string; title: string; status: string; updatedAt: Date };
 
@@ -23,6 +31,9 @@ export function ClientDetailContent({
   shares,
   recruiters,
   requisitions,
+  emails,
+  emailLinks,
+  canSendEmail,
   appUrl,
   canManageClients,
   canManageJobs,
@@ -33,6 +44,9 @@ export function ClientDetailContent({
   shares: ClientShareRow[];
   recruiters: AssignableRecruiter[];
   requisitions: RequisitionByClientRow[];
+  emails: ClientEmailRow[];
+  emailLinks: EmailLink[];
+  canSendEmail: boolean;
   appUrl: string;
   canManageClients: boolean;
   canManageJobs: boolean;
@@ -55,13 +69,15 @@ export function ClientDetailContent({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {canManageJobs && (
-            <Link
-              href={`/jobs/new?clientId=${client.id}`}
-              className={buttonVariants({ variant: "primary", size: "sm" })}
-            >
-              Nueva búsqueda
-            </Link>
+          {canManageClients && (
+            <SendClientEmailDialog
+              clientId={client.id}
+              clientName={client.name}
+              contactName={client.contactName}
+              contactEmail={client.contactEmail}
+              canSendEmail={canSendEmail}
+              insertableLinks={emailLinks}
+            />
           )}
           {canManageClients && (
             <Link
@@ -69,6 +85,14 @@ export function ClientDetailContent({
               className={buttonVariants({ variant: "secondary", size: "sm" })}
             >
               Editar
+            </Link>
+          )}
+          {canManageJobs && (
+            <Link
+              href={`/jobs/new?clientId=${client.id}`}
+              className={buttonVariants({ variant: "primary", size: "sm" })}
+            >
+              Nueva búsqueda
             </Link>
           )}
         </div>
@@ -83,6 +107,43 @@ export function ClientDetailContent({
       )}
 
       <ClientShareControls clientId={client.id} shares={shares} appUrl={appUrl} />
+
+      <SectionCard title="Emails enviados" flush>
+        {emails.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-muted">
+            Todavía no le enviaste ningún email.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {emails.map((email) => (
+              <li key={email.id}>
+                <details className="group px-5 py-4">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-text">{email.subject}</p>
+                      <p className="mt-1 text-xs text-muted">
+                        {emailDateFmt.format(email.createdAt)}
+                        {email.senderName ? ` · ${email.senderName}` : ""}
+                        {" · "}
+                        {email.toEmail}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs font-semibold text-primary group-open:hidden">
+                      Ver
+                    </span>
+                    <span className="hidden shrink-0 text-xs font-semibold text-muted group-open:inline">
+                      Ocultar
+                    </span>
+                  </summary>
+                  <p className="mt-3 whitespace-pre-wrap border-t border-border pt-3 text-sm text-text">
+                    {email.body}
+                  </p>
+                </details>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
 
       <SectionCard title={`Solicitudes (${requisitions.length})`} flush>
         {requisitions.length === 0 ? (

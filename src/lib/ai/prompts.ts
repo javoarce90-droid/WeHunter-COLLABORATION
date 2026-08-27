@@ -27,6 +27,8 @@ export type Prompt = { system: string; user: string };
  */
 export type DraftCandidateProfilePromptInput = {
   hasCvFile: boolean;
+  /** Texto de un CV ya extraído (ej. `.docx`). Va embebido en el prompt, como `linkedinText`. */
+  cvText: string | null;
   linkedinText: string | null;
   linkedinFetchFailed: boolean;
 };
@@ -202,18 +204,20 @@ export const prompts = {
 
   draftCandidateProfile({
     hasCvFile,
+    cvText,
     linkedinText,
     linkedinFetchFailed,
   }: DraftCandidateProfilePromptInput): Prompt {
     const sources = [
       hasCvFile ? "un CV en PDF adjunto" : null,
+      cvText ? "el texto de un CV" : null,
       linkedinText ? "el texto transcripto de un perfil de LinkedIn" : null,
     ].filter(Boolean);
 
     return {
       system:
         "Sos un asistente que arma perfiles de talento en español rioplatense a partir de un CV " +
-        "en PDF y/o un perfil de LinkedIn. Devolvés SOLO un objeto JSON con los campos pedidos, " +
+        "y/o un perfil de LinkedIn. Devolvés SOLO un objeto JSON con los campos pedidos, " +
         "extrayendo lo que la fuente realmente dice — no inventes experiencia, títulos, empresas, " +
         "instituciones, certificaciones ni fechas que no figuren en el material provisto. Para " +
         "`skills` (tanto el general como el de cada experiencia): nunca las infieras de " +
@@ -221,6 +225,7 @@ export const prompts = {
       user:
         `Extraé el perfil de esta persona a partir de ${sources.join(" y ") || "el material adjunto"}` +
         `:\n\n` +
+        (cvText ? `Texto del CV:\n"""\n${cvText}\n"""\n\n` : "") +
         (linkedinText
           ? `Texto del perfil de LinkedIn:\n"""\n${linkedinText}\n"""\n\n`
           : "") +
@@ -231,6 +236,8 @@ export const prompts = {
         `Devolvé:\n` +
         `- fullName (nombre completo de la persona tal como figura en el material, si no ` +
         `aparece con claridad, null)\n` +
+        `- email (dirección de email de contacto tal como figura en el material, en minúscula; ` +
+        `si no aparece, null)\n` +
         `- phone (teléfono de contacto si se menciona, si no null)\n` +
         `- headline (puesto/título actual, ej "Frontend Senior")\n` +
         `- location (ciudad/país si se menciona, si no null)\n` +

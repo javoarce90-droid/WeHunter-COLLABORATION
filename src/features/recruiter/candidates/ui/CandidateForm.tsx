@@ -38,6 +38,9 @@ interface CandidateFormProps {
     email?: string | null;
     phone?: string | null;
     hasCv?: boolean;
+    /** Path de un CV ya subido a Storage (flujo "Crear con IA"): se reusa al guardar sin
+     *  volver a pedir el archivo. */
+    existingCvUrl?: string | null;
     headline?: string | null;
     location?: string | null;
     linkedinUrl?: string | null;
@@ -142,6 +145,9 @@ export function CandidateForm({
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-6 w-full">
       {candidateId && <input type="hidden" name="candidateId" value={candidateId} />}
+      {defaults?.existingCvUrl && (
+        <input type="hidden" name="existingCvUrl" value={defaults.existingCvUrl} />
+      )}
       <input ref={confirmDuplicateRef} type="hidden" name="confirmDuplicate" defaultValue="" />
       <input ref={linkProfileRef} type="hidden" name="linkProfile" defaultValue="" />
       <input ref={skipProfileLinkRef} type="hidden" name="skipProfileLink" defaultValue="" />
@@ -404,7 +410,9 @@ export function CandidateForm({
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                     </div>
-                    <p className="text-xs font-semibold text-text">CV activo cargado</p>
+                    <p className="text-xs font-semibold text-text">
+                      {defaults?.existingCvUrl ? "CV del análisis con IA, ya cargado" : "CV activo cargado"}
+                    </p>
                     <p className="text-[10px] text-muted mt-0.5">Arrastrá o seleccioná un archivo solo si querés reemplazarlo</p>
                   </div>
                 ) : (

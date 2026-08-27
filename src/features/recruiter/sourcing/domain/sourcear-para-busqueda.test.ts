@@ -1,10 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
   buildJobSourcingQuery,
+  buildJobSourcingQueryVariant,
   scoreLinkedInCandidate,
   sourcearParaBusqueda,
+  mergeSourcingBatch,
   SOURCING_MAX_RESULTS,
+  SOURCING_MAX_QUERY_ATTEMPTS,
   type JobSourcingContext,
+  type SourcearParaBusquedaDeps,
+  type ScoredLinkedInCandidate,
 } from "./sourcear-para-busqueda";
 import type { LinkedInCandidateResult } from "./linkedin-search";
 
@@ -25,6 +30,25 @@ function candidate(over: Partial<LinkedInCandidateResult> = {}): LinkedInCandida
     location: "Buenos Aires",
     skills: ["Python"],
     linkedinUrl: "https://www.linkedin.com/in/ana-perez",
+    ...over,
+  };
+}
+
+const scoreOk = async () => ({
+  score: 90,
+  summary: "",
+  redFlags: [],
+  breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
+  strengths: [],
+});
+
+/** Deps por default para `sourcearParaBusqueda`: nadie está en el pool todavía. Los tests que
+ *  necesitan simular candidatos ya conocidos pasan su propio `findExistingLinkedinUrls`. */
+function deps(over: Partial<SourcearParaBusquedaDeps> = {}): SourcearParaBusquedaDeps {
+  return {
+    search: async () => ({ candidates: [], isLiveApi: true }),
+    scoreApplication: scoreOk,
+    findExistingLinkedinUrls: async () => new Set(),
     ...over,
   };
 }
@@ -113,65 +137,258 @@ describe("scoreLinkedInCandidate", () => {
 
 describe("sourcearParaBusqueda", () => {
   it("no filtra por score: trae todos los candidatos encontrados", async () => {
-    const candidates = [candidate({ id: "a" }), candidate({ id: "b" }), candidate({ id: "c" })];
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+      candidate({ id: "c", linkedinUrl: "https://www.linkedin.com/in/c" }),
+    ];
     const scores: Record<string, number> = { a: 80, b: 40, c: 60 };
-    const res = await sourcearParaBusqueda(job(), {
-      search: async () => ({ candidates, isLiveApi: true }),
-      scoreApplication: async (input) => ({
-        score: scores[input.candidate.id]!,
-        summary: "resumen",
-        redFlags: [],
-        breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-        strengths: [],
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({
+        search: async () => ({ candidates, isLiveApi: true }),
+        scoreApplication: async (input) => ({
+          score: scores[input.candidate.id]!,
+          summary: "resumen",
+          redFlags: [],
+          breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
+          strengths: [],
+        }),
       }),
-    });
+    );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.results.map((r) => r.id)).toEqual(["a", "c", "b"]);
   });
 
   it("ordena de mayor a menor score", async () => {
-    const candidates = [candidate({ id: "a" }), candidate({ id: "b" }), candidate({ id: "c" })];
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+      candidate({ id: "c", linkedinUrl: "https://www.linkedin.com/in/c" }),
+    ];
     const scores: Record<string, number> = { a: 65, b: 95, c: 70 };
-    const res = await sourcearParaBusqueda(job(), {
-      search: async () => ({ candidates, isLiveApi: false }),
-      scoreApplication: async (input) => ({
-        score: scores[input.candidate.id]!,
-        summary: "",
-        redFlags: [],
-        breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-        strengths: [],
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({
+        search: async () => ({ candidates, isLiveApi: false }),
+        scoreApplication: async (input) => ({
+          score: scores[input.candidate.id]!,
+          summary: "",
+          redFlags: [],
+          breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
+          strengths: [],
+        }),
       }),
-    });
+    );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.results.map((r) => r.id)).toEqual(["b", "c", "a"]);
   });
 
   it("corta en 10 resultados aunque vengan más", async () => {
-    const candidates = Array.from({ length: 15 }, (_, i) => candidate({ id: `c${i}` }));
-    const res = await sourcearParaBusqueda(job(), {
-      search: async () => ({ candidates, isLiveApi: true }),
-      scoreApplication: async () => ({
-        score: 90,
-        summary: "",
-        redFlags: [],
-        breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-        strengths: [],
-      }),
-    });
+    const candidates = Array.from({ length: 15 }, (_, i) =>
+      candidate({ id: `c${i}`, linkedinUrl: `https://www.linkedin.com/in/c${i}` }),
+    );
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({ search: async () => ({ candidates, isLiveApi: true }) }),
+    );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.results).toHaveLength(SOURCING_MAX_RESULTS);
   });
 
   it("propaga el error de la búsqueda", async () => {
-    const res = await sourcearParaBusqueda(job(), {
-      search: async () => ({ candidates: [], isLiveApi: false, error: "Falló la búsqueda." }),
-      scoreApplication: async () => {
-        throw new Error("no debería scorear si search falló");
-      },
-    });
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({
+        search: async () => ({ candidates: [], isLiveApi: false, error: "Falló la búsqueda." }),
+        scoreApplication: async () => {
+          throw new Error("no debería scorear si search falló");
+        },
+      }),
+    );
     expect(res).toEqual({ ok: false, error: "Falló la búsqueda." });
+  });
+
+  it("filtra candidatos ya en el pool y no les llama scoreApplication", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+    ];
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({
+        search: async () => ({ candidates, isLiveApi: true }),
+        findExistingLinkedinUrls: async () => new Set(["https://www.linkedin.com/in/a"]),
+        scoreApplication: async (input) => {
+          if (input.candidate.id === "a") throw new Error("no debería scorear a un ya conocido");
+          return scoreOk();
+        },
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.results.map((r) => r.id)).toEqual(["b"]);
+  });
+
+  it("normaliza (trailing slash, mayúsculas) antes de comparar contra el pool", async () => {
+    // El candidato trae la url "sucia" (como puede venir de Serper); el pool ya la devuelve
+    // normalizada (contrato de `findExistingLinkedinUrls` real, ver candidates.queries.ts) —
+    // igual tienen que matchear.
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "HTTPS://WWW.LINKEDIN.COM/IN/A/" }),
+    ];
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({
+        search: async () => ({ candidates, isLiveApi: true }),
+        findExistingLinkedinUrls: async () => new Set(["https://www.linkedin.com/in/a"]),
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.results).toHaveLength(0);
+  });
+
+  it("devuelve métricas correctas de encontrados/enPool/nuevos", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+      candidate({ id: "c", linkedinUrl: "https://www.linkedin.com/in/c" }),
+      candidate({ id: "d", linkedinUrl: "https://www.linkedin.com/in/d" }),
+      candidate({ id: "e", linkedinUrl: "https://www.linkedin.com/in/e" }),
+    ];
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({
+        search: async () => ({ candidates, isLiveApi: true }),
+        findExistingLinkedinUrls: async () =>
+          new Set(["https://www.linkedin.com/in/a", "https://www.linkedin.com/in/b"]),
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.metrics).toEqual({ encontrados: 5, enPool: 2, nuevos: 3 });
+    expect(res.results).toHaveLength(3);
+  });
+
+  it("no llama a findExistingLinkedinUrls si la búsqueda no trae candidatos", async () => {
+    let called = false;
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({
+        search: async () => ({ candidates: [], isLiveApi: true }),
+        findExistingLinkedinUrls: async () => {
+          called = true;
+          return new Set();
+        },
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(called).toBe(false);
+    expect(res.metrics).toEqual({ encontrados: 0, enPool: 0, nuevos: 0 });
+  });
+});
+
+describe("buildJobSourcingQueryVariant", () => {
+  it("el intento 0 es idéntico a buildJobSourcingQuery (regresión)", () => {
+    expect(buildJobSourcingQueryVariant(job(), 0)).toBe(buildJobSourcingQuery(job()));
+  });
+
+  it("rota al siguiente bloque de skills en el intento 1 cuando hay más de 3", () => {
+    const j = job({ skills: ["Python", "Supabase", "AWS", "Docker", "Kubernetes", "Go"] });
+    expect(buildJobSourcingQueryVariant(j, 0)).toBe(
+      "Senior Backend Engineer Python Supabase AWS senior Buenos Aires",
+    );
+    expect(buildJobSourcingQueryVariant(j, 1)).toBe(
+      "Senior Backend Engineer Docker Kubernetes Go senior Buenos Aires",
+    );
+  });
+
+  it("con 3 skills o menos, el intento 1 no repite el intento 0 — cae a dropear seniority", () => {
+    const j = job({ skills: ["Python", "Supabase"] });
+    const variant0 = buildJobSourcingQueryVariant(j, 0);
+    const variant1 = buildJobSourcingQueryVariant(j, 1);
+    expect(variant1).not.toBe(variant0);
+    expect(variant1).not.toContain("senior");
+    expect(variant1).toContain("Buenos Aires");
+    expect(variant1).not.toContain("undefined");
+  });
+
+  it("dropea seniority en el intento 2", () => {
+    const result = buildJobSourcingQueryVariant(job(), 2);
+    expect(result).not.toContain("senior");
+    expect(result).toContain("Buenos Aires");
+  });
+
+  it("dropea seniority y location en el intento 3", () => {
+    const result = buildJobSourcingQueryVariant(job(), 3);
+    expect(result).not.toContain("senior");
+    expect(result).not.toContain("Buenos Aires");
+  });
+
+  it("clampa intentos fuera de rango a la variante más amplia", () => {
+    expect(buildJobSourcingQueryVariant(job(), 99)).toBe(
+      buildJobSourcingQueryVariant(job(), SOURCING_MAX_QUERY_ATTEMPTS - 1),
+    );
+  });
+
+  it("el puesto nunca desaparece, para ningún intento", () => {
+    for (let attempt = 0; attempt < SOURCING_MAX_QUERY_ATTEMPTS; attempt++) {
+      expect(buildJobSourcingQueryVariant(job(), attempt)).toContain("Senior Backend Engineer");
+    }
+  });
+});
+
+function scored(over: Partial<ScoredLinkedInCandidate> = {}): ScoredLinkedInCandidate {
+  return {
+    ...candidate(),
+    score: 80,
+    summary: "resumen",
+    breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
+    strengths: [],
+    redFlags: [],
+    ...over,
+  };
+}
+
+describe("mergeSourcingBatch", () => {
+  it("no duplica por linkedinUrl cuando la tanda nueva repite un candidato ya visto", () => {
+    const previous = [scored({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
+    const incoming = [
+      scored({ id: "a-otra-vez", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      scored({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+    ];
+    const merged = mergeSourcingBatch(previous, incoming);
+    expect(merged.map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
+  it("cae a comparar por id cuando no hay linkedinUrl en ninguno de los dos lados", () => {
+    const previous = [scored({ id: "a", linkedinUrl: "" })];
+    const incoming = [scored({ id: "a", linkedinUrl: "" }), scored({ id: "b", linkedinUrl: "" })];
+    const merged = mergeSourcingBatch(previous, incoming);
+    expect(merged.map((c) => c.id)).toEqual(["a", "b"]);
+  });
+
+  it("agrega los genuinamente nuevos preservando el orden: previous primero", () => {
+    const previous = [scored({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
+    const incoming = [
+      scored({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+      scored({ id: "c", linkedinUrl: "https://www.linkedin.com/in/c" }),
+    ];
+    expect(mergeSourcingBatch(previous, incoming).map((c) => c.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("previous vacío devuelve incoming tal cual", () => {
+    const incoming = [scored({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
+    expect(mergeSourcingBatch([], incoming)).toEqual(incoming);
+  });
+
+  it("incoming vacío devuelve previous sin cambios", () => {
+    const previous = [scored({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
+    expect(mergeSourcingBatch(previous, [])).toEqual(previous);
   });
 });

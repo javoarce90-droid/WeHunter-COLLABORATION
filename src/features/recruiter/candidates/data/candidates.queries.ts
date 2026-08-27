@@ -391,6 +391,43 @@ export async function findExistingEmails(
   );
 }
 
+/** Qué linkedinUrls (sin normalizar — esta función normaliza) ya existen en el pool de la
+ *  organización — UNA query para todo el lote, nunca una por candidato (ej. sourcing con IA,
+ *  hasta 10 candidatos por tanda). Devuelve las urls ya normalizadas para comparar con `.has()`
+ *  usando `normalizeLinkedinKey` sobre cada candidato del lado del caller. */
+export async function findExistingLinkedinUrls(
+  organizationId: string,
+  linkedinUrls: string[],
+): Promise<Set<string>> {
+  const normalized = linkedinUrls
+    .map((u) => normalizeLinkedinKey(u))
+    .filter((u): u is string => u !== null);
+  if (normalized.length === 0) return new Set();
+
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ linkedinUrl: candidates.linkedinUrl })
+        .from(candidates)
+        .where(
+          and(
+            eq(candidates.organizationId, organizationId),
+            inArray(
+              sql`lower(regexp_replace(${candidates.linkedinUrl}, '/+$', ''))`,
+              normalized,
+            ),
+          ),
+        ),
+    "db.candidates.find-existing-linkedin-urls",
+  );
+  return new Set(
+    rows
+      .map((r) => normalizeLinkedinKey(r.linkedinUrl))
+      .filter((u): u is string => u !== null),
+  );
+}
+
 export type ResumeCounts = {
   experiences: number;
   education: number;

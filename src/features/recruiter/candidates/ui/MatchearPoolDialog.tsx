@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AiButton } from "@/components/ui/ai";
 import { Select } from "@/components/ui/select";
+import { Tooltip } from "@/components/ui/tooltip";
 import { MatchCell } from "@/features/recruiter/applications/ui/MatchCell";
 import {
   AiAnalysisDialog,
@@ -53,6 +54,13 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
   const jobTitle = jobs.find((j) => j.id === jobId)?.title ?? "";
   const reusadosCount = results?.filter((r) => r.cached).length ?? 0;
 
+  // Espeja `jobId` para poder leer su valor VIGENTE dentro del closure de `buscar()`, que ya
+  // capturó el `jobId` de cuando se lanzó el análisis — lo necesita el guard de más abajo.
+  const jobIdRef = useRef(jobId);
+  useEffect(() => {
+    jobIdRef.current = jobId;
+  }, [jobId]);
+
   function reset() {
     setResults(null);
     setJobId("");
@@ -64,8 +72,14 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
       toast({ message: "Elegí una búsqueda.", variant: "danger" });
       return;
     }
+    const requestedJobId = jobId;
     startTransition(async () => {
-      const res = await matchearPoolConBusquedaAction(jobId);
+      const res = await matchearPoolConBusquedaAction(requestedJobId);
+      // El usuario pudo haber cerrado el panel (reset()) o elegido otra búsqueda mientras esto
+      // corría — si `jobId` ya no es el que pidió este análisis, descartar la respuesta en vez
+      // de repoblar `results` con datos de una búsqueda que ya no está seleccionada (bug real:
+      // el header quedaba "N de N candidatos... para """, con results poblado pero sin título).
+      if (jobIdRef.current !== requestedJobId) return;
       if (!res.ok || !res.results) {
         toast({ message: res.error ?? "No se pudo analizar.", variant: "danger" });
         return;
@@ -160,14 +174,26 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
               </div>
 
               {results.length === 0 ? (
-                <p className="text-sm text-muted">Ningún candidato matcheó con esta búsqueda.</p>
+                <p className="text-sm text-muted">
+                  No hay candidatos en tu pool que matcheen los skills o el seniority de esta
+                  búsqueda.
+                </p>
               ) : (
                 <ul className="flex flex-col gap-2">
-                  {results.map((r) => (
+                  {results.map((r, i) => (
                     <li
                       key={r.candidateId}
                       className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius)] border border-border bg-surface p-3"
                     >
+                      {/* Los resultados ya vienen ordenados por score — cuando varios empatan
+                          en la misma banda (mismo color de anillo, mismo badge), esta posición
+                          es la única pista de por dónde arrancar a mirar. */}
+                      <span
+                        className="grid h-6 w-6 shrink-0 place-items-center text-xs font-semibold tabular-nums text-muted"
+                        aria-hidden
+                      >
+                        {i + 1}
+                      </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold text-text">{r.fullName}</p>
                         {r.headline && (
@@ -179,12 +205,9 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
                             faltantes={r.completeness.faltantes}
                           />
                           {r.cached && (
-                            <Badge
-                              variant="muted"
-                              title="Reusado del último análisis para esta búsqueda — no se volvió a llamar a la IA."
-                            >
-                              Reusado
-                            </Badge>
+                            <Tooltip label="Reusado del último análisis para esta búsqueda — no se volvió a llamar a la IA.">
+                              <Badge variant="muted">Reusado</Badge>
+                            </Tooltip>
                           )}
                         </div>
                       </div>

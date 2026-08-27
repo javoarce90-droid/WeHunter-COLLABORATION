@@ -52,3 +52,17 @@ export const generarClientShareSchema = z.object({
 export const revocarClientShareSchema = z.object({
   shareId: z.string().uuid("ID de enlace inválido."),
 });
+
+export const enviarEmailAClienteSchema = z.object({
+  clientId: z.string().uuid("ID de cliente inválido."),
+  subject: z
+    .string()
+    .trim()
+    .min(1, "Escribí un asunto.")
+    .max(200, "El asunto es demasiado largo."),
+  body: z
+    .string()
+    .trim()
+    .min(1, "Escribí un mensaje.")
+    .max(5000, "El mensaje es demasiado largo."),
+});

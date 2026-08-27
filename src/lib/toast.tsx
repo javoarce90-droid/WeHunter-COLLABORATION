@@ -40,6 +40,7 @@ const ToastContext = createContext<((t: ToastInput) => void) | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const idRef = useRef(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const remove = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -48,13 +49,27 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const toast = useCallback((input: ToastInput) => {
     const id = ++idRef.current;
     setToasts((prev) => [...prev, { id, ...input }]);
+    // Un <dialog> abierto con showModal() (ver components/ui/dialog.tsx) se promueve al top
+    // layer del navegador, que pinta por encima de CUALQUIER <div> normal sin importar su
+    // z-index — así que el contenedor de toasts (más abajo) necesita vivir en esa misma capa
+    // vía la Popover API para no quedar tapado. Dentro del top layer el elemento agregado más
+    // recientemente pinta arriba, así que hay que re-promoverlo en cada toast nuevo (no alcanza
+    // con abrirlo una sola vez): si mientras tanto se abrió un Dialog, ese Dialog quedó agregado
+    // después y taparía un popover que no se vuelve a mostrar.
+    const el = containerRef.current;
+    if (el) {
+      if (el.matches(":popover-open")) el.hidePopover();
+      el.showPopover();
+    }
   }, []);
 
   return (
     <ToastContext.Provider value={toast}>
       {children}
       <div
-        className="fixed bottom-4 right-4 z-[var(--z-toast)] flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2"
+        ref={containerRef}
+        popover="manual"
+        className="fixed inset-auto bottom-4 right-4 z-[var(--z-toast)] m-0 flex w-[min(360px,calc(100vw-2rem))] flex-col gap-2 overflow-visible border-0 bg-transparent p-0"
         // Región viva: lectores de pantalla anuncian los toasts (status changes).
         role="region"
         aria-label="Notificaciones"
