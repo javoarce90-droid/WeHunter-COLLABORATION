@@ -229,9 +229,12 @@ export const languageLevel = pgEnum("language_level", ["basico", "intermedio", "
 
 // Estado de la suscripción del workspace al plan pago (dLocal Go). Ver
 // features/recruiter/billing. `pending` = fila creada pero el recruiter todavía no cargó la
-// tarjeta en dLocal; `trialing` = tarjeta cargada, dentro de los 15 días sin cobro;
-// `active` = cobrando; `past_due` = un cobro falló; `cancelled` = dada de baja (el acceso
-// se mantiene hasta `current_period_ends_at`).
+// tarjeta en dLocal; `active` = cobrando; `past_due` = un cobro falló o venció el período;
+// `cancelled` = dada de baja (el acceso se mantiene hasta `current_period_ends_at`).
+// `trialing` casi no se usa: los planes de dLocal Go van con `free_trial_days: 0` (no se
+// puede configurar el trial desde el dashboard), así que conectar la tarjeta cobra al toque
+// y la suscripción nace `active`. El período de prueba de 14 días es 100% nuestro gate
+// (`evaluarAccesoWorkspace` desde `organizations.created_at`).
 export const subscriptionStatus = pgEnum("subscription_status", [
   "pending",
   "trialing",
@@ -389,8 +392,9 @@ export const plans = pgTable("plans", {
 
 // Suscripción del workspace a un plan pago, gestionada con dLocal Go. 1:1 con la organización
 // (`organization_id` único). El período de prueba arranca con `organizations.created_at`
-// mientras no exista esta fila; una vez que el recruiter conecta dLocal Go se crea con
-// `status = trialing` y `trial_ends_at` = fecha del primer cobro que informa dLocal.
+// mientras no exista esta fila; cuando el recruiter completa el checkout de dLocal Go la
+// vuelta (`/settings/plan/checkout/return`) la pasa a `status = active` con
+// `current_period_ends_at` = `scheduled_date` del próximo cobro que informa dLocal.
 export const subscriptions = pgTable("subscriptions", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -401,6 +405,9 @@ export const subscriptions = pgTable("subscriptions", {
   provider: text("provider").notNull().default("dlocal_go"),
   dlocalSubscriptionId: text("dlocal_subscription_id"),
   dlocalSubscriptionToken: text("dlocal_subscription_token"),
+  // Email con el que el recruiter pagó en dLocal. Única clave para atribuir a esta org los
+  // webhooks de cobro (el webhook solo trae `payment_id`, y el pago no linkea a la subscription).
+  dlocalPayerEmail: text("dlocal_payer_email"),
   status: subscriptionStatus("status").notNull().default("pending"),
   // Fin del período sin cobro (lo informa dLocal como `scheduled_date` del primer cobro).
   trialEndsAt: timestamp("trial_ends_at"),
