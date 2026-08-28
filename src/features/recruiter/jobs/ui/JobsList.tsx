@@ -426,21 +426,23 @@ export function JobsList({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="mb-6 flex items-center justify-between gap-4">
+    <div className="flex flex-col">
+      <div className="flex items-center justify-between gap-4">
         <FilterTabs counts={counts} active={filter} query={query} sort={sort} />
-        <div className="flex shrink-0 items-center gap-3">
-          <div className="w-64">
-            <JobsSearchInput
-              key={query}
-              filter={filter}
-              sort={sort}
-              initialQuery={query}
-            />
-          </div>
-          <JobsSortSelect filter={filter} query={query} sort={sort} />
-        </div>
+        <JobsSortSelect filter={filter} query={query} sort={sort} />
       </div>
+
+      {/* El buscador vive con el listado, no con los filtros de estado: más aire arriba
+       *  (separa de las pills) que abajo (lo pega a la tabla). */}
+      <div className="mb-3 mt-6 w-full max-w-xs">
+        <JobsSearchInput
+          key={query}
+          filter={filter}
+          sort={sort}
+          initialQuery={query}
+        />
+      </div>
+
       {jobs.length === 0 ? (
         query ? (
           <div className="rounded-[var(--radius)] border border-border bg-surface px-6 py-12 text-center shadow-[var(--shadow)]">

@@ -67,6 +67,11 @@ const AiAnalysisDialog = dynamic(() =>
 const ScheduleInterviewDialog = dynamic(() =>
   import("./ScheduleInterviewDialog").then((m) => m.ScheduleInterviewDialog),
 );
+const InterviewReportDialog = dynamic(() =>
+  import("@/features/recruiter/interview-reports/ui/InterviewReportDialog").then(
+    (m) => m.InterviewReportDialog,
+  ),
+);
 const AddNoteDialog = dynamic(() => import("./AddNoteDialog").then((m) => m.AddNoteDialog));
 const EditStageDialog = dynamic(() =>
   import("./EditStageDialog").then((m) => m.EditStageDialog),
@@ -128,6 +133,7 @@ function toPostuladoRow(app: ApplicationWithCandidate): PostuladoRow {
 /** Qué diálogo de acción rápida está abierto (menú de 3 puntos de una card), si alguno. */
 type QuickDialog =
   | { kind: "interview" | "email" | "whatsapp" | "tags" | "note"; applicationId: string }
+  | { kind: "interview-report"; applicationId: string; interviewId: string }
   | null;
 
 type Move = { applicationId: string; toStage: JobStage };
@@ -202,6 +208,7 @@ type ColumnProps = {
   onAddToShortlist: (applicationId: string) => void;
   onCreateOffer: (applicationId: string) => void;
   onScheduleInterview: (applicationId: string) => void;
+  onGenerateInterviewReport: (applicationId: string, interviewId: string) => void;
   onSendEmail: (applicationId: string) => void;
   onSendWhatsapp: (applicationId: string) => void;
   onAddTag: (applicationId: string) => void;
@@ -236,6 +243,7 @@ function PipelineColumn({
   onAddToShortlist,
   onCreateOffer,
   onScheduleInterview,
+  onGenerateInterviewReport,
   onSendEmail,
   onSendWhatsapp,
   onAddTag,
@@ -361,6 +369,7 @@ function PipelineColumn({
               onAddToShortlist={onAddToShortlist}
               onCreateOffer={onCreateOffer}
               onScheduleInterview={onScheduleInterview}
+              onGenerateInterviewReport={onGenerateInterviewReport}
               onSendEmail={onSendEmail}
               onSendWhatsapp={onSendWhatsapp}
               onAddTag={onAddTag}
@@ -461,6 +470,8 @@ export function PipelineView({
 
   const onScheduleInterview = (applicationId: string) =>
     setQuickDialog({ kind: "interview", applicationId });
+  const onGenerateInterviewReport = (applicationId: string, interviewId: string) =>
+    setQuickDialog({ kind: "interview-report", applicationId, interviewId });
   const onSendEmail = (applicationId: string) => setQuickDialog({ kind: "email", applicationId });
   const onSendWhatsapp = (applicationId: string) =>
     setQuickDialog({ kind: "whatsapp", applicationId });
@@ -805,6 +816,7 @@ export function PipelineView({
     onAddToShortlist,
     onCreateOffer,
     onScheduleInterview,
+    onGenerateInterviewReport,
     onSendEmail,
     onSendWhatsapp,
     onAddTag,
@@ -1007,6 +1019,7 @@ export function PipelineView({
                 onAddToShortlist={noop}
                 onCreateOffer={noop}
                 onScheduleInterview={noop}
+                onGenerateInterviewReport={noop}
                 onSendEmail={noop}
                 onSendWhatsapp={noop}
                 onAddTag={noop}
@@ -1050,6 +1063,13 @@ export function PipelineView({
         jobStages={interviewJobStages}
         teamMembers={teamMembers}
         candidateEmail={quickApp?.candidate.email ?? null}
+        onClose={closeQuickDialog}
+      />
+
+      <InterviewReportDialog
+        interviewId={quickDialog?.kind === "interview-report" ? quickDialog.interviewId : ""}
+        candidateName={quickApp?.candidate.fullName ?? ""}
+        open={quickDialog?.kind === "interview-report"}
         onClose={closeQuickDialog}
       />
 

@@ -10,6 +10,7 @@ import { MODE_LABELS, STATUS_BADGE, STATUS_LABELS, TYPE_BADGE, TYPE_LABELS } fro
 import type { InterviewRow } from "../domain/agendar-entrevista";
 import type { JobStageOption } from "../data/interviews.queries";
 import { InterviewForm, type TeamMemberOption } from "./InterviewForm";
+import { InterviewReportButton } from "@/features/recruiter/interview-reports/ui/InterviewReportButton";
 
 type Props = {
   applicationId: string;
@@ -22,6 +23,8 @@ type Props = {
   defaultScheduledAt?: Date;
   /** Email del candidato de esta postulación (ver `InterviewForm`). */
   candidateEmail?: string | null;
+  /** Nombre del candidato — solo para el título del diálogo de informe de entrevista. */
+  candidateName?: string;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -39,6 +42,7 @@ export function InterviewsSection({
   teamMembers,
   defaultScheduledAt,
   candidateEmail,
+  candidateName,
 }: Props) {
   // null = nada abierto; "new" = form de alta; un id = editando esa entrevista.
   // Con una sugerencia de horario, arranca directo en "new" (venís de "Agendar entrevista"
@@ -122,6 +126,13 @@ export function InterviewsSection({
                     Editar
                   </button>
                   <DeleteButton interviewId={it.id} jobId={jobId} />
+                  <InterviewReportButton
+                    interviewId={it.id}
+                    candidateName={candidateName ?? "el candidato"}
+                    scheduledAt={it.scheduledAt}
+                    status={it.status}
+                    variant="link"
+                  />
                 </div>
               </li>
             ),

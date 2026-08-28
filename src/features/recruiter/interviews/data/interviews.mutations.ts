@@ -94,6 +94,20 @@ export async function updateInterview(
   return toRow(rows[0]!);
 }
 
+/** Pasa la entrevista a "Realizada" — usado cuando generar el informe de entrevista es la
+ *  señal de que ya se hizo, sin que el recruiter haya tocado el estado a mano. */
+export async function markInterviewCompleted(interviewId: string): Promise<void> {
+  const db = await getDb();
+  await db.rls(
+    (tx) =>
+      tx
+        .update(interviews)
+        .set({ status: "completed", updatedAt: new Date() })
+        .where(eq(interviews.id, interviewId)),
+    "db.interviews.mark-completed",
+  );
+}
+
 export async function deleteInterview(interviewId: string): Promise<void> {
   const db = await getDb();
   await db.rls((tx) =>

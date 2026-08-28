@@ -1115,6 +1115,40 @@ export const interviews = pgTable("interviews", {
   ),
 }));
 
+export const interviewRecommendation = pgEnum("interview_recommendation", [
+  "avanzar",
+  "continuar_evaluando",
+  "no_avanzar",
+]);
+
+// Informe de entrevista con IA (docs/BACKLOG.md § "Informe de entrevista con IA"): 1 informe
+// por entrevista, generado a partir de notas/transcripción que pega el recruiter. Candidato/
+// puesto/fecha/entrevistador NO se duplican acá — se derivan en vivo de interviews/
+// applications/jobs/candidates al armar el prompt y al renderizar (evita datos stale).
+export const interviewReports = pgTable("interview_reports", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  interviewId: uuid("interview_id")
+    .references(() => interviews.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
+  // Secciones 1-4 del informe: { ubicacion, remuneracionPretendida, disponibilidad, resumen,
+  // fortalezas: string[], aspectosAValidar: string[] } — contenido de formulario editable,
+  // no se filtra/ordena por sub-campo.
+  content: jsonb("content").notNull(),
+  recommendation: interviewRecommendation("recommendation").notNull(),
+  recommendationJustification: text("recommendation_justification").notNull(),
+  // Lo que pegó el recruiter (notas o transcripción manual). Se guarda para poder regenerar;
+  // nunca se expone en el informe ni distingue su origen (pedido explícito del cliente).
+  sourceNotes: text("source_notes").notNull(),
+  generatedBy: uuid("generated_by").references(() => profiles.id),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("interview_reports_org_idx").on(t.organizationId),
+}));
+
 // Conexión OAuth de un recruiter con su propio Google Calendar. Por profile (no por org):
 // cada persona conecta su cuenta y sus entrevistas agendadas sincronizan a SU calendario.
 export const googleCalendarConnections = pgTable("google_calendar_connections", {

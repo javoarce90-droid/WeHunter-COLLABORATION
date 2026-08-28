@@ -6,10 +6,12 @@ import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
 import { AiScore, SparkleIcon } from "@/components/ui/ai";
 import { Menu, MenuItem, MenuSeparator } from "@/components/ui/menu";
+import { Tooltip } from "@/components/ui/tooltip";
 import type { ApplicationWithCandidate } from "../data/applications.queries";
 import type { InterviewRow } from "@/features/recruiter/interviews/domain/agendar-entrevista";
 import type { JobStage } from "@/features/recruiter/pipeline-stages/schema";
 import { isClosingKind } from "@/features/recruiter/pipeline-stages/schema";
+import { puedeGenerarInforme } from "@/features/recruiter/interview-reports/domain/generar-informe-entrevista";
 import { relativeTime, getSlaStatus } from "./stage-visual";
 
 type Props = {
@@ -27,6 +29,7 @@ type Props = {
   onAddToShortlist: (applicationId: string) => void;
   onCreateOffer: (applicationId: string) => void;
   onScheduleInterview: (applicationId: string) => void;
+  onGenerateInterviewReport: (applicationId: string, interviewId: string) => void;
   onSendEmail: (applicationId: string) => void;
   onSendWhatsapp: (applicationId: string) => void;
   onAddTag: (applicationId: string) => void;
@@ -49,6 +52,12 @@ function pickNextInterview(interviews: InterviewRow[]): InterviewRow | undefined
     .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())[0];
 }
 
+/** La más reciente por fecha, sin importar el estado — "la entrevista" de este candidato a
+ *  los fines del informe con IA, cuando hay varias (screening + técnica, etc.). */
+function pickLatestInterview(interviews: InterviewRow[]): InterviewRow | undefined {
+  return [...interviews].sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())[0];
+}
+
 export function PipelineCard({
   application,
   stageName,
@@ -61,6 +70,7 @@ export function PipelineCard({
   onAddToShortlist,
   onCreateOffer,
   onScheduleInterview,
+  onGenerateInterviewReport,
   onSendEmail,
   onSendWhatsapp,
   onAddTag,
@@ -72,6 +82,15 @@ export function PipelineCard({
 }: Props) {
   const terminal = application.stageKind ? isClosingKind(application.stageKind) : false;
   const nextInterview = pickNextInterview(interviews);
+  const latestInterview = pickLatestInterview(interviews);
+  const canGenerateReport = latestInterview
+    ? puedeGenerarInforme(latestInterview, new Date())
+    : false;
+  const reportDisabledReason = !latestInterview
+    ? "No hay ninguna entrevista agendada para este candidato."
+    : latestInterview.status === "cancelled"
+      ? "La última entrevista fue cancelada."
+      : "Vas a poder generar el informe cuando se realice la entrevista.";
   const sla = getSlaStatus(application.stageEnteredAt, slaDays);
 
   const { setNodeRef, attributes, listeners, transform, isDragging } = useDraggable({
@@ -204,6 +223,15 @@ export function PipelineCard({
               <MenuItem onClick={() => onScheduleInterview(application.id)}>
                 Agendar entrevista
               </MenuItem>
+              {canGenerateReport ? (
+                <MenuItem onClick={() => onGenerateInterviewReport(application.id, latestInterview!.id)}>
+                  Informe de entrevista con IA
+                </MenuItem>
+              ) : (
+                <Tooltip label={reportDisabledReason} align="start" className="w-full">
+                  <MenuItem disabled>Informe de entrevista con IA</MenuItem>
+                </Tooltip>
+              )}
               <MenuItem onClick={() => onSendEmail(application.id)}>Enviar email</MenuItem>
               <MenuItem onClick={() => onSendWhatsapp(application.id)}>Enviar WhatsApp</MenuItem>
               <MenuItem onClick={() => onAddTag(application.id)}>Agregar etiqueta</MenuItem>

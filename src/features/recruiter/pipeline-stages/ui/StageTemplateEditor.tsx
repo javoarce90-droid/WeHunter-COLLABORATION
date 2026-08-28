@@ -27,17 +27,31 @@ type Update =
   | { type: "remove"; stageId: string }
   | { type: "replace"; stages: JobStage[] };
 
+type Draft = { name: string; sla: string };
+
+function draftFor(stage: JobStage): Draft {
+  return { name: stage.name, sla: stage.slaDays != null ? String(stage.slaDays) : "" };
+}
+
 /**
  * Editor de la plantilla de etapas por defecto: con estas nace cada búsqueda nueva. Cambiarla
  * acá no afecta a las búsquedas ya creadas — cada una es dueña de las suyas desde que nace
  * (gestionar-etapas-busqueda.ts). Calco de JobStageSettingsPanel.tsx, pero a nivel org e
  * inline en su tab de Configuración (no un panel lateral).
+ *
+ * Nombre y SLA quedan en borrador local hasta apretar "Guardar cambios" (QA 2.1: el autosave
+ * silencioso no avisaba al usuario que algo se había persistido). Agregar/eliminar/reordenar
+ * siguen siendo inmediatos — son operaciones estructurales con su propio feedback (aparecen o
+ * desaparecen al toque), no valores que se estén todavía redactando.
  */
 export function StageTemplateEditor({ stages }: Props) {
   const toast = useToast();
-  const [, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
   const [newName, setNewName] = useState("");
   const [newSla, setNewSla] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
+    Object.fromEntries(stages.map((s) => [s.id, draftFor(s)])),
+  );
 
   const [optimisticStages, applyUpdate] = useOptimistic(stages, (state, update: Update) => {
     if (update.type === "replace") return update.stages;
@@ -49,21 +63,82 @@ export function StageTemplateEditor({ stages }: Props) {
   const ordered = [...optimisticStages].sort((a, b) => a.position - b.position);
   const enProceso = ordered.filter((s) => s.kind === "in_process");
 
+  // Mantiene el borrador en sync cuando agregar/eliminar cambia el set de etapas — sin pisar
+  // ediciones de nombre/SLA todavía no guardadas de las etapas que siguen ahí. Ajuste de
+  // estado durante el render (no en un efecto): `stages` solo cambia de identidad cuando el
+  // server revalida, así que esto no dispara en cada tecleo.
+  const [syncedStages, setSyncedStages] = useState(stages);
+  if (stages !== syncedStages) {
+    setSyncedStages(stages);
+    setDrafts((prev) => {
+      const next: Record<string, Draft> = {};
+      for (const s of stages) next[s.id] = prev[s.id] ?? draftFor(s);
+      return next;
+    });
+  }
+
+  const dirtyStages = ordered.filter((s) => {
+    const d = drafts[s.id];
+    if (!d) return false;
+    return d.name !== s.name || d.sla !== (s.slaDays != null ? String(s.slaDays) : "");
+  });
+  const isDirty = dirtyStages.length > 0;
+
   function withErrorToast(res: { ok: boolean; error?: string }) {
     if (!res.ok) toast({ message: res.error ?? "No se pudo actualizar.", variant: "danger" });
   }
 
-  function renombrar(stageId: string, name: string) {
-    startTransition(async () => {
-      applyUpdate({ type: "patch", stageId, patch: { name } });
-      withErrorToast(await renombrarEtapaPlantillaAction(stageId, name));
-    });
+  function editarNombre(stageId: string, name: string) {
+    setDrafts((prev) => ({ ...prev, [stageId]: { ...prev[stageId], name } }));
   }
 
-  function setSla(stageId: string, slaDays: number | null) {
+  function editarSla(stageId: string, sla: string) {
+    setDrafts((prev) => ({ ...prev, [stageId]: { ...prev[stageId], sla } }));
+  }
+
+  function descartarCambios() {
+    setDrafts(Object.fromEntries(stages.map((s) => [s.id, draftFor(s)])));
+  }
+
+  function guardarCambios() {
+    for (const s of dirtyStages) {
+      const d = drafts[s.id];
+      if (!FIJA_KINDS.has(s.kind) && d.name.trim().length < 2) {
+        toast({ message: `El nombre de "${s.name}" es muy corto.`, variant: "danger" });
+        return;
+      }
+      if (d.sla.trim() !== "" && (isNaN(parseInt(d.sla, 10)) || parseInt(d.sla, 10) < 1)) {
+        toast({ message: `El SLA de "${d.name || s.name}" no es válido.`, variant: "danger" });
+        return;
+      }
+    }
+
     startTransition(async () => {
-      applyUpdate({ type: "patch", stageId, patch: { slaDays } });
-      withErrorToast(await configurarSlaPlantillaAction(stageId, slaDays));
+      const results = await Promise.all(
+        dirtyStages.flatMap((s) => {
+          const d = drafts[s.id];
+          const tasks: Promise<{ ok: boolean; error?: string }>[] = [];
+          const name = d.name.trim();
+          if (!FIJA_KINDS.has(s.kind) && name !== s.name) {
+            applyUpdate({ type: "patch", stageId: s.id, patch: { name } });
+            tasks.push(renombrarEtapaPlantillaAction(s.id, name));
+          }
+          const originalSla = s.slaDays != null ? String(s.slaDays) : "";
+          if (!SIN_SLA_KINDS.has(s.kind) && d.sla !== originalSla) {
+            const slaDays = d.sla.trim() === "" ? null : parseInt(d.sla, 10);
+            applyUpdate({ type: "patch", stageId: s.id, patch: { slaDays } });
+            tasks.push(configurarSlaPlantillaAction(s.id, slaDays));
+          }
+          return tasks;
+        }),
+      );
+
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        toast({ message: failed[0].error ?? "No se pudieron guardar algunos cambios.", variant: "danger" });
+      } else {
+        toast({ message: "Cambios guardados.", variant: "success" });
+      }
     });
   }
 
@@ -114,7 +189,7 @@ export function StageTemplateEditor({ stages }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-2">
         {ordered.length === 0 && (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-3 py-6 text-center">
             <p className="text-xs text-muted">Esta organización todavía no tiene una plantilla de etapas.</p>
@@ -127,11 +202,16 @@ export function StageTemplateEditor({ stages }: Props) {
           const sinSla = SIN_SLA_KINDS.has(stage.kind);
           const fija = FIJA_KINDS.has(stage.kind);
           const iInProceso = enProceso.findIndex((s) => s.id === stage.id);
+          const draft = drafts[stage.id] ?? draftFor(stage);
+          const dirty = dirtyStages.some((s) => s.id === stage.id);
 
           return (
             <div
               key={stage.id}
-              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5"
+              className={[
+                "flex items-center gap-2 rounded-lg border px-3 py-3 transition-colors",
+                dirty ? "border-primary/40 bg-primary-light/40" : "border-border",
+              ].join(" ")}
             >
               <span
                 className="h-2 w-2 shrink-0 rounded-full"
@@ -142,12 +222,31 @@ export function StageTemplateEditor({ stages }: Props) {
               {fija ? (
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-text">{stage.name}</span>
               ) : (
-                <StageNameInput value={stage.name} onCommit={(name) => renombrar(stage.id, name)} />
+                <input
+                  type="text"
+                  value={draft.name}
+                  onChange={(e) => editarNombre(stage.id, e.target.value)}
+                  aria-label="Nombre de la etapa"
+                  className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-2 py-1 text-sm font-medium text-text hover:border-border focus:border-primary focus:bg-surface focus:outline-none"
+                />
               )}
 
-              {!sinSla && <SlaInput value={stage.slaDays} onChange={(v) => setSla(stage.id, v)} />}
+              {!sinSla && (
+                <div className="flex shrink-0 items-center gap-1">
+                  <input
+                    type="number"
+                    min={1}
+                    value={draft.sla}
+                    onChange={(e) => editarSla(stage.id, e.target.value)}
+                    placeholder="—"
+                    aria-label="SLA en días"
+                    className="w-10 rounded border border-border bg-bg px-2 py-1 text-center text-xs text-text focus:border-primary focus:outline-none"
+                  />
+                  <span className="text-[10px] text-muted">días</span>
+                </div>
+              )}
 
-              <div className="flex shrink-0 items-center gap-0.5">
+              <div className="flex shrink-0 items-center gap-1">
                 {!fija && (
                   <>
                     <IconButton
@@ -183,7 +282,7 @@ export function StageTemplateEditor({ stages }: Props) {
                   </>
                 )}
                 {fija && (
-                  <span className="rounded-[5px] border border-border bg-bg px-1.5 py-0.5 text-[10px] font-bold uppercase text-muted">
+                  <span className="rounded-[5px] border border-border bg-bg px-2 py-1 text-[10px] font-bold uppercase text-muted">
                     Fija
                   </span>
                 )}
@@ -200,7 +299,7 @@ export function StageTemplateEditor({ stages }: Props) {
             onKeyDown={(e) => e.key === "Enter" && agregar()}
             placeholder="Nueva etapa"
             aria-label="Nombre de la nueva etapa"
-            className="min-w-0 flex-1 rounded-[var(--radius)] border border-border bg-bg px-2.5 py-1.5 text-sm text-text focus:border-primary focus:outline-none"
+            className="min-w-0 flex-1 rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-sm text-text focus:border-primary focus:outline-none"
           />
           <div className="flex shrink-0 items-center gap-1">
             <input
@@ -211,7 +310,7 @@ export function StageTemplateEditor({ stages }: Props) {
               onKeyDown={(e) => e.key === "Enter" && agregar()}
               placeholder="—"
               aria-label="SLA en días de la nueva etapa"
-              className="w-10 rounded border border-border bg-bg px-1.5 py-1.5 text-center text-xs text-text focus:border-primary focus:outline-none"
+              className="w-10 rounded border border-border bg-bg px-2 py-2 text-center text-xs text-text focus:border-primary focus:outline-none"
             />
             <span className="text-[10px] text-muted">días</span>
           </div>
@@ -220,61 +319,22 @@ export function StageTemplateEditor({ stages }: Props) {
           </Button>
         </div>
       </div>
-    </div>
-  );
-}
 
-function StageNameInput({ value, onCommit }: { value: string; onCommit: (name: string) => void }) {
-  const [local, setLocal] = useState(value);
-
-  function commit() {
-    const name = local.trim();
-    if (name.length < 2 || name === value) {
-      setLocal(value);
-      return;
-    }
-    onCommit(name);
-  }
-
-  return (
-    <input
-      type="text"
-      value={local}
-      onChange={(e) => setLocal(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-      aria-label="Nombre de la etapa"
-      className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-sm font-medium text-text hover:border-border focus:border-primary focus:bg-bg focus:outline-none"
-    />
-  );
-}
-
-function SlaInput({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
-  const [local, setLocal] = useState(value !== null ? String(value) : "");
-
-  function commit() {
-    const n = local.trim() === "" ? null : parseInt(local, 10);
-    if (n !== null && (isNaN(n) || n < 1)) {
-      setLocal(value !== null ? String(value) : "");
-      return;
-    }
-    onChange(n);
-  }
-
-  return (
-    <div className="flex shrink-0 items-center gap-1">
-      <input
-        type="number"
-        min={1}
-        value={local}
-        onChange={(e) => setLocal(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => e.key === "Enter" && commit()}
-        placeholder="—"
-        className="w-10 rounded border border-border bg-bg px-1.5 py-0.5 text-center text-xs text-text focus:border-primary focus:outline-none"
-        aria-label="SLA en días"
-      />
-      <span className="text-[10px] text-muted">días</span>
+      {isDirty && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary-light/60 px-4 py-3">
+          <p className="text-xs font-medium text-text">
+            Tenés cambios de nombre o SLA sin guardar.
+          </p>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={descartarCambios} disabled={isPending}>
+              Descartar
+            </Button>
+            <Button type="button" variant="primary" size="sm" onClick={guardarCambios} loading={isPending}>
+              Guardar cambios
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

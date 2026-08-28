@@ -53,6 +53,7 @@ export function ScheduleInterviewDialog({
           teamMembers={teamMembers}
           defaultScheduledAt={defaultScheduledAt}
           candidateEmail={candidateEmail}
+          candidateName={candidateName}
         />
       )}
     </Dialog>

@@ -6,6 +6,7 @@ import type {
   DraftScreeningQuestionsInput,
   InterviewGuideInput,
   ReportInsightsInput,
+  InterviewReportInput,
 } from "./provider";
 
 /**
@@ -314,6 +315,52 @@ export const prompts = {
         `Contrataciones: ${hired}\n` +
         `Time-to-hire (días): ${timeToHireDays ?? "sin dato"}\n` +
         `Fuente principal: ${topSource ?? "sin dato"}`,
+    };
+  },
+
+  /** Los 5 sub-prompts van pegados casi textuales del pedido del cliente (docs/BACKLOG.md §
+   *  "Informe de entrevista con IA") — no reformular. */
+  interviewReport({
+    candidateName,
+    jobTitle,
+    interviewerName,
+    interviewDate,
+    sourceText,
+  }: InterviewReportInput): Prompt {
+    return {
+      system:
+        "Actuás como un asistente de RRHH que redacta informes de entrevista profesionales y " +
+        "estandarizados a partir de notas o una transcripción, en español rioplatense. Nunca " +
+        "inventás información ni emitís conclusiones sin evidencia en el texto que te dan.",
+      user:
+        `Entrevista de ${candidateName} para el puesto de ${jobTitle}, realizada el ` +
+        `${interviewDate}, entrevistador/a: ${interviewerName}.\n\n` +
+        `Notas o transcripción de la entrevista:\n"""\n${sourceText}\n"""\n\n` +
+        "Completá un informe con las siguientes partes, cada una siguiendo EXACTAMENTE su " +
+        "instrucción:\n\n" +
+        "1. Ubicación, remuneración pretendida y disponibilidad: Identificá durante la " +
+        "entrevista, únicamente si fueron mencionados, la ubicación del candidato, la " +
+        "remuneración pretendida y la disponibilidad para incorporarse. Si alguno de estos " +
+        'datos no puede determinarse, dejar el campo vacío o indicar "No informado". No ' +
+        "inventes información.\n\n" +
+        "2. Resumen: Analizá la entrevista y redactá un resumen ejecutivo de entre 4 y 6 " +
+        "líneas. Describí los principales temas tratados, la experiencia del candidato y la " +
+        "impresión general obtenida durante la conversación. No emitas recomendaciones ni " +
+        "inventes información.\n\n" +
+        "3. Fortalezas observadas: Identificá únicamente las fortalezas que el candidato haya " +
+        "demostrado o mencionado durante la entrevista. Todas las fortalezas deben estar " +
+        "respaldadas por información presente en la conversación. No agregues fortalezas que " +
+        "no hayan sido evidenciadas.\n\n" +
+        "4. Aspectos a validar: Identificá los temas que no pudieron validarse completamente " +
+        "durante la entrevista y que sería conveniente profundizar en una próxima instancia. " +
+        "No presentes estos puntos como debilidades ni hagas suposiciones sobre el " +
+        "candidato.\n\n" +
+        "5. Recomendación final: Basándote únicamente en la información disponible durante la " +
+        "entrevista, emití una recomendación entre las siguientes opciones: avanzar / " +
+        "continuar_evaluando / no_avanzar. Justificá la decisión utilizando exclusivamente " +
+        "evidencia encontrada en la conversación. Si la información resulta insuficiente " +
+        'para tomar una decisión definitiva, recomendá "continuar_evaluando". No inventes ' +
+        "información ni emitas conclusiones sin evidencia.",
     };
   },
 };

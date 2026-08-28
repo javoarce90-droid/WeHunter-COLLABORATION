@@ -18,11 +18,14 @@ import {
 } from "../schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
 import type { JobStageOption } from "../data/interviews.queries";
+import { encontrarSolapamientos, type SolapamientoCandidate } from "../domain/detectar-solapamiento";
 import {
   toLocalDateTimeInputValue,
   todayDateTimeInputValue,
   localDateTimeValueToISOString,
 } from "@/lib/date";
+
+const timeFmt = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit" });
 
 export type TeamMemberOption = {
   profileId: string;
@@ -45,6 +48,10 @@ type Props = {
   /** Email del candidato de esta postulación — se invita automáticamente a Calendar; se
    *  muestra acá editable por si hay que corregirlo puntualmente para esta entrevista. */
   candidateEmail?: string | null;
+  /** Otras entrevistas ya agendadas (de toda la org) contra las que avisar solapamientos de
+   *  horario mientras se elige fecha/hora — nunca bloquea el submit, solo avisa. Si no viene,
+   *  no se chequea (el caller no tenía la lista a mano). */
+  existingInterviews?: SolapamientoCandidate[];
   onDone: () => void;
 };
 
@@ -56,6 +63,7 @@ export function InterviewForm({
   jobStages,
   teamMembers,
   candidateEmail,
+  existingInterviews,
   onDone,
 }: Props) {
   const isEdit = Boolean(interview);
@@ -67,6 +75,14 @@ export function InterviewForm({
         ? toLocalDateTimeInputValue(defaultScheduledAt)
         : "",
   );
+
+  // Aviso de solapamiento (nunca bloquea): recalcula en cada render con el valor tipeado, no
+  // hace falta debounce — es una comparación en memoria contra una lista ya cargada.
+  const scheduledAtDate = scheduledAtLocal ? new Date(scheduledAtLocal) : null;
+  const conflicts =
+    scheduledAtDate && !isNaN(scheduledAtDate.getTime()) && existingInterviews
+      ? encontrarSolapamientos(scheduledAtDate, existingInterviews, interview?.id)
+      : [];
 
   const teamEmailSet = new Set(teamMembers.map((m) => m.email.toLowerCase()));
   const currentParticipants = interview?.participantEmails ?? [];
@@ -117,6 +133,22 @@ export function InterviewForm({
         />
         <input type="hidden" name="scheduledAt" value={localDateTimeValueToISOString(scheduledAtLocal) ?? ""} />
       </label>
+
+      {conflicts.length > 0 && (
+        <p className="flex items-start gap-1.5 rounded-[var(--radius)] bg-[#FEF3C7] px-2 py-1.5 text-[11px] font-medium text-[#92400E]">
+          <svg width="12" height="12" className="mt-0.5 shrink-0" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+            <path d="M6 0.5 11.5 11h-11L6 .5Zm-.6 4v3h1.2v-3H5.4Zm0 4v1.2h1.2V8.5H5.4Z" />
+          </svg>
+          <span>
+            Se superpone con {conflicts.length === 1 ? "otra entrevista" : `${conflicts.length} entrevistas`}
+            {": "}
+            {conflicts
+              .map((c) => `${c.candidateName} a las ${timeFmt.format(c.scheduledAt)}`)
+              .join(", ")}
+            . Podés agendar igual.
+          </span>
+        </p>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-0.5 text-[11px] font-medium text-muted">

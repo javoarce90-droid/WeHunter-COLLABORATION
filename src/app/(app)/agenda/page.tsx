@@ -3,6 +3,8 @@ import { getCurrentUser, getActiveMembership } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 import {
   listAgendaInterviews,
+  listInterviewConflictCandidates,
+  listInterviewJobOptions,
   listSchedulableApplications,
   listJobStageOptionsByJob,
 } from "@/features/recruiter/interviews/data/interviews.queries";
@@ -10,14 +12,25 @@ import { listMembers } from "@/features/recruiter/team/data/team.queries";
 import { getConnectionByProfile } from "@/features/recruiter/google-calendar/data/connections.queries";
 import { isGoogleCalendarConfigured } from "@/features/recruiter/google-calendar/data/oauth-client";
 import { AgendaView } from "@/features/recruiter/interviews/ui/AgendaView";
+import {
+  agendaRangeBounds,
+  isAgendaRange,
+  DEFAULT_AGENDA_RANGE,
+  type AgendaRange,
+} from "@/features/recruiter/interviews/ui/agenda-filters";
 import { ListSkeleton } from "@/components/ui/list-skeleton";
 
 /** El shell (título) pinta al instante; la agenda se streamea. */
-export default function AgendaPage({
+export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ job?: string; q?: string; range?: string }>;
 }) {
+  const { job, q, range: rawRange } = await searchParams;
+  const range: AgendaRange = isAgendaRange(rawRange) ? rawRange : DEFAULT_AGENDA_RANGE;
+  const query = q ?? "";
+  const jobId = job || undefined;
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -28,47 +41,46 @@ export default function AgendaPage({
       </div>
 
       <Suspense fallback={<ListSkeleton />}>
-        <AgendaSection searchParams={searchParams} />
+        <AgendaSection jobId={jobId} query={query} range={range} />
       </Suspense>
     </div>
   );
 }
 
-/** "yyyy-mm" → {year, month} válido, o el mes real actual si falta/es inválido. */
-function parseMonth(raw: string | undefined): { year: number; month: number } {
-  const match = raw?.match(/^(\d{4})-(\d{2})$/);
-  if (match) {
-    const year = Number(match[1]);
-    const month = Number(match[2]);
-    if (month >= 1 && month <= 12) return { year, month };
-  }
-  const now = new Date();
-  return { year: now.getFullYear(), month: now.getMonth() + 1 };
-}
-
 async function AgendaSection({
-  searchParams,
+  jobId,
+  query,
+  range,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  jobId: string | undefined;
+  query: string;
+  range: AgendaRange;
 }) {
-  const [{ month: monthParam }, user, membership] = await Promise.all([
-    searchParams,
-    getCurrentUser(),
-    getActiveMembership(),
-  ]);
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!user || !membership) return <AgendaView {...emptyProps()} />;
 
   const canWrite = can(membership.role, "interviews.manage");
-  const { year, month } = parseMonth(monthParam);
+  const { from, to } = agendaRangeBounds(range, new Date());
 
-  const [interviews, googleConnection, schedulableApplications, members, jobStagesByJob] =
-    await Promise.all([
-      listAgendaInterviews(membership.organizationId),
-      getConnectionByProfile(user.id, membership.organizationId),
-      canWrite ? listSchedulableApplications(membership.organizationId) : Promise.resolve([]),
-      canWrite ? listMembers(membership.organizationId) : Promise.resolve([]),
-      canWrite ? listJobStageOptionsByJob(membership.organizationId) : Promise.resolve({}),
-    ]);
+  const [
+    interviews,
+    jobOptions,
+    conflictCandidates,
+    googleConnection,
+    schedulableApplications,
+    members,
+    jobStagesByJob,
+  ] = await Promise.all([
+    listAgendaInterviews(membership.organizationId, { jobId, q: query, from, to }),
+    listInterviewJobOptions(membership.organizationId),
+    canWrite
+      ? listInterviewConflictCandidates(membership.organizationId)
+      : Promise.resolve([]),
+    getConnectionByProfile(user.id, membership.organizationId),
+    canWrite ? listSchedulableApplications(membership.organizationId) : Promise.resolve([]),
+    canWrite ? listMembers(membership.organizationId) : Promise.resolve([]),
+    canWrite ? listJobStageOptionsByJob(membership.organizationId) : Promise.resolve({}),
+  ]);
 
   const teamMembers = members
     .filter((m) => m.status === "active")
@@ -77,8 +89,10 @@ async function AgendaSection({
   return (
     <AgendaView
       interviews={interviews}
-      year={year}
-      month={month}
+      jobOptions={jobOptions}
+      conflictCandidates={conflictCandidates}
+      filters={{ jobId: jobId ?? null, q: query }}
+      range={range}
       canWrite={canWrite}
       googleConfigured={isGoogleCalendarConfigured()}
       googleConnectedEmail={googleConnection?.googleEmail ?? null}
@@ -90,11 +104,12 @@ async function AgendaSection({
 }
 
 function emptyProps() {
-  const now = new Date();
   return {
     interviews: [],
-    year: now.getFullYear(),
-    month: now.getMonth() + 1,
+    jobOptions: [],
+    conflictCandidates: [],
+    filters: { jobId: null, q: "" },
+    range: DEFAULT_AGENDA_RANGE,
     canWrite: false,
     googleConfigured: false,
     googleConnectedEmail: null,
