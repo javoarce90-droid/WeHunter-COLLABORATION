@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { eq } from "drizzle-orm";
-import { getDb } from "@/db/client";
+import { getDb, admin } from "@/db/client";
 import { plans, type Plan } from "@/db/schema";
 import type { WorkspaceType } from "@/lib/auth/session";
 
@@ -32,6 +32,12 @@ export const getActivePlans = cache(async (): Promise<Plan[]> => {
 export async function getPlanById(id: string): Promise<Plan | null> {
   const all = await getActivePlans();
   return all.find((p) => p.id === id) ?? null;
+}
+
+/** Un plan por id sin sesión (webhook de dLocal). Cliente admin. */
+export async function getPlanByIdAsSystem(id: string): Promise<Plan | null> {
+  const rows = await admin.select().from(plans).where(eq(plans.id, id)).limit(1);
+  return rows[0] ?? null;
 }
 
 export async function getPlanByCode(code: string): Promise<Plan | null> {
