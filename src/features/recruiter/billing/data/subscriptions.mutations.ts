@@ -1,7 +1,11 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { organizations, subscriptions } from "@/db/schema";
+import { organizations, subscriptions, subscriptionPayments } from "@/db/schema";
 import type { WorkspaceType } from "@/lib/auth/session";
+import type {
+  PaymentToRecord,
+  SubscriptionPatch,
+} from "../domain/reconciliar-suscripcion";
 
 /** Escrituras disparadas por el usuario. Cliente RLS. Las del webhook de dLocal (sin sesión)
  *  viven aparte y usan el cliente admin (ver Fase 4). */
@@ -27,6 +31,51 @@ export async function ensurePendingSubscription(args: {
         .onConflictDoNothing({ target: subscriptions.organizationId }),
     "db.subscription.ensure-pending",
   );
+}
+
+/**
+ * Aplica el resultado de `reconciliarSuscripcion` desde la vuelta del checkout (hay sesión →
+ * cliente RLS). Misma lógica que `applyReconcileAsSystem` (webhook, cliente admin). El
+ * `onConflictDoNothing` sobre `dlocal_payment_id` evita duplicar el cobro si el webhook llegó
+ * primero.
+ */
+export async function applyReconcile(args: {
+  subscriptionId: string;
+  organizationId: string;
+  patch: SubscriptionPatch;
+  payment: PaymentToRecord | null;
+}): Promise<void> {
+  const db = await getDb();
+  await db.rls(async (tx) => {
+    await tx
+      .update(subscriptions)
+      .set({
+        dlocalSubscriptionId: args.patch.dlocalSubscriptionId,
+        dlocalSubscriptionToken: args.patch.dlocalSubscriptionToken,
+        dlocalPayerEmail: args.patch.dlocalPayerEmail,
+        status: args.patch.status,
+        ...(args.patch.currentPeriodEndsAt
+          ? { currentPeriodEndsAt: args.patch.currentPeriodEndsAt }
+          : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(subscriptions.organizationId, args.organizationId));
+
+    if (args.payment) {
+      await tx
+        .insert(subscriptionPayments)
+        .values({
+          organizationId: args.organizationId,
+          subscriptionId: args.subscriptionId,
+          dlocalPaymentId: args.payment.dlocalPaymentId,
+          amount: args.payment.amount,
+          currency: args.payment.currency,
+          status: "PAID",
+          paidAt: args.payment.paidAt,
+        })
+        .onConflictDoNothing({ target: subscriptionPayments.dlocalPaymentId });
+    }
+  }, "db.subscription.reconcile");
 }
 
 /** Marca la suscripción como dada de baja. El acceso se mantiene hasta `current_period_ends_at`. */

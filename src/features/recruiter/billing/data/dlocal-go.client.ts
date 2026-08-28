@@ -31,6 +31,23 @@ export interface DlocalSubscription {
   created_at: string | null;
 }
 
+export interface DlocalExecution {
+  id: number;
+  status: "PENDING" | "COMPLETED" | "DECLINED";
+  /** Clave de idempotencia del cobro (== `invoiceId` del webhook). */
+  order_id: string;
+  /** Lo que realmente entra a la cuenta, en `balance_currency`. */
+  amount_received: number;
+  balance_currency: string;
+  /** En `checkout_currency` — engañoso, no usar para contabilidad. */
+  amount_paid: number;
+  checkout_currency: string;
+  external_id: string | null;
+  created_at: string | null;
+  /** dLocal anida la suscripción completa en cada ejecución. */
+  subscription: DlocalSubscription;
+}
+
 export interface DlocalPlanSummary {
   id: number;
   plan_token: string;
@@ -95,6 +112,18 @@ export function listSubscriptions(
   );
 }
 
+/** Ejecuciones (cobros) de una suscripción, más recientes primero según dLocal. */
+export function listExecutions(
+  planId: number,
+  subscriptionId: number,
+  page = 1,
+  pageSize = 20,
+): Promise<Result<Paginated<DlocalExecution>>> {
+  return dlocalFetch<Paginated<DlocalExecution>>(
+    `/v1/subscription/plan/${planId}/subscription/${subscriptionId}/execution/all?page=${page}&page_size=${pageSize}`,
+  );
+}
+
 /** Baja de una suscripción en dLocal. El acceso local se mantiene hasta fin de período. */
 export function deactivateSubscription(
   planId: number,
@@ -103,6 +132,18 @@ export function deactivateSubscription(
   return dlocalFetch<DlocalSubscription>(
     `/v1/subscription/plan/${planId}/subscription/${subscriptionId}/deactivate`,
     { method: "PATCH" },
+  );
+}
+
+/** Mueve una suscripción a otro plan (upgrade Freelancer → Teams). dLocal maneja el prorrateo. */
+export function changeSubscriberPlan(
+  planId: number,
+  subscriptionId: number,
+  newPlanId: number,
+): Promise<Result<DlocalSubscription>> {
+  return dlocalFetch<DlocalSubscription>(
+    `/v1/subscription/plan/${planId}/subscription/${subscriptionId}/change-plan?new_plan_id=${newPlanId}`,
+    { method: "POST" },
   );
 }
 
