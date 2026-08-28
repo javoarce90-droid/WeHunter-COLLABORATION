@@ -16,6 +16,7 @@ import {
   getPlanById,
   getPlanForWorkspaceType,
 } from "./data/plans.queries";
+import { getDlocalSubscribeUrl } from "./data/dlocal-go.config";
 
 export interface BillingActionState {
   error?: string;
@@ -46,7 +47,11 @@ export async function iniciarSuscripcionAction(): Promise<BillingActionState> {
       role: membership.role,
       userEmail: user?.email ?? null,
     },
-    { plan, ensurePendingSubscription },
+    {
+      plan: plan ? { id: plan.id } : null,
+      subscribeUrl: plan ? getDlocalSubscribeUrl(plan.code) : null,
+      ensurePendingSubscription,
+    },
   );
 
   if (!result.ok) return { error: result.error };

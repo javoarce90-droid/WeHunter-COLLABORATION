@@ -377,10 +377,9 @@ export const plans = pgTable("plans", {
   currency: text("currency").notNull().default("USD"),
   trialDays: integer("trial_days").notNull().default(14),
   maxMembers: integer("max_members").notNull(),
-  // Token + URL del plan/checkout en dLocal Go. null hasta que se cree con el script
-  // `scripts/dlocal-create-plan.mjs`.
-  dlocalPlanToken: text("dlocal_plan_token"),
-  dlocalSubscribeUrl: text("dlocal_subscribe_url"),
+  // El token del plan de dLocal Go y su URL de checkout NO viven acá: son distintos por
+  // entorno (sandbox ≠ live) y la base es una sola, así que están en env
+  // (`DLOCALGO_PLAN_TOKEN_<CODE>`, ver dlocal-go.config.ts).
   active: boolean("active").notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   ...timestamps,

@@ -12,8 +12,6 @@ const plan = (over: Partial<Plan>): Plan =>
     currency: "USD",
     trialDays: 14,
     maxMembers: 1,
-    dlocalPlanToken: null,
-    dlocalSubscribeUrl: null,
     active: true,
     sortOrder: 1,
     createdAt: new Date(),

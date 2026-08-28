@@ -827,6 +827,13 @@
       "when": 1787924070486,
       "tag": "0117_hesitant_doctor_spectrum",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1787955200592,
+      "tag": "0118_perfect_scarlet_spider",
+      "breakpoints": true
     }
   ]
 }

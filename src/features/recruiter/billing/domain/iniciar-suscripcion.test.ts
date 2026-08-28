@@ -2,11 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { iniciarSuscripcion, type IniciarSuscripcionDeps } from "./iniciar-suscripcion";
 
 const deps = (over: Partial<IniciarSuscripcionDeps> = {}): IniciarSuscripcionDeps => ({
-  plan: {
-    id: "plan-1",
-    dlocalSubscribeUrl: "https://checkout-sbx.dlocalgo.com/validate/subscription/abc123",
-    dlocalPlanToken: "plan_tok_1",
-  },
+  plan: { id: "plan-1" },
+  subscribeUrl: "https://checkout-sbx.dlocalgo.com/validate/subscription/abc123",
   ensurePendingSubscription: vi.fn(async () => {}),
   ...over,
 });
@@ -26,7 +23,7 @@ describe("iniciarSuscripcion", () => {
   });
 
   it("falla claro si el plan no tiene checkout de dLocal configurado", async () => {
-    const d = deps({ plan: { id: "p", dlocalSubscribeUrl: null, dlocalPlanToken: null } });
+    const d = deps({ subscribeUrl: null });
     const res = await iniciarSuscripcion(ctx, d);
     expect(res.ok).toBe(false);
     expect(d.ensurePendingSubscription).not.toHaveBeenCalled();
