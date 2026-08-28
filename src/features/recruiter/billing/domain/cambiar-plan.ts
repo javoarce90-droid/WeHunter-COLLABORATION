@@ -32,6 +32,10 @@ export interface CambiarPlanDeps {
     targetPlanId: string;
     targetWorkspaceType: WorkspaceType;
   }) => Promise<void>;
+  /** Sincroniza el cambio con el proveedor de pago (dLocal Go) ANTES de tocar la base. Si
+   *  devuelve error, no se aplica nada local. Ausente o `ok` cuando no hay nada que
+   *  sincronizar (suscripción todavía `pending`, sin cobro real). */
+  syncPlanChangeWithProvider?: (args: { targetPlanId: string }) => Promise<Result<void>>;
 }
 
 export async function cambiarPlan(
@@ -55,6 +59,11 @@ export async function cambiarPlan(
   }
   if (current && target.sortOrder <= current.sortOrder) {
     return err("Por ahora solo se puede pasar a un plan superior.");
+  }
+
+  if (deps.syncPlanChangeWithProvider) {
+    const synced = await deps.syncPlanChangeWithProvider({ targetPlanId: target.id });
+    if (!synced.ok) return err(synced.error);
   }
 
   await deps.applyPlanChange({

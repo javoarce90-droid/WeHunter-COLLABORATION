@@ -6,8 +6,8 @@ import { ok, err, type Result } from "@/lib/result";
  * Caso de uso: arrancar la conexión con dLocal Go para pagar el plan del workspace.
  * Autoriza (solo quien administra facturación), deja registrada la intención como una
  * suscripción `pending`, y devuelve la URL hosteada de dLocal a la que hay que redirigir al
- * recruiter para que cargue la tarjeta. El cobro real lo maneja dLocal (14 días sin cargo,
- * después mensual) — ver el plan de dLocal Go.
+ * recruiter para que cargue la tarjeta. El cobro real lo maneja dLocal — ver el plan de
+ * dLocal Go.
  */
 
 export interface IniciarSuscripcionCtx {
@@ -18,13 +18,11 @@ export interface IniciarSuscripcionCtx {
 }
 
 export interface IniciarSuscripcionDeps {
-  /** Plan que le corresponde al workspace, resuelto desde la tabla `plans`. null = enterprise
-   *  o legado sin plan. */
-  plan: {
-    id: string;
-    dlocalSubscribeUrl: string | null;
-    dlocalPlanToken: string | null;
-  } | null;
+  /** Plan que le corresponde al workspace. null = enterprise o legado sin plan. */
+  plan: { id: string } | null;
+  /** URL del checkout hosteado de dLocal para ese plan, resuelta desde la config por entorno.
+   *  null = falta el token del plan para el entorno actual. */
+  subscribeUrl: string | null;
   /** Deja una fila de suscripción en `pending` para esta org (idempotente). */
   ensurePendingSubscription: (args: {
     organizationId: string;
@@ -41,7 +39,7 @@ export async function iniciarSuscripcion(
   }
 
   const plan = deps.plan;
-  if (!plan || !plan.dlocalSubscribeUrl || !plan.dlocalPlanToken) {
+  if (!plan || !deps.subscribeUrl) {
     return err("El pago todavía no está disponible. Escribinos y lo activamos.");
   }
 
@@ -50,7 +48,7 @@ export async function iniciarSuscripcion(
     planId: plan.id,
   });
 
-  const url = new URL(plan.dlocalSubscribeUrl);
+  const url = new URL(deps.subscribeUrl);
   url.searchParams.set("external_id", ctx.organizationId);
   if (ctx.userEmail) {
     url.searchParams.set("email", ctx.userEmail);

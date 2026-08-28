@@ -21,6 +21,20 @@ export async function getSubscriptionByOrg(
   return rows[0] ?? null;
 }
 
+/** `dlocal_payment_id` ya registrados para la org (idempotencia al reconciliar). */
+export async function getRecordedPaymentIds(organizationId: string): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ id: subscriptionPayments.dlocalPaymentId })
+        .from(subscriptionPayments)
+        .where(eq(subscriptionPayments.organizationId, organizationId)),
+    "db.subscription.payment-ids",
+  );
+  return rows.map((r) => r.id);
+}
+
 /** Historial de cobros del workspace, más reciente primero — para `/settings/plan`. */
 export async function listSubscriptionPayments(
   organizationId: string,

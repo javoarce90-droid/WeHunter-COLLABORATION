@@ -12,8 +12,6 @@ const plan = (over: Partial<Plan>): Plan =>
     currency: "USD",
     trialDays: 14,
     maxMembers: 1,
-    dlocalPlanToken: null,
-    dlocalSubscribeUrl: null,
     active: true,
     sortOrder: 1,
     createdAt: new Date(),
@@ -78,5 +76,31 @@ describe("cambiarPlan", () => {
   it("rechaza un plan inexistente", async () => {
     const res = await cambiarPlan({ targetPlanCode: "enterprise" }, ctx, deps());
     expect(res.ok).toBe(false);
+  });
+
+  it("si el sync con el proveedor falla, no aplica el cambio local", async () => {
+    const d = deps({
+      syncPlanChangeWithProvider: vi.fn(async () => ({ ok: false as const, error: "dLocal Go: 402" })),
+    });
+    const res = await cambiarPlan({ targetPlanCode: "teams" }, ctx, d);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toContain("402");
+    expect(d.applyPlanChange).not.toHaveBeenCalled();
+  });
+
+  it("sincroniza con el proveedor antes de aplicar el cambio local", async () => {
+    const calls: string[] = [];
+    const d = deps({
+      syncPlanChangeWithProvider: vi.fn(async () => {
+        calls.push("sync");
+        return { ok: true as const, data: undefined };
+      }),
+      applyPlanChange: vi.fn(async () => {
+        calls.push("apply");
+      }),
+    });
+    const res = await cambiarPlan({ targetPlanCode: "teams" }, ctx, d);
+    expect(res.ok).toBe(true);
+    expect(calls).toEqual(["sync", "apply"]);
   });
 });

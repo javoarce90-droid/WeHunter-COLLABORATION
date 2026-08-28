@@ -34,6 +34,16 @@ export default async function SettingsPlanPage() {
     <div className="flex flex-col gap-5">
       <ToastOnMount param="activada" message="Suscripción conectada. Ya está tu plan." />
       <ToastOnMount
+        param="pago_procesando"
+        message="Estamos confirmando tu pago con dLocal Go. En un momento se activa tu plan."
+        variant="default"
+      />
+      <ToastOnMount
+        param="checkout_error"
+        message="No pudimos confirmar la conexión con dLocal Go. Probá de nuevo o escribinos."
+        variant="danger"
+      />
+      <ToastOnMount
         param="checkout"
         message="Cancelaste la conexión con dLocal Go. Podés retomarla cuando quieras."
         variant="default"
