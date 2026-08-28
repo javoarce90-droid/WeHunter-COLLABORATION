@@ -12,6 +12,8 @@ import type {
   DraftCandidateProfile,
   InterviewGuideInput,
   ReportInsightsInput,
+  InterviewReportInput,
+  InterviewReportResult,
 } from "./provider";
 
 /**
@@ -316,5 +318,29 @@ export class MockAiProvider implements AiProvider {
       );
     }
     return parts.join(" ");
+  }
+
+  async interviewReport(input: InterviewReportInput): Promise<InterviewReportResult> {
+    const { candidateName, sourceText } = input;
+    const first = candidateName.split(" ")[0] || candidateName;
+    const hasContent = sourceText.trim().length > 0;
+    return {
+      ubicacion: "No informado",
+      remuneracionPretendida: "No informado",
+      disponibilidad: "No informado",
+      resumen: hasContent
+        ? `Entrevista con ${candidateName} centrada en su experiencia y motivación para el ` +
+          `puesto. La conversación transcurrió con normalidad; hay información suficiente ` +
+          `en las notas para dejar un primer registro, a completar en próximas instancias.`
+        : `No se pudo generar un resumen: no había notas ni transcripción para analizar.`,
+      fortalezas: hasContent ? [`${first} se mostró participativo/a durante la conversación.`] : [],
+      aspectosAValidar: hasContent
+        ? ["Profundizar en próximas instancias los puntos que no quedaron del todo claros en esta entrevista."]
+        : [],
+      recommendation: "continuar_evaluando",
+      recommendationJustification: hasContent
+        ? "La información disponible es preliminar; conviene una siguiente instancia antes de decidir."
+        : "No hay evidencia suficiente en la entrevista para emitir una recomendación.",
+    };
   }
 }

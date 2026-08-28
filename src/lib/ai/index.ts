@@ -22,6 +22,9 @@ export type {
   DraftCertification,
   InterviewGuideInput,
   ReportInsightsInput,
+  InterviewReportInput,
+  InterviewReportResult,
+  InterviewReportRecommendation,
 } from "./provider";
 
 /**

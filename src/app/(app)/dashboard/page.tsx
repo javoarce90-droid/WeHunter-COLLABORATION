@@ -19,6 +19,8 @@ import { ChecklistItemRow } from "@/features/recruiter/dashboard/ui/ChecklistIte
 import { KpiGrid, KpiGridSkeleton } from "@/features/recruiter/dashboard/ui/KpiGrid";
 import { listRecentOpenJobs } from "@/features/recruiter/jobs/data/jobs.queries";
 import { getDashboardAgendaSummary } from "@/features/recruiter/interviews/data/interviews.queries";
+import { listarEntrevistasPendientesInforme } from "@/features/recruiter/interview-reports/domain/listar-entrevistas-pendientes-informe";
+import { listPendingReports } from "@/features/recruiter/interview-reports/data/interview-reports.queries";
 import { JOB_STATUS_META } from "@/features/recruiter/jobs/ui/status-meta";
 import { TYPE_LABELS, TYPE_BADGE, MODE_LABELS } from "@/features/recruiter/interviews/schema";
 
@@ -133,9 +135,10 @@ async function DashboardDaily({
   role: OrgRole;
   membershipId: string;
 }) {
-  const [recentJobs, agenda] = await Promise.all([
+  const [recentJobs, agenda, pendingReports] = await Promise.all([
     listRecentOpenJobs(organizationId, 3, isAssignmentScoped(role) ? membershipId : undefined),
     getDashboardAgendaSummary(organizationId),
+    listarEntrevistasPendientesInforme({ organizationId, role, now: new Date() }, { listPendingReports }),
   ]);
 
   // Sourcer no ve ninguno de los 3 accionables ni "Próximas entrevistas" (docs/BACKLOG.md).
@@ -267,6 +270,35 @@ async function DashboardDaily({
           </ul>
         )}
       </SectionCard>
+      )}
+
+      {showAgenda && pendingReports.length > 0 && (
+        <SectionCard
+          title="Entrevistas sin informe"
+          action={
+            <Link href="/agenda" className="text-xs font-semibold text-primary hover:text-primary-hover">
+              Ver agenda →
+            </Link>
+          }
+          flush
+        >
+          <ul className="divide-y divide-border">
+            {pendingReports.map((iv) => (
+              <li key={iv.id} className="flex items-center gap-3 px-5 py-3.5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-text">{iv.candidateName}</p>
+                  <p className="truncate text-xs text-muted">{iv.jobTitle}</p>
+                </div>
+                <Link
+                  href={`/jobs/${iv.jobId}/pipeline`}
+                  className="shrink-0 text-xs font-semibold text-primary hover:text-primary-hover"
+                >
+                  Generar informe →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </SectionCard>
       )}
     </>
   );

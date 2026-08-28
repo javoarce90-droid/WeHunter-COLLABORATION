@@ -7,6 +7,7 @@ import type {
   SchedulableApplication,
   JobStageOption,
 } from "../data/interviews.queries";
+import type { SolapamientoCandidate } from "../domain/detectar-solapamiento";
 import { InterviewForm, type TeamMemberOption } from "./InterviewForm";
 
 export type ScheduleModalMode = { type: "new" } | { type: "edit"; interview: AgendaInterview };
@@ -18,6 +19,9 @@ type Props = {
   schedulableApplications: SchedulableApplication[];
   jobStagesByJob: Record<string, JobStageOption[]>;
   teamMembers: TeamMemberOption[];
+  /** Todas las entrevistas de la org (ya en memoria en `AgendaView`) — `InterviewForm` las usa
+   *  para avisar de solapamientos de horario mientras se agenda/edita, sin pedirlas de nuevo. */
+  allInterviews?: SolapamientoCandidate[];
 };
 
 const selectClass =
@@ -38,6 +42,7 @@ export function ScheduleInterviewModal({
   schedulableApplications,
   jobStagesByJob,
   teamMembers,
+  allInterviews = [],
 }: Props) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [applicationId, setApplicationId] = useState<string | null>(null);
@@ -58,6 +63,7 @@ export function ScheduleInterviewModal({
           jobStages={jobStagesByJob[mode.interview.jobId] ?? []}
           teamMembers={teamMembers}
           candidateEmail={mode.interview.candidateEmail}
+          existingInterviews={allInterviews}
           onDone={handleClose}
         />
       </Dialog>
@@ -131,6 +137,7 @@ export function ScheduleInterviewModal({
             candidateEmail={
               candidateOptions.find((a) => a.applicationId === applicationId)?.candidateEmail
             }
+            existingInterviews={allInterviews}
             onDone={handleClose}
           />
         )}

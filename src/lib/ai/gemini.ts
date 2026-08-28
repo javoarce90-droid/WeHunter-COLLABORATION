@@ -26,6 +26,9 @@ import type {
   DraftCertification,
   InterviewGuideInput,
   ReportInsightsInput,
+  InterviewReportInput,
+  InterviewReportResult,
+  InterviewReportRecommendation,
 } from "./provider";
 import {
   EMPLOYMENT_LABELS,
@@ -603,6 +606,103 @@ export class GeminiAiProvider implements AiProvider {
     } catch (err) {
       logFallback("reportInsights", err);
       return this.fallback.reportInsights(input);
+    }
+  }
+
+  async interviewReport(input: InterviewReportInput): Promise<InterviewReportResult> {
+    const prompt = prompts.interviewReport(input);
+    try {
+      const res = await this.client.models.generateContent({
+        model: this.model,
+        contents: prompt.user,
+        config: {
+          systemInstruction: prompt.system,
+          temperature: 0.3,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              ubicacion: {
+                type: Type.STRING,
+                description: 'Ubicación del candidato, o "No informado".',
+              },
+              remuneracionPretendida: {
+                type: Type.STRING,
+                description: 'Remuneración pretendida, o "No informado".',
+              },
+              disponibilidad: {
+                type: Type.STRING,
+                description: 'Disponibilidad para incorporarse, o "No informado".',
+              },
+              resumen: {
+                type: Type.STRING,
+                description: "Resumen ejecutivo de 4 a 6 líneas.",
+              },
+              fortalezas: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Fortalezas evidenciadas en la conversación.",
+              },
+              aspectosAValidar: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: "Temas a profundizar en una próxima instancia.",
+              },
+              recommendation: {
+                type: Type.STRING,
+                description: "avanzar | continuar_evaluando | no_avanzar",
+              },
+              recommendationJustification: {
+                type: Type.STRING,
+                description: "Justificación de la recomendación, con evidencia de la conversación.",
+              },
+            },
+            required: [
+              "ubicacion",
+              "remuneracionPretendida",
+              "disponibilidad",
+              "resumen",
+              "fortalezas",
+              "aspectosAValidar",
+              "recommendation",
+              "recommendationJustification",
+            ],
+          },
+        },
+      });
+
+      const raw = res.text?.trim();
+      if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
+      const parsed = JSON.parse(raw) as Partial<InterviewReportResult>;
+      if (
+        typeof parsed.resumen !== "string" ||
+        typeof parsed.recommendationJustification !== "string"
+      ) {
+        throw new Error("Gemini devolvió un informe con forma inesperada");
+      }
+
+      const RECOMMENDATIONS = new Set<InterviewReportRecommendation>([
+        "avanzar",
+        "continuar_evaluando",
+        "no_avanzar",
+      ]);
+      const recommendation = RECOMMENDATIONS.has(parsed.recommendation as InterviewReportRecommendation)
+        ? (parsed.recommendation as InterviewReportRecommendation)
+        : "continuar_evaluando";
+
+      return {
+        ubicacion: str(parsed.ubicacion) ?? "No informado",
+        remuneracionPretendida: str(parsed.remuneracionPretendida) ?? "No informado",
+        disponibilidad: str(parsed.disponibilidad) ?? "No informado",
+        resumen: parsed.resumen,
+        fortalezas: strArray(parsed.fortalezas),
+        aspectosAValidar: strArray(parsed.aspectosAValidar),
+        recommendation,
+        recommendationJustification: parsed.recommendationJustification,
+      };
+    } catch (err) {
+      logFallback("interviewReport", err);
+      return this.fallback.interviewReport(input);
     }
   }
 }

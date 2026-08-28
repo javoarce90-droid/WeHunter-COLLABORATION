@@ -226,6 +226,40 @@ export type DraftCandidateProfile = {
   failureReason?: "quota" | "unreadable";
 };
 
+/**
+ * Informe de entrevista con IA (docs/BACKLOG.md § "Informe de entrevista con IA"): a partir
+ * de notas o una transcripción manual que pega el recruiter, el modelo arma un informe
+ * estandarizado de 5 secciones, listo para revisar/editar antes de guardar (mismo criterio
+ * que draftJobOffer/draftCandidateProfile: nunca se guarda directo).
+ */
+export type InterviewReportInput = {
+  candidateName: string;
+  jobTitle: string;
+  interviewerName: string;
+  /** Ya formateada para el prompt (no se re-parsea acá). */
+  interviewDate: string;
+  /** Notas o transcripción que pegó el recruiter. */
+  sourceText: string;
+};
+
+export type InterviewReportRecommendation =
+  | "avanzar"
+  | "continuar_evaluando"
+  | "no_avanzar";
+
+export type InterviewReportResult = {
+  /** "No informado" cuando no surge de la entrevista — nunca vacío/null, el texto es lo que
+   *  se muestra en el informe. */
+  ubicacion: string;
+  remuneracionPretendida: string;
+  disponibilidad: string;
+  resumen: string;
+  fortalezas: string[];
+  aspectosAValidar: string[];
+  recommendation: InterviewReportRecommendation;
+  recommendationJustification: string;
+};
+
 export interface AiProvider {
   scoreApplication(
     input: ScoreApplicationInput,
@@ -241,4 +275,5 @@ export interface AiProvider {
   ): Promise<DraftCandidateProfile>;
   interviewGuide(input: InterviewGuideInput): Promise<string[]>;
   reportInsights(input: ReportInsightsInput): Promise<string>;
+  interviewReport(input: InterviewReportInput): Promise<InterviewReportResult>;
 }

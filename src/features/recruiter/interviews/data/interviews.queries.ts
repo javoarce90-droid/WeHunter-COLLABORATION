@@ -1,7 +1,8 @@
-import { and, eq, asc, count, gte, lt, isNotNull, ne, sql } from "drizzle-orm";
+import { and, eq, asc, count, gte, lt, ilike, isNotNull, ne, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { interviews, applications, candidates, jobs, jobStages } from "@/db/schema";
 import type { InterviewRow } from "../domain/agendar-entrevista";
+import type { SolapamientoCandidate } from "../domain/detectar-solapamiento";
 import type { InterviewMode, InterviewStatus, InterviewType } from "../schema";
 import { createKeyedCache } from "@/lib/keyed-cache";
 
@@ -182,14 +183,26 @@ export type AgendaInterview = InterviewRow & {
   candidateEmail: string | null;
 };
 
+export type AgendaFilters = {
+  jobId?: string;
+  /** Texto libre: matchea nombre de candidato o título de la búsqueda. */
+  q?: string;
+  /** Límites `[from, to)` sobre `scheduledAt` (ver `agendaRangeBounds`). */
+  from?: Date | null;
+  to?: Date | null;
+};
+
 /**
  * Todas las entrevistas de la org con su candidato y búsqueda, para la Agenda. Una query con
- * joins (sin N+1); ordenada por fecha. Usa el índice `interviews_org_scheduled_idx`.
+ * joins (sin N+1); ordenada por fecha. Usa el índice `interviews_org_scheduled_idx` (y
+ * `applications_job_idx` cuando se filtra por puesto).
  */
 export async function listAgendaInterviews(
   organizationId: string,
+  filters: AgendaFilters = {},
 ): Promise<AgendaInterview[]> {
   const db = await getDb();
+  const trimmedQ = filters.q?.trim();
   const rows = await db.rls((tx) =>
     tx
       .select({
@@ -204,7 +217,20 @@ export async function listAgendaInterviews(
       .innerJoin(applications, eq(interviews.applicationId, applications.id))
       .innerJoin(jobs, eq(applications.jobId, jobs.id))
       .innerJoin(candidates, eq(applications.candidateId, candidates.id))
-      .where(eq(interviews.organizationId, organizationId))
+      .where(
+        and(
+          eq(interviews.organizationId, organizationId),
+          filters.jobId ? eq(applications.jobId, filters.jobId) : undefined,
+          trimmedQ
+            ? or(
+                ilike(candidates.fullName, `%${trimmedQ}%`),
+                ilike(jobs.title, `%${trimmedQ}%`),
+              )
+            : undefined,
+          filters.from ? gte(interviews.scheduledAt, filters.from) : undefined,
+          filters.to ? lt(interviews.scheduledAt, filters.to) : undefined,
+        ),
+      )
       .orderBy(asc(interviews.scheduledAt))
       .limit(200),
     "db.interviews.agenda",
@@ -217,6 +243,52 @@ export async function listAgendaInterviews(
     candidateName: r.candidateName,
     candidateEmail: r.candidateEmail,
   }));
+}
+
+/** Entrevistas de la org en forma mínima para detectar solapamientos de horario al
+ *  agendar/editar — **sin filtrar** (el aviso de conflicto no debe depender de lo que la
+ *  Agenda tenga filtrado en pantalla). */
+export async function listInterviewConflictCandidates(
+  organizationId: string,
+): Promise<SolapamientoCandidate[]> {
+  const db = await getDb();
+  return db.rls(
+    (tx) =>
+      tx
+        .select({
+          id: interviews.id,
+          scheduledAt: interviews.scheduledAt,
+          candidateName: candidates.fullName,
+          status: interviews.status,
+        })
+        .from(interviews)
+        .innerJoin(applications, eq(interviews.applicationId, applications.id))
+        .innerJoin(candidates, eq(applications.candidateId, candidates.id))
+        .where(eq(interviews.organizationId, organizationId))
+        .orderBy(asc(interviews.scheduledAt))
+        .limit(500),
+    "db.interviews.conflict-candidates",
+  );
+}
+
+/** Búsquedas que tienen al menos una entrevista agendada en la org — alimenta el `<Select>`
+ *  de puesto del filtro de la Agenda (no todas las búsquedas, solo las que aportan filas). */
+export async function listInterviewJobOptions(
+  organizationId: string,
+): Promise<{ id: string; title: string }[]> {
+  const db = await getDb();
+  return db.rls(
+    (tx) =>
+      tx
+        .selectDistinct({ id: jobs.id, title: jobs.title })
+        .from(interviews)
+        .innerJoin(applications, eq(interviews.applicationId, applications.id))
+        .innerJoin(jobs, eq(applications.jobId, jobs.id))
+        .where(eq(interviews.organizationId, organizationId))
+        .orderBy(asc(jobs.title))
+        .limit(200),
+    "db.interviews.job-options",
+  );
 }
 
 export type ShortlistInterviewSummary = {
