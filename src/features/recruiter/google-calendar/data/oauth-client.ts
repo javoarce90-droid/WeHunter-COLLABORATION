@@ -12,8 +12,9 @@ import { google } from "googleapis";
  * `calendar.events`) — no exige auditoría CASA. Confirmar igual el estado de verificación del
  * proyecto OAuth en Google Cloud Console antes de deployar: agregar un scope sensible nuevo a
  * un proyecto ya verificado puede disparar una re-revisión del consent screen (días, no
- * instantáneo). Se reincorpora `gmail.readonly` cuando haya tiempo para esa auditoría — ver
- * `messaging/ui/Inbox.tsx` (botón "Sincronizar con Gmail" retirado).
+ * instantáneo). NO agregar código que llame a `users.messages.list`/`get` sin antes sumar
+ * `gmail.readonly` a los scopes Y pasar la auditoría CASA — un llamado a una API restringida
+ * sin scope aprobado frena la verificación aunque en runtime dé 403.
  */
 export const GOOGLE_OAUTH_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
