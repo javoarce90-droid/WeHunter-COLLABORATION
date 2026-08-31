@@ -98,46 +98,84 @@ Beneficios:
 - Día de cumpleaños libre y snacks y frutas en la oficina.
 - Impacto real: trabajo sobre producto propio, con participación en las decisiones y la evolución del producto.`;
 
+/** Instrucción de sistema compartida por `scoreApplication` (1 candidato) y
+ *  `scoreApplicationsBatch` (N candidatos de una) — el criterio de evaluación es el mismo. */
+const SCORE_SYSTEM =
+  "Sos un reclutador técnico senior. Evaluás compatibilidad candidato↔búsqueda de forma " +
+  "objetiva y concisa, en español rioplatense, comparando SOLO dos cosas: lo que pide la " +
+  "búsqueda (skills, objetivos, requisitos, responsabilidades) contra el perfil del " +
+  "candidato (skills, experiencia, educación). NUNCA penalices por falta de CV cargado — " +
+  "no es una señal de compatibilidad, es un detalle de carga de datos. Si el perfil del " +
+  "candidato está vacío o tiene muy poca información para evaluar el match (sin skills, " +
+  "sin experiencia, sin educación), decilo explícitamente en el resumen y reflejalo en un " +
+  "score más bajo por falta de datos para confirmar el match — no asumas competencia sin " +
+  "evidencia. Además del score general, desglosá tu evaluación en 5 categorías " +
+  "(experiencia, skills técnicos, seniority, idiomas, ubicación) y listá 2 a 4 fortalezas " +
+  "concretas del candidato para este puesto puntual — si falta información para juzgar " +
+  "alguna categoría (ej. idiomas o ubicación sin datos), estimala de forma conservadora en " +
+  "vez de inventar certeza.";
+
+const jobContextBlock = (job: ScoreApplicationInput["job"]) =>
+  `Búsqueda: ${job.position?.trim() || job.title}\n` +
+  `Skills requeridas: ${list(job.skills, "no especificadas")}\n` +
+  `Objetivos: ${job.objectives?.trim() || "no especificados"}\n` +
+  `Requisitos: ${job.requirements?.trim() || "no especificados"}\n` +
+  `Responsabilidades: ${job.responsibilities?.trim() || "no especificadas"}\n`;
+
+const candidateBlock = (c: ScoreApplicationInput["candidate"]) =>
+  `- Skills: ${list(c.skills, "no especificadas")}\n` +
+  `- Experiencia:\n${listExperience(c.experience)}\n` +
+  `- Educación:\n${listEducation(c.education)}\n` +
+  `- Resumen/bio: ${c.summary ?? "sin resumen"}\n` +
+  `- Fuente: ${c.source ?? "desconocida"}\n`;
+
 export const prompts = {
   scoreApplication({ candidate, job }: ScoreApplicationInput): Prompt {
-    // El rol canónico es `position`; `title` es el headline. Priorizamos el puesto real.
-    const role = job.position?.trim() || job.title;
     const profileIsThin =
       (!candidate.skills || candidate.skills.length === 0) &&
       candidate.experience.length === 0 &&
       candidate.education.length === 0;
     return {
-      system:
-        "Sos un reclutador técnico senior. Evaluás compatibilidad candidato↔búsqueda de forma " +
-        "objetiva y concisa, en español rioplatense, comparando SOLO dos cosas: lo que pide la " +
-        "búsqueda (skills, objetivos, requisitos, responsabilidades) contra el perfil del " +
-        "candidato (skills, experiencia, educación). NUNCA penalices por falta de CV cargado — " +
-        "no es una señal de compatibilidad, es un detalle de carga de datos. Si el perfil del " +
-        "candidato está vacío o tiene muy poca información para evaluar el match (sin skills, " +
-        "sin experiencia, sin educación), decilo explícitamente en el resumen y reflejalo en un " +
-        "score más bajo por falta de datos para confirmar el match — no asumas competencia sin " +
-        "evidencia. Además del score general, desglosá tu evaluación en 5 categorías " +
-        "(experiencia, skills técnicos, seniority, idiomas, ubicación) y listá 2 a 4 fortalezas " +
-        "concretas del candidato para este puesto puntual — si falta información para juzgar " +
-        "alguna categoría (ej. idiomas o ubicación sin datos), estimala de forma conservadora en " +
-        "vez de inventar certeza.",
+      system: SCORE_SYSTEM,
       user:
-        `Búsqueda: ${role}\n` +
-        `Skills requeridas: ${list(job.skills, "no especificadas")}\n` +
-        `Objetivos: ${job.objectives?.trim() || "no especificados"}\n` +
-        `Requisitos: ${job.requirements?.trim() || "no especificados"}\n` +
-        `Responsabilidades: ${job.responsibilities?.trim() || "no especificadas"}\n\n` +
-        `Candidato:\n` +
-        `- Skills: ${list(candidate.skills, "no especificadas")}\n` +
-        `- Experiencia:\n${listExperience(candidate.experience)}\n` +
-        `- Educación:\n${listEducation(candidate.education)}\n` +
-        `- Resumen/bio: ${candidate.summary ?? "sin resumen"}\n` +
-        `- Fuente: ${candidate.source ?? "desconocida"}\n` +
+        jobContextBlock(job) +
+        `\nCandidato:\n` +
+        candidateBlock(candidate) +
         (profileIsThin
           ? "\nOJO: el perfil de este candidato tiene muy poca información cargada — aclaralo " +
             "en el resumen y no asumas compatibilidad que no se puede confirmar con estos datos.\n"
           : "\n") +
         `Evaluá la compatibilidad del candidato con la búsqueda.`,
+    };
+  },
+
+  /** Scoring en lote: un solo prompt con la búsqueda una vez + todos los candidatos, cada uno
+   *  con su `candidateId`. El modelo devuelve un array de resultados emparejados por ese id. */
+  scoreApplicationsBatch({
+    job,
+    candidates,
+  }: {
+    job: ScoreApplicationInput["job"];
+    candidates: ScoreApplicationInput["candidate"][];
+  }): Prompt {
+    return {
+      system:
+        SCORE_SYSTEM +
+        " Recibís VARIOS candidatos numerados; evaluás CADA UNO por separado con el mismo " +
+        "criterio y devolvés un resultado por cada `candidateId` recibido, sin omitir ninguno " +
+        "y sin inventar ids que no estén en la lista.",
+      user:
+        jobContextBlock(job) +
+        `\nCandidatos (${candidates.length}):\n\n` +
+        candidates
+          .map(
+            (c, i) =>
+              `### candidateId: ${c.id}  (candidato ${i + 1} de ${candidates.length})\n` +
+              candidateBlock(c),
+          )
+          .join("\n") +
+        `\nEvaluá la compatibilidad de cada candidato con la búsqueda. Devolvé un array con ` +
+        `un objeto por candidato, cada uno con su candidateId exacto.`,
     };
   },
 

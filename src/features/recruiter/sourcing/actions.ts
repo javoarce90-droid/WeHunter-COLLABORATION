@@ -162,6 +162,7 @@ export async function sourcearParaBusquedaAction(
     {
       search: (query) => searchLinkedInCandidates({ query }),
       scoreApplication: (input) => provider.scoreApplication(input),
+      scoreApplicationsBatch: (input) => provider.scoreApplicationsBatch(input),
       findExistingLinkedinUrls: (urls) =>
         findExistingLinkedinUrls(membership.organizationId, urls),
     },

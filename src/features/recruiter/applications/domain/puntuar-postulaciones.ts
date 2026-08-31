@@ -58,12 +58,19 @@ export async function puntuarPostulaciones(
     return { ok: false, error: "Tu rol no permite usar el análisis con IA." };
   }
 
+  if (input.applications.length === 0) return { ok: true, scored: 0 };
+
+  // Una llamada (o unos pocos chunks) para todas las postulaciones, en vez de una por candidato.
+  const batch = await deps.provider.scoreApplicationsBatch({
+    job: input.job,
+    candidates: input.applications.map((a) => a.candidate),
+  });
+  const scoreByCandidate = new Map(batch.map((r) => [r.candidateId, r]));
+
   let scored = 0;
   for (const app of input.applications) {
-    const result = await deps.provider.scoreApplication({
-      candidate: app.candidate,
-      job: input.job,
-    });
+    const result = scoreByCandidate.get(app.candidate.id);
+    if (!result) continue; // scoreApplicationsBatch siempre cubre todos; guard defensivo.
     await deps.saveScore(
       app.id,
       result.score,

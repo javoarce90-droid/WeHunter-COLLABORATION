@@ -2,6 +2,8 @@ import type {
   AiProvider,
   ScoreApplicationInput,
   ScoreApplicationResult,
+  ScoreApplicationsBatchInput,
+  ScoredCandidate,
   DraftOfferInput,
   DraftJobPostingInput,
   DraftJobOfferInput,
@@ -132,6 +134,18 @@ export class MockAiProvider implements AiProvider {
       // falló y `GeminiAiProvider` delegó acá. La UI usa esto para bajarle el peso visualmente.
       degraded: true,
     };
+  }
+
+  async scoreApplicationsBatch(
+    input: ScoreApplicationsBatchInput,
+  ): Promise<ScoredCandidate[]> {
+    // El heurístico es puro y barato: no hay ganancia real en "lotear", solo se mapea.
+    return Promise.all(
+      input.candidates.map(async (candidate) => ({
+        candidateId: candidate.id,
+        ...(await this.scoreApplication({ candidate, job: input.job })),
+      })),
+    );
   }
 
   async draftOffer(input: DraftOfferInput): Promise<string> {

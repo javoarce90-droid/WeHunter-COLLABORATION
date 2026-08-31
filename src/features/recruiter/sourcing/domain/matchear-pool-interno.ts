@@ -1,9 +1,10 @@
 import type { AiProvider, ScoreBreakdown } from "@/lib/ai";
 
 /** Tope de candidatos scoreados por corrida contra el pool interno (guardrail contra abuso —
- *  cada score sin caché es una llamada real a la IA). El prefiltro de `listCandidatesForPoolMatch`
- *  ya debería acotar a esto, pero se aplica también acá como defensa. */
-export const POOL_MATCH_MAX_CANDIDATES = 15;
+ *  cada score sin caché entra al lote de IA). El prefiltro de `listCandidatesForPoolMatch` ya
+ *  debería acotar a esto, pero se aplica también acá como defensa. 10 = mismo tope que el resto
+ *  de las tandas de IA de la app, y entra en una sola request de `scoreApplicationsBatch`. */
+export const POOL_MATCH_MAX_CANDIDATES = 10;
 
 export type PoolMatchJob = {
   id: string;
@@ -92,7 +93,7 @@ export type PoolMatchCache = {
 export async function matchearPoolConBusqueda(
   job: PoolMatchJob,
   candidatos: PoolMatchCandidateInput[],
-  provider: Pick<AiProvider, "scoreApplication">,
+  provider: Pick<AiProvider, "scoreApplicationsBatch">,
   cache: PoolMatchCache,
 ): Promise<PoolMatchResult[]> {
   const acotados = candidatos.slice(0, POOL_MATCH_MAX_CANDIDATES);
@@ -117,22 +118,26 @@ export async function matchearPoolConBusqueda(
     }
   }
 
-  const scoreados = await Promise.all(
-    aScorear.map(async (c) => {
-      const result = await provider.scoreApplication({
-        candidate: c.candidate,
-        job: {
-          title: job.title,
-          position: job.position,
-          skills: job.skills,
-          objectives: job.objectives,
-          requirements: job.requirements,
-          responsibilities: job.responsibilities,
-        },
-      });
-      return { candidato: c, result };
-    }),
-  );
+  const batch =
+    aScorear.length > 0
+      ? await provider.scoreApplicationsBatch({
+          job: {
+            title: job.title,
+            position: job.position,
+            skills: job.skills,
+            objectives: job.objectives,
+            requirements: job.requirements,
+            responsibilities: job.responsibilities,
+          },
+          candidates: aScorear.map((c) => c.candidate),
+        })
+      : [];
+  const scoreById = new Map(batch.map((r) => [r.candidateId, r]));
+  const scoreados = aScorear.map((c) => ({
+    candidato: c,
+    // scoreApplicationsBatch garantiza un resultado por candidato pedido; el `!` es seguro.
+    result: scoreById.get(c.candidate.id)!,
+  }));
 
   if (scoreados.length > 0) {
     await cache.save(

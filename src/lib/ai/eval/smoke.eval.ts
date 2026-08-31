@@ -82,6 +82,38 @@ test.skipIf(!apiKey)(
 );
 
 test.skipIf(!apiKey)(
+  "scoreApplicationsBatch: un resultado por candidato, scores diferenciados",
+  async () => {
+    const ai = new GeminiAiProvider(apiKey!, models);
+    const job = {
+      title: "React Senior",
+      position: "Frontend Senior",
+      skills: ["React", "TypeScript", "Next.js"],
+      objectives: null,
+      requirements: null,
+      responsibilities: null,
+    };
+    const candidates = [
+      { id: "react-dev", skills: ["React", "TypeScript", "Next.js"], summary: "6 años en frontend con React y Next.js", source: "linkedin", experience: [], education: [] },
+      { id: "backend-py", skills: ["Python", "Django"], summary: "Backend Python, algo de React", source: "linkedin", experience: [], education: [] },
+      { id: "qa-manual", skills: ["Testing manual"], summary: "QA manual, sin experiencia de desarrollo", source: "linkedin", experience: [], education: [] },
+      { id: "vacio", skills: null, summary: null, source: null, experience: [], education: [] },
+    ];
+    const t0 = Date.now();
+    const results = await ai.scoreApplicationsBatch({ job, candidates });
+    console.log(`\n[smoke] scoreApplicationsBatch (${Date.now() - t0}ms) →`,
+      results.map((r) => `${r.candidateId}=${r.score}`).join(" "), "\n");
+
+    expect(results).toHaveLength(candidates.length);
+    const byId = new Map(results.map((r) => [r.candidateId, r]));
+    for (const c of candidates) expect(byId.has(c.id)).toBe(true);
+    expect(byId.get("react-dev")!.score).toBeGreaterThan(byId.get("qa-manual")!.score);
+    expect(byId.get("react-dev")!.score).toBeGreaterThan(byId.get("vacio")!.score);
+  },
+  120_000,
+);
+
+test.skipIf(!apiKey)(
   "interviewReport extrae los datos presentes en las notas",
   async () => {
     const ai = new GeminiAiProvider(apiKey!, models);

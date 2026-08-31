@@ -42,12 +42,26 @@ const scoreOk = async () => ({
   strengths: [],
 });
 
+/** Batch scorer de test: score fijo (90) o por id si se pasa un mapa. */
+const batchScorer =
+  (scores?: Record<string, number>): SourcearParaBusquedaDeps["scoreApplicationsBatch"] =>
+  async ({ candidates }) =>
+    candidates.map((c) => ({
+      candidateId: c.id,
+      score: scores?.[c.id] ?? 90,
+      summary: "resumen",
+      redFlags: [],
+      breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
+      strengths: [],
+    }));
+
 /** Deps por default para `sourcearParaBusqueda`: nadie está en el pool todavía. Los tests que
  *  necesitan simular candidatos ya conocidos pasan su propio `findExistingLinkedinUrls`. */
 function deps(over: Partial<SourcearParaBusquedaDeps> = {}): SourcearParaBusquedaDeps {
   return {
     search: async () => ({ candidates: [], isLiveApi: true }),
     scoreApplication: scoreOk,
+    scoreApplicationsBatch: batchScorer(),
     findExistingLinkedinUrls: async () => new Set(),
     ...over,
   };
@@ -147,13 +161,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       deps({
         search: async () => ({ candidates, isLiveApi: true }),
-        scoreApplication: async (input) => ({
-          score: scores[input.candidate.id]!,
-          summary: "resumen",
-          redFlags: [],
-          breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-          strengths: [],
-        }),
+        scoreApplicationsBatch: batchScorer(scores),
       }),
     );
     expect(res.ok).toBe(true);
@@ -172,13 +180,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       deps({
         search: async () => ({ candidates, isLiveApi: false }),
-        scoreApplication: async (input) => ({
-          score: scores[input.candidate.id]!,
-          summary: "",
-          redFlags: [],
-          breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-          strengths: [],
-        }),
+        scoreApplicationsBatch: batchScorer(scores),
       }),
     );
     expect(res.ok).toBe(true);
@@ -204,7 +206,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       deps({
         search: async () => ({ candidates: [], isLiveApi: false, error: "Falló la búsqueda." }),
-        scoreApplication: async () => {
+        scoreApplicationsBatch: async () => {
           throw new Error("no debería scorear si search falló");
         },
       }),
@@ -222,9 +224,10 @@ describe("sourcearParaBusqueda", () => {
       deps({
         search: async () => ({ candidates, isLiveApi: true }),
         findExistingLinkedinUrls: async () => new Set(["https://www.linkedin.com/in/a"]),
-        scoreApplication: async (input) => {
-          if (input.candidate.id === "a") throw new Error("no debería scorear a un ya conocido");
-          return scoreOk();
+        scoreApplicationsBatch: async ({ candidates: cs }) => {
+          if (cs.some((c) => c.id === "a"))
+            throw new Error("no debería scorear a un ya conocido");
+          return batchScorer()({ job: job(), candidates: cs });
         },
       }),
     );

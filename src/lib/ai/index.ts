@@ -11,6 +11,8 @@ export type {
   AiProvider,
   ScoreApplicationInput,
   ScoreApplicationResult,
+  ScoreApplicationsBatchInput,
+  ScoredCandidate,
   ScoreBreakdown,
   CandidateExperienceInput,
   CandidateEducationInput,

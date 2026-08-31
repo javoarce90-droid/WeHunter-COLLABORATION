@@ -12,10 +12,13 @@ import {
 import { MockAiProvider } from "./mock";
 import { prompts } from "./prompts";
 import { AiUnavailableError } from "./errors";
+import { reconcileBatchScores } from "./batch-reconcile";
 import type {
   AiProvider,
   ScoreApplicationInput,
   ScoreApplicationResult,
+  ScoreApplicationsBatchInput,
+  ScoredCandidate,
   DraftOfferInput,
   DraftJobPostingInput,
   DraftJobOfferInput,
@@ -205,96 +208,19 @@ export class GeminiAiProvider implements AiProvider {
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
-            properties: {
-              score: {
-                type: Type.INTEGER,
-                description: "Compatibilidad 0–100. 100 = match perfecto.",
-              },
-              summary: {
-                type: Type.STRING,
-                description: "Resumen del match en 1–2 frases.",
-              },
-              redFlags: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description:
-                  "Señales de atención (ej. perfil sin información cargada, sin skills coincidentes). Vacío si no hay. Nunca marques la falta de CV como señal de atención.",
-              },
-              breakdown: {
-                type: Type.OBJECT,
-                description:
-                  "Desglose del match por categoría, 0–100 cada una.",
-                properties: {
-                  experiencia: { type: Type.INTEGER },
-                  skillsTecnicos: { type: Type.INTEGER },
-                  seniority: { type: Type.INTEGER },
-                  idiomas: { type: Type.INTEGER },
-                  ubicacion: { type: Type.INTEGER },
-                },
-                required: [
-                  "experiencia",
-                  "skillsTecnicos",
-                  "seniority",
-                  "idiomas",
-                  "ubicacion",
-                ],
-              },
-              strengths: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description:
-                  "2 a 4 puntos fuertes concretos del candidato para este puesto.",
-              },
-            },
-            required: [
-              "score",
-              "summary",
-              "redFlags",
-              "breakdown",
-              "strengths",
-            ],
+            properties: SCORE_PROPS,
+            required: SCORE_REQUIRED,
           },
         },
       });
 
       const raw = res.text?.trim();
       if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
-      const parsed = JSON.parse(raw) as Partial<ScoreApplicationResult>;
-
-      const score = Math.max(
-        0,
-        Math.min(100, Math.round(Number(parsed.score))),
+      const result = normalizeScore(
+        JSON.parse(raw) as Partial<ScoreApplicationResult>,
       );
-      const clampCat = (n: unknown) =>
-        Math.max(0, Math.min(100, Math.round(Number(n))));
-      if (
-        !Number.isFinite(score) ||
-        typeof parsed.summary !== "string" ||
-        !parsed.breakdown ||
-        !Number.isFinite(Number(parsed.breakdown.experiencia))
-      ) {
-        throw new Error("Gemini devolvió un score con forma inesperada");
-      }
-
       recordAiCall("scoreApplication", "ok", { ms: Date.now() - t0, attempts, model });
-      return {
-        score,
-        summary: parsed.summary,
-        redFlags: Array.isArray(parsed.redFlags)
-          ? parsed.redFlags.filter((f) => typeof f === "string")
-          : [],
-        breakdown: {
-          experiencia: clampCat(parsed.breakdown.experiencia),
-          skillsTecnicos: clampCat(parsed.breakdown.skillsTecnicos),
-          seniority: clampCat(parsed.breakdown.seniority),
-          idiomas: clampCat(parsed.breakdown.idiomas),
-          ubicacion: clampCat(parsed.breakdown.ubicacion),
-        },
-        strengths: Array.isArray(parsed.strengths)
-          ? parsed.strengths.filter((f) => typeof f === "string")
-          : [],
-        degraded: false,
-      };
+      return result;
     } catch (err) {
       // Loop de scoring (N postulados): NO se corta el flujo — se degrada al heurístico local,
       // pero el resultado queda marcado `degraded` (ver mock) para que la UI no lo confunda con
@@ -306,6 +232,112 @@ export class GeminiAiProvider implements AiProvider {
       });
       return this.fallback.scoreApplication(input);
     }
+  }
+
+  async scoreApplicationsBatch(
+    input: ScoreApplicationsBatchInput,
+  ): Promise<ScoredCandidate[]> {
+    if (input.candidates.length === 0) return [];
+    const groups = chunk(input.candidates, BATCH_SCORE_CHUNK);
+    const perGroup = await Promise.all(
+      groups.map((g) => this.scoreChunk(input.job, g)),
+    );
+    return perGroup.flat();
+  }
+
+  /** Una request = un chunk de candidatos contra la búsqueda. Si la request entera falla, se
+   *  cae a scorear el chunk uno por uno (cada `scoreApplication` con su propia cascada). Si el
+   *  modelo omite o arruina algún candidato, `reconcileBatch` lo resuelve. */
+  private async scoreChunk(
+    job: ScoreApplicationInput["job"],
+    candidates: ScoreApplicationInput["candidate"][],
+  ): Promise<ScoredCandidate[]> {
+    const prompt = prompts.scoreApplicationsBatch({ job, candidates });
+    const t0 = Date.now();
+    try {
+      const { res, attempts, model } = await this.generate(
+        "scoreApplicationsBatch",
+        {
+          contents: prompt.user,
+          config: {
+            systemInstruction: prompt.system,
+            temperature: 0.2,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  candidateId: {
+                    type: Type.STRING,
+                    description: "El candidateId EXACTO recibido para este candidato.",
+                  },
+                  ...SCORE_PROPS,
+                },
+                required: ["candidateId", ...SCORE_REQUIRED],
+              },
+            },
+          },
+        },
+      );
+
+      const raw = res.text?.trim();
+      if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
+      const arr = JSON.parse(raw) as unknown;
+      if (!Array.isArray(arr)) {
+        throw new Error("Gemini devolvió una forma inesperada (esperado array)");
+      }
+
+      const fromModel = new Map<string, ScoreApplicationResult>();
+      for (const item of arr) {
+        if (!item || typeof item !== "object") continue;
+        const row = item as Record<string, unknown>;
+        if (typeof row.candidateId !== "string") continue;
+        try {
+          fromModel.set(
+            row.candidateId,
+            normalizeScore(row as Partial<ScoreApplicationResult>),
+          );
+        } catch {
+          // Candidato con forma inservible — se rellena en reconcileBatch.
+        }
+      }
+
+      const reconciled = await this.reconcileBatch(job, candidates, fromModel);
+      recordAiCall(
+        "scoreApplicationsBatch",
+        fromModel.size === candidates.length ? "ok" : "degraded",
+        { ms: Date.now() - t0, attempts, model },
+      );
+      return reconciled;
+    } catch (err) {
+      recordAiCall("scoreApplicationsBatch", "degraded", {
+        ms: Date.now() - t0,
+        attempts: this.models.length,
+        err,
+      });
+      return Promise.all(
+        candidates.map(async (c) => ({
+          candidateId: c.id,
+          ...(await this.scoreApplication({ candidate: c, job })),
+        })),
+      );
+    }
+  }
+
+  /** Completa a los candidatos que el modelo omitió/arruinó en la respuesta de lote. La
+   *  estrategia (rescoreo individual vs heurístico según cuántos falten) vive en
+   *  `batch-reconcile.ts`, testeable sin red. */
+  private reconcileBatch(
+    job: ScoreApplicationInput["job"],
+    candidates: ScoreApplicationInput["candidate"][],
+    fromModel: Map<string, ScoreApplicationResult>,
+  ): Promise<ScoredCandidate[]> {
+    return reconcileBatchScores(candidates, fromModel, {
+      scoreWithAi: (c) => this.scoreApplication({ candidate: c, job }),
+      scoreHeuristic: (c) =>
+        this.fallback.scoreApplication({ candidate: c, job }),
+    });
   }
 
   async draftOffer(input: DraftOfferInput): Promise<string> {
@@ -925,6 +957,88 @@ function isQuotaError(err: unknown): boolean {
   }
   const msg = err instanceof Error ? err.message : String(err);
   return /"code":\s*429|RESOURCE_EXHAUSTED|exceeded your current quota/i.test(msg);
+}
+
+/** Cuántos candidatos por request de `scoreApplicationsBatch`. 10 = mismo tope que el resto de
+ *  la app para tandas de IA (SOURCING_MAX_RESULTS, SOURCING_MANUAL_SCORE_CAP). Cuanto más chico,
+ *  menos riesgo de que el modelo omita/mezcle candidatos; N > chunk se parte en varias requests
+ *  (igual son muchísimas menos que una por candidato). */
+const BATCH_SCORE_CHUNK = 10;
+
+const chunk = <T>(xs: T[], size: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size));
+  return out;
+};
+
+const clamp100 = (n: unknown) =>
+  Math.max(0, Math.min(100, Math.round(Number(n))));
+
+/** Propiedades del resultado de scoring — compartidas por el schema de 1 candidato y el de lote. */
+const SCORE_PROPS = {
+  score: {
+    type: Type.INTEGER,
+    description: "Compatibilidad 0–100. 100 = match perfecto.",
+  },
+  summary: { type: Type.STRING, description: "Resumen del match en 1–2 frases." },
+  redFlags: {
+    type: Type.ARRAY,
+    items: { type: Type.STRING },
+    description:
+      "Señales de atención (ej. perfil sin información cargada, sin skills coincidentes). Vacío si no hay. Nunca marques la falta de CV como señal de atención.",
+  },
+  breakdown: {
+    type: Type.OBJECT,
+    description: "Desglose del match por categoría, 0–100 cada una.",
+    properties: {
+      experiencia: { type: Type.INTEGER },
+      skillsTecnicos: { type: Type.INTEGER },
+      seniority: { type: Type.INTEGER },
+      idiomas: { type: Type.INTEGER },
+      ubicacion: { type: Type.INTEGER },
+    },
+    required: ["experiencia", "skillsTecnicos", "seniority", "idiomas", "ubicacion"],
+  },
+  strengths: {
+    type: Type.ARRAY,
+    items: { type: Type.STRING },
+    description: "2 a 4 puntos fuertes concretos del candidato para este puesto.",
+  },
+} as const;
+const SCORE_REQUIRED = ["score", "summary", "redFlags", "breakdown", "strengths"];
+
+/** Valida y da forma a un score que devolvió el modelo. Tira si la forma es inservible, para
+ *  que el llamador degrade (al heurístico, o rescoreando ese candidato solo). */
+function normalizeScore(
+  parsed: Partial<ScoreApplicationResult>,
+): ScoreApplicationResult {
+  const score = clamp100(parsed.score);
+  if (
+    !Number.isFinite(score) ||
+    typeof parsed.summary !== "string" ||
+    !parsed.breakdown ||
+    !Number.isFinite(Number(parsed.breakdown.experiencia))
+  ) {
+    throw new Error("Gemini devolvió un score con forma inesperada");
+  }
+  return {
+    score,
+    summary: parsed.summary,
+    redFlags: Array.isArray(parsed.redFlags)
+      ? parsed.redFlags.filter((f): f is string => typeof f === "string")
+      : [],
+    breakdown: {
+      experiencia: clamp100(parsed.breakdown.experiencia),
+      skillsTecnicos: clamp100(parsed.breakdown.skillsTecnicos),
+      seniority: clamp100(parsed.breakdown.seniority),
+      idiomas: clamp100(parsed.breakdown.idiomas),
+      ubicacion: clamp100(parsed.breakdown.ubicacion),
+    },
+    strengths: Array.isArray(parsed.strengths)
+      ? parsed.strengths.filter((f): f is string => typeof f === "string")
+      : [],
+    degraded: false,
+  };
 }
 
 // Gemini a veces devuelve el string literal "null" en vez de JSON null para campos STRING sin

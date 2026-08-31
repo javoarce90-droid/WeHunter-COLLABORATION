@@ -1,6 +1,8 @@
 import type {
   ScoreApplicationInput,
   ScoreApplicationResult,
+  ScoreApplicationsBatchInput,
+  ScoredCandidate,
   ScoreBreakdown,
 } from "@/lib/ai/provider";
 import { normalizeLinkedinKey } from "../../candidates/domain/duplicate-keys";
@@ -46,10 +48,29 @@ export type SourcearParaBusquedaDeps = {
   scoreApplication: (
     input: ScoreApplicationInput,
   ) => Promise<ScoreApplicationResult>;
+  /** Scoring en lote: se usa para la tanda de sourcing (todos los candidatos nuevos de una). */
+  scoreApplicationsBatch: (
+    input: ScoreApplicationsBatchInput,
+  ) => Promise<ScoredCandidate[]>;
   /** Qué linkedinUrls del lote ya están en el pool de la organización — se usa para no volver a
    *  mostrar (ni gastar un scoring de IA en) un candidato que el recruiter ya tiene cargado. */
   findExistingLinkedinUrls: (linkedinUrls: string[]) => Promise<Set<string>>;
 };
+
+/** Mapea un candidato de LinkedIn (solo snippet, sin experiencia/educación estructurada) al
+ *  contrato de scoring. El candidato arma su perfil completo recién si se importa al pool. */
+export function linkedInToScoreCandidate(
+  c: LinkedInCandidateResult,
+): ScoreApplicationInput["candidate"] {
+  return {
+    id: c.id,
+    skills: c.skills,
+    summary: c.snippet ?? c.headline,
+    source: "linkedin",
+    experience: [],
+    education: [],
+  };
+}
 
 /** Transparencia de una tanda: cuántos trajo Serper, cuántos ya estaban en el pool (filtrados
  *  antes de scorear) y cuántos son realmente nuevos — para que la UI pueda explicar por qué una
@@ -112,30 +133,23 @@ export function buildJobSourcingQuery(job: JobSourcingContext): string {
 /** Scorea un candidato de LinkedIn contra una búsqueda con IA (mismo contrato que
  *  `puntuar-postulaciones.ts`). Función pura reusada tanto por `sourcearParaBusqueda` (lote,
  *  Sourcing con IA) como por el scoring puntual de Sourcing Manual (un candidato a la vez). */
+const jobToScoreJob = (job: JobSourcingContext): ScoreApplicationInput["job"] => ({
+  title: job.title,
+  position: job.position,
+  skills: job.skills,
+  objectives: job.objectives,
+  requirements: job.requirements,
+  responsibilities: job.responsibilities,
+});
+
 export async function scoreLinkedInCandidate(
   candidate: LinkedInCandidateResult,
   job: JobSourcingContext,
   scoreApplication: SourcearParaBusquedaDeps["scoreApplication"],
 ): Promise<ScoredLinkedInCandidate> {
   const result = await scoreApplication({
-    candidate: {
-      id: candidate.id,
-      skills: candidate.skills,
-      summary: candidate.snippet ?? candidate.headline,
-      source: "linkedin",
-      // El motor de sourcing no trae experiencia/educación estructurada (solo snippet de
-      // búsqueda) — el candidato recién arma su perfil completo si se importa al pool.
-      experience: [],
-      education: [],
-    },
-    job: {
-      title: job.title,
-      position: job.position,
-      skills: job.skills,
-      objectives: job.objectives,
-      requirements: job.requirements,
-      responsibilities: job.responsibilities,
-    },
+    candidate: linkedInToScoreCandidate(candidate),
+    job: jobToScoreJob(job),
   });
   return {
     ...candidate,
@@ -172,9 +186,26 @@ export async function sourcearParaBusqueda(
       : new Set<string>();
   const nuevos = candidates.filter((c) => !existing.has(normalizeLinkedinKey(c.linkedinUrl) ?? ""));
 
-  const scored = await Promise.all(
-    nuevos.map((c) => scoreLinkedInCandidate(c, job, deps.scoreApplication)),
-  );
+  // Una sola llamada a la IA para toda la tanda, en vez de una por candidato.
+  const batch =
+    nuevos.length > 0
+      ? await deps.scoreApplicationsBatch({
+          job: jobToScoreJob(job),
+          candidates: nuevos.map(linkedInToScoreCandidate),
+        })
+      : [];
+  const scoreById = new Map(batch.map((r) => [r.candidateId, r]));
+  const scored: ScoredLinkedInCandidate[] = nuevos.map((c) => {
+    const r = scoreById.get(c.id)!; // scoreApplicationsBatch cubre todos los candidatos pedidos.
+    return {
+      ...c,
+      score: r.score,
+      summary: r.summary,
+      breakdown: r.breakdown,
+      strengths: r.strengths,
+      redFlags: r.redFlags,
+    };
+  });
 
   const results = scored
     .sort((a, b) => b.score - a.score)

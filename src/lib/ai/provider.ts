@@ -72,6 +72,20 @@ export type ScoreApplicationResult = {
   degraded?: boolean;
 };
 
+/**
+ * Scoring en lote: puntúa N candidatos contra UNA búsqueda en una sola llamada al modelo (o
+ * unos pocos chunks), en vez de N llamadas. Es la forma canónica de scorear en Matchear pool,
+ * Postulados y Sourcing — misma semántica que `scoreApplication` por candidato, pero ~N× más
+ * barato en tokens (el contexto de la búsqueda no se repite) y una latencia en vez de N.
+ */
+export type ScoreApplicationsBatchInput = {
+  job: ScoreApplicationInput["job"];
+  /** Cada candidato lleva `id` — el resultado se devuelve emparejado por ese id. */
+  candidates: ScoreApplicationInput["candidate"][];
+};
+
+export type ScoredCandidate = ScoreApplicationResult & { candidateId: string };
+
 export type DraftOfferInput = {
   candidateName: string;
   jobTitle: string;
@@ -268,6 +282,12 @@ export interface AiProvider {
   scoreApplication(
     input: ScoreApplicationInput,
   ): Promise<ScoreApplicationResult>;
+  /** Puntúa varios candidatos contra una búsqueda de una. El orden del resultado NO está
+   *  garantizado; emparejá por `candidateId`. Siempre devuelve un resultado por cada candidato
+   *  pedido (rellena con el heurístico local los que el modelo no haya cubierto). */
+  scoreApplicationsBatch(
+    input: ScoreApplicationsBatchInput,
+  ): Promise<ScoredCandidate[]>;
   draftOffer(input: DraftOfferInput): Promise<string>;
   draftJobPosting(input: DraftJobPostingInput): Promise<string>;
   draftJobOffer(input: DraftJobOfferInput): Promise<DraftJobOffer>;
