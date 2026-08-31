@@ -251,6 +251,7 @@ export async function compartirConHMAction(
 
 export interface FeedbackInternoState {
   error?: string;
+  ok?: boolean;
 }
 
 /** El Hiring Manager deja feedback sobre un candidato de un shortlist compartido con él. */
@@ -294,7 +295,7 @@ export async function registrarFeedbackInternoAction(
 
   const shortlistId = String(formData.get("shortlistId") ?? "");
   if (shortlistId) revalidatePath(`/shortlists/${shortlistId}`);
-  return {};
+  return { ok: true };
 }
 
 export interface PostearComentarioState {
