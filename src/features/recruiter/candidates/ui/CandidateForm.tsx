@@ -73,11 +73,13 @@ export function CandidateForm({
   const linkProfileRef = useRef<HTMLInputElement>(null);
   const skipProfileLinkRef = useRef<HTMLInputElement>(null);
 
-  // Únicos campos obligatorios (email solo al crear): trackeados para deshabilitar el submit.
+  // Campos obligatorios (nombre + email + teléfono, al crear y al editar): trackeados para
+  // deshabilitar el submit hasta que estén completos.
   const [fullNameValue, setFullNameValue] = useState(defaults?.fullName ?? "");
   const [emailValue, setEmailValue] = useState(defaults?.email ?? "");
   const [phoneValue, setPhoneValue] = useState(defaults?.phone ?? "");
-  const missingRequired = !fullNameValue.trim() || (!candidateId && !emailValue.trim());
+  const missingRequired =
+    !fullNameValue.trim() || !emailValue.trim() || !phoneValue.trim();
 
   // Chequeo de email en vivo
   const [liveCheck, setLiveCheck] = useState<VerificarCandidatoPorEmailResult>({});
@@ -185,12 +187,12 @@ export function CandidateForm({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input
-                  label={candidateId ? "Email (opcional)" : "Email *"}
+                  label="Email *"
                   name="email"
                   type="email"
                   placeholder="ada@ejemplo.com"
                   defaultValue={defaults?.email ?? ""}
-                  required={!candidateId}
+                  required
                   onBlur={onEmailBlur}
                   onChange={(e) => {
                     lastCheckedEmail.current = "";
@@ -199,7 +201,7 @@ export function CandidateForm({
                   }}
                 />
                 <PhoneInput
-                  label="Teléfono (opcional)"
+                  label="Teléfono *"
                   name="phone"
                   value={phoneValue}
                   onChange={(v) => setPhoneValue(v ?? "")}
@@ -216,7 +218,7 @@ export function CandidateForm({
                   defaultValue={defaults?.location ?? ""}
                 />
                 <Input
-                  label="Titular / puesto actual (opcional)"
+                  label="Titular (opcional)"
                   name="headline"
                   type="text"
                   placeholder="Ej: Frontend Senior @ Acme"

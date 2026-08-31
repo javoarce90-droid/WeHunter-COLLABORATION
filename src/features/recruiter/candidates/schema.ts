@@ -23,26 +23,37 @@ export const candidateSourceSchema = z.enum([
 
 export const candidateSenioritySchema = z.enum(["junior", "semisenior", "senior", "lead"]);
 
+// `null`/`undefined` → "" para que el error sea "es obligatorio" y no un type error de zod.
+const nullishToEmpty = (v: unknown) => (typeof v === "string" ? v : "");
+
 export const candidateInputSchema = z.object({
   fullName: z
     .string()
     .trim()
     .min(2, "El nombre es demasiado corto.")
     .max(120, "El nombre es demasiado largo."),
-  // Email opcional: vacío ("") o ausente (null/undefined) → undefined. Cualquier otra cosa
-  // pasa al validador. Esto evita el "Expected string, received null" si el campo falta.
+  // Email y teléfono son obligatorios en toda alta/edición manual (el email además ancla el
+  // chequeo de duplicados y el vínculo con una cuenta real — ver duplicate-keys.ts /
+  // profile-link.ts). La importación masiva por CSV es otro flujo y mantiene su propio schema.
   email: z.preprocess(
-    emptyToUndef,
+    nullishToEmpty,
     z
       .string()
       .trim()
       .toLowerCase()
+      .min(1, "El email es obligatorio.")
       .email("El email no es válido.")
-      .max(160, "El email es demasiado largo.")
-      .optional(),
+      .max(160, "El email es demasiado largo."),
+  ),
+  phone: z.preprocess(
+    nullishToEmpty,
+    z
+      .string()
+      .trim()
+      .min(1, "El teléfono es obligatorio.")
+      .max(40, "El teléfono es demasiado largo."),
   ),
   headline: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
-  phone: z.preprocess(emptyToUndef, z.string().trim().max(40).optional()),
   location: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
   linkedinUrl: z.preprocess(toOptionalUrl, z.string().trim().max(300).optional()),
   summary: z.preprocess(emptyToUndef, z.string().trim().max(5000).optional()),
@@ -53,22 +64,9 @@ export const candidateInputSchema = z.object({
 
 export type CandidateInput = z.infer<typeof candidateInputSchema>;
 
-// Al cargar un candidato nuevo el email es obligatorio (detecta duplicados y permite
-// vincular una cuenta real, ver duplicate-keys.ts/profile-link.ts): sin email ninguno de
-// los dos chequeos tiene con qué buscar. Editar un candidato ya existente sin email no se
-// bloquea (dato viejo) — por eso es un schema aparte, no un cambio en candidateInputSchema.
-export const candidateCreateInputSchema = candidateInputSchema.extend({
-  email: z.preprocess(
-    (v) => (typeof v === "string" ? v : ""),
-    z
-      .string()
-      .trim()
-      .toLowerCase()
-      .min(1, "El email es obligatorio.")
-      .email("El email no es válido.")
-      .max(160, "El email es demasiado largo."),
-  ),
-});
+// El alta usa el mismo schema que la edición: email + teléfono obligatorios en ambos casos.
+// Se mantiene como export separado para no tocar los imports de las actions.
+export const candidateCreateInputSchema = candidateInputSchema;
 
 export type CandidateCreateInput = z.infer<typeof candidateCreateInputSchema>;
 
