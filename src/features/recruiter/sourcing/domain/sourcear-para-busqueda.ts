@@ -40,6 +40,7 @@ export type ScoredLinkedInCandidate = LinkedInCandidateResult & {
 export type SourcearParaBusquedaDeps = {
   search: (
     query: string,
+    page: number,
   ) => Promise<{
     candidates: LinkedInCandidateResult[];
     isLiveApi: boolean;
@@ -72,9 +73,10 @@ export function linkedInToScoreCandidate(
   };
 }
 
-/** Transparencia de una tanda: cuántos trajo Serper, cuántos ya estaban en el pool (filtrados
- *  antes de scorear) y cuántos son realmente nuevos — para que la UI pueda explicar por qué una
- *  tanda "encontró 10" pero solo muestra 3. */
+/** Transparencia de un click de "Buscar más": de los perfiles que NO se habían mostrado antes,
+ *  cuántos aparecieron (`encontrados`), cuántos ya estaban en el pool (`enPool`, filtrados antes
+ *  de scorear) y cuántos son realmente nuevos (`nuevos`). Siempre `encontrados = enPool + nuevos`.
+ *  Los perfiles ya mostrados en clicks anteriores no cuentan en ninguno. */
 export type SourcingMetrics = {
   encontrados: number;
   enPool: number;
@@ -88,17 +90,40 @@ export type SourcingMetrics = {
  *  perfiles IT). El puesto real sigue siendo el ancla principal del query. */
 const MAX_SOURCING_QUERY_SKILLS = 3;
 
-/** Cuántas variantes de query distintas se prueban en sucesivos "Buscar más candidatos" para la
- *  misma búsqueda, antes de asentarse en la más amplia (attempts fuera de rango clampan acá). */
+/** Cuántas variantes de query distintas se prueban para la misma búsqueda, de más precisa a más
+ *  amplia. Combinadas con la paginación de Serper (ver `SEARCH_PAGES_PER_VARIANT`) definen el
+ *  universo de perfiles que "Buscar más candidatos" puede recorrer. */
 export const SOURCING_MAX_QUERY_ATTEMPTS = 4;
+
+/** Cuántas páginas de Serper se piden por variante de query antes de pasar a la siguiente
+ *  variante. 4 variantes × 3 páginas × 10 resultados = hasta 120 perfiles distintos por búsqueda. */
+export const SEARCH_PAGES_PER_VARIANT = 3;
+
+/** Total de "pasos" de búsqueda: cada paso es un par (variante, página) único. Cuando el cursor
+ *  llega acá, no queda nada más que probar (`exhausted`). */
+export const MAX_SEARCH_STEPS = SOURCING_MAX_QUERY_ATTEMPTS * SEARCH_PAGES_PER_VARIANT;
+
+/** Tope de páginas de Serper que consume UN click de "Buscar más candidatos" mientras junta
+ *  perfiles nuevos — freno de latencia/costo (búsqueda + hasta 10 scorings de IA por click). */
+export const MAX_STEPS_PER_CLICK = 5;
+
+/** Traduce un paso del cursor a (variante de query, página de Serper). Los pasos van llenando
+ *  las páginas de la variante 0, después las de la 1, etc. Fuera de rango clampa a la última
+ *  variante / a `MAX_SEARCH_STEPS`. */
+export function stepToVariantPage(step: number): { variant: number; page: number } {
+  const s = Math.max(0, Math.min(step, MAX_SEARCH_STEPS - 1));
+  return {
+    variant: Math.floor(s / SEARCH_PAGES_PER_VARIANT),
+    page: (s % SEARCH_PAGES_PER_VARIANT) + 1,
+  };
+}
 
 /** Arma una variante de la query de sourcing según el intento (0 = la de siempre, la que arma
  *  `buildJobSourcingQuery`). Cada término de la query es un AND en el X-Ray search de Serper —
  *  sacar un término AMPLÍA resultados, nunca los achica — así que las variantes van de más
  *  precisa a más amplia dropeando términos, nunca el puesto (ancla mínima de negocio: sin eso la
- *  búsqueda deja de tener sentido). Existe porque Serper no soporta paginación — pedir de nuevo
- *  la misma query devuelve siempre el mismo top-10 — así que ampliar la query es la única
- *  palanca real para que "Buscar más candidatos" tenga chance de traer perfiles distintos. */
+ *  búsqueda deja de tener sentido). Combinado con la paginación, cada variante aporta varias
+ *  páginas de perfiles distintos. */
 export function buildJobSourcingQueryVariant(job: JobSourcingContext, attempt: number): string {
   const clamped = Math.max(0, Math.min(attempt, SOURCING_MAX_QUERY_ATTEMPTS - 1));
   const anchor = job.position?.trim() || job.title.trim() || null;
@@ -161,32 +186,80 @@ export async function scoreLinkedInCandidate(
   };
 }
 
+/** Cursor persistido entre clicks de "Buscar más candidatos": desde qué paso seguir y qué
+ *  perfiles ya se le mostraron a este recruiter (para no repetirlos). `seenKeys` = linkedinUrls
+ *  normalizadas; la action lo arma a partir de los `results` acumulados de la sesión. */
+export type SourcingCursor = { step: number; seenKeys: string[] };
+
+export type SourcearParaBusquedaResult = {
+  ok: true;
+  /** SOLO los perfiles nuevos de esta llamada (ya scoreados, ordenados por match, hasta 10).
+   *  La action los mergea con lo que ya venía mostrando. */
+  results: ScoredLinkedInCandidate[];
+  isLiveApi: boolean;
+  metrics: SourcingMetrics;
+  /** Dónde quedó el cursor — la action lo guarda en `sourcing_search_sessions.attempt`. */
+  nextStep: number;
+  /** true si el cursor llegó al final: no tiene sentido ofrecer "Buscar más candidatos". */
+  exhausted: boolean;
+};
+
 /**
- * Busca candidatos en LinkedIn para una búsqueda puntual (variando la query según `attempt`,
- * ver `buildJobSourcingQueryVariant`), descarta los que ya están en el pool de la organización
- * y scorea con IA solo a los nuevos. Devuelve todos los que quedan (sin filtrar por score — el
- * recruiter decide mirando el % de cada uno), ordenados de mayor a menor compatibilidad, hasta
- * 10, junto con las métricas de la tanda (para que la UI explique cuántos se filtraron).
+ * Recorre LinkedIn para una búsqueda juntando perfiles GENUINAMENTE NUEVOS (ni en el pool, ni
+ * ya mostrados a este recruiter). Cada "paso" del cursor es un par (variante de query, página
+ * de Serper); un click consume varios pasos hasta juntar `SOURCING_MAX_RESULTS` nuevos o topar
+ * `MAX_STEPS_PER_CLICK`. Scorea a los nuevos con IA en una sola llamada (lote). No filtra por
+ * score — el recruiter decide mirando el %.
  */
 export async function sourcearParaBusqueda(
   job: JobSourcingContext,
   deps: SourcearParaBusquedaDeps,
-  attempt = 0,
-): Promise<
-  | { ok: true; results: ScoredLinkedInCandidate[]; isLiveApi: boolean; metrics: SourcingMetrics }
-  | { ok: false; error: string }
-> {
-  const query = buildJobSourcingQueryVariant(job, attempt);
-  const { candidates, isLiveApi, error } = await deps.search(query);
-  if (error) return { ok: false, error };
+  cursor: SourcingCursor = { step: 0, seenKeys: [] },
+): Promise<SourcearParaBusquedaResult | { ok: false; error: string }> {
+  const seen = new Set(cursor.seenKeys);
+  const nuevos: LinkedInCandidateResult[] = [];
+  let step = Math.max(0, cursor.step);
+  let stepsThisClick = 0;
+  let isLiveApi = true;
+  let encontrados = 0;
+  let enPool = 0;
 
-  const existing =
-    candidates.length > 0
-      ? await deps.findExistingLinkedinUrls(candidates.map((c) => c.linkedinUrl))
-      : new Set<string>();
-  const nuevos = candidates.filter((c) => !existing.has(normalizeLinkedinKey(c.linkedinUrl) ?? ""));
+  while (
+    nuevos.length < SOURCING_MAX_RESULTS &&
+    step < MAX_SEARCH_STEPS &&
+    stepsThisClick < MAX_STEPS_PER_CLICK
+  ) {
+    const { variant, page } = stepToVariantPage(step);
+    const res = await deps.search(buildJobSourcingQueryVariant(job, variant), page);
+    if (res.error) return { ok: false, error: res.error };
+    isLiveApi = res.isLiveApi;
+    step += 1;
+    stepsThisClick += 1;
 
-  // Una sola llamada a la IA para toda la tanda, en vez de una por candidato.
+    if (res.candidates.length === 0) {
+      // Página vacía: si es la primera de la variante, las siguientes también lo estarán —
+      // saltamos directo al inicio de la próxima variante en vez de gastar 2 pasos al pedo.
+      if (page === 1) step = (variant + 1) * SEARCH_PAGES_PER_VARIANT;
+      continue;
+    }
+
+    const existing = await deps.findExistingLinkedinUrls(
+      res.candidates.map((c) => c.linkedinUrl),
+    );
+    for (const c of res.candidates) {
+      const key = normalizeLinkedinKey(c.linkedinUrl) ?? c.id;
+      if (seen.has(key)) continue; // ya mostrado antes, o ya lo juntamos en este click
+      seen.add(key);
+      encontrados += 1; // perfil nuevo para este click (todavía no sabemos si está en el pool)
+      if (existing.has(key)) {
+        enPool += 1;
+        continue;
+      }
+      nuevos.push(c);
+    }
+  }
+
+  // Una sola llamada a la IA para todos los nuevos de este click (ver scoreApplicationsBatch).
   const batch =
     nuevos.length > 0
       ? await deps.scoreApplicationsBatch({
@@ -195,19 +268,18 @@ export async function sourcearParaBusqueda(
         })
       : [];
   const scoreById = new Map(batch.map((r) => [r.candidateId, r]));
-  const scored: ScoredLinkedInCandidate[] = nuevos.map((c) => {
-    const r = scoreById.get(c.id)!; // scoreApplicationsBatch cubre todos los candidatos pedidos.
-    return {
-      ...c,
-      score: r.score,
-      summary: r.summary,
-      breakdown: r.breakdown,
-      strengths: r.strengths,
-      redFlags: r.redFlags,
-    };
-  });
-
-  const results = scored
+  const results: ScoredLinkedInCandidate[] = nuevos
+    .map((c) => {
+      const r = scoreById.get(c.id)!; // scoreApplicationsBatch cubre todos los pedidos
+      return {
+        ...c,
+        score: r.score,
+        summary: r.summary,
+        breakdown: r.breakdown,
+        strengths: r.strengths,
+        redFlags: r.redFlags,
+      };
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, SOURCING_MAX_RESULTS);
 
@@ -215,11 +287,9 @@ export async function sourcearParaBusqueda(
     ok: true,
     results,
     isLiveApi,
-    metrics: {
-      encontrados: candidates.length,
-      enPool: candidates.length - nuevos.length,
-      nuevos: nuevos.length,
-    },
+    metrics: { encontrados, enPool, nuevos: nuevos.length },
+    nextStep: step,
+    exhausted: step >= MAX_SEARCH_STEPS,
   };
 }
 

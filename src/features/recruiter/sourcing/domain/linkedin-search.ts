@@ -87,16 +87,20 @@ const DEMO_PROFILES = [
 ];
 
 /**
- * Busca candidatos en LinkedIn a través de Google Custom Search API si existen las llaves de entorno,
- * o genera resultados dinámicos y realistas coincidiendo con la query.
+ * Busca candidatos en LinkedIn a través de la API de Serper (Google X-Ray) si existe la llave
+ * de entorno, o genera resultados dinámicos y realistas coincidiendo con la query. `page` (1+)
+ * pagina resultados reales — es lo que hace que "Buscar más candidatos" avance sobre perfiles
+ * distintos en vez de repetir el mismo top-10.
  */
 export async function searchLinkedInCandidates(
   input: LinkedInSearchQuery,
+  page = 1,
 ): Promise<{ candidates: LinkedInCandidateResult[]; isLiveApi: boolean; error?: string }> {
   const rawQuery = input.query.trim();
   if (!rawQuery) return { candidates: [], isLiveApi: false };
 
   const serperKey = process.env.SERPER_API_KEY;
+  const pageNum = Math.max(1, Math.floor(page));
 
   // 1. Consulta en tiempo real con Serper API
   if (serperKey) {
@@ -108,7 +112,7 @@ export async function searchLinkedInCandidates(
           "X-API-KEY": serperKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ q: xray, num: 10 }),
+        body: JSON.stringify({ q: xray, num: 10, page: pageNum }),
         cache: "no-store",
       });
 
@@ -132,7 +136,7 @@ export async function searchLinkedInCandidates(
               .slice(0, 5);
 
             return {
-              id: `linkedin-serper-${idx}-${stableHash(link)}`,
+              id: `linkedin-serper-p${pageNum}-${idx}-${stableHash(link)}`,
               name,
               headline,
               location: "Ubicación en LinkedIn",
@@ -154,9 +158,10 @@ export async function searchLinkedInCandidates(
   }
 
   // Fallback / Entorno Mockup: sin API key, o la búsqueda en vivo falló de verdad (no llegó a
-  // responder). Generación determinística contextualizada
+  // responder). Generación determinística contextualizada. `pageNum` desplaza los perfiles para
+  // que "Buscar más candidatos" muestre movimiento también sin Serper (dev/demo).
   const queryTerms = rawQuery.toLowerCase().split(/[\s,]+/).filter(Boolean);
-  const seed = stableHash(rawQuery);
+  const seed = stableHash(`${rawQuery}#${pageNum}`);
 
   const candidates: LinkedInCandidateResult[] = DEMO_PROFILES.map((p, idx) => {
     // Adapta dinámicamente las skills para reflejar la búsqueda ingresada por el usuario
@@ -164,14 +169,15 @@ export async function searchLinkedInCandidates(
       new Set([...queryTerms.map((t) => t.toUpperCase()), ...p.skills]),
     ).slice(0, 5);
 
-    // Genera una URL de búsqueda real en LinkedIn sin 404s
+    // Nombre + URL únicos por página, para que no colisionen con los de otras páginas.
+    const name = pageNum > 1 ? `${p.name} (${pageNum})` : p.name;
     const realLinkedinSearchUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(
-      `${p.name} ${rawQuery}`,
+      `${name} ${rawQuery}`,
     )}`;
 
     return {
       id: `linkedin-mock-${seed}-${idx}`,
-      name: p.name,
+      name,
       headline: p.headline.includes("{kw}")
         ? p.headline.replace("{kw}", rawQuery)
         : p.headline,

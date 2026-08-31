@@ -15,7 +15,7 @@ import { importarSourcingResultadoAction } from "../../applications/actions";
 import { AiAnalysisDialog } from "../../applications/ui/AiAnalysisDialog";
 import { CompareCandidatesDialog } from "./CompareCandidatesDialog";
 import { SourcingCandidateCard } from "./SourcingCandidateCard";
-import { SOURCING_MAX_QUERY_ATTEMPTS, mergeSourcingBatch } from "../domain/sourcear-para-busqueda";
+import { MAX_SEARCH_STEPS } from "../domain/sourcear-para-busqueda";
 import type {
   ScoredLinkedInCandidate,
   SourcingMetrics,
@@ -89,10 +89,9 @@ export function AiJobSourcingResults({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
-  // Qué variante de query usar en el próximo "Buscar más candidatos" (0 = la primera búsqueda).
-  // Vive solo acá: el componente ya se remonta por `key={jobId}` en `AiSourcingTab`, así que
-  // cambiar de búsqueda ya lo resetea solo, sin necesitar un efecto atado a `jobId`.
-  const [attempt, setAttempt] = useState(0);
+  // true cuando "Buscar más candidatos" ya recorrió todo el universo de perfiles de esta
+  // búsqueda (todas las variantes de query × páginas de Serper). Lo informa el server.
+  const [exhausted, setExhausted] = useState(false);
   const [metrics, setMetrics] = useState<SourcingMetrics | null>(null);
   const [progressStage, setProgressStage] = useState<0 | 1 | 2>(0);
   const [hydrating, startHydrate] = useTransition();
@@ -109,7 +108,7 @@ export function AiJobSourcingResults({
       setResults(res.session.results);
       setMetrics(res.session.metrics);
       setIsLiveApi(res.session.isLiveApi);
-      setAttempt(res.session.attempt);
+      setExhausted(res.session.attempt >= MAX_SEARCH_STEPS);
     });
     return () => {
       cancelled = true;
@@ -170,16 +169,14 @@ export function AiJobSourcingResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Trae una tanda con la variante de query de `nextAttempt`. La primera búsqueda (0) reemplaza
-  // todo; una tanda siguiente (`buscarMas`) SUMA a lo que ya hay, sin tocar las decisiones
-  // tomadas sobre la tanda anterior — deduplicada por linkedinUrl por si Serper repite algún
-  // perfil entre variantes (el dedup contra el pool ya lo filtra server-side, esto es solo
-  // por si la misma tanda nueva se solapa consigo misma respecto de la anterior).
-  function ejecutarBusqueda(nextAttempt: number) {
+  // `mode` 0 = búsqueda nueva (reemplaza todo y resetea las decisiones); 1 = "Buscar más
+  // candidatos" (el server avanza el cursor de páginas/variantes y devuelve el listado
+  // acumulado, ya deduplicado contra el pool y contra lo que este recruiter ya vio).
+  function ejecutarBusqueda(mode: 0 | 1) {
     notifiedRef.current = false;
     setProgressStage(0);
     startSearch(async () => {
-      const res = await sourcearParaBusquedaAction(jobId, nextAttempt);
+      const res = await sourcearParaBusquedaAction(jobId, mode);
       if (!res.ok || !res.results || !res.metrics) {
         toast({
           message: res.error ?? "No se pudo buscar en LinkedIn.",
@@ -187,18 +184,16 @@ export function AiJobSourcingResults({
         });
         return;
       }
-      setAttempt(nextAttempt);
       setMetrics(res.metrics);
       setIsLiveApi(res.isLiveApi ?? false);
-      if (nextAttempt === 0) {
-        setResults(res.results);
+      setExhausted(res.exhausted ?? false);
+      setResults(res.results);
+      if (mode === 0) {
         setDecisions({});
         setImportedVia({});
         setPostularByCandidate({});
         setSelected(new Set());
         setCompareIds(null);
-      } else {
-        setResults((prev) => mergeSourcingBatch(prev ?? [], res.results!));
       }
     });
   }
@@ -210,7 +205,7 @@ export function AiJobSourcingResults({
 
   function buscarMas() {
     if (results === null) return;
-    ejecutarBusqueda(attempt + 1);
+    ejecutarBusqueda(1);
   }
 
   function limpiar() {
@@ -221,7 +216,7 @@ export function AiJobSourcingResults({
     setIsLiveApi(true);
     setSelected(new Set());
     setCompareIds(null);
-    setAttempt(0);
+    setExhausted(false);
     setMetrics(null);
     void limpiarSourcingSessionAction(jobId);
   }
@@ -380,9 +375,6 @@ export function AiJobSourcingResults({
     ? (results?.find((c) => c.id === compareIds[1]) ?? null)
     : null;
 
-  // Ya se probó la variante más amplia de query (ver `buildJobSourcingQueryVariant`) — pedir
-  // otra tanda con el mismo `attempt` no cambiaría la query, así que no tiene sentido ofrecerlo.
-  const attemptsExhausted = attempt >= SOURCING_MAX_QUERY_ATTEMPTS - 1;
   const progressCaption = searching ? (
     <p className="text-xs text-muted" role="status" aria-live="polite">
       {PROGRESS_MESSAGES[progressStage]}
@@ -427,14 +419,14 @@ export function AiJobSourcingResults({
           title={todosEnPool ? "Ya tenés a todos en tu pool" : "No encontramos perfiles en LinkedIn"}
           description={
             todosEnPool
-              ? attemptsExhausted
-                ? "Ya probamos las variantes de búsqueda automática y todos los perfiles que encontramos ya están en tu pool — probá sumando candidatos manualmente o ajustando la búsqueda."
-                : "Todos los perfiles que encontramos para esta búsqueda ya están en tu pool. Probá pedir otra tanda con otra variante de búsqueda."
-              : "Probá de nuevo más tarde o sumá candidatos manualmente con Agregar candidatos."
+              ? exhausted
+                ? "Recorrimos todos los resultados de LinkedIn para esta búsqueda y cada perfil ya está en tu pool. Sumá candidatos con Agregar candidatos, o ajustá la búsqueda."
+                : "Todos los perfiles de esta tanda ya están en tu pool. Seguí con Buscar más candidatos para traer más resultados de LinkedIn."
+              : "Probá de nuevo más tarde o sumá candidatos con Agregar candidatos."
           }
         />
         <div className="flex items-center gap-2">
-          {todosEnPool && !attemptsExhausted && (
+          {todosEnPool && !exhausted && (
             <div className="flex flex-col items-center gap-2">
               <AiButton variant="outline" onClick={buscarMas} loading={searching}>
                 Buscar más candidatos
@@ -462,11 +454,14 @@ export function AiJobSourcingResults({
           la búsqueda en vivo en LinkedIn.
         </p>
       )}
-      {metrics && metrics.nuevos < metrics.encontrados && (
+      {metrics && metrics.enPool > 0 && (
         <p className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-xs text-muted">
-          Encontramos {metrics.encontrados} perfil{metrics.encontrados === 1 ? "" : "es"} —{" "}
-          {metrics.enPool} ya estaba{metrics.enPool === 1 ? "" : "n"} en tu pool, te mostramos
-          {" "}los {metrics.nuevos} nuevo{metrics.nuevos === 1 ? "" : "s"}.
+          En esta tanda saltamos {metrics.enPool} perfil
+          {metrics.enPool === 1 ? "" : "es"} que ya {metrics.enPool === 1 ? "estaba" : "estaban"} en
+          tu pool
+          {metrics.nuevos > 0
+            ? ` y te mostramos ${metrics.nuevos} nuevo${metrics.nuevos === 1 ? "" : "s"}.`
+            : "."}
         </p>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -476,7 +471,11 @@ export function AiJobSourcingResults({
           por match — tocá el anillo de cada uno para ver el detalle
         </span>
         <div className="flex items-center gap-3">
-          {!attemptsExhausted && (
+          {exhausted ? (
+            <span className="text-xs text-muted">
+              Ya revisamos todos los perfiles de LinkedIn para esta búsqueda
+            </span>
+          ) : (
             <div className="flex flex-col items-start gap-1">
               <AiButton variant="outline" onClick={buscarMas} loading={searching}>
                 Buscar más candidatos

@@ -12,10 +12,11 @@ import {
   scoreLinkedInCandidate,
   sourcearParaBusqueda,
   mergeSourcingBatch,
-  SOURCING_MAX_QUERY_ATTEMPTS,
+  MAX_SEARCH_STEPS,
   type ScoredLinkedInCandidate,
   type SourcingMetrics,
 } from "./domain/sourcear-para-busqueda";
+import { normalizeLinkedinKey } from "../candidates/domain/duplicate-keys";
 import { getJobById } from "../jobs/data/jobs.queries";
 import { getAiProvider } from "@/lib/ai";
 import { can } from "@/lib/auth/roles";
@@ -110,31 +111,33 @@ export async function buscarLinkedinAction(input: { query: string }): Promise<{
 }
 
 const sourcearParaBusquedaSchema = z.object({
-  attempt: z.number().int().min(0).max(SOURCING_MAX_QUERY_ATTEMPTS - 1),
+  // 0 = búsqueda nueva; cualquier valor > 0 = "Buscar más candidatos" (el cursor real lo lleva
+  // la sesión, el cliente no lo trackea).
+  step: z.number().int().min(0).max(MAX_SEARCH_STEPS),
 });
 
 /**
  * Sourcing con IA de un clic desde Postulados (ítem 9.4): busca en LinkedIn usando el contexto
  * de la búsqueda (puesto, skills, seniority, ubicación), sin que el recruiter tipee nada, y
- * scorea con IA solo a los candidatos que todavía no están en el pool de la organización —
- * devuelve todos los que quedan (sin filtrar por score), ordenados de mayor a menor match, hasta
- * 10, más las métricas de la tanda (cuántos encontró, cuántos ya estaban en el pool). `attempt`
- * (0 en el primer click) elige una variante de query más amplia en cada reintento — Serper no
- * pagina, así que es la única forma de tener chance de traer perfiles distintos en vez de
- * repegarle siempre a la misma query (ver `buildJobSourcingQueryVariant`).
+ * scorea con IA solo a los candidatos que todavía no están en el pool NI ya le mostramos.
+ * `step` es el cursor: 0 = búsqueda nueva (reemplaza todo); >0 = "Buscar más candidatos"
+ * (acumula, y el server avanza páginas/variantes de Serper desde donde quedó — ver
+ * `sourcearParaBusqueda`). Devuelve el listado ACUMULADO completo + si ya no queda nada por
+ * buscar (`exhausted`).
  */
 export async function sourcearParaBusquedaAction(
   jobId: string,
-  attempt = 0,
+  step = 0,
 ): Promise<{
   ok: boolean;
   results?: ScoredLinkedInCandidate[];
   isLiveApi?: boolean;
   metrics?: SourcingMetrics;
+  exhausted?: boolean;
   error?: string;
 }> {
-  const parsedAttempt = sourcearParaBusquedaSchema.safeParse({ attempt });
-  if (!parsedAttempt.success) return { ok: false, error: "Intento inválido." };
+  const parsed = sourcearParaBusquedaSchema.safeParse({ step });
+  if (!parsed.success) return { ok: false, error: "Paso de búsqueda inválido." };
 
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!membership) return { ok: false, error: "No autorizado." };
@@ -148,6 +151,20 @@ export async function sourcearParaBusquedaAction(
   const { searchLinkedInCandidates } = await import("./domain/linkedin-search");
   const provider = getAiProvider();
 
+  // "Buscar más" arranca del cursor de la sesión previa y de los perfiles ya mostrados, para no
+  // repetirlos. Búsqueda nueva (step 0) parte de cero.
+  const isFresh = parsed.data.step === 0;
+  const previa =
+    !isFresh && user
+      ? await getSourcingSession(membership.organizationId, jobId, user.id)
+      : null;
+  const seedResults = previa?.results ?? [];
+  const seenKeys = seedResults.map(
+    (r) => normalizeLinkedinKey(r.linkedinUrl) ?? r.id,
+  );
+  // El cursor real vive en la sesión (columna `attempt`); el cliente solo dice "nueva" vs "más".
+  const startStep = isFresh ? 0 : (previa?.attempt ?? 0);
+
   const result = await sourcearParaBusqueda(
     {
       title: job.title,
@@ -160,36 +177,27 @@ export async function sourcearParaBusquedaAction(
       responsibilities: job.responsibilities,
     },
     {
-      search: (query) => searchLinkedInCandidates({ query }),
+      search: (query, page) => searchLinkedInCandidates({ query }, page),
       scoreApplication: (input) => provider.scoreApplication(input),
       scoreApplicationsBatch: (input) => provider.scoreApplicationsBatch(input),
       findExistingLinkedinUrls: (urls) =>
         findExistingLinkedinUrls(membership.organizationId, urls),
     },
-    parsedAttempt.data.attempt,
+    { step: startStep, seenKeys },
   );
 
   if (!result.ok) return { ok: false, error: result.error };
 
-  // El recruiter puede haber navegado a otra subtab mientras esto corría (el sourcing tarda:
-  // búsqueda + hasta 10 scorings de IA) — si ya no está montado para ver `results`, la sesión
-  // persistida abajo es lo que le permite restaurarlos al volver, y esta notificación es lo que
-  // le avisa que terminó.
+  const acumulado = isFresh
+    ? result.results
+    : mergeSourcingBatch(seedResults, result.results);
+
+  // El recruiter puede haber navegado a otra subtab mientras esto corría (búsqueda + scorings de
+  // IA tardan) — la sesión persistida le permite restaurar al volver, y la notificación le avisa.
   if (user) {
-    // Persiste ANTES de notificar, para que si el recruiter clickea la notificación ya haya
-    // algo para restaurar. attempt 0 reemplaza entero; los siguientes mergean con lo ya
-    // guardado usando el mismo criterio de dedup que la UI usa para acumular en pantalla.
     try {
-      const previa =
-        parsedAttempt.data.attempt === 0
-          ? null
-          : await getSourcingSession(membership.organizationId, jobId, user.id);
-      const acumulado =
-        parsedAttempt.data.attempt === 0
-          ? result.results
-          : mergeSourcingBatch(previa?.results ?? [], result.results);
       await saveSourcingSession(membership.organizationId, jobId, user.id, {
-        attempt: parsedAttempt.data.attempt,
+        attempt: result.nextStep, // la columna `attempt` ahora guarda el cursor de paso
         results: acumulado,
         metrics: result.metrics,
         isLiveApi: result.isLiveApi,
@@ -203,7 +211,7 @@ export async function sourcearParaBusquedaAction(
       const title =
         nuevos > 0
           ? `Encontramos ${nuevos} candidato${nuevos === 1 ? "" : "s"} nuevo${nuevos === 1 ? "" : "s"} para "${job.title}"`
-          : `No encontramos candidatos nuevos para "${job.title}" — ya revisaste todos los perfiles de esta tanda`;
+          : `No encontramos candidatos nuevos para "${job.title}" — ${result.exhausted ? "ya recorrimos todo LinkedIn para esta búsqueda" : "probá con otra tanda"}`;
       await notifyProfile(membership.organizationId, user.id, {
         type: "background_job",
         title,
@@ -216,9 +224,10 @@ export async function sourcearParaBusquedaAction(
 
   return {
     ok: true,
-    results: result.results,
+    results: acumulado,
     isLiveApi: result.isLiveApi,
     metrics: result.metrics,
+    exhausted: result.exhausted,
   };
 }
 
