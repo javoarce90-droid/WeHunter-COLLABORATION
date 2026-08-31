@@ -12,6 +12,17 @@ export const crearShortlistSchema = z.object({
     .min(1, "Seleccioná al menos un candidato para compartir."),
 });
 
+export const agregarCandidatosShortlistSchema = z.object({
+  shortlistId: z.string().uuid("ID de shortlist inválido."),
+  applicationIds: z
+    .array(z.string().uuid())
+    .min(1, "Seleccioná al menos un candidato para agregar."),
+});
+
+export const quitarCandidatoShortlistSchema = z.object({
+  shortlistCandidateId: z.string().uuid("ID de candidato inválido."),
+});
+
 export const generarShareSchema = z.object({
   shortlistId: z.string().uuid("ID de shortlist inválido."),
   // "" o ausente → sin vencimiento. Número → días.

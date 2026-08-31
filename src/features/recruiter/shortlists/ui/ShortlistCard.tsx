@@ -5,6 +5,9 @@ import type { TeamMemberOption } from "@/features/recruiter/interviews/ui/Interv
 import type { ShortlistCandidateWithFeedback, ShareRow } from "../data/shortlists.queries";
 import { ShareControls, type HMOption } from "./ShareControls";
 import { ShortlistCardCandidates } from "./ShortlistCardCandidates";
+import { AgregarCandidatosDialog } from "./AgregarCandidatosDialog";
+
+type CandidateOption = { applicationId: string; fullName: string; stage: string };
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short" });
 
@@ -21,6 +24,8 @@ type Props = {
   jobStages: JobStageOption[];
   teamMembers: TeamMemberOption[];
   interviewsByApplication: Record<string, InterviewRow[]>;
+  /** Postulaciones del pipeline que todavía no están en esta shortlist ("+ Agregar candidato"). */
+  availableCandidates: CandidateOption[];
 };
 
 export function ShortlistCard({
@@ -36,11 +41,12 @@ export function ShortlistCard({
   jobStages,
   teamMembers,
   interviewsByApplication,
+  availableCandidates,
 }: Props) {
   return (
     <Card>
       <div className="flex flex-col gap-3 p-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <h3 className="font-semibold text-text">{name}</h3>
           <span className="text-xs text-muted">
             {candidates.length} candidato{candidates.length !== 1 ? "s" : ""}
@@ -57,6 +63,12 @@ export function ShortlistCard({
           jobStages={jobStages}
           teamMembers={teamMembers}
           interviewsByApplication={interviewsByApplication}
+        />
+
+        <AgregarCandidatosDialog
+          shortlistId={shortlistId}
+          jobId={jobId}
+          available={availableCandidates}
         />
 
         <ShareControls

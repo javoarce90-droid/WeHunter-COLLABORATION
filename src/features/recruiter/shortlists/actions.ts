@@ -5,6 +5,8 @@ import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 import {
   crearShortlistSchema,
+  agregarCandidatosShortlistSchema,
+  quitarCandidatoShortlistSchema,
   generarShareSchema,
   revocarShareSchema,
   compartirConHMSchema,
@@ -13,6 +15,8 @@ import {
   solicitarEntrevistaInternoSchema,
 } from "./schema";
 import { crearShortlist } from "./domain/crear-shortlist";
+import { agregarCandidatosAShortlist } from "./domain/agregar-candidatos-shortlist";
+import { quitarCandidatoDeShortlist } from "./domain/quitar-candidato-shortlist";
 import { generarShare } from "./domain/generar-share";
 import { revocarShare } from "./domain/revocar-share";
 import { compartirConHM } from "./domain/compartir-con-hm";
@@ -21,6 +25,8 @@ import { postearComentario } from "./domain/postear-comentario";
 import { solicitarEntrevistaInterno } from "./domain/solicitar-entrevista-interno";
 import {
   createShortlistWithCandidates,
+  addCandidatesToShortlist,
+  removeShortlistCandidate,
   filterValidApplications,
   createShare,
   createShareForMembership,
@@ -82,6 +88,71 @@ export async function crearShortlistAction(
   if (!result.ok) return { error: result.error };
 
   revalidatePath(`/jobs/${parsed.data.jobId}/shortlists`);
+  return {};
+}
+
+export interface AgregarCandidatosState {
+  error?: string;
+  added?: number;
+}
+
+/** Suma candidatos a una shortlist ya creada. El link compartido no cambia — la vista del
+ *  cliente lee `shortlist_candidates` en vivo. */
+export async function agregarCandidatosAShortlistAction(
+  _prev: AgregarCandidatosState,
+  formData: FormData,
+): Promise<AgregarCandidatosState> {
+  const parsed = agregarCandidatosShortlistSchema.safeParse({
+    shortlistId: formData.get("shortlistId"),
+    applicationIds: formData.getAll("applicationIds"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const [membership, user] = await Promise.all([getActiveMembership(), getCurrentUser()]);
+  if (!membership || !user) return { error: "No autorizado." };
+
+  const result = await agregarCandidatosAShortlist(
+    parsed.data,
+    { userId: user.id, organizationId: membership.organizationId, role: membership.role },
+    { getShortlistById, filterValidApplications, addCandidatesToShortlist },
+  );
+  if (!result.ok) return { error: result.error };
+
+  const jobId = String(formData.get("jobId") ?? "");
+  if (jobId) revalidatePath(`/jobs/${jobId}/shortlists`);
+  return { added: result.data.added };
+}
+
+export interface QuitarCandidatoState {
+  error?: string;
+}
+
+/** Saca un candidato de la shortlist (no de la búsqueda ni del pipeline). */
+export async function quitarCandidatoDeShortlistAction(
+  _prev: QuitarCandidatoState,
+  formData: FormData,
+): Promise<QuitarCandidatoState> {
+  const parsed = quitarCandidatoShortlistSchema.safeParse({
+    shortlistCandidateId: formData.get("shortlistCandidateId"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const membership = await getActiveMembership();
+  if (!membership) return { error: "No autorizado." };
+
+  const result = await quitarCandidatoDeShortlist(
+    parsed.data,
+    { organizationId: membership.organizationId, role: membership.role },
+    { getShortlistCandidateById, removeShortlistCandidate },
+  );
+  if (!result.ok) return { error: result.error };
+
+  const jobId = String(formData.get("jobId") ?? "");
+  if (jobId) revalidatePath(`/jobs/${jobId}/shortlists`);
   return {};
 }
 

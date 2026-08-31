@@ -21,11 +21,11 @@ import type { FeedbackDecision } from "@/features/company/shortlist-review/domai
 export async function getShortlistById(
   shortlistId: string,
   organizationId: string,
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; jobId: string } | null> {
   const db = await getDb();
   const rows = await db.rls((tx) =>
     tx
-      .select({ id: shortlists.id })
+      .select({ id: shortlists.id, jobId: shortlists.jobId })
       .from(shortlists)
       .where(
         and(
