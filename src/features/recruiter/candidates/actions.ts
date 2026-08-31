@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getActiveMembership } from "@/lib/auth/session";
+import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
 import {
   candidateInputSchema,
@@ -65,6 +65,12 @@ import {
 } from "../sourcing/domain/matchear-pool-interno";
 import { getCachedPoolMatches } from "./data/pool-match-cache.queries";
 import { savePoolMatchResults } from "./data/pool-match-cache.mutations";
+import {
+  ignorePoolCandidate,
+  unignorePoolCandidate,
+} from "./data/pool-match-ignored.mutations";
+import { ignorarCandidatoParaBusqueda } from "../sourcing/domain/ignorar-candidato-pool";
+import { getJobStatus } from "../jobs/data/jobs.queries";
 import { parseCandidatesFile } from "./data/candidates-import.data";
 import { findTagByName } from "./data/tags.queries";
 import { insertTag, linkCandidateTag, unlinkCandidateTag } from "./data/tags.mutations";
@@ -705,7 +711,7 @@ export async function matchearPoolConBusquedaAction(jobId: string): Promise<{
 
   const candidatos = await listCandidatesForPoolMatch(
     membership.organizationId,
-    { skills: job.skills, seniority: job.seniority },
+    { id: job.id, skills: job.skills, seniority: job.seniority },
     POOL_MATCH_MAX_CANDIDATES,
   );
   // Sin candidatos que pasen el prefiltro: es un resultado válido (el pool no tiene nadie con
@@ -739,4 +745,40 @@ export async function matchearPoolConBusquedaAction(jobId: string): Promise<{
   );
 
   return { ok: true, results, poolFiltrado: candidatos.length };
+}
+
+/**
+ * "Ignorar" / "Dejar de ignorar" un candidato del pool para una búsqueda puntual (botón en
+ * Matchear con IA). No lo saca del pool ni de otras búsquedas — solo hace que no reaparezca en
+ * el match de ESA búsqueda. Reversible (para el "Deshacer" del toast).
+ */
+export async function ignorarCandidatoPoolAction(
+  jobId: string,
+  candidateId: string,
+  ignorar: boolean,
+): Promise<{ ok: boolean; ignorado?: boolean; error?: string }> {
+  const [user, membership] = await Promise.all([
+    getCurrentUser(),
+    getActiveMembership(),
+  ]);
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const res = await ignorarCandidatoParaBusqueda(
+    { jobId, candidateId, ignorar },
+    {
+      role: membership.role,
+      organizationId: membership.organizationId,
+      userId: user?.id ?? null,
+    },
+    {
+      jobExists: async (id) =>
+        (await getJobStatus(id, membership.organizationId)) !== null,
+      ignore: (id, cid, by) =>
+        ignorePoolCandidate(membership.organizationId, id, cid, by),
+      unignore: (id, cid) =>
+        unignorePoolCandidate(membership.organizationId, id, cid),
+    },
+  );
+  if (!res.ok) return { ok: false, error: res.error };
+  return { ok: true, ignorado: res.data.ignorado };
 }

@@ -15,7 +15,7 @@ import {
 } from "@/features/recruiter/applications/ui/AiAnalysisDialog";
 import { postularVariosAction } from "@/features/recruiter/applications/actions";
 import { useToast } from "@/lib/toast";
-import { matchearPoolConBusquedaAction } from "../actions";
+import { matchearPoolConBusquedaAction, ignorarCandidatoPoolAction } from "../actions";
 import { POOL_MATCH_MAX_CANDIDATES } from "../../sourcing/domain/matchear-pool-interno";
 import { CompletenessBadge } from "./completeness-badge";
 import type { ScoreBreakdown } from "@/lib/ai/provider";
@@ -100,6 +100,33 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
       }
       setAppliedIds((prev) => new Set(prev).add(candidateId));
       toast({ message: "Candidato postulado.", variant: "success" });
+    });
+  }
+
+  /** Ignora al candidato para ESTA búsqueda: se saca de la lista al toque (optimista) y no
+   *  vuelve a aparecer en futuras tandas del match. Recuperable desde el "Deshacer" del toast. */
+  function ignorar(row: MatchResult) {
+    const forJob = jobId;
+    setResults((prev) => prev?.filter((r) => r.candidateId !== row.candidateId) ?? prev);
+    startTransition(async () => {
+      const res = await ignorarCandidatoPoolAction(forJob, row.candidateId, true);
+      if (!res.ok) {
+        setResults((prev) => (prev ? [...prev, row].sort((a, b) => b.score - a.score) : prev));
+        toast({ message: res.error ?? "No se pudo ignorar.", variant: "danger" });
+        return;
+      }
+      toast({
+        message: `${row.fullName} no va a aparecer más en el match de esta búsqueda.`,
+        action: {
+          label: "Deshacer",
+          onClick: () => {
+            void ignorarCandidatoPoolAction(forJob, row.candidateId, false);
+            setResults((prev) =>
+              prev ? [...prev, row].sort((a, b) => b.score - a.score) : prev,
+            );
+          },
+        },
+      });
     });
   }
 
@@ -217,6 +244,13 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
                         onOpenCopiloto={() => setDetail(r)}
                       />
                       <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => ignorar(r)}
+                          className="text-xs font-semibold text-muted hover:text-text"
+                        >
+                          Ignorar
+                        </button>
                         <Link
                           href={`/candidates/${r.candidateId}`}
                           className="text-xs font-semibold text-muted hover:text-text"

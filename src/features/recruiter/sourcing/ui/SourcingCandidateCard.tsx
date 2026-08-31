@@ -37,7 +37,7 @@ const segmentClass = (active: boolean) =>
  *  está fija para toda la tab) la decisión es binaria y se ve entera de un vistazo, sin abrir
  *  nada; con varias (Sourcing Manual) no entran como toggle y se resuelve con un select, pero
  *  con el mismo label "Postular a" siempre visible — antes era un <select> sin ningún texto
- *  que lo identificara, mezclado con "Ver perfil"/"Omitir" como si fuera un control más, y la
+ *  que lo identificara, mezclado con "Ver perfil"/"Ignorar" como si fuera un control más, y la
  *  opción de dejarlo solo en el pool pasaba desapercibida. */
 function DestinationPicker({ jobPicker, name }: { jobPicker: JobPicker; name: string }) {
   const onlyJob = jobPicker.jobs.length === 1 ? jobPicker.jobs[0] : null;
@@ -222,9 +222,9 @@ export function SourcingCandidateCard({
             <button
               type="button"
               onClick={onOmit}
-              className="rounded-lg px-3 py-1 text-xs font-semibold text-muted hover:text-danger"
+              className="rounded-lg px-3 py-1 text-xs font-semibold text-muted hover:text-text"
             >
-              Omitir
+              Ignorar
             </button>
           </>
         )}

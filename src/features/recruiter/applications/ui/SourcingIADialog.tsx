@@ -71,7 +71,7 @@ export function SourcingIADialog({ jobId, jobTitle, autoOpenSourcing = false }: 
       >
         <div className="flex flex-col gap-4">
           <p className="text-sm text-text">
-            Encontramos candidatos en LinkedIn que todavía no sumaste al pool ni omitiste. No se
+            Encontramos candidatos en LinkedIn que todavía no sumaste al pool ni ignoraste. No se
             guardan si cerrás sin revisarlos — vas a tener que repetir la búsqueda.
           </p>
           <div className="flex items-center justify-end gap-3">

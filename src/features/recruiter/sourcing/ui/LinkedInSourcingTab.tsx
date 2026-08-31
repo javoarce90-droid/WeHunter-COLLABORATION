@@ -415,9 +415,9 @@ export function LinkedInSourcingTab({ jobs }: Props) {
               <button
                 type="button"
                 onClick={omitirSeleccionados}
-                className="text-sm font-semibold text-muted hover:text-danger"
+                className="text-sm font-semibold text-muted hover:text-text"
               >
-                Omitir seleccionados
+                Ignorar seleccionados
               </button>
               <button
                 type="button"

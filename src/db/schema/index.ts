@@ -958,6 +958,39 @@ export const poolMatchResults = pgTable(
   }),
 );
 
+// "Ignorar" un candidato del pool para una búsqueda puntual (Matchear con IA): el recruiter no
+// lo quiere considerar para ESA búsqueda, pero el candidato sigue en el pool y disponible para
+// todas las demás. `listCandidatesForPoolMatch` excluye estas filas, así que un candidato
+// ignorado no vuelve a aparecer en las siguientes tandas de esa búsqueda. Reversible (se borra
+// la fila). Un registro por par (búsqueda, candidato).
+export const poolMatchIgnored = pgTable(
+  "pool_match_ignored",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    jobId: uuid("job_id")
+      .references(() => jobs.id, { onDelete: "cascade" })
+      .notNull(),
+    candidateId: uuid("candidate_id")
+      .references(() => candidates.id, { onDelete: "cascade" })
+      .notNull(),
+    // Quién lo ignoró — para mostrar/auditar. Se conserva la fila si el miembro se va.
+    ignoredBy: uuid("ignored_by").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    ...timestamps,
+  },
+  (t) => ({
+    orgIdx: index("pool_match_ignored_org_idx").on(t.organizationId),
+    jobCandidateUnique: uniqueIndex("pool_match_ignored_job_candidate_unique").on(
+      t.jobId,
+      t.candidateId,
+    ),
+  }),
+);
+
 // Sesión de trabajo en curso de "Sourcing con IA" (job + recruiter): permite restaurar los
 // resultados si el recruiter navega afuera mientras la búsqueda corre en el servidor, en vez de
 // perderlos (ver AiJobSourcingResults.tsx). Una sola fila por par — se PISA en cada tanda
@@ -1536,6 +1569,7 @@ export type LanguageLevel = (typeof languageLevel.enumValues)[number];
 export type CandidateJobInteraction = typeof candidateJobInteractions.$inferSelect;
 export type Application = typeof applications.$inferSelect;
 export type PoolMatchResultRow = typeof poolMatchResults.$inferSelect;
+export type PoolMatchIgnoredRow = typeof poolMatchIgnored.$inferSelect;
 export type SourcingSearchSessionRow = typeof sourcingSearchSessions.$inferSelect;
 export type ScreeningQuestion = typeof screeningQuestions.$inferSelect;
 export type ScreeningAnswer = typeof screeningAnswers.$inferSelect;
