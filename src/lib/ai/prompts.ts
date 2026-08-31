@@ -100,18 +100,16 @@ Beneficios:
 
 /**
  * Ejemplo "gold" (few-shot) para `interviewReport`: notas de entrevista reales → informe bien
- * armado. Fija el nivel de extracción (cada dato de las notas aparece en el informe) y de
- * redacción (profesional, sin relleno, sin inventar). Basado en un informe real aportado por
- * el cliente (2026-08-31), condensado a los campos que devuelve la IA hoy (ubicacion /
- * remuneracionPretendida / disponibilidad / resumen / fortalezas / aspectosAValidar /
- * recommendation / recommendationJustification).
+ * armado en TODOS los campos. Fija el nivel de extracción (cada dato de las notas aparece) y de
+ * redacción (profesional, sin relleno, sin inventar). Basado en un informe real del cliente
+ * ("Interview Hunter", Alejandro Del Vecchio, 2026-08-31).
  */
 const INTERVIEW_REPORT_GOLD_EXAMPLE = `EJEMPLO (notas → informe). Seguí este nivel de detalle y de fidelidad al texto; NO copies el contenido.
 
 NOTAS DE ENTREVISTA:
 """
 Alejandro Del Vecchio, dev fullstack. Vive en San Martín. Tecnicatura en Programación (UNSAM). Inglés avanzado.
-Dev .NET con paso por Accenture (2016-2021), Celerative (2020-2021) y CloudX (2021-2023). Fuerte en C#, .NET, SQL Server, MVC, ASP, Web Forms, JS, JQuery, Azure DevOps. Siempre trabajó en Scrum, en equipos con devs, líder y QA. En CloudX hizo migración de apps y features nuevas; salió por fin de proyecto.
+Dev .NET con paso por Accenture (2016-2021: features nuevas y mantenimiento; se fue buscando un nuevo desafío como contractor), Celerative (2020-2021: desarrollo evolutivo de interfaces con SQL Server, .NET, ASP, Web Forms, Scrum y Azure DevOps; salió por fin de proyecto) y CloudX (2021-2023: migración de apps y features nuevas con C#, MVC, SQL Server 2018, JQuery, JavaScript, en Scrum con 3 devs, líder y QA; salió por fin de proyecto y disolución del equipo).
 Desde enero 2023 sin trabajar: hizo cursos de React y Node.js. Está en búsqueda activa pero sin procesos avanzados. Quiere seguir en .NET y sumar React.
 Última remu USD 3.500. Pretensión conversable, con ganas de avanzar con la oportunidad. Disponibilidad de ingreso inmediata. Para entrevistas: lunes a viernes antes de las 14 h.
 Fortalezas que menciona: flexibilidad, orientación a resultados, capacidad analítica. Oportunidad de mejora: pedir ayuda a tiempo.
@@ -119,11 +117,19 @@ Fortalezas que menciona: flexibilidad, orientación a resultados, capacidad anal
 
 INFORME:
 - ubicacion: "San Martín, Provincia de Buenos Aires"
-- remuneracionPretendida: "Conversable; manifestó interés en avanzar con la oportunidad. Última remuneración informada: USD 3.500."
-- disponibilidad: "Ingreso inmediato. Disponibilidad para entrevistas: lunes a viernes antes de las 14 h."
-- resumen: "Desarrollador .NET con trayectoria en Accenture, Celerative y CloudX, concentrada en desarrollo de nuevas funcionalidades, mantenimiento y migración de aplicaciones con C#, .NET y SQL Server. Trabajó siempre bajo Scrum, en equipos con desarrolladores, liderazgo y QA. Desde enero de 2023 no registra experiencia laboral; durante ese período realizó cursos de React y Node.js. Se encuentra en búsqueda activa, sin procesos avanzados, con interés en continuar como desarrollador .NET y ampliar su stack hacia React."
+- estudios: "Tecnicatura en Programación — Universidad Nacional de San Martín (UNSAM)"
+- idiomas: "Inglés avanzado"
+- ultimaRemuneracion: "USD 3.500"
+- remuneracionPretendida: "Conversable; manifestó interés en avanzar con la oportunidad"
+- disponibilidadIngreso: "Inmediata"
+- disponibilidadEntrevistas: "Lunes a viernes antes de las 14 h"
+- resumenPerfil: "Desarrollador .NET con trayectoria en Accenture, Celerative y CloudX, concentrada en desarrollo de nuevas funcionalidades, mantenimiento y migración de aplicaciones con C#, .NET y SQL Server. Trabajó siempre bajo metodología Scrum, en equipos con desarrolladores, liderazgo y QA. Desde enero de 2023 no registra experiencia laboral y dedicó ese período a formarse en React y Node.js. La conversación transcurrió con normalidad; se mostró claro al describir su recorrido y sus expectativas."
+- situacionMotivacion: "Se encuentra en búsqueda activa y participando de algunas entrevistas, sin procesos avanzados al momento del relevamiento. Le interesa continuar desarrollándose como .NET e incorporar React a su perfil."
+- experienciaRelevante: "**CloudX** · .NET Developer · 2021–2023\\n- Migración de aplicaciones y desarrollo de nuevas funcionalidades.\\n- Tecnologías: C#, MVC, SQL Server 2018, JQuery, JavaScript.\\n- Equipo: Scrum, 3 desarrolladores, líder y QA.\\n- Motivo de salida: finalización del proyecto y disolución del equipo técnico.\\n\\n**Celerative** · .NET Developer · 2020–2021\\n- Desarrollo evolutivo de interfaces orientado a mejorar la experiencia de usuario.\\n- Tecnologías: SQL Server, .NET, ASP, Web Forms. Metodología: Scrum con Azure DevOps.\\n- Motivo de salida: finalización del proyecto.\\n\\n**Accenture** · .NET Developer · 2016–2021\\n- Desarrollo de nuevas funcionalidades y mantenimiento de aplicaciones.\\n- Tecnologías: C#, SQL Server.\\n- Motivo de cambio: búsqueda de un nuevo desafío con modalidad contractor y mayor flexibilidad."
+- stackConocimientos: "**Domina:** C#, .NET, SQL Server, MVC, ASP, Web Forms, JavaScript, JQuery, Azure DevOps, Scrum.\\n**En formación:** React, Node.js (cursos realizados durante su período fuera del mercado laboral)."
 - fortalezas: ["Experiencia previa y sostenida en el ecosistema .NET/C#", "Experiencia con SQL Server y con desarrollo, mantenimiento y migración de aplicaciones", "Trabajo previo bajo Scrum en equipos técnicos multidisciplinarios", "Interés activo en ampliar su stack hacia React", "Menciona flexibilidad, orientación a resultados y capacidad analítica como fortalezas propias"]
-- aspectosAValidar: ["Nivel técnico actual en C#/.NET tras el período sin experiencia laboral registrada desde enero de 2023", "Profundidad práctica de los conocimientos en React y Node.js adquiridos mediante cursos", "Ajuste del perfil al seniority y a los requerimientos técnicos específicos de la vacante Fullstack"]
+- oportunidadesMejora: ["Menciona como aspecto a mejorar el pedir ayuda a tiempo"]
+- aspectosAValidar: ["Nivel técnico actual en C#/.NET tras el período sin experiencia laboral registrada desde enero de 2023", "Profundidad práctica de los conocimientos en React y Node.js adquiridos mediante cursos", "Ajuste del perfil al seniority y a los requerimientos técnicos específicos de la vacante"]
 - recommendation: "continuar_evaluando"
 - recommendationJustification: "El perfil presenta experiencia relevante y sostenida en el ecosistema .NET (C#, SQL Server, metodologías ágiles), por lo que se recomienda continuar el proceso. Antes de definir la adecuación final a la vacante conviene una instancia técnica que valide el nivel actual de sus conocimientos y el alcance práctico de React, así como su ajuste al seniority requerido."`;
 
@@ -442,8 +448,11 @@ export const prompts = {
     };
   },
 
-  /** Los 5 sub-prompts van pegados casi textuales del pedido del cliente (docs/BACKLOG.md §
-   *  "Informe de entrevista con IA") — no reformular. */
+  /**
+   * Informe de entrevista — formato ampliado 2026-08-31 al template real del cliente
+   * ("Interview Hunter"). El criterio central sigue siendo el de la spec original
+   * (docs/BACKLOG-QA-AJUSTES): formato fijo, la IA solo completa con lo que hay, no inventa.
+   */
   interviewReport({
     candidateName,
     jobTitle,
@@ -457,48 +466,58 @@ export const prompts = {
         "estandarizados a partir de notas o una transcripción, en español rioplatense.\n\n" +
         "Método, en este orden: (1) EXTRAER — recorré el texto y sacá cada dato que esté " +
         "presente, aunque esté escrito informal, abreviado o con typos (ej. 'pretende 2500 " +
-        "USD' → remuneración pretendida: 'USD 2.500'; 'vive en La Plata' → ubicación: 'La " +
-        "Plata'; 'puede arrancar en 2 semanas' → disponibilidad: '2 semanas'). (2) ORGANIZAR " +
-        "— ubicá cada dato en su sección. (3) SINTETIZAR — redactá prosa profesional SOLO con " +
-        "lo extraído.\n\n" +
+        "USD' → 'USD 2.500'; 'vive en La Plata' → 'La Plata'; 'arranca en 2 semanas' → '2 " +
+        "semanas'). (2) ORGANIZAR — ubicá cada dato en su campo. (3) SINTETIZAR — redactá prosa " +
+        "profesional SOLO con lo extraído.\n\n" +
         "Reglas duras:\n" +
         "- Si el dato ESTÁ en las notas, tenés que capturarlo. 'No informado' es solo para lo " +
         "que genuinamente no aparece.\n" +
         "- NUNCA inventes información ni emitas conclusiones sin evidencia en el texto.\n" +
-        "- NUNCA agregues frases de relleno para que una sección se vea más completa o " +
-        "'profesional'. Si una sección tiene poca sustancia real, que quede corta. Un informe " +
+        "- NUNCA agregues frases de relleno para que una sección se vea más completa. Si una " +
+        "sección tiene poca sustancia real, que quede corta o en 'No informado'. Un informe " +
         "breve y fiel es mejor que uno largo y genérico.\n" +
+        "- `experienciaRelevante` y `stackConocimientos` van en Markdown (viñetas, **negrita** " +
+        "para nombres de empresa). El resto es texto plano.\n" +
+        "- `oportunidadesMejora` NO son debilidades inventadas: solo lo que el candidato o el " +
+        "entrevistador señalaron como área de desarrollo. Si no hay, dejá la lista vacía.\n" +
         "- El recruiter revisa esto y se lo manda al cliente/hiring manager: escribí a ese nivel.\n\n" +
         INTERVIEW_REPORT_GOLD_EXAMPLE,
       user:
         `Entrevista de ${candidateName} para el puesto de ${jobTitle}, realizada el ` +
         `${interviewDate}, entrevistador/a: ${interviewerName}.\n\n` +
         `Notas o transcripción de la entrevista:\n"""\n${sourceText}\n"""\n\n` +
-        "Completá un informe con las siguientes partes, cada una siguiendo EXACTAMENTE su " +
-        "instrucción:\n\n" +
-        "1. Ubicación, remuneración pretendida y disponibilidad: Identificá durante la " +
-        "entrevista, únicamente si fueron mencionados, la ubicación del candidato, la " +
-        "remuneración pretendida y la disponibilidad para incorporarse. Si alguno de estos " +
-        'datos no puede determinarse, dejar el campo vacío o indicar "No informado". No ' +
-        "inventes información.\n\n" +
-        "2. Resumen: Analizá la entrevista y redactá un resumen ejecutivo de entre 4 y 6 " +
-        "líneas. Describí los principales temas tratados, la experiencia del candidato y la " +
-        "impresión general obtenida durante la conversación. No emitas recomendaciones ni " +
-        "inventes información.\n\n" +
-        "3. Fortalezas observadas: Identificá únicamente las fortalezas que el candidato haya " +
-        "demostrado o mencionado durante la entrevista. Todas las fortalezas deben estar " +
-        "respaldadas por información presente en la conversación. No agregues fortalezas que " +
-        "no hayan sido evidenciadas.\n\n" +
-        "4. Aspectos a validar: Identificá los temas que no pudieron validarse completamente " +
-        "durante la entrevista y que sería conveniente profundizar en una próxima instancia. " +
-        "No presentes estos puntos como debilidades ni hagas suposiciones sobre el " +
-        "candidato.\n\n" +
-        "5. Recomendación final: Basándote únicamente en la información disponible durante la " +
-        "entrevista, emití una recomendación entre las siguientes opciones: avanzar / " +
-        "continuar_evaluando / no_avanzar. Justificá la decisión utilizando exclusivamente " +
-        "evidencia encontrada en la conversación. Si la información resulta insuficiente " +
-        'para tomar una decisión definitiva, recomendá "continuar_evaluando". No inventes ' +
-        "información ni emitas conclusiones sin evidencia.",
+        "Completá el informe con estos campos (todos obligatorios; usá 'No informado' o lista " +
+        "vacía cuando el dato no aparezca):\n\n" +
+        "DATOS GENERALES — solo si fueron mencionados:\n" +
+        "- ubicacion: dónde vive el candidato.\n" +
+        "- estudios: formación académica (carrera + institución).\n" +
+        "- idiomas: idiomas y nivel.\n" +
+        "- ultimaRemuneracion: última remuneración informada.\n" +
+        "- remuneracionPretendida: pretensión salarial (y si dijo que es conversable, aclaralo).\n" +
+        "- disponibilidadIngreso: en cuánto podría incorporarse.\n" +
+        "- disponibilidadEntrevistas: franjas horarias para coordinar próximas instancias.\n\n" +
+        "PROSA:\n" +
+        "- resumenPerfil: síntesis ejecutiva de 4 a 6 líneas — trayectoria del candidato y la " +
+        "impresión general de la conversación. Sin recomendaciones.\n" +
+        "- situacionMotivacion: si está en búsqueda activa, por qué, y qué busca en su próximo paso.\n" +
+        "- experienciaRelevante: Markdown, un bloque por empleo relevante mencionado — empresa " +
+        "(en negrita), rol, período, y viñetas con lo que hizo, tecnologías usadas y motivo de " +
+        "salida. Solo empleos que aparezcan en las notas.\n" +
+        "- stackConocimientos: Markdown con dos líneas — '**Domina:** …' (tecnologías con " +
+        "experiencia real) y '**En formación:** …' (lo que está aprendiendo). Omití la línea " +
+        "que no tenga datos.\n\n" +
+        "EVALUACIÓN:\n" +
+        "- fortalezas: fortalezas que el candidato demostró o mencionó, respaldadas por la " +
+        "conversación. No agregues las que no se evidenciaron.\n" +
+        "- oportunidadesMejora: áreas de desarrollo que surgieron de la charla (lista vacía si " +
+        "no hubo). En tono constructivo, no como defectos.\n" +
+        "- aspectosAValidar: temas que no pudieron validarse del todo y conviene profundizar en " +
+        "una próxima instancia. No son debilidades ni suposiciones.\n\n" +
+        "CIERRE:\n" +
+        "- recommendation: una de avanzar / continuar_evaluando / no_avanzar. Si la información " +
+        "es insuficiente para decidir, 'continuar_evaluando'.\n" +
+        "- recommendationJustification: conclusión de 3 a 5 líneas que justifica la " +
+        "recomendación con evidencia de la conversación y sugiere el próximo paso concreto.",
     };
   },
 };

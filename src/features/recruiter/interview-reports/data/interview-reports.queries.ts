@@ -1,7 +1,10 @@
 import { and, desc, eq, isNull, lte, ne } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { interviewReports, interviews, applications, candidates, jobs, profiles } from "@/db/schema";
-import type { InterviewReportRow } from "../schema";
+import {
+  parseInterviewReportContent,
+  type InterviewReportRow,
+} from "../schema";
 import type { InterviewContextForReport } from "../domain/generar-informe-entrevista";
 import type { PendingReportInterview } from "../domain/listar-entrevistas-pendientes-informe";
 
@@ -14,15 +17,9 @@ function toRow(r: {
   createdAt: Date;
   updatedAt: Date;
 }): InterviewReportRow {
-  const content = r.content as InterviewReportRow;
   return {
     interviewId: r.interviewId,
-    ubicacion: content.ubicacion,
-    remuneracionPretendida: content.remuneracionPretendida,
-    disponibilidad: content.disponibilidad,
-    resumen: content.resumen,
-    fortalezas: content.fortalezas ?? [],
-    aspectosAValidar: content.aspectosAValidar ?? [],
+    ...parseInterviewReportContent(r.content),
     recommendation: r.recommendation as InterviewReportRow["recommendation"],
     recommendationJustification: r.recommendationJustification,
     generatedBy: r.generatedBy,

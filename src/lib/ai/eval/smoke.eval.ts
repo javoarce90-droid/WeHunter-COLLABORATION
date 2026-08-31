@@ -124,10 +124,11 @@ test.skipIf(!apiKey)(
       interviewDate: "12 de agosto de 2026",
       sourceText: [
         "Vive en Rosario, se quiere mudar a Buenos Aires si el rol lo requiere.",
-        "Pretensión salarial: 2500 USD netos mensuales.",
-        "Disponibilidad: puede arrancar en 3 semanas (tiene que dar preaviso).",
-        "8 años de experiencia, últimos 3 liderando un equipo de 4 diseñadores en una fintech.",
-        "Fuerte en design systems y research. Mostró un caso de rediseño de onboarding que bajó el drop-off 22%.",
+        "Estudió Diseño Gráfico en la UBA. Inglés intermedio.",
+        "Última remu: USD 2.200. Pretensión salarial: 2500 USD netos mensuales.",
+        "Disponibilidad: puede arrancar en 3 semanas (tiene que dar preaviso). Para entrevistas cualquier día por la tarde.",
+        "8 años de experiencia. En Mercado Pago (2021-hoy) lidera un equipo de 4 diseñadores; antes en Auth0 (2018-2021) como product designer con React y Storybook.",
+        "Fuerte en design systems y research. Mostró un caso de rediseño de onboarding que bajó el drop-off 22%. Está estudiando Figma variables y motion design.",
         "A validar: experiencia con herramientas de prototipado avanzado, no quedó claro su nivel de Figma variables.",
         "Motivación: busca más impacto en producto y menos gestión pura.",
       ].join("\n"),
@@ -136,8 +137,12 @@ test.skipIf(!apiKey)(
     console.log("\n[smoke] interviewReport →", JSON.stringify(result, null, 2), "\n");
 
     expect(result.ubicacion.toLowerCase()).toContain("rosario");
+    expect(result.estudios.toLowerCase()).toMatch(/dise|uba/);
+    expect(result.ultimaRemuneracion).toMatch(/2\.?200|2200/);
     expect(result.remuneracionPretendida).toMatch(/2\.?500|2500/);
-    expect(result.disponibilidad.toLowerCase()).toMatch(/semana/);
+    expect(result.disponibilidadIngreso.toLowerCase()).toMatch(/semana/);
+    expect(result.experienciaRelevante.toLowerCase()).toMatch(/mercado pago|auth0/);
+    expect(result.stackConocimientos.toLowerCase()).toMatch(/design system|research/);
     expect(result.fortalezas.length).toBeGreaterThanOrEqual(1);
     expect(result.aspectosAValidar.join(" ").toLowerCase()).toMatch(/figma|prototip/);
     expect(["avanzar", "continuar_evaluando", "no_avanzar"]).toContain(result.recommendation);

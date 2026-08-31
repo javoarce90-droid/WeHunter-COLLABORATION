@@ -793,47 +793,56 @@ export class GeminiAiProvider implements AiProvider {
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              ubicacion: {
+              ubicacion: { type: Type.STRING },
+              estudios: { type: Type.STRING },
+              idiomas: { type: Type.STRING },
+              ultimaRemuneracion: { type: Type.STRING },
+              remuneracionPretendida: { type: Type.STRING },
+              disponibilidadIngreso: { type: Type.STRING },
+              disponibilidadEntrevistas: { type: Type.STRING },
+              resumenPerfil: {
                 type: Type.STRING,
-                description: 'Ubicación del candidato, o "No informado".',
+                description: "Síntesis ejecutiva de 4 a 6 líneas.",
               },
-              remuneracionPretendida: {
+              situacionMotivacion: { type: Type.STRING },
+              experienciaRelevante: {
                 type: Type.STRING,
-                description: 'Remuneración pretendida, o "No informado".',
+                description: "Markdown: un bloque por empleo relevante.",
               },
-              disponibilidad: {
+              stackConocimientos: {
                 type: Type.STRING,
-                description: 'Disponibilidad para incorporarse, o "No informado".',
+                description: "Markdown: '**Domina:** …' y '**En formación:** …'.",
               },
-              resumen: {
-                type: Type.STRING,
-                description: "Resumen ejecutivo de 4 a 6 líneas.",
-              },
-              fortalezas: {
+              fortalezas: { type: Type.ARRAY, items: { type: Type.STRING } },
+              oportunidadesMejora: {
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
-                description: "Fortalezas evidenciadas en la conversación.",
+                description: "Áreas de desarrollo; vacío si no hubo.",
               },
-              aspectosAValidar: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Temas a profundizar en una próxima instancia.",
-              },
+              aspectosAValidar: { type: Type.ARRAY, items: { type: Type.STRING } },
               recommendation: {
                 type: Type.STRING,
-                description: "avanzar | continuar_evaluando | no_avanzar",
+                enum: ["avanzar", "continuar_evaluando", "no_avanzar"],
               },
               recommendationJustification: {
                 type: Type.STRING,
-                description: "Justificación de la recomendación, con evidencia de la conversación.",
+                description: "Conclusión de 3 a 5 líneas con evidencia + próximo paso.",
               },
             },
             required: [
               "ubicacion",
+              "estudios",
+              "idiomas",
+              "ultimaRemuneracion",
               "remuneracionPretendida",
-              "disponibilidad",
-              "resumen",
+              "disponibilidadIngreso",
+              "disponibilidadEntrevistas",
+              "resumenPerfil",
+              "situacionMotivacion",
+              "experienciaRelevante",
+              "stackConocimientos",
               "fortalezas",
+              "oportunidadesMejora",
               "aspectosAValidar",
               "recommendation",
               "recommendationJustification",
@@ -846,7 +855,7 @@ export class GeminiAiProvider implements AiProvider {
       if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
       const parsed = JSON.parse(raw) as Partial<InterviewReportResult>;
       if (
-        typeof parsed.resumen !== "string" ||
+        typeof parsed.resumenPerfil !== "string" ||
         typeof parsed.recommendationJustification !== "string"
       ) {
         throw new Error("Gemini devolvió un informe con forma inesperada");
@@ -861,13 +870,22 @@ export class GeminiAiProvider implements AiProvider {
       const recommendation = RECOMMENDATIONS.has(parsed.recommendation as InterviewReportRecommendation)
         ? (parsed.recommendation as InterviewReportRecommendation)
         : "continuar_evaluando";
+      const txt = (v: unknown) => str(v) ?? "No informado";
 
       return {
-        ubicacion: str(parsed.ubicacion) ?? "No informado",
-        remuneracionPretendida: str(parsed.remuneracionPretendida) ?? "No informado",
-        disponibilidad: str(parsed.disponibilidad) ?? "No informado",
-        resumen: parsed.resumen,
+        ubicacion: txt(parsed.ubicacion),
+        estudios: txt(parsed.estudios),
+        idiomas: txt(parsed.idiomas),
+        ultimaRemuneracion: txt(parsed.ultimaRemuneracion),
+        remuneracionPretendida: txt(parsed.remuneracionPretendida),
+        disponibilidadIngreso: txt(parsed.disponibilidadIngreso),
+        disponibilidadEntrevistas: txt(parsed.disponibilidadEntrevistas),
+        resumenPerfil: parsed.resumenPerfil,
+        situacionMotivacion: txt(parsed.situacionMotivacion),
+        experienciaRelevante: txt(parsed.experienciaRelevante),
+        stackConocimientos: txt(parsed.stackConocimientos),
         fortalezas: strArray(parsed.fortalezas),
+        oportunidadesMejora: strArray(parsed.oportunidadesMejora),
         aspectosAValidar: strArray(parsed.aspectosAValidar),
         recommendation,
         recommendationJustification: parsed.recommendationJustification,

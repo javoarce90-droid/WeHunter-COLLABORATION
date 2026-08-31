@@ -1,7 +1,12 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { interviewReports } from "@/db/schema";
-import type { InterviewReportContent, InterviewReportRow, Recommendation } from "../schema";
+import {
+  parseInterviewReportContent,
+  type InterviewReportContent,
+  type InterviewReportRow,
+  type Recommendation,
+} from "../schema";
 
 function toRow(r: {
   interviewId: string;
@@ -12,10 +17,9 @@ function toRow(r: {
   createdAt: Date;
   updatedAt: Date;
 }): InterviewReportRow {
-  const content = r.content as InterviewReportContent;
   return {
     interviewId: r.interviewId,
-    ...content,
+    ...parseInterviewReportContent(r.content),
     recommendation: r.recommendation as Recommendation,
     recommendationJustification: r.recommendationJustification,
     generatedBy: r.generatedBy,
@@ -72,19 +76,13 @@ export async function updateInterviewReport(
 ): Promise<InterviewReportRow> {
   const db = await getDb();
   return db.rls(async (tx) => {
+    const { recommendation, recommendationJustification, ...content } = patch;
     const [saved] = await tx
       .update(interviewReports)
       .set({
-        content: {
-          ubicacion: patch.ubicacion,
-          remuneracionPretendida: patch.remuneracionPretendida,
-          disponibilidad: patch.disponibilidad,
-          resumen: patch.resumen,
-          fortalezas: patch.fortalezas,
-          aspectosAValidar: patch.aspectosAValidar,
-        },
-        recommendation: patch.recommendation,
-        recommendationJustification: patch.recommendationJustification,
+        content,
+        recommendation,
+        recommendationJustification,
         updatedAt: new Date(),
       })
       .where(eq(interviewReports.interviewId, interviewId))

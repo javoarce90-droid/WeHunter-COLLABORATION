@@ -341,16 +341,25 @@ export class MockAiProvider implements AiProvider {
     const { candidateName, sourceText } = input;
     const first = candidateName.split(" ")[0] || candidateName;
     const hasContent = sourceText.trim().length > 0;
+    const NI = "No informado";
     return {
-      ubicacion: "No informado",
-      remuneracionPretendida: "No informado",
-      disponibilidad: "No informado",
-      resumen: hasContent
+      ubicacion: NI,
+      estudios: NI,
+      idiomas: NI,
+      ultimaRemuneracion: NI,
+      remuneracionPretendida: NI,
+      disponibilidadIngreso: NI,
+      disponibilidadEntrevistas: NI,
+      resumenPerfil: hasContent
         ? `Entrevista con ${candidateName} centrada en su experiencia y motivación para el ` +
           `puesto. La conversación transcurrió con normalidad; hay información suficiente ` +
           `en las notas para dejar un primer registro, a completar en próximas instancias.`
         : `No se pudo generar un resumen: no había notas ni transcripción para analizar.`,
+      situacionMotivacion: NI,
+      experienciaRelevante: NI,
+      stackConocimientos: NI,
       fortalezas: hasContent ? [`${first} se mostró participativo/a durante la conversación.`] : [],
+      oportunidadesMejora: [],
       aspectosAValidar: hasContent
         ? ["Profundizar en próximas instancias los puntos que no quedaron del todo claros en esta entrevista."]
         : [],
