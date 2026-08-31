@@ -1,6 +1,12 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useState } from "react";
+import {
+  startTransition,
+  useActionState,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AiButton, SparkleIcon } from "@/components/ui/ai";
@@ -14,7 +20,11 @@ import {
   editarInformeEntrevistaAction,
   obtenerInformeEntrevistaAction,
 } from "../actions";
-import { RECOMMENDATIONS, RECOMMENDATION_LABELS } from "../schema";
+import {
+  RECOMMENDATIONS,
+  RECOMMENDATION_LABELS,
+  REPORT_FIELD_LABELS,
+} from "../schema";
 import type { InterviewReportRow, InterviewReportContext } from "../schema";
 
 type Props = {
@@ -144,7 +154,7 @@ function GenerateStep({
       <input type="hidden" name="interviewId" value={interviewId} />
       <p className="text-xs text-muted">
         Pegá tus notas o una transcripción de la entrevista. La IA arma un informe
-        estandarizado de 5 secciones, que después podés editar antes de guardar.
+        estandarizado, que después podés revisar y editar sección por sección antes de guardar.
       </p>
       <Textarea
         name="sourceText"
@@ -164,6 +174,25 @@ function GenerateStep({
   );
 }
 
+/** Encabezado de sección del informe — separa los grupos de campos sin cajas anidadas. */
+function SectionTitle({ children }: { children: ReactNode }) {
+  return (
+    <h3 className="border-b border-border pb-2 text-[11px] font-bold uppercase tracking-wide text-label">
+      {children}
+    </h3>
+  );
+}
+
+const GENERAL_FIELDS = [
+  "ubicacion",
+  "estudios",
+  "idiomas",
+  "ultimaRemuneracion",
+  "remuneracionPretendida",
+  "disponibilidadIngreso",
+  "disponibilidadEntrevistas",
+] as const;
+
 function ReportEditor({
   interviewId,
   report,
@@ -174,14 +203,27 @@ function ReportEditor({
   onSaved: () => void;
 }) {
   const toast = useToast();
-  const [ubicacion, setUbicacion] = useState(report.ubicacion);
-  const [remuneracionPretendida, setRemuneracionPretendida] = useState(report.remuneracionPretendida);
-  const [disponibilidad, setDisponibilidad] = useState(report.disponibilidad);
-  const [resumen, setResumen] = useState(report.resumen);
-  const [fortalezasText, setFortalezasText] = useState(listToLines(report.fortalezas));
-  const [aspectosText, setAspectosText] = useState(listToLines(report.aspectosAValidar));
+  // Texto: un objeto para no tener 11 useState. Las listas se editan como texto (una por línea).
+  const [text, setText] = useState<Record<string, string>>(() => ({
+    ubicacion: report.ubicacion,
+    estudios: report.estudios,
+    idiomas: report.idiomas,
+    ultimaRemuneracion: report.ultimaRemuneracion,
+    remuneracionPretendida: report.remuneracionPretendida,
+    disponibilidadIngreso: report.disponibilidadIngreso,
+    disponibilidadEntrevistas: report.disponibilidadEntrevistas,
+    resumenPerfil: report.resumenPerfil,
+    situacionMotivacion: report.situacionMotivacion,
+    experienciaRelevante: report.experienciaRelevante,
+    stackConocimientos: report.stackConocimientos,
+    fortalezas: listToLines(report.fortalezas),
+    oportunidadesMejora: listToLines(report.oportunidadesMejora),
+    aspectosAValidar: listToLines(report.aspectosAValidar),
+  }));
   const [recommendation, setRecommendation] = useState(report.recommendation);
   const [justificacion, setJustificacion] = useState(report.recommendationJustification);
+  const set = (k: string) => (e: { target: { value: string } }) =>
+    setText((t) => ({ ...t, [k]: e.target.value }));
 
   const [state, formAction, pending] = useActionState(
     editarInformeEntrevistaAction,
@@ -201,87 +243,119 @@ function ReportEditor({
   function guardar() {
     const fd = new FormData();
     fd.set("interviewId", interviewId);
-    fd.set("ubicacion", ubicacion);
-    fd.set("remuneracionPretendida", remuneracionPretendida);
-    fd.set("disponibilidad", disponibilidad);
-    fd.set("resumen", resumen);
-    for (const f of linesToList(fortalezasText)) fd.append("fortalezas", f);
-    for (const a of linesToList(aspectosText)) fd.append("aspectosAValidar", a);
+    for (const [k, v] of Object.entries(text)) {
+      if (k === "fortalezas" || k === "oportunidadesMejora" || k === "aspectosAValidar") {
+        for (const line of linesToList(v)) fd.append(k, line);
+      } else {
+        fd.set(k, v);
+      }
+    }
     fd.set("recommendation", recommendation);
     fd.set("recommendationJustification", justificacion);
     startTransition(() => formAction(fd));
   }
 
   return (
-    <div className="animate-view-in flex flex-col gap-5">
+    <div className="animate-view-in flex flex-col gap-6">
       <div className="flex items-center gap-2 text-xs font-semibold text-ai">
         <SparkleIcon size={13} /> Informe generado con IA — revisá y editá antes de guardar
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Input
-          label="Ubicación"
-          value={ubicacion}
-          onChange={(e) => setUbicacion(e.target.value)}
-        />
-        <Input
-          label="Remuneración pretendida"
-          value={remuneracionPretendida}
-          onChange={(e) => setRemuneracionPretendida(e.target.value)}
-        />
-        <Input
-          label="Disponibilidad"
-          value={disponibilidad}
-          onChange={(e) => setDisponibilidad(e.target.value)}
-        />
-      </div>
-
-      <Textarea
-        label="Resumen de la entrevista"
-        value={resumen}
-        onChange={(e) => setResumen(e.target.value)}
-        rows={5}
-      />
-
-      {/* Fortalezas y aspectos a validar leen mejor lado a lado que apiladas: son las dos
-       *  listas cortas del informe, se comparan de un vistazo — el ancho de max-w-3xl ya
-       *  alcanza para las dos sin apretar. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Textarea
-          label="Fortalezas observadas (una por línea)"
-          value={fortalezasText}
-          onChange={(e) => setFortalezasText(e.target.value)}
-          rows={6}
-        />
-        <Textarea
-          label="Aspectos a validar (uno por línea)"
-          value={aspectosText}
-          onChange={(e) => setAspectosText(e.target.value)}
-          rows={6}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_1fr]">
-        <Select
-          label="Recomendación"
-          value={recommendation}
-          onChange={(e) => setRecommendation(e.target.value as typeof recommendation)}
-        >
-          {RECOMMENDATIONS.map((r) => (
-            <option key={r} value={r}>
-              {RECOMMENDATION_LABELS[r]}
-            </option>
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Datos generales</SectionTitle>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {GENERAL_FIELDS.map((f) => (
+            <Input
+              key={f}
+              label={REPORT_FIELD_LABELS[f]}
+              value={text[f]}
+              onChange={set(f)}
+            />
           ))}
-        </Select>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Perfil</SectionTitle>
         <Textarea
-          label="Justificación"
-          value={justificacion}
-          onChange={(e) => setJustificacion(e.target.value)}
+          label={REPORT_FIELD_LABELS.resumenPerfil}
+          value={text.resumenPerfil}
+          onChange={set("resumenPerfil")}
+          rows={5}
+        />
+        <Textarea
+          label={REPORT_FIELD_LABELS.situacionMotivacion}
+          value={text.situacionMotivacion}
+          onChange={set("situacionMotivacion")}
           rows={3}
         />
-      </div>
+      </section>
 
-      <div className="flex justify-end">
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Experiencia y stack</SectionTitle>
+        <Textarea
+          label={`${REPORT_FIELD_LABELS.experienciaRelevante} (Markdown)`}
+          value={text.experienciaRelevante}
+          onChange={set("experienciaRelevante")}
+          rows={8}
+        />
+        <Textarea
+          label={`${REPORT_FIELD_LABELS.stackConocimientos} (Markdown)`}
+          value={text.stackConocimientos}
+          onChange={set("stackConocimientos")}
+          rows={3}
+        />
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Evaluación</SectionTitle>
+        <p className="-mt-2 text-[11px] text-muted">Una por línea.</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Textarea
+            label={REPORT_FIELD_LABELS.fortalezas}
+            value={text.fortalezas}
+            onChange={set("fortalezas")}
+            rows={6}
+          />
+          <Textarea
+            label={REPORT_FIELD_LABELS.oportunidadesMejora}
+            value={text.oportunidadesMejora}
+            onChange={set("oportunidadesMejora")}
+            rows={6}
+          />
+          <Textarea
+            label={REPORT_FIELD_LABELS.aspectosAValidar}
+            value={text.aspectosAValidar}
+            onChange={set("aspectosAValidar")}
+            rows={6}
+          />
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Conclusión</SectionTitle>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_1fr]">
+          <Select
+            label="Recomendación"
+            value={recommendation}
+            onChange={(e) => setRecommendation(e.target.value as typeof recommendation)}
+          >
+            {RECOMMENDATIONS.map((r) => (
+              <option key={r} value={r}>
+                {RECOMMENDATION_LABELS[r]}
+              </option>
+            ))}
+          </Select>
+          <Textarea
+            label="Conclusión y justificación"
+            value={justificacion}
+            onChange={(e) => setJustificacion(e.target.value)}
+            rows={4}
+          />
+        </div>
+      </section>
+
+      <div className="flex justify-end border-t border-border pt-4">
         <Button type="button" onClick={guardar} loading={pending}>
           Guardar informe
         </Button>

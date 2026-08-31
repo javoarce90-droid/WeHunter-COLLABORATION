@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import { admin } from "@/db/client";
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
 import type { ApplicationStage } from "@/features/recruiter/applications/schema";
+import { parseInterviewReportContent } from "@/features/recruiter/interview-reports/schema";
+import type { ShortlistInterviewReport } from "../domain/shortlist-candidate-detail";
 import type { FeedbackDecision } from "../domain/registrar-feedback";
 
 /**
@@ -78,7 +80,28 @@ export type SharedCandidate = {
   screening: SharedScreeningAnswer[];
   interviews: SharedInterview[];
   comments: SharedComment[];
+  interviewReport: ShortlistInterviewReport | null;
 };
+
+/** Forma cruda del `interviewReport` que devuelve el RPC (antes de normalizar el jsonb). */
+type RawInterviewReport = {
+  content: unknown;
+  recommendation: string;
+  recommendationJustification: string;
+  interviewDate: string;
+};
+
+function normalizeSharedReport(
+  raw: RawInterviewReport | null | undefined,
+): ShortlistInterviewReport | null {
+  if (!raw) return null;
+  return {
+    ...parseInterviewReportContent(raw.content),
+    recommendation: raw.recommendation as ShortlistInterviewReport["recommendation"],
+    recommendationJustification: raw.recommendationJustification,
+    interviewDate: raw.interviewDate,
+  };
+}
 
 export type SharedShortlist = {
   shareId: string;
@@ -90,10 +113,24 @@ export type SharedShortlist = {
 export async function getSharedShortlist(
   token: string,
 ): Promise<SharedShortlist | null> {
-  const rows = await admin.execute<{ result: SharedShortlist | null }>(
-    sql`select get_shared_shortlist(${token}) as result`,
-  );
-  return rows[0]?.result ?? null;
+  const rows = await admin.execute<{
+    result:
+      | (Omit<SharedShortlist, "candidates"> & {
+          candidates: (Omit<SharedCandidate, "interviewReport"> & {
+            interviewReport: RawInterviewReport | null;
+          })[];
+        })
+      | null;
+  }>(sql`select get_shared_shortlist(${token}) as result`);
+  const result = rows[0]?.result;
+  if (!result) return null;
+  return {
+    ...result,
+    candidates: result.candidates.map((c) => ({
+      ...c,
+      interviewReport: normalizeSharedReport(c.interviewReport),
+    })),
+  };
 }
 
 export async function submitFeedbackRpc(args: {

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { getAiProvider } from "@/lib/ai";
+import { aiErrorMessage } from "@/lib/ai/errors";
 import { generarInformeEntrevista } from "./domain/generar-informe-entrevista";
 import { editarInformeEntrevista } from "./domain/editar-informe-entrevista";
 import { generarInformeSchema, editarInformeSchema } from "./schema";
@@ -58,16 +59,23 @@ export async function generarInformeEntrevistaAction(
   const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
   if (!user || !membership) return { ok: false, error: "No autorizado." };
 
-  const res = await generarInformeEntrevista(
-    parsed.data,
-    { organizationId: membership.organizationId, role: membership.role, userId: user.id, now: new Date() },
-    {
-      getInterviewContext: getInterviewContextForReport,
-      generateReport: (input) => getAiProvider().interviewReport(input),
-      markInterviewCompleted,
-      upsertReport: upsertInterviewReport,
-    },
-  );
+  let res;
+  try {
+    res = await generarInformeEntrevista(
+      parsed.data,
+      { organizationId: membership.organizationId, role: membership.role, userId: user.id, now: new Date() },
+      {
+        getInterviewContext: getInterviewContextForReport,
+        generateReport: (input) => getAiProvider().interviewReport(input),
+        markInterviewCompleted,
+        upsertReport: upsertInterviewReport,
+      },
+    );
+  } catch (err) {
+    // AiUnavailableError: la IA falló tras reintentos. No se persistió nada — el recruiter
+    // reintenta con las mismas notas.
+    return { ok: false, error: aiErrorMessage(err) };
+  }
   if (!res.ok) return { ok: false, error: res.error };
 
   invalidateInterviewsCache(res.data.jobId, membership.organizationId);
@@ -82,10 +90,18 @@ export async function editarInformeEntrevistaAction(
   const parsed = editarInformeSchema.safeParse({
     interviewId: formData.get("interviewId"),
     ubicacion: formData.get("ubicacion") ?? "",
+    estudios: formData.get("estudios") ?? "",
+    idiomas: formData.get("idiomas") ?? "",
+    ultimaRemuneracion: formData.get("ultimaRemuneracion") ?? "",
     remuneracionPretendida: formData.get("remuneracionPretendida") ?? "",
-    disponibilidad: formData.get("disponibilidad") ?? "",
-    resumen: formData.get("resumen"),
+    disponibilidadIngreso: formData.get("disponibilidadIngreso") ?? "",
+    disponibilidadEntrevistas: formData.get("disponibilidadEntrevistas") ?? "",
+    resumenPerfil: formData.get("resumenPerfil"),
+    situacionMotivacion: formData.get("situacionMotivacion") ?? "",
+    experienciaRelevante: formData.get("experienciaRelevante") ?? "",
+    stackConocimientos: formData.get("stackConocimientos") ?? "",
     fortalezas: formData.getAll("fortalezas"),
+    oportunidadesMejora: formData.getAll("oportunidadesMejora"),
     aspectosAValidar: formData.getAll("aspectosAValidar"),
     recommendation: formData.get("recommendation"),
     recommendationJustification: formData.get("recommendationJustification"),

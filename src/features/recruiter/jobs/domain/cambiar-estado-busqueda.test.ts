@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   cambiarEstadoBusqueda,
   isValidTransition,
+  aceptaPostulaciones,
   type CambiarEstadoDeps,
   type JobStatus,
 } from "./cambiar-estado-busqueda";
@@ -13,6 +14,18 @@ function deps(actual: JobStatus | null): CambiarEstadoDeps {
   };
 }
 const ctx = { organizationId: "org-1", role: "recruiter" as const, membershipId: "m1" };
+
+describe("aceptaPostulaciones", () => {
+  it("las abiertas/pausadas/borrador aceptan candidatos", () => {
+    expect(aceptaPostulaciones("open")).toBe(true);
+    expect(aceptaPostulaciones("paused")).toBe(true);
+    expect(aceptaPostulaciones("draft")).toBe(true);
+  });
+  it("cerrada y archivada no — no aparecen en los selectores de postular", () => {
+    expect(aceptaPostulaciones("closed")).toBe(false);
+    expect(aceptaPostulaciones("archived")).toBe(false);
+  });
+});
 
 describe("isValidTransition", () => {
   it("permite las transiciones del flujo", () => {

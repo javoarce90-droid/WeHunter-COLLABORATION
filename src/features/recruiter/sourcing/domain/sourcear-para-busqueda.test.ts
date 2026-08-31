@@ -7,6 +7,7 @@ import {
   mergeSourcingBatch,
   SOURCING_MAX_RESULTS,
   SOURCING_MAX_QUERY_ATTEMPTS,
+  MAX_SEARCH_STEPS,
   type JobSourcingContext,
   type SourcearParaBusquedaDeps,
   type ScoredLinkedInCandidate,
@@ -42,12 +43,26 @@ const scoreOk = async () => ({
   strengths: [],
 });
 
+/** Batch scorer de test: score fijo (90) o por id si se pasa un mapa. */
+const batchScorer =
+  (scores?: Record<string, number>): SourcearParaBusquedaDeps["scoreApplicationsBatch"] =>
+  async ({ candidates }) =>
+    candidates.map((c) => ({
+      candidateId: c.id,
+      score: scores?.[c.id] ?? 90,
+      summary: "resumen",
+      redFlags: [],
+      breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
+      strengths: [],
+    }));
+
 /** Deps por default para `sourcearParaBusqueda`: nadie está en el pool todavía. Los tests que
  *  necesitan simular candidatos ya conocidos pasan su propio `findExistingLinkedinUrls`. */
 function deps(over: Partial<SourcearParaBusquedaDeps> = {}): SourcearParaBusquedaDeps {
   return {
     search: async () => ({ candidates: [], isLiveApi: true }),
     scoreApplication: scoreOk,
+    scoreApplicationsBatch: batchScorer(),
     findExistingLinkedinUrls: async () => new Set(),
     ...over,
   };
@@ -147,13 +162,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       deps({
         search: async () => ({ candidates, isLiveApi: true }),
-        scoreApplication: async (input) => ({
-          score: scores[input.candidate.id]!,
-          summary: "resumen",
-          redFlags: [],
-          breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-          strengths: [],
-        }),
+        scoreApplicationsBatch: batchScorer(scores),
       }),
     );
     expect(res.ok).toBe(true);
@@ -172,13 +181,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       deps({
         search: async () => ({ candidates, isLiveApi: false }),
-        scoreApplication: async (input) => ({
-          score: scores[input.candidate.id]!,
-          summary: "",
-          redFlags: [],
-          breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-          strengths: [],
-        }),
+        scoreApplicationsBatch: batchScorer(scores),
       }),
     );
     expect(res.ok).toBe(true);
@@ -204,7 +207,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       deps({
         search: async () => ({ candidates: [], isLiveApi: false, error: "Falló la búsqueda." }),
-        scoreApplication: async () => {
+        scoreApplicationsBatch: async () => {
           throw new Error("no debería scorear si search falló");
         },
       }),
@@ -222,9 +225,10 @@ describe("sourcearParaBusqueda", () => {
       deps({
         search: async () => ({ candidates, isLiveApi: true }),
         findExistingLinkedinUrls: async () => new Set(["https://www.linkedin.com/in/a"]),
-        scoreApplication: async (input) => {
-          if (input.candidate.id === "a") throw new Error("no debería scorear a un ya conocido");
-          return scoreOk();
+        scoreApplicationsBatch: async ({ candidates: cs }) => {
+          if (cs.some((c) => c.id === "a"))
+            throw new Error("no debería scorear a un ya conocido");
+          return batchScorer()({ job: job(), candidates: cs });
         },
       }),
     );
@@ -260,10 +264,17 @@ describe("sourcearParaBusqueda", () => {
       candidate({ id: "d", linkedinUrl: "https://www.linkedin.com/in/d" }),
       candidate({ id: "e", linkedinUrl: "https://www.linkedin.com/in/e" }),
     ];
+    // Solo la primera llamada trae perfiles (búsqueda que se agota rápido); el loop recorre el
+    // resto de los pasos sin encontrar nada nuevo.
+    let firstCall = true;
     const res = await sourcearParaBusqueda(
       job(),
       deps({
-        search: async () => ({ candidates, isLiveApi: true }),
+        search: async () => {
+          const out = { candidates: firstCall ? candidates : [], isLiveApi: true };
+          firstCall = false;
+          return out;
+        },
         findExistingLinkedinUrls: async () =>
           new Set(["https://www.linkedin.com/in/a", "https://www.linkedin.com/in/b"]),
       }),
@@ -290,6 +301,70 @@ describe("sourcearParaBusqueda", () => {
     if (!res.ok) return;
     expect(called).toBe(false);
     expect(res.metrics).toEqual({ encontrados: 0, enPool: 0, nuevos: 0 });
+  });
+
+  it("pagina: si una página no alcanza 10 nuevos, pide más páginas hasta juntarlos", async () => {
+    // Cada página trae 4 perfiles distintos; hacen falta 3 páginas para llegar a 10.
+    const pageOf = (page: number) =>
+      Array.from({ length: 4 }, (_, i) =>
+        candidate({
+          id: `p${page}-c${i}`,
+          linkedinUrl: `https://www.linkedin.com/in/p${page}c${i}`,
+        }),
+      );
+    const seen: number[] = [];
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({
+        search: async (_q, page) => {
+          seen.push(page);
+          return { candidates: pageOf(page), isLiveApi: true };
+        },
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(seen).toEqual([1, 2, 3]); // pidió 3 páginas
+    expect(res.results).toHaveLength(SOURCING_MAX_RESULTS); // 12 nuevos → recorta a 10
+    expect(res.metrics.nuevos).toBe(12);
+    expect(res.nextStep).toBe(3);
+  });
+
+  it("no repite perfiles ya mostrados (seenKeys del cursor)", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+      candidate({ id: "c", linkedinUrl: "https://www.linkedin.com/in/c" }),
+    ];
+    let first = true;
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({
+        search: async () => {
+          const out = { candidates: first ? candidates : [], isLiveApi: true };
+          first = false;
+          return out;
+        },
+      }),
+      // "a" y "b" ya se mostraron en un click anterior.
+      { step: 0, seenKeys: ["https://www.linkedin.com/in/a", "https://www.linkedin.com/in/b"] },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.results.map((r) => r.id)).toEqual(["c"]);
+    expect(res.metrics.nuevos).toBe(1);
+  });
+
+  it("exhausted=true cuando el cursor llega al último paso", async () => {
+    const res = await sourcearParaBusqueda(
+      job(),
+      deps({ search: async () => ({ candidates: [], isLiveApi: true }) }),
+      { step: MAX_SEARCH_STEPS - 1, seenKeys: [] },
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.exhausted).toBe(true);
+    expect(res.nextStep).toBe(MAX_SEARCH_STEPS);
   });
 });
 

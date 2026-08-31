@@ -1,6 +1,7 @@
 import type { ApplicationStage } from "../schema";
 import type { OrgRole } from "@/lib/auth/session";
 import { can } from "@/lib/auth/roles";
+import { aceptaPostulaciones } from "@/features/recruiter/jobs/domain/cambiar-estado-busqueda";
 
 // ---- Tipos del caso de uso ----
 
@@ -55,7 +56,7 @@ export async function postularCandidato(
   if (!job) {
     return { ok: false, error: "Búsqueda no encontrada." };
   }
-  if (job.status === "closed" || job.status === "archived") {
+  if (!aceptaPostulaciones(job.status)) {
     return { ok: false, error: "No se puede postular a una búsqueda cerrada o archivada." };
   }
 

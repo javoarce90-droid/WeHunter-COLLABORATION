@@ -1,17 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
 import { editarInformeEntrevista, type EditarInformeDeps } from "./editar-informe-entrevista";
-import type { InterviewReportRow } from "../schema";
+import { parseInterviewReportContent, type InterviewReportRow } from "../schema";
 
 const ctx = { organizationId: "org-1", role: "recruiter" as const };
 
 const input = {
   interviewId: "iv-1",
-  ubicacion: "CABA",
-  remuneracionPretendida: "USD 2000",
-  disponibilidad: "Inmediata",
-  resumen: "Resumen editado.",
-  fortalezas: ["Buena comunicación"],
-  aspectosAValidar: ["Nivel de inglés"],
+  ...parseInterviewReportContent({
+    ubicacion: "CABA",
+    remuneracionPretendida: "USD 2000",
+    disponibilidadIngreso: "Inmediata",
+    resumenPerfil: "Resumen editado.",
+    fortalezas: ["Buena comunicación"],
+    aspectosAValidar: ["Nivel de inglés"],
+  }),
   recommendation: "avanzar" as const,
   recommendationJustification: "Justificación editada.",
 };

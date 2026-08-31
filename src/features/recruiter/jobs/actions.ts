@@ -24,6 +24,7 @@ import {
 import { getJobById, getJobStatus, invalidateJobCache } from "./data/jobs.queries";
 import { getMembershipById } from "@/features/recruiter/team/data/team.queries";
 import { getAiProvider } from "@/lib/ai";
+import { aiErrorMessage } from "@/lib/ai/errors";
 import { notifyProfile } from "@/features/recruiter/notifications/data/notifications.mutations";
 import { definirPreguntasScreening } from "@/features/recruiter/screening/domain/definir-preguntas-screening";
 import { syncScreeningQuestions } from "@/features/recruiter/screening/data/screening.mutations";
@@ -59,7 +60,12 @@ export async function generarBorradorAction(input: {
   if (!membership) return { ok: false, error: "No autorizado." };
   if (!input.name.trim()) return { ok: false, error: "Cargá el nombre primero." };
 
-  const draft = await getAiProvider().draftJobOffer(input);
+  let draft;
+  try {
+    draft = await getAiProvider().draftJobOffer(input);
+  } catch (err) {
+    return { ok: false, error: aiErrorMessage(err) };
+  }
   const area = jobAreaSchema.safeParse(draft.jobArea);
 
   return {

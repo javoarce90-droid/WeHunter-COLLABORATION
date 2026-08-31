@@ -13,6 +13,8 @@ import {
   TYPE_LABELS,
 } from "@/features/recruiter/interviews/schema";
 import type { InterviewMode, InterviewStatus, InterviewType } from "@/features/recruiter/interviews/schema";
+import { SparkleIcon } from "@/components/ui/ai";
+import { InterviewReportView } from "@/features/recruiter/interview-reports/ui/InterviewReportView";
 import type { ShortlistCandidateDetailData } from "../domain/shortlist-candidate-detail";
 import { FEEDBACK_META } from "./feedback-meta";
 
@@ -291,7 +293,7 @@ export function ShortlistCandidateDetailSheet({
         )}
 
         {tab === "entrevistas" && (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-5">
             {data.interviews.length === 0 ? (
               <p className="text-sm text-muted">Todavía no hay entrevistas agendadas.</p>
             ) : (
@@ -299,7 +301,7 @@ export function ShortlistCandidateDetailSheet({
                 {data.interviews.map((it) => (
                   <li
                     key={it.id}
-                    className="flex items-center justify-between gap-2 rounded-[var(--radius)] border border-border px-3 py-2.5"
+                    className="flex items-center justify-between gap-2 rounded-[var(--radius)] border border-border px-3 py-3"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-text">
@@ -318,6 +320,15 @@ export function ShortlistCandidateDetailSheet({
                   </li>
                 ))}
               </ul>
+            )}
+
+            {data.interviewReport && (
+              <section className="flex flex-col gap-3 border-t border-border pt-5">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ai">
+                  <SparkleIcon size={11} /> Informe de entrevista
+                </div>
+                <InterviewReportView report={data.interviewReport} />
+              </section>
             )}
           </div>
         )}

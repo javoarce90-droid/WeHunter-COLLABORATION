@@ -2,7 +2,7 @@ import { can } from "@/lib/auth/roles";
 import type { OrgRole } from "@/lib/auth/session";
 import { ok, err, type Result } from "@/lib/result";
 import type { InterviewReportInput, InterviewReportResult } from "@/lib/ai";
-import type { InterviewReportRow } from "../schema";
+import type { InterviewReportRow, InterviewReportContent } from "../schema";
 
 const dateFmt = new Intl.DateTimeFormat("es-AR", {
   day: "2-digit",
@@ -32,14 +32,7 @@ export type GenerarInformeDeps = {
   upsertReport: (row: {
     organizationId: string;
     interviewId: string;
-    content: {
-      ubicacion: string;
-      remuneracionPretendida: string;
-      disponibilidad: string;
-      resumen: string;
-      fortalezas: string[];
-      aspectosAValidar: string[];
-    };
+    content: InterviewReportContent;
     recommendation: InterviewReportResult["recommendation"];
     recommendationJustification: string;
     sourceNotes: string;
@@ -92,19 +85,13 @@ export async function generarInformeEntrevista(
     sourceText: input.sourceText,
   });
 
+  const { recommendation, recommendationJustification, ...content } = result;
   const saved = await deps.upsertReport({
     organizationId: ctx.organizationId,
     interviewId: input.interviewId,
-    content: {
-      ubicacion: result.ubicacion,
-      remuneracionPretendida: result.remuneracionPretendida,
-      disponibilidad: result.disponibilidad,
-      resumen: result.resumen,
-      fortalezas: result.fortalezas,
-      aspectosAValidar: result.aspectosAValidar,
-    },
-    recommendation: result.recommendation,
-    recommendationJustification: result.recommendationJustification,
+    content,
+    recommendation,
+    recommendationJustification,
     sourceNotes: input.sourceText,
     generatedBy: ctx.userId,
   });

@@ -45,6 +45,7 @@ import { notifyOrg, notifyProfile } from "@/features/recruiter/notifications/dat
 import { getCandidateResume } from "@/features/recruiter/candidates/data/resume.queries";
 import { listScreeningAnswersByApplication } from "@/features/recruiter/screening/data/screening.queries";
 import { listInterviewsByApplication } from "@/features/recruiter/interviews/data/interviews.queries";
+import { getInterviewReportForApplication } from "@/features/recruiter/interview-reports/data/interview-reports.queries";
 import type { ShortlistCandidateDetailData } from "@/features/company/shortlist-review/domain/shortlist-candidate-detail";
 
 export interface ShortlistActionState {
@@ -305,11 +306,12 @@ export async function getShortlistCandidateDetailAction(
   const core = await getShortlistCandidateCore(shortlistCandidateId, membership.organizationId);
   if (!core) return { ok: false, error: "Candidato no encontrado." };
 
-  const [resume, screening, interviews, comments] = await Promise.all([
+  const [resume, screening, interviews, comments, report] = await Promise.all([
     getCandidateResume(core.candidateId),
     listScreeningAnswersByApplication(core.applicationId, membership.organizationId),
     listInterviewsByApplication(core.applicationId, membership.organizationId),
     listCommentsByShortlistCandidate(shortlistCandidateId, membership.organizationId),
+    getInterviewReportForApplication(core.applicationId, membership.organizationId),
   ]);
 
   return {
@@ -358,6 +360,14 @@ export async function getShortlistCandidateDetailAction(
         createdAt: c.createdAt.toISOString(),
         authorName: c.authorName,
       })),
+      interviewReport: report
+        ? {
+            ...report.content,
+            recommendation: report.recommendation,
+            recommendationJustification: report.recommendationJustification,
+            interviewDate: report.interviewDate.toISOString(),
+          }
+        : null,
     },
   };
 }

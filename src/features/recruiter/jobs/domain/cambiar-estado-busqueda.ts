@@ -29,6 +29,16 @@ export function isValidTransition(from: JobStatus, to: JobStatus): boolean {
   return TRANSITIONS[from].includes(to);
 }
 
+/** Estados terminales: la búsqueda ya no recibe candidatos. No aparecen en los selectores de
+ *  "postular" / "matchear pool" (confunden — el recruiter elige una y le da error). */
+export const CLOSED_JOB_STATUSES: readonly JobStatus[] = ["closed", "archived"];
+
+/** true si a esta búsqueda todavía se le pueden sumar candidatos (postular, matchear pool).
+ *  Acepta `string` a propósito: varias queries tipan `status` como texto plano. */
+export function aceptaPostulaciones(status: string): boolean {
+  return !(CLOSED_JOB_STATUSES as readonly string[]).includes(status);
+}
+
 export interface CambiarEstadoInput {
   jobId: string;
   nuevoEstado: JobStatus;

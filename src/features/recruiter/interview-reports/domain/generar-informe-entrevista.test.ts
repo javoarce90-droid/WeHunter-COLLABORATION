@@ -1,18 +1,20 @@
 import { describe, it, expect, vi } from "vitest";
 import { generarInformeEntrevista, puedeGenerarInforme, type GenerarInformeDeps } from "./generar-informe-entrevista";
-import type { InterviewReportRow } from "../schema";
+import { parseInterviewReportContent, type InterviewReportRow } from "../schema";
+import type { InterviewReportResult } from "@/lib/ai";
 
 const now = new Date("2026-08-28T12:00:00Z");
 const ctx = { organizationId: "org-1", role: "recruiter" as const, userId: "user-1", now };
 
+const aiResult: InterviewReportResult = {
+  ...parseInterviewReportContent({ resumenPerfil: "Resumen." }),
+  recommendation: "continuar_evaluando",
+  recommendationJustification: "Justificación.",
+};
+
 const savedRow: InterviewReportRow = {
   interviewId: "iv-1",
-  ubicacion: "No informado",
-  remuneracionPretendida: "No informado",
-  disponibilidad: "No informado",
-  resumen: "Resumen.",
-  fortalezas: [],
-  aspectosAValidar: [],
+  ...parseInterviewReportContent({ resumenPerfil: "Resumen." }),
   recommendation: "continuar_evaluando",
   recommendationJustification: "Justificación.",
   generatedBy: "user-1",
@@ -30,16 +32,7 @@ function makeDeps(overrides: Partial<GenerarInformeDeps> = {}): GenerarInformeDe
       interviewDate: new Date("2026-08-20T15:00:00Z"),
       status: "scheduled",
     }),
-    generateReport: vi.fn().mockResolvedValue({
-      ubicacion: "No informado",
-      remuneracionPretendida: "No informado",
-      disponibilidad: "No informado",
-      resumen: "Resumen.",
-      fortalezas: [],
-      aspectosAValidar: [],
-      recommendation: "continuar_evaluando",
-      recommendationJustification: "Justificación.",
-    }),
+    generateReport: vi.fn().mockResolvedValue(aiResult),
     markInterviewCompleted: vi.fn().mockResolvedValue(undefined),
     upsertReport: vi.fn().mockResolvedValue(savedRow),
     ...overrides,

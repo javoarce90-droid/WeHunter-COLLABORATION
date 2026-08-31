@@ -16,56 +16,20 @@ import {
 } from "../actions";
 import { AI_BATCH_MAX_CVS } from "../schema";
 import type { DraftCandidateProfile } from "@/lib/ai";
-import type {
-  CandidateWorkExperience,
-  CandidateEducation,
-  CandidateCertification,
-} from "@/db/schema";
+import {
+  draftExperienceRow,
+  draftEducationRow,
+  draftCertificationRow,
+} from "./draft-resume";
 
 const ACCEPT =
   ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 function draftToDefaults(draft: DraftCandidateProfile, cvUrl?: string) {
   const now = new Date();
-  const experiences: CandidateWorkExperience[] = draft.workExperiences.map((e, i) => ({
-    id: `temp-exp-${i}`,
-    profileId: null,
-    candidateId: null,
-    company: e.company,
-    position: e.position,
-    startDate: e.startDate,
-    endDate: e.endDate,
-    description: e.description,
-    employmentType: e.employmentType,
-    modality: e.modality,
-    skills: e.skills.length > 0 ? e.skills : null,
-    createdAt: now,
-    updatedAt: now,
-  }));
-  const education: CandidateEducation[] = draft.education.map((e, i) => ({
-    id: `temp-edu-${i}`,
-    profileId: null,
-    candidateId: null,
-    institution: e.institution,
-    degree: e.degree,
-    fieldOfStudy: e.fieldOfStudy,
-    startDate: e.startDate,
-    endDate: e.endDate,
-    description: e.description,
-    grade: e.grade,
-    activities: e.activities,
-    createdAt: now,
-    updatedAt: now,
-  }));
-  const certifications: CandidateCertification[] = draft.certifications.map((c, i) => ({
-    id: `temp-cert-${i}`,
-    profileId: null,
-    candidateId: null,
-    name: c.name,
-    url: c.url,
-    createdAt: now,
-    updatedAt: now,
-  }));
+  const experiences = draft.workExperiences.map((e, i) => draftExperienceRow(e, i, now));
+  const education = draft.education.map((e, i) => draftEducationRow(e, i, now));
+  const certifications = draft.certifications.map((c, i) => draftCertificationRow(c, i, now));
 
   return {
     fullName: draft.fullName ?? "",

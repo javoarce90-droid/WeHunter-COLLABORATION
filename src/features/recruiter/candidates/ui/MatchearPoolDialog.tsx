@@ -15,7 +15,7 @@ import {
 } from "@/features/recruiter/applications/ui/AiAnalysisDialog";
 import { postularVariosAction } from "@/features/recruiter/applications/actions";
 import { useToast } from "@/lib/toast";
-import { matchearPoolConBusquedaAction } from "../actions";
+import { matchearPoolConBusquedaAction, ignorarCandidatoPoolAction } from "../actions";
 import { POOL_MATCH_MAX_CANDIDATES } from "../../sourcing/domain/matchear-pool-interno";
 import { CompletenessBadge } from "./completeness-badge";
 import type { ScoreBreakdown } from "@/lib/ai/provider";
@@ -33,6 +33,7 @@ type MatchResult = {
   strengths: string[];
   redFlags: string[];
   cached: boolean;
+  degraded: boolean;
 };
 
 /**
@@ -103,6 +104,33 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
     });
   }
 
+  /** Ignora al candidato para ESTA búsqueda: se saca de la lista al toque (optimista) y no
+   *  vuelve a aparecer en futuras tandas del match. Recuperable desde el "Deshacer" del toast. */
+  function ignorar(row: MatchResult) {
+    const forJob = jobId;
+    setResults((prev) => prev?.filter((r) => r.candidateId !== row.candidateId) ?? prev);
+    startTransition(async () => {
+      const res = await ignorarCandidatoPoolAction(forJob, row.candidateId, true);
+      if (!res.ok) {
+        setResults((prev) => (prev ? [...prev, row].sort((a, b) => b.score - a.score) : prev));
+        toast({ message: res.error ?? "No se pudo ignorar.", variant: "danger" });
+        return;
+      }
+      toast({
+        message: `${row.fullName} no va a aparecer más en el match de esta búsqueda.`,
+        action: {
+          label: "Deshacer",
+          onClick: () => {
+            void ignorarCandidatoPoolAction(forJob, row.candidateId, false);
+            setResults((prev) =>
+              prev ? [...prev, row].sort((a, b) => b.score - a.score) : prev,
+            );
+          },
+        },
+      });
+    });
+  }
+
   const subject: AiAnalysisSubject | null = detail
     ? {
         name: detail.fullName,
@@ -112,6 +140,8 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
         breakdown: detail.breakdown,
         strengths: detail.strengths,
         redFlags: detail.redFlags,
+        completeness: detail.completeness.percent,
+        degraded: detail.degraded,
       }
     : null;
 
@@ -127,13 +157,15 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
           setOpen(false);
           reset();
         }}
-        side="right"
+        side="center"
         title="Matchear pool con IA"
-        className="w-full max-w-xl"
+        maxWidthClassName="max-w-3xl"
       >
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-5">
           {!results ? (
-            <>
+            // Elegir búsqueda: el modal es ancho para los resultados, pero el paso previo es
+            // un solo campo — se acota a una columna centrada para que no quede perdido.
+            <div className="mx-auto flex w-full max-w-md flex-col gap-4">
               <p className="text-sm text-muted">
                 Elegí una búsqueda: analizamos con IA hasta {POOL_MATCH_MAX_CANDIDATES}{" "}
                 candidatos del pool que matcheen sus skills o seniority.
@@ -155,10 +187,10 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
                   Analizar
                 </AiButton>
               </div>
-            </>
+            </div>
           ) : (
             <>
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-4">
                 <p className="text-sm text-muted">
                   {results.length} de {poolFiltrado} candidato
                   {poolFiltrado !== 1 ? "s" : ""} del pool analizados para “{jobTitle}”
@@ -179,61 +211,79 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
                   búsqueda.
                 </p>
               ) : (
-                <ul className="flex flex-col gap-2">
+                <ul className="flex flex-col gap-3">
                   {results.map((r, i) => (
                     <li
                       key={r.candidateId}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius)] border border-border bg-surface p-3"
+                      className="flex flex-col gap-3 rounded-[var(--radius)] border border-border bg-surface p-4 sm:flex-row sm:items-center sm:gap-5"
                     >
-                      {/* Los resultados ya vienen ordenados por score — cuando varios empatan
-                          en la misma banda (mismo color de anillo, mismo badge), esta posición
-                          es la única pista de por dónde arrancar a mirar. */}
-                      <span
-                        className="grid h-6 w-6 shrink-0 place-items-center text-xs font-semibold tabular-nums text-muted"
-                        aria-hidden
-                      >
-                        {i + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-text">{r.fullName}</p>
-                        {r.headline && (
-                          <p className="truncate text-xs text-muted">{r.headline}</p>
-                        )}
-                        <div className="mt-1 flex items-center gap-2">
-                          <CompletenessBadge
-                            percent={r.completeness.percent}
-                            faltantes={r.completeness.faltantes}
-                          />
-                          {r.cached && (
-                            <Tooltip label="Reusado del último análisis para esta búsqueda — no se volvió a llamar a la IA.">
-                              <Badge variant="muted">Reusado</Badge>
-                            </Tooltip>
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        {/* Los resultados ya vienen ordenados por score — cuando varios empatan
+                            en la misma banda (mismo anillo, mismo badge), esta posición es la
+                            única pista de por dónde arrancar a mirar. */}
+                        <span
+                          className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-bg text-[11px] font-semibold tabular-nums text-muted"
+                          aria-hidden
+                        >
+                          {i + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-text">
+                            {r.fullName}
+                          </p>
+                          {r.headline && (
+                            <p className="truncate text-xs text-muted">{r.headline}</p>
                           )}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <CompletenessBadge
+                              percent={r.completeness.percent}
+                              faltantes={r.completeness.faltantes}
+                            />
+                            {r.cached && (
+                              <Tooltip label="Reusado del último análisis para esta búsqueda — no se volvió a llamar a la IA.">
+                                <Badge variant="muted">Reusado</Badge>
+                              </Tooltip>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <MatchCell
-                        score={r.score}
-                        summary={r.summary}
-                        onOpenCopiloto={() => setDetail(r)}
-                      />
-                      <div className="flex items-center gap-3">
-                        <Link
-                          href={`/candidates/${r.candidateId}`}
-                          className="text-xs font-semibold text-muted hover:text-text"
-                        >
-                          Ver ficha
-                        </Link>
-                        <Button
-                          size="sm"
-                          onClick={() => postular(r.candidateId)}
-                          disabled={appliedIds.has(r.candidateId) || applyingId === r.candidateId}
-                        >
-                          {appliedIds.has(r.candidateId)
-                            ? "Postulado"
-                            : applyingId === r.candidateId
-                              ? "Postulando…"
-                              : "Postular"}
-                        </Button>
+
+                      <div className="flex shrink-0 items-center justify-between gap-4 sm:justify-end sm:gap-5">
+                        <MatchCell
+                          score={r.score}
+                          summary={r.summary}
+                          completeness={r.completeness.percent}
+                          degraded={r.degraded}
+                          onOpenCopiloto={() => setDetail(r)}
+                        />
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => ignorar(r)}
+                            className="text-xs font-semibold text-muted transition-colors hover:text-text"
+                          >
+                            Ignorar
+                          </button>
+                          <Link
+                            href={`/candidates/${r.candidateId}`}
+                            className="text-xs font-semibold text-muted transition-colors hover:text-text"
+                          >
+                            Ver ficha
+                          </Link>
+                          <Button
+                            size="sm"
+                            onClick={() => postular(r.candidateId)}
+                            disabled={
+                              appliedIds.has(r.candidateId) || applyingId === r.candidateId
+                            }
+                          >
+                            {appliedIds.has(r.candidateId)
+                              ? "Postulado"
+                              : applyingId === r.candidateId
+                                ? "Postulando…"
+                                : "Postular"}
+                          </Button>
+                        </div>
                       </div>
                     </li>
                   ))}

@@ -66,7 +66,25 @@ export type ScoreApplicationResult = {
   breakdown: ScoreBreakdown;
   /** Puntos fuertes del candidato para este puesto (2–4 items). */
   strengths: string[];
+  /** true si este score NO lo produjo el modelo real: o no hay IA configurada, o Gemini falló
+   *  y se degradó al heurístico local. La UI lo muestra como "estimación sin IA" para que el
+   *  recruiter no le dé el mismo peso que a un análisis real. */
+  degraded?: boolean;
 };
+
+/**
+ * Scoring en lote: puntúa N candidatos contra UNA búsqueda en una sola llamada al modelo (o
+ * unos pocos chunks), en vez de N llamadas. Es la forma canónica de scorear en Matchear pool,
+ * Postulados y Sourcing — misma semántica que `scoreApplication` por candidato, pero ~N× más
+ * barato en tokens (el contexto de la búsqueda no se repite) y una latencia en vez de N.
+ */
+export type ScoreApplicationsBatchInput = {
+  job: ScoreApplicationInput["job"];
+  /** Cada candidato lleva `id` — el resultado se devuelve emparejado por ese id. */
+  candidates: ScoreApplicationInput["candidate"][];
+};
+
+export type ScoredCandidate = ScoreApplicationResult & { candidateId: string };
 
 export type DraftOfferInput = {
   candidateName: string;
@@ -227,10 +245,10 @@ export type DraftCandidateProfile = {
 };
 
 /**
- * Informe de entrevista con IA (docs/BACKLOG.md § "Informe de entrevista con IA"): a partir
- * de notas o una transcripción manual que pega el recruiter, el modelo arma un informe
- * estandarizado de 5 secciones, listo para revisar/editar antes de guardar (mismo criterio
- * que draftJobOffer/draftCandidateProfile: nunca se guarda directo).
+ * Informe de entrevista con IA (docs/BACKLOG-QA-AJUSTES § "Informe de entrevista con IA",
+ * ampliado 2026-08-31 al formato del template real del cliente): a partir de notas o una
+ * transcripción que pega el recruiter, el modelo arma un informe estandarizado listo para
+ * revisar/editar antes de guardar (mismo criterio que draftJobOffer: nunca se guarda directo).
  */
 export type InterviewReportInput = {
   candidateName: string;
@@ -247,16 +265,38 @@ export type InterviewReportRecommendation =
   | "continuar_evaluando"
   | "no_avanzar";
 
+/**
+ * Todos los campos de texto son "No informado" cuando el dato no surge de las notas — nunca
+ * vacío/null, el string es lo que se muestra en el informe. Los campos Markdown pueden quedar
+ * "No informado" también. Los "Fuente: WeHunter" (candidato, puesto, fecha, entrevistador) NO
+ * van acá: salen del contexto de la entrevista.
+ */
 export type InterviewReportResult = {
-  /** "No informado" cuando no surge de la entrevista — nunca vacío/null, el texto es lo que
-   *  se muestra en el informe. */
+  // --- Datos generales (extraídos de las notas) ---
   ubicacion: string;
+  estudios: string;
+  idiomas: string;
+  ultimaRemuneracion: string;
   remuneracionPretendida: string;
-  disponibilidad: string;
-  resumen: string;
+  disponibilidadIngreso: string;
+  disponibilidadEntrevistas: string;
+  // --- Prosa ---
+  /** Trayectoria del candidato + impresión general de la conversación (4-6 líneas). */
+  resumenPerfil: string;
+  /** Si está en búsqueda activa, por qué, qué busca en su próximo paso. */
+  situacionMotivacion: string;
+  /** Markdown: empleos relevantes con lo que hizo, tecnologías y motivo de salida. */
+  experienciaRelevante: string;
+  /** Markdown: tecnologías que domina y las que está incorporando. */
+  stackConocimientos: string;
+  // --- Evaluación ---
   fortalezas: string[];
+  /** Áreas de desarrollo, en tono constructivo — NO "debilidades". */
+  oportunidadesMejora: string[];
   aspectosAValidar: string[];
+  // --- Cierre ---
   recommendation: InterviewReportRecommendation;
+  /** Conclusión: justifica la recomendación con evidencia de la conversación. */
   recommendationJustification: string;
 };
 
@@ -264,6 +304,12 @@ export interface AiProvider {
   scoreApplication(
     input: ScoreApplicationInput,
   ): Promise<ScoreApplicationResult>;
+  /** Puntúa varios candidatos contra una búsqueda de una. El orden del resultado NO está
+   *  garantizado; emparejá por `candidateId`. Siempre devuelve un resultado por cada candidato
+   *  pedido (rellena con el heurístico local los que el modelo no haya cubierto). */
+  scoreApplicationsBatch(
+    input: ScoreApplicationsBatchInput,
+  ): Promise<ScoredCandidate[]>;
   draftOffer(input: DraftOfferInput): Promise<string>;
   draftJobPosting(input: DraftJobPostingInput): Promise<string>;
   draftJobOffer(input: DraftJobOfferInput): Promise<DraftJobOffer>;

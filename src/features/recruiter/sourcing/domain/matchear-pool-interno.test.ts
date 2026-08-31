@@ -6,7 +6,11 @@ import {
   type PoolMatchCache,
   type PoolMatchCachedEntry,
 } from "./matchear-pool-interno";
-import type { AiProvider, ScoreApplicationResult } from "@/lib/ai";
+import type {
+  AiProvider,
+  ScoreApplicationsBatchInput,
+  ScoredCandidate,
+} from "@/lib/ai";
 
 const JOB_UPDATED_AT = new Date("2026-08-01T00:00:00Z");
 const CANDIDATE_UPDATED_AT = new Date("2026-07-01T00:00:00Z");
@@ -30,15 +34,21 @@ function candidato(id: string, updatedAt: Date = CANDIDATE_UPDATED_AT): PoolMatc
   };
 }
 
-function providerWithScores(scores: Record<string, number>): Pick<AiProvider, "scoreApplication"> {
+function providerWithScores(
+  scores: Record<string, number>,
+): Pick<AiProvider, "scoreApplicationsBatch"> {
   return {
-    scoreApplication: vi.fn(async (input): Promise<ScoreApplicationResult> => ({
-      score: scores[input.candidate.id] ?? 0,
-      summary: "",
-      redFlags: [],
-      breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-      strengths: [],
-    })),
+    scoreApplicationsBatch: vi.fn(
+      async ({ candidates }: ScoreApplicationsBatchInput): Promise<ScoredCandidate[]> =>
+      candidates.map((c) => ({
+        candidateId: c.id,
+        score: scores[c.id] ?? 0,
+        summary: "",
+        redFlags: [],
+        breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
+        strengths: [],
+      })),
+    ),
   };
 }
 
@@ -76,7 +86,10 @@ describe("matchearPoolConBusqueda", () => {
     );
     const provider = providerWithScores({});
     const results = await matchearPoolConBusqueda(job, many, provider, emptyCache());
-    expect(provider.scoreApplication).toHaveBeenCalledTimes(POOL_MATCH_MAX_CANDIDATES);
+    // Se scorea en lote: no se le pasan más de POOL_MATCH_MAX_CANDIDATES candidatos a la IA.
+    const totalScoreados = (provider.scoreApplicationsBatch as ReturnType<typeof vi.fn>).mock.calls
+      .flatMap((call) => call[0].candidates).length;
+    expect(totalScoreados).toBe(POOL_MATCH_MAX_CANDIDATES);
     expect(results).toHaveLength(POOL_MATCH_MAX_CANDIDATES);
   });
 
@@ -100,9 +113,11 @@ describe("matchearPoolConBusqueda", () => {
       cache,
     );
 
-    expect(provider.scoreApplication).toHaveBeenCalledTimes(1);
-    expect(provider.scoreApplication).not.toHaveBeenCalledWith(
-      expect.objectContaining({ candidate: expect.objectContaining({ id: "1" }) }),
+    expect(provider.scoreApplicationsBatch).toHaveBeenCalledTimes(1);
+    expect(provider.scoreApplicationsBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        candidates: [expect.objectContaining({ id: "2" })],
+      }),
     );
     const cacheado = results.find((r) => r.candidateId === "1");
     expect(cacheado).toMatchObject({ score: 55, summary: "cacheado", cached: true });
@@ -125,7 +140,7 @@ describe("matchearPoolConBusqueda", () => {
     });
     const results = await matchearPoolConBusqueda(job, [candidato("1")], provider, cache);
 
-    expect(provider.scoreApplication).toHaveBeenCalledTimes(1);
+    expect(provider.scoreApplicationsBatch).toHaveBeenCalledTimes(1);
     expect(results[0]).toMatchObject({ score: 70, cached: false });
   });
 
@@ -144,7 +159,7 @@ describe("matchearPoolConBusqueda", () => {
     });
     const results = await matchearPoolConBusqueda(job, [candidato("1")], provider, cache);
 
-    expect(provider.scoreApplication).toHaveBeenCalledTimes(1);
+    expect(provider.scoreApplicationsBatch).toHaveBeenCalledTimes(1);
     expect(results[0]).toMatchObject({ score: 70, cached: false });
   });
 
@@ -186,7 +201,7 @@ describe("matchearPoolConBusqueda", () => {
     });
     await matchearPoolConBusqueda(job, [candidato("1")], provider, cache);
 
-    expect(provider.scoreApplication).not.toHaveBeenCalled();
+    expect(provider.scoreApplicationsBatch).not.toHaveBeenCalled();
     expect(cache.save).not.toHaveBeenCalled();
   });
 });

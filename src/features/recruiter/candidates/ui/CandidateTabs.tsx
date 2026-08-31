@@ -10,6 +10,7 @@ import { usePathname } from "next/navigation";
 
 const TABS: { label: string; segment: string }[] = [
   { label: "Perfil", segment: "" },
+  { label: "Entrevistas", segment: "entrevistas" },
   { label: "Historial", segment: "historial" },
 ];
 

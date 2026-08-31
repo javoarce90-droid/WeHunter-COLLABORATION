@@ -16,6 +16,7 @@ import { Select } from "@/components/ui/select";
 import { FilterChip, FilterChipGroup } from "@/components/ui/filter-chip";
 import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/menu";
 import { IconButton } from "@/components/ui/icon-button";
+import { SparkleIcon } from "@/components/ui/ai";
 import { Pagination } from "@/components/ui/pagination";
 import { useToast } from "@/lib/toast";
 import { normalizeIfUncapitalized } from "@/lib/text";
@@ -271,6 +272,7 @@ export function CandidatesList({
   totalPages,
 }: Props) {
   const toast = useToast();
+  const router = useRouter();
   const [, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -517,12 +519,17 @@ export function CandidatesList({
                     </td>
                     <td className="py-2.5 pr-4">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* El nombre del candidato ya abre la ficha rápida — acá va la acción
+                            de IA (destino distinto: la pantalla de "Actualizar con IA"). */}
                         <button
                           type="button"
-                          onClick={() => setQuickView(candidate)}
-                          className="rounded-lg px-2.5 py-1 text-xs font-semibold text-muted transition-colors hover:text-primary"
+                          onClick={() =>
+                            router.push(`/candidates/${candidate.id}/edit/ia`)
+                          }
+                          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:text-primary-hover"
                         >
-                          Ver
+                          <SparkleIcon size={13} />
+                          Actualizar
                         </button>
                         <Menu
                           align="end"
@@ -725,6 +732,13 @@ function QuickViewDrawer({
               className="text-sm font-semibold text-muted hover:text-text"
             >
               Editar
+            </Link>
+            <Link
+              href={`/candidates/${candidate.id}/edit/ia`}
+              className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:text-primary-hover"
+            >
+              <SparkleIcon size={12} />
+              Actualizar con IA
             </Link>
             {candidate.cvUrl && (
               <a
