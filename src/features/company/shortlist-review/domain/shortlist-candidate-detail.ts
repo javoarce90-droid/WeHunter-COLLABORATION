@@ -1,4 +1,8 @@
 import type { ApplicationStage } from "@/features/recruiter/applications/schema";
+import type {
+  InterviewReportContent,
+  Recommendation as InterviewRecommendation,
+} from "@/features/recruiter/interview-reports/schema";
 import type { FeedbackDecision } from "./registrar-feedback";
 
 /**
@@ -52,6 +56,14 @@ export type ShortlistCandidateCommentItem = {
   authorName: string | null;
 };
 
+/** Informe de entrevista con IA de la postulación del candidato a esta búsqueda (el más
+ *  reciente si hay varios). Apto para el cliente por diseño. `null` si no se generó. */
+export type ShortlistInterviewReport = InterviewReportContent & {
+  recommendation: InterviewRecommendation;
+  recommendationJustification: string;
+  interviewDate: string;
+};
+
 export type ShortlistCandidateDetailData = {
   shortlistCandidateId: string;
   fullName: string;
@@ -74,4 +86,5 @@ export type ShortlistCandidateDetailData = {
   screening: ShortlistScreeningAnswer[];
   interviews: ShortlistInterviewHistoryItem[];
   comments: ShortlistCandidateCommentItem[];
+  interviewReport: ShortlistInterviewReport | null;
 };

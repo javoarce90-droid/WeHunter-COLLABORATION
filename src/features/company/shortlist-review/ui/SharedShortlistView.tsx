@@ -38,6 +38,7 @@ function toDetailData(c: SharedCandidate, token: string): ShortlistCandidateDeta
     screening: c.screening,
     interviews: c.interviews,
     comments: c.comments,
+    interviewReport: c.interviewReport ?? null,
   };
 }
 
