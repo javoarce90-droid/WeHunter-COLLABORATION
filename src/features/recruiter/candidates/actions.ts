@@ -26,6 +26,10 @@ import { insertCandidateResumeItems } from "./data/candidate-resume.mutations";
 import type { DraftCandidateProfile } from "@/lib/ai";
 import { editarCandidato } from "./domain/editar-candidato";
 import {
+  combinarBorradorConCandidato,
+  type BorradorCombinado,
+} from "./domain/combinar-borrador-candidato";
+import {
   importarCandidatosMasivo,
   type ImportRowError,
 } from "./domain/importar-candidatos-masivo";
@@ -481,6 +485,114 @@ export async function generarBorradorCandidatoConIaAction(
   };
 }
 
+// ---- Actualizar un candidato existente con IA (rellenar lo que falte) ----
+
+export interface ActualizarConIaState {
+  error?: string;
+  /** Merge listo para revisar en el formulario (existente ?? IA). */
+  combinado?: BorradorCombinado;
+  /** Path del CV subido en este paso — se reusa al guardar (`existingCvUrl`). */
+  cvUrl?: string;
+  cvDownloadUrl?: string | null;
+  /** La IA no pudo leer el CV: la UI muestra el mismo aviso que "Crear con IA". */
+  extractionFailed?: boolean;
+  failureReason?: "quota" | "unreadable";
+}
+
+/**
+ * "Actualizar perfil con IA": a partir de un CV (+ LinkedIn opcional) la IA extrae un borrador
+ * y lo combina con el candidato que ya existe, **rellenando solo lo que falta** (ver
+ * `combinarBorradorConCandidato`). No persiste nada — el recruiter revisa el merge en el
+ * formulario y guarda con `editarCandidatoAction`. El CV se sube acá y se reusa en el guardado.
+ */
+export async function actualizarBorradorCandidatoConIaAction(
+  candidateId: string,
+  _prev: ActualizarConIaState,
+  formData: FormData,
+): Promise<ActualizarConIaState> {
+  const membership = await getActiveMembership();
+  if (!membership) return { error: "No autorizado." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { error: "Tu rol no permite editar candidatos." };
+  }
+
+  const [candidate, resume] = await Promise.all([
+    getCandidateById(candidateId, membership.organizationId),
+    getCandidateResume(candidateId),
+  ]);
+  if (!candidate) return { error: "Candidato no encontrado." };
+
+  const linkedinUrlRaw = formData.get("linkedinUrl");
+  const linkedinUrl =
+    typeof linkedinUrlRaw === "string" && linkedinUrlRaw.trim()
+      ? normalizeUrl(linkedinUrlRaw)
+      : "";
+
+  const cv = readAiCvFile(formData);
+  if ("error" in cv) return { error: cv.error };
+
+  const extracted = await extractCvForAi(cv.file);
+  if ("error" in extracted) return { error: extracted.error };
+  const cvSource = cvSourceFromExtract(extracted) ?? undefined;
+
+  let uploaded: { path: string } | null = null;
+  try {
+    uploaded = await uploadCandidateCv(membership.organizationId, cv.file);
+  } catch {
+    return { error: "No se pudo subir el CV. Revisá el archivo e intentá de nuevo." };
+  }
+
+  const result = await generarBorradorCandidato(
+    {
+      linkedinUrl: linkedinUrl || undefined,
+      cvFile: cvSource && "cvFile" in cvSource ? cvSource.cvFile : undefined,
+      cvText: cvSource && "cvText" in cvSource ? cvSource.cvText : undefined,
+    },
+    { organizationId: membership.organizationId, role: membership.role },
+    { draftProfile: (input) => getAiProvider().draftCandidateProfile(input) },
+  );
+
+  if (!result.ok) {
+    if (uploaded) await deleteCandidateCv(uploaded.path).catch(() => {});
+    return { error: result.error };
+  }
+
+  // La IA no llegó a leer el CV: no combinamos nada (sería mezclar placeholders del mock con
+  // datos reales). La UI ofrece reintentar / editar a mano, igual que "Crear con IA".
+  if (result.data.extractionFailed) {
+    if (uploaded) await deleteCandidateCv(uploaded.path).catch(() => {});
+    return { extractionFailed: true, failureReason: result.data.failureReason };
+  }
+
+  const combinado = combinarBorradorConCandidato(
+    {
+      headline: candidate.headline,
+      location: candidate.location,
+      linkedinUrl: candidate.linkedinUrl,
+      summary: candidate.summary,
+      phone: candidate.phone,
+      email: candidate.email,
+      skills: candidate.skills,
+      experiencias: resume.experiences.map((e) => ({
+        company: e.company,
+        position: e.position,
+      })),
+      educacion: resume.education.map((e) => ({
+        institution: e.institution,
+        degree: e.degree,
+      })),
+      certificaciones: resume.certifications.map((c) => ({ name: c.name })),
+    },
+    result.data,
+  );
+
+  return {
+    combinado,
+    cvUrl: uploaded?.path,
+    cvDownloadUrl: uploaded ? await getCvSignedUrl(uploaded.path) : null,
+  };
+}
+
 export type ProcesarCvState = { fileName: string; outcome: CvParaPoolOutcome };
 
 /**
@@ -552,17 +664,30 @@ export async function editarCandidatoAction(
 
   const membership = await getActiveMembership();
   const cvFile = cv.file;
+  // Flujo "Actualizar con IA": el CV ya se subió al generar el borrador — se reusa ese path
+  // en vez de volver a pedir el archivo (mismo criterio que `cargarCandidatoAction`).
+  const existingCvUrlRaw = formData.get("existingCvUrl");
+  const preUploadedCvUrl =
+    typeof existingCvUrlRaw === "string" && existingCvUrlRaw.trim()
+      ? existingCvUrlRaw.trim()
+      : null;
+  // Si además adjuntó un archivo a mano en el paso de revisión, ese gana y el CV que subió el
+  // análisis con IA queda huérfano en Storage — lo limpiamos.
+  const existingCvUrl = cvFile ? null : preUploadedCvUrl;
+  if (cvFile && preUploadedCvUrl) {
+    await deleteCandidateCv(preUploadedCvUrl).catch(() => {});
+  }
 
-  // Si se reemplaza el CV, necesitamos el path actual (autoritativo del server, no del
-  // cliente) para borrarlo tras el reemplazo. Una sola lectura, solo cuando hay CV nuevo.
+  // Si se reemplaza el CV (archivo nuevo o path pre-subido), necesitamos el path actual
+  // (autoritativo del server, no del cliente) para borrarlo tras el reemplazo.
   let currentCvUrl: string | null = null;
-  if (cvFile && membership) {
+  if ((cvFile || existingCvUrl) && membership) {
     const existing = await getCandidateById(candidateId, membership.organizationId);
     currentCvUrl = existing?.cvUrl ?? null;
   }
 
   const result = await editarCandidato(
-    { candidateId, ...parsed.data, currentCvUrl },
+    { candidateId, ...parsed.data, currentCvUrl, existingCvUrl },
     {
       organizationId: membership?.organizationId ?? null,
       role: membership?.role ?? null,
@@ -574,7 +699,9 @@ export async function editarCandidatoAction(
             uploadCv: () => uploadCandidateCv(membership.organizationId, cvFile),
             deleteCv: deleteCandidateCv,
           }
-        : {}),
+        : existingCvUrl
+          ? { deleteCv: deleteCandidateCv }
+          : {}),
     },
   );
   if (!result.ok) {

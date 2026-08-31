@@ -124,6 +124,40 @@ describe("editarCandidato", () => {
     expect(deleteCv).not.toHaveBeenCalled();
   });
 
+  it("usa el CV pre-subido (flujo 'Actualizar con IA') como cvUrl — sin dep uploadCv", async () => {
+    // El action de "Actualizar con IA" no pasa `uploadCv` (el archivo ya está en Storage).
+    const d = deps();
+    await editarCandidato(
+      {
+        candidateId: "cand-1",
+        fullName: "Ada Lovelace",
+        existingCvUrl: "  org-1/ia-draft.pdf  ",
+      },
+      ctx,
+      d,
+    );
+    expect(d.updateCandidateFields).toHaveBeenCalledWith(
+      "cand-1",
+      "org-1",
+      expect.objectContaining({ cvUrl: "org-1/ia-draft.pdf" }),
+    );
+  });
+
+  it("el CV pre-subido también borra el anterior al reemplazar", async () => {
+    const deleteCv = vi.fn(async () => {});
+    await editarCandidato(
+      {
+        candidateId: "cand-1",
+        fullName: "Ada Lovelace",
+        existingCvUrl: "org-1/ia-draft.pdf",
+        currentCvUrl: "org-1/viejo.pdf",
+      },
+      ctx,
+      { ...deps(), deleteCv },
+    );
+    expect(deleteCv).toHaveBeenCalledWith("org-1/viejo.pdf");
+  });
+
   it("falla de subida en edición devuelve err y no actualiza", async () => {
     const uploadCv = vi.fn(async () => {
       throw new Error("storage caído");

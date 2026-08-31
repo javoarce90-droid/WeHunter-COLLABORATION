@@ -18,6 +18,9 @@ export interface EditarCandidatoInput extends CandidateDetailsInput {
   email?: string | null;
   /** Path del CV actual (si hay), para borrarlo cuando se reemplaza por uno nuevo. */
   currentCvUrl?: string | null;
+  /** Path de un CV ya subido a Storage (flujo "Actualizar con IA": el CV se sube al generar
+   *  el borrador, antes de este paso). Se usa como `cvUrl` cuando no hay `deps.uploadCv`. */
+  existingCvUrl?: string | null;
 }
 
 export interface EditarCandidatoCtx {
@@ -57,7 +60,9 @@ export async function editarCandidato(
 
   const email = input.email?.trim().toLowerCase() || null;
 
-  // Subida del CV nuevo (si se adjuntó). Falla recuperable → err, no crash.
+  // CV nuevo. Dos caminos: `uploadCv` = el recruiter adjuntó un archivo ahora (falla
+  // recuperable → err); `existingCvUrl` = el CV ya está en Storage (lo subió el flujo con IA
+  // al generar el borrador). undefined en ambos = no se toca el CV existente.
   let newCvUrl: string | undefined;
   if (deps.uploadCv) {
     try {
@@ -65,6 +70,8 @@ export async function editarCandidato(
     } catch {
       return err("No se pudo subir el CV. Revisá el archivo e intentá de nuevo.");
     }
+  } else if (input.existingCvUrl?.trim()) {
+    newCvUrl = input.existingCvUrl.trim();
   }
 
   const { updated } = await deps.updateCandidateFields(

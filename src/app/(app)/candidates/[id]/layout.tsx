@@ -7,6 +7,7 @@ import { CandidateTabs } from "@/features/recruiter/candidates/ui/CandidateTabs"
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { SparkleIcon } from "@/components/ui/ai";
 import { normalizeIfUncapitalized } from "@/lib/text";
 
 /**
@@ -100,6 +101,13 @@ export default async function CandidateLayout({
                 Abrir CV
               </a>
             )}
+            <Link
+              href={`/candidates/${candidate.id}/edit/ia`}
+              className="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius)] border border-border bg-surface px-3 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary-light"
+            >
+              <SparkleIcon size={13} />
+              Actualizar con IA
+            </Link>
             <Link
               href={`/candidates/${candidate.id}/edit`}
               className="inline-flex items-center justify-center rounded-[var(--radius)] border border-border px-3 py-2 text-sm font-semibold text-muted transition-colors hover:border-primary hover:text-primary"
