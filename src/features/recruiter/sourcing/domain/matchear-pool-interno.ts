@@ -49,6 +49,9 @@ export type PoolMatchResult = {
   redFlags: string[];
   /** true si este resultado vino del caché (no se llamó a la IA en esta corrida). */
   cached: boolean;
+  /** true si el score lo produjo el heurístico local y no la IA real (Gemini falló). Los
+   *  cacheados nunca son degradados: solo se cachean scores reales. */
+  degraded: boolean;
 };
 
 export type PoolMatchCachedEntry = {
@@ -139,11 +142,14 @@ export async function matchearPoolConBusqueda(
     result: scoreById.get(c.candidate.id)!,
   }));
 
-  if (scoreados.length > 0) {
+  // Solo se cachean scores REALES: un score degradado (heurístico) se vuelve a intentar la
+  // próxima vez en vez de servirse como si fuera un análisis de IA.
+  const aCachear = scoreados.filter(({ result }) => !result.degraded);
+  if (aCachear.length > 0) {
     await cache.save(
       job.id,
       job.updatedAt,
-      scoreados.map(({ candidato, result }) => ({
+      aCachear.map(({ candidato, result }) => ({
         candidateId: candidato.id,
         candidateUpdatedAt: candidato.updatedAt,
         score: result.score,
@@ -167,6 +173,7 @@ export async function matchearPoolConBusqueda(
       strengths: entry.strengths,
       redFlags: entry.redFlags,
       cached: true,
+      degraded: false,
     })),
     ...scoreados.map(({ candidato, result }) => ({
       candidateId: candidato.id,
@@ -179,6 +186,7 @@ export async function matchearPoolConBusqueda(
       strengths: result.strengths,
       redFlags: result.redFlags,
       cached: false,
+      degraded: result.degraded ?? false,
     })),
   ];
 

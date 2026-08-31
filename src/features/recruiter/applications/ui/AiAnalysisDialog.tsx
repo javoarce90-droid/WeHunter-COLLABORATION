@@ -11,6 +11,8 @@ import {
   RECOMMENDATION_LABELS,
   RECOMMENDATION_DOT,
   RECOMMENDATION_TEXT,
+  DEGRADED_HINT,
+  INSUFICIENTE_HINT,
 } from "./MatchCell";
 import type { ScoreBreakdown } from "@/lib/ai/provider";
 
@@ -24,6 +26,11 @@ export type AiAnalysisSubject = {
   breakdown: ScoreBreakdown | null;
   strengths: string[];
   redFlags: string[];
+  /** % de completitud del perfil — un match bajo con perfil casi vacío se muestra como "Datos
+   *  insuficientes" en vez de "Descartar". Ausente para candidatos externos (sourcing). */
+  completeness?: number | null;
+  /** true si el score lo produjo el heurístico local y no la IA real. */
+  degraded?: boolean;
 };
 
 type Props = {
@@ -116,9 +123,9 @@ export function AiAnalysisDialog({ subject, onClose }: Props) {
 
   if (!subject) return null;
 
-  const { score, summary: aiSummary, redFlags: aiRedFlags, breakdown: aiBreakdown, strengths: aiStrengths, name, headline } = subject;
+  const { score, summary: aiSummary, redFlags: aiRedFlags, breakdown: aiBreakdown, strengths: aiStrengths, name, headline, completeness, degraded } = subject;
   const confidence = matchConfidence(score);
-  const recommendation = matchRecommendation(score);
+  const recommendation = matchRecommendation(score, { completeness, degraded });
 
   return (
     <Dialog
@@ -164,6 +171,11 @@ export function AiAnalysisDialog({ subject, onClose }: Props) {
               {RECOMMENDATION_LABELS[recommendation]}
             </span>
           </div>
+          {(degraded || recommendation === "insuficiente") && (
+            <p className="mt-2 text-[11px] leading-relaxed text-white/50">
+              {degraded ? DEGRADED_HINT : INSUFICIENTE_HINT}
+            </p>
+          )}
 
           <div className="mt-4 flex gap-1 rounded-lg bg-white/10 p-1">
             <button

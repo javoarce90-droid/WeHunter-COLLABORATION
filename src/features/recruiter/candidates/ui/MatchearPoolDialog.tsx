@@ -33,6 +33,7 @@ type MatchResult = {
   strengths: string[];
   redFlags: string[];
   cached: boolean;
+  degraded: boolean;
 };
 
 /**
@@ -139,6 +140,8 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
         breakdown: detail.breakdown,
         strengths: detail.strengths,
         redFlags: detail.redFlags,
+        completeness: detail.completeness.percent,
+        degraded: detail.degraded,
       }
     : null;
 
@@ -241,6 +244,8 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
                       <MatchCell
                         score={r.score}
                         summary={r.summary}
+                        completeness={r.completeness.percent}
+                        degraded={r.degraded}
                         onOpenCopiloto={() => setDetail(r)}
                       />
                       <div className="flex items-center gap-3">
