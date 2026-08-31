@@ -98,6 +98,35 @@ Beneficios:
 - Día de cumpleaños libre y snacks y frutas en la oficina.
 - Impacto real: trabajo sobre producto propio, con participación en las decisiones y la evolución del producto.`;
 
+/**
+ * Ejemplo "gold" (few-shot) para `interviewReport`: notas de entrevista reales → informe bien
+ * armado. Fija el nivel de extracción (cada dato de las notas aparece en el informe) y de
+ * redacción (profesional, sin relleno, sin inventar). Basado en un informe real aportado por
+ * el cliente (2026-08-31), condensado a los campos que devuelve la IA hoy (ubicacion /
+ * remuneracionPretendida / disponibilidad / resumen / fortalezas / aspectosAValidar /
+ * recommendation / recommendationJustification).
+ */
+const INTERVIEW_REPORT_GOLD_EXAMPLE = `EJEMPLO (notas → informe). Seguí este nivel de detalle y de fidelidad al texto; NO copies el contenido.
+
+NOTAS DE ENTREVISTA:
+"""
+Alejandro Del Vecchio, dev fullstack. Vive en San Martín. Tecnicatura en Programación (UNSAM). Inglés avanzado.
+Dev .NET con paso por Accenture (2016-2021), Celerative (2020-2021) y CloudX (2021-2023). Fuerte en C#, .NET, SQL Server, MVC, ASP, Web Forms, JS, JQuery, Azure DevOps. Siempre trabajó en Scrum, en equipos con devs, líder y QA. En CloudX hizo migración de apps y features nuevas; salió por fin de proyecto.
+Desde enero 2023 sin trabajar: hizo cursos de React y Node.js. Está en búsqueda activa pero sin procesos avanzados. Quiere seguir en .NET y sumar React.
+Última remu USD 3.500. Pretensión conversable, con ganas de avanzar con la oportunidad. Disponibilidad de ingreso inmediata. Para entrevistas: lunes a viernes antes de las 14 h.
+Fortalezas que menciona: flexibilidad, orientación a resultados, capacidad analítica. Oportunidad de mejora: pedir ayuda a tiempo.
+"""
+
+INFORME:
+- ubicacion: "San Martín, Provincia de Buenos Aires"
+- remuneracionPretendida: "Conversable; manifestó interés en avanzar con la oportunidad. Última remuneración informada: USD 3.500."
+- disponibilidad: "Ingreso inmediato. Disponibilidad para entrevistas: lunes a viernes antes de las 14 h."
+- resumen: "Desarrollador .NET con trayectoria en Accenture, Celerative y CloudX, concentrada en desarrollo de nuevas funcionalidades, mantenimiento y migración de aplicaciones con C#, .NET y SQL Server. Trabajó siempre bajo Scrum, en equipos con desarrolladores, liderazgo y QA. Desde enero de 2023 no registra experiencia laboral; durante ese período realizó cursos de React y Node.js. Se encuentra en búsqueda activa, sin procesos avanzados, con interés en continuar como desarrollador .NET y ampliar su stack hacia React."
+- fortalezas: ["Experiencia previa y sostenida en el ecosistema .NET/C#", "Experiencia con SQL Server y con desarrollo, mantenimiento y migración de aplicaciones", "Trabajo previo bajo Scrum en equipos técnicos multidisciplinarios", "Interés activo en ampliar su stack hacia React", "Menciona flexibilidad, orientación a resultados y capacidad analítica como fortalezas propias"]
+- aspectosAValidar: ["Nivel técnico actual en C#/.NET tras el período sin experiencia laboral registrada desde enero de 2023", "Profundidad práctica de los conocimientos en React y Node.js adquiridos mediante cursos", "Ajuste del perfil al seniority y a los requerimientos técnicos específicos de la vacante Fullstack"]
+- recommendation: "continuar_evaluando"
+- recommendationJustification: "El perfil presenta experiencia relevante y sostenida en el ecosistema .NET (C#, SQL Server, metodologías ágiles), por lo que se recomienda continuar el proceso. Antes de definir la adecuación final a la vacante conviene una instancia técnica que valide el nivel actual de sus conocimientos y el alcance práctico de React, así como su ajuste al seniority requerido."`;
+
 /** Instrucción de sistema compartida por `scoreApplication` (1 candidato) y
  *  `scoreApplicationsBatch` (N candidatos de una) — el criterio de evaluación es el mismo. */
 const SCORE_SYSTEM =
@@ -439,7 +468,8 @@ export const prompts = {
         "- NUNCA agregues frases de relleno para que una sección se vea más completa o " +
         "'profesional'. Si una sección tiene poca sustancia real, que quede corta. Un informe " +
         "breve y fiel es mejor que uno largo y genérico.\n" +
-        "- El recruiter revisa esto y se lo manda al cliente/hiring manager: escribí a ese nivel.",
+        "- El recruiter revisa esto y se lo manda al cliente/hiring manager: escribí a ese nivel.\n\n" +
+        INTERVIEW_REPORT_GOLD_EXAMPLE,
       user:
         `Entrevista de ${candidateName} para el puesto de ${jobTitle}, realizada el ` +
         `${interviewDate}, entrevistador/a: ${interviewerName}.\n\n` +
