@@ -5,10 +5,13 @@ import {
   createPartFromBase64,
   createPartFromText,
   type Part,
+  type GenerateContentParameters,
+  type GenerateContentResponse,
 } from "@google/genai";
 
 import { MockAiProvider } from "./mock";
 import { prompts } from "./prompts";
+import { AiUnavailableError } from "./errors";
 import type {
   AiProvider,
   ScoreApplicationInput,
@@ -44,48 +47,157 @@ const MODALITIES = new Set(Object.keys(MODALITY_LABELS));
  * GEMINI_API_KEY.
  *
  * Responsabilidad de este archivo = TRANSPORTE: hablar con el SDK, pedir JSON estructurado,
- * parsear y caer al mock si falla. El "qué se le pide" al modelo (prompts) vive en `prompts.ts`,
- * agnóstico al proveedor.
+ * parsear, y aplicar la política de degradación. El "qué se le pide" al modelo (prompts) vive
+ * en `prompts.ts`, agnóstico al proveedor.
  *
- * Resiliencia: cada operación cae al MockAiProvider si la API falla. El dominio puntúa en loop sin
- * atrapar errores (ver puntuar-postulaciones.ts), por lo que un error de red NO debe tumbar el
- * flujo del usuario. El mock garantiza una respuesta determinística y útil siempre.
+ * Política de degradación (ver errors.ts) — en orden, por llamada:
+ *   1. modelo principal, con reintentos ante errores transitorios (`withRetry`);
+ *   2. modelo de degradación (más rápido/barato), mismo trato;
+ *   3. según la operación:
+ *      - lote / prosa de bajo riesgo (scoreApplication, draftOffer, interviewGuide…):
+ *        heurístico local del MockAiProvider. `scoreApplication` marca `degraded` para que la
+ *        UI no lo confunda con un análisis real; el loop de scoring NO se puede tumbar.
+ *      - un solo tiro de alto valor (draftJobOffer, interviewReport): AiUnavailableError →
+ *        la action devuelve "reintentá en unos minutos". Un resultado de plantilla que el
+ *        usuario cree que hizo la IA es peor que un error honesto.
+ * Cada llamada emite una línea `ai_call` de telemetría (`recordAiCall`).
  */
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+/**
+ * Modelo principal (rápido, para que ninguna operación con IA sea una espera larga) y modelo de
+ * degradación (se prueba solo si el principal falla — errores/429 —, no por lentitud). Ambos
+ * configurables por env.
+ *
+ * Se usan los alias flotantes `*-latest` a propósito: Google deja de servir las versiones
+ * pinneadas viejas a las cuentas nuevas (ej. `gemini-2.5-pro`/`-flash` ya devuelven 404), y un
+ * ATS en producción no puede romperse cada vez que sale un modelo nuevo. Si querés fijar una
+ * versión puntual (determinismo para evals), seteá GEMINI_MODEL_PRIMARY / GEMINI_MODEL_FALLBACK.
+ *
+ * Por operación: Pro (más capaz pero ~10× más lento) NO se usa por defecto en ninguna — todas
+ * hoy bloquean un spinner o una función serverless. Para promover una operación puntual a Pro
+ * (candidata: `interviewReport`) sin tocar código, seteá GEMINI_MODEL_OVERRIDES (ver más abajo).
+ */
+export const DEFAULT_PRIMARY_MODEL = "gemini-flash-latest";
+export const DEFAULT_FALLBACK_MODEL = "gemini-pro-latest";
+
+/**
+ * Cascada de modelos por operación, vía env `GEMINI_MODEL_OVERRIDES` (JSON). Clave = nombre de
+ * método de `AiProvider`; valor = un modelo o una cascada separada por coma. Ej:
+ *   GEMINI_MODEL_OVERRIDES={"interviewReport":"gemini-pro-latest,gemini-flash-latest"}
+ */
+export function parseModelOverrides(
+  raw: string | undefined,
+): Record<string, string[]> {
+  if (!raw?.trim()) return {};
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(obj).map(([op, v]) => [
+        op,
+        String(v)
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ]),
+    );
+  } catch {
+    console.warn("[ai] GEMINI_MODEL_OVERRIDES no es JSON válido — se ignora");
+    return {};
+  }
+}
 
 export class GeminiAiProvider implements AiProvider {
   private readonly client: GoogleGenAI;
-  private readonly model: string;
+  /** Cascada de modelos por defecto: [principal, degradación]. Se prueban en orden. */
+  private readonly models: string[];
+  /** Cascada distinta para operaciones puntuales (clave = nombre de método). */
+  private readonly overridesByOp: Record<string, string[]>;
   private readonly fallback = new MockAiProvider();
 
-  constructor(apiKey: string, model: string = DEFAULT_MODEL) {
+  constructor(
+    apiKey: string,
+    models: string | string[] = [DEFAULT_PRIMARY_MODEL, DEFAULT_FALLBACK_MODEL],
+    overridesByOp: Record<string, string[]> = {},
+  ) {
     this.client = new GoogleGenAI({ apiKey });
-    this.model = model;
+    const list = (Array.isArray(models) ? models : [models])
+      .map((m) => m.trim())
+      .filter(Boolean);
+    this.models = [...new Set(list.length > 0 ? list : [DEFAULT_PRIMARY_MODEL])];
+    this.overridesByOp = overridesByOp;
   }
 
-  /** Texto plano: systemInstruction fija rol/tono, el modelo devuelve solo el cuerpo. */
-  private async generateText(prompt: {
-    system: string;
-    user: string;
-  }): Promise<string> {
-    const res = await this.client.models.generateContent({
-      model: this.model,
+  /**
+   * Una llamada a Gemini con cascada de modelos + reintentos + telemetría. Prueba el modelo
+   * principal (con backoff ante errores transitorios); si se agota, prueba el siguiente de
+   * `this.models` (degradación de modelo, todavía IA real). Si todos fallan, propaga el último
+   * error — el método llamador decide si degrada al heurístico local o corta con
+   * AiUnavailableError. Devuelve también qué modelo respondió y cuántos intentos costó.
+   */
+  private async generate(
+    op: string,
+    params: Omit<GenerateContentParameters, "model">,
+  ): Promise<{ res: GenerateContentResponse; attempts: number; model: string }> {
+    const chain = this.overridesByOp[op]?.length
+      ? this.overridesByOp[op]
+      : this.models;
+    let lastErr: unknown;
+    for (const model of chain) {
+      try {
+        const { value, attempts } = await withRetry(() =>
+          this.client.models.generateContent({ ...params, model }),
+        );
+        return { res: value, attempts, model };
+      } catch (err) {
+        lastErr = err;
+        // Se prueba el siguiente modelo ante CUALQUIER error: un 429 de cuota del Pro puede no
+        // aplicar al Flash, y un fallo de contenido puede resolverse distinto en otro modelo.
+      }
+    }
+    throw lastErr;
+  }
+
+  /** Texto plano: systemInstruction fija rol/tono, el modelo devuelve solo el cuerpo.
+   *  Reintenta ante errores transitorios; el llamador (cada método) decide qué hacer si falla. */
+  private async generateText(
+    op: string,
+    prompt: { system: string; user: string },
+  ): Promise<{ text: string; attempts: number; model: string }> {
+    const { res, attempts, model } = await this.generate(op, {
       contents: prompt.user,
       config: { systemInstruction: prompt.system, temperature: 0.7 },
     });
     const text = res.text?.trim();
     if (!text) throw new Error("Gemini devolvió una respuesta vacía");
-    return text;
+    return { text, attempts, model };
+  }
+
+  /** Envoltura común de las operaciones de prosa de bajo riesgo (oferta, aviso, insights):
+   *  reintenta, mide, y si igual falla degrada al mock EN SILENCIO — el costo de fricción de
+   *  pedirle al usuario que reintente no se justifica para estos textos. */
+  private async textOrFallback(
+    op: string,
+    prompt: { system: string; user: string },
+    fallback: () => Promise<string>,
+  ): Promise<string> {
+    const t0 = Date.now();
+    try {
+      const { text, attempts, model } = await this.generateText(op, prompt);
+      recordAiCall(op, "ok", { ms: Date.now() - t0, attempts, model });
+      return text;
+    } catch (err) {
+      recordAiCall(op, "degraded", { ms: Date.now() - t0, attempts: this.models.length, err });
+      return fallback();
+    }
   }
 
   async scoreApplication(
     input: ScoreApplicationInput,
   ): Promise<ScoreApplicationResult> {
     const prompt = prompts.scoreApplication(input);
+    const t0 = Date.now();
     try {
-      const res = await this.client.models.generateContent({
-        model: this.model,
+      const { res, attempts, model } = await this.generate("scoreApplication", {
         contents: prompt.user,
         config: {
           systemInstruction: prompt.system,
@@ -164,6 +276,7 @@ export class GeminiAiProvider implements AiProvider {
         throw new Error("Gemini devolvió un score con forma inesperada");
       }
 
+      recordAiCall("scoreApplication", "ok", { ms: Date.now() - t0, attempts, model });
       return {
         score,
         summary: parsed.summary,
@@ -180,40 +293,44 @@ export class GeminiAiProvider implements AiProvider {
         strengths: Array.isArray(parsed.strengths)
           ? parsed.strengths.filter((f) => typeof f === "string")
           : [],
+        degraded: false,
       };
     } catch (err) {
-      logFallback("scoreApplication", err);
+      // Loop de scoring (N postulados): NO se corta el flujo — se degrada al heurístico local,
+      // pero el resultado queda marcado `degraded` (ver mock) para que la UI no lo confunda con
+      // un análisis real de la IA.
+      recordAiCall("scoreApplication", "degraded", {
+        ms: Date.now() - t0,
+        attempts: this.models.length,
+        err,
+      });
       return this.fallback.scoreApplication(input);
     }
   }
 
   async draftOffer(input: DraftOfferInput): Promise<string> {
-    try {
-      return await this.generateText(prompts.draftOffer(input));
-    } catch (err) {
-      logFallback("draftOffer", err);
-      return this.fallback.draftOffer(input);
-    }
+    return this.textOrFallback("draftOffer", prompts.draftOffer(input), () =>
+      this.fallback.draftOffer(input),
+    );
   }
 
   async draftJobPosting(input: DraftJobPostingInput): Promise<string> {
-    try {
-      return await this.generateText(prompts.draftJobPosting(input));
-    } catch (err) {
-      logFallback("draftJobPosting", err);
-      return this.fallback.draftJobPosting(input);
-    }
+    return this.textOrFallback(
+      "draftJobPosting",
+      prompts.draftJobPosting(input),
+      () => this.fallback.draftJobPosting(input),
+    );
   }
 
   async draftJobOffer(input: DraftJobOfferInput): Promise<DraftJobOffer> {
     const prompt = prompts.draftJobOffer(input);
+    const t0 = Date.now();
     try {
-      const res = await this.client.models.generateContent({
-        model: this.model,
+      const { res, attempts, model } = await this.generate("draftJobOffer", {
         contents: prompt.user,
         config: {
           systemInstruction: prompt.system,
-          temperature: 0.6,
+          temperature: 0.7,
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -274,6 +391,7 @@ export class GeminiAiProvider implements AiProvider {
       if (typeof parsed.position !== "string" || !parsed.position.trim()) {
         throw new Error("Gemini devolvió un borrador con forma inesperada");
       }
+      recordAiCall("draftJobOffer", "ok", { ms: Date.now() - t0, attempts, model });
 
       const benefits = Array.isArray(parsed.benefits)
         ? parsed.benefits
@@ -309,8 +427,15 @@ export class GeminiAiProvider implements AiProvider {
           : [],
       };
     } catch (err) {
-      logFallback("draftJobOffer", err);
-      return this.fallback.draftJobOffer(input);
+      // Operación interactiva de un solo tiro: NO se degrada al mock. Un borrador de plantilla
+      // que el recruiter cree que enriqueció la IA (skills = palabras sueltas del brief,
+      // requisitos genéricos) es exactamente el bug reportado. Mejor un error claro y reintento.
+      recordAiCall("draftJobOffer", "unavailable", {
+        ms: Date.now() - t0,
+        attempts: this.models.length,
+        err,
+      });
+      throw new AiUnavailableError(isQuotaError(err) ? "quota" : "error", err);
     }
   }
 
@@ -318,9 +443,9 @@ export class GeminiAiProvider implements AiProvider {
     input: DraftScreeningQuestionsInput,
   ): Promise<DraftScreeningQuestion[]> {
     const prompt = prompts.draftScreeningQuestions(input);
+    const t0 = Date.now();
     try {
-      const res = await this.client.models.generateContent({
-        model: this.model,
+      const { res, attempts, model } = await this.generate("draftScreeningQuestions", {
         contents: prompt.user,
         config: {
           systemInstruction: prompt.system,
@@ -356,6 +481,7 @@ export class GeminiAiProvider implements AiProvider {
       const parsed = JSON.parse(raw) as unknown;
       if (!Array.isArray(parsed))
         throw new Error("Gemini devolvió una forma inesperada");
+      recordAiCall("draftScreeningQuestions", "ok", { ms: Date.now() - t0, attempts, model });
 
       const VALID_TYPES = new Set([
         "yes_no",
@@ -386,7 +512,12 @@ export class GeminiAiProvider implements AiProvider {
         }))
         .filter((q) => q.label.length > 0);
     } catch (err) {
-      logFallback("draftScreeningQuestions", err);
+      // Sugerencias de bajo riesgo: el mock devuelve preguntas razonables. Degradación silenciosa.
+      recordAiCall("draftScreeningQuestions", "degraded", {
+        ms: Date.now() - t0,
+        attempts: this.models.length,
+        err,
+      });
       return this.fallback.draftScreeningQuestions(input);
     }
   }
@@ -401,8 +532,7 @@ export class GeminiAiProvider implements AiProvider {
   ): Promise<{ text: string | null; status: "ok" | "low_signal" | "failed" }> {
     try {
       const prompt = prompts.fetchLinkedinProfile(linkedinUrl);
-      const res = await this.client.models.generateContent({
-        model: this.model,
+      const { res } = await this.generate("fetchLinkedinProfile", {
         contents: createUserContent([prompt.user]),
         config: {
           systemInstruction: prompt.system,
@@ -420,7 +550,7 @@ export class GeminiAiProvider implements AiProvider {
       }
       return { text, status: text.length >= 80 ? "ok" : "low_signal" };
     } catch (err) {
-      logFallback("fetchLinkedinProfile", err);
+      recordAiCall("fetchLinkedinProfile", "degraded", { ms: 0, attempts: 1, err });
       return { text: null, status: "failed" };
     }
   }
@@ -449,8 +579,8 @@ export class GeminiAiProvider implements AiProvider {
         );
       parts.push(createPartFromText(prompt.user));
 
-      const res = await this.client.models.generateContent({
-        model: this.model,
+      const t0 = Date.now();
+      const { res, attempts, model } = await this.generate("draftCandidateProfile", {
         contents: createUserContent(parts),
         config: {
           systemInstruction: prompt.system,
@@ -531,6 +661,7 @@ export class GeminiAiProvider implements AiProvider {
       if (typeof parsed.headline !== "string" || !parsed.headline.trim()) {
         throw new Error("Gemini devolvió un perfil con forma inesperada");
       }
+      recordAiCall("draftCandidateProfile", "ok", { ms: Date.now() - t0, attempts, model });
 
       return {
         fullName: str(parsed.fullName),
@@ -552,7 +683,11 @@ export class GeminiAiProvider implements AiProvider {
           : {}),
       };
     } catch (err) {
-      logFallback("draftCandidateProfile", err);
+      recordAiCall("draftCandidateProfile", "degraded", {
+        ms: 0,
+        attempts: this.models.length,
+        err,
+      });
       // A diferencia de otros fallbacks (que devuelven prosa genérica sin gran diferencia visible
       // para el usuario), acá el mock es un placeholder casi vacío — sin esta marca, un fallo real
       // de Gemini es indistinguible de "el candidato eligió completar todo a mano" (bug reportado).
@@ -567,9 +702,9 @@ export class GeminiAiProvider implements AiProvider {
 
   async interviewGuide(input: InterviewGuideInput): Promise<string[]> {
     const prompt = prompts.interviewGuide(input);
+    const t0 = Date.now();
     try {
-      const res = await this.client.models.generateContent({
-        model: this.model,
+      const { res, attempts, model } = await this.generate("interviewGuide", {
         contents: prompt.user,
         config: {
           systemInstruction: prompt.system,
@@ -593,27 +728,31 @@ export class GeminiAiProvider implements AiProvider {
         : [];
       if (questions.length === 0)
         throw new Error("Gemini no devolvió preguntas");
+      recordAiCall("interviewGuide", "ok", { ms: Date.now() - t0, attempts, model });
       return questions;
     } catch (err) {
-      logFallback("interviewGuide", err);
+      recordAiCall("interviewGuide", "degraded", {
+        ms: Date.now() - t0,
+        attempts: this.models.length,
+        err,
+      });
       return this.fallback.interviewGuide(input);
     }
   }
 
   async reportInsights(input: ReportInsightsInput): Promise<string> {
-    try {
-      return await this.generateText(prompts.reportInsights(input));
-    } catch (err) {
-      logFallback("reportInsights", err);
-      return this.fallback.reportInsights(input);
-    }
+    return this.textOrFallback(
+      "reportInsights",
+      prompts.reportInsights(input),
+      () => this.fallback.reportInsights(input),
+    );
   }
 
   async interviewReport(input: InterviewReportInput): Promise<InterviewReportResult> {
     const prompt = prompts.interviewReport(input);
+    const t0 = Date.now();
     try {
-      const res = await this.client.models.generateContent({
-        model: this.model,
+      const { res, attempts, model } = await this.generate("interviewReport", {
         contents: prompt.user,
         config: {
           systemInstruction: prompt.system,
@@ -680,6 +819,7 @@ export class GeminiAiProvider implements AiProvider {
       ) {
         throw new Error("Gemini devolvió un informe con forma inesperada");
       }
+      recordAiCall("interviewReport", "ok", { ms: Date.now() - t0, attempts, model });
 
       const RECOMMENDATIONS = new Set<InterviewReportRecommendation>([
         "avanzar",
@@ -701,18 +841,80 @@ export class GeminiAiProvider implements AiProvider {
         recommendationJustification: parsed.recommendationJustification,
       };
     } catch (err) {
-      logFallback("interviewReport", err);
-      return this.fallback.interviewReport(input);
+      // El informe se persiste y el recruiter lo edita para mandárselo al cliente: un informe
+      // de plantilla (todo "No informado", frases genéricas) es peor que pedir un reintento.
+      recordAiCall("interviewReport", "unavailable", {
+        ms: Date.now() - t0,
+        attempts: this.models.length,
+        err,
+      });
+      throw new AiUnavailableError(isQuotaError(err) ? "quota" : "error", err);
     }
   }
 }
 
-function logFallback(op: string, err: unknown) {
-  // No rompemos el flujo: registramos y caemos al mock. En dev esto ayuda a detectar el problema.
-  console.warn(
-    `[ai/gemini] ${op} falló, usando fallback mock:`,
-    err instanceof Error ? err.message : err,
-  );
+/** Resultado observable de una operación de IA. `ok` = el modelo real respondió (con o sin
+ *  reintentos); `degraded` = falló y se sirvió el heurístico local; `unavailable` = falló y se
+ *  cortó con AiUnavailableError. Se emite una línea por llamada para poder responder "¿la IA
+ *  está funcionando?" sin adivinar (hoy no hay forma). */
+type AiCallOutcome = "ok" | "degraded" | "unavailable";
+
+function recordAiCall(
+  op: string,
+  outcome: AiCallOutcome,
+  meta: { ms: number; attempts: number; model?: string; err?: unknown },
+) {
+  const line = {
+    tag: "ai_call",
+    op,
+    outcome,
+    ms: Math.round(meta.ms),
+    attempts: meta.attempts,
+    ...(meta.model ? { model: meta.model } : {}),
+    ...(meta.err
+      ? { error: meta.err instanceof Error ? meta.err.message : String(meta.err) }
+      : {}),
+  };
+  // JSON en una línea → grep-eable en los logs de Vercel (ej. `outcome!="ok"` para ver degradación).
+  if (outcome === "ok") console.log(JSON.stringify(line));
+  else console.warn(JSON.stringify(line));
+}
+
+const RETRY_BACKOFF_MS = [800, 2500];
+/** Intentos totales = primer intento + un reintento por cada backoff. */
+const MAX_ATTEMPTS = RETRY_BACKOFF_MS.length + 1;
+
+/**
+ * Reintenta una llamada a Gemini ante errores transitorios (429 rate-limit, 503, red) con
+ * backoff. Los 429 por cuota DIARIA no se recuperan en segundos — igual se reintenta una vez
+ * por si es rate-limit por minuto — pero si persiste, el llamador decide (degradar o cortar).
+ * Devuelve el valor y cuántos intentos costó; propaga el último error si se agotan.
+ */
+async function withRetry<T>(
+  run: () => Promise<T>,
+): Promise<{ value: T; attempts: number }> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return { value: await run(), attempts: attempt };
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryableError(err) || attempt === MAX_ATTEMPTS) break;
+      await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS[attempt - 1]));
+    }
+  }
+  throw lastErr;
+}
+
+function isRetryableError(err: unknown): boolean {
+  if (isQuotaError(err)) return true;
+  const status =
+    err && typeof err === "object" && "status" in err
+      ? (err as { status?: number }).status
+      : undefined;
+  if (status === 503 || status === 500 || status === 429) return true;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /\b(503|500|ECONNRESET|ETIMEDOUT|fetch failed|network)\b/i.test(msg);
 }
 
 /** 429 de la API de Gemini (rate limit o cuota diaria del free tier). El mensaje del SDK trae

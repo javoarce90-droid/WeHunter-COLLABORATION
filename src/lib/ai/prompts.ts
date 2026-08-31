@@ -59,6 +59,45 @@ const listEducation = (xs: ScoreApplicationInput["candidate"]["education"]) =>
         .join("\n")
     : "  (sin educación cargada)";
 
+/**
+ * Ejemplo "gold" (few-shot) para `draftJobOffer`: un aviso real y bien escrito que fija el
+ * listón de calidad. El modelo generaliza desde acá — un mal ejemplo envenena TODAS las
+ * generaciones, así que el detalle acá importa.
+ *
+ * Basado en un aviso real de Analista Funcional Sr aportado por el cliente (2026-08-31),
+ * condensado al formato de salida (position / jobArea / objectives / requirements /
+ * responsibilities / skills / benefits). Un solo ejemplo alcanza: es un puesto no puramente
+ * técnico y con secciones ricas, buen molde para que el modelo NO sobreajuste a roles de dev.
+ */
+const JOB_OFFER_GOLD_EXAMPLE = `Puesto: Analista Funcional Senior · Área: tecnologia
+
+Objetivos:
+- Ser el nexo entre negocio, desarrollo y QA, traduciendo necesidades en definiciones claras y accionables.
+- Asegurar la calidad de la entrega acompañando cada historia de usuario de punta a punta, de la definición a la aprobación funcional.
+- Aportar valor desde el análisis: cuestionar, proponer y mejorar la calidad de las soluciones, no solo documentar.
+
+Requisitos:
+- 3 a 5 años de experiencia comprobable como Analista Funcional Senior.
+- Experiencia real redactando historias de usuario completas (contexto funcional, reglas de negocio, impacto en el modelo de datos, criterios de aceptación testeables).
+- SQL sólido: queries con múltiples joins, inserts/updates y análisis de datos; capacidad de entender e impactar en el modelo de datos.
+- Formación en Sistemas (Ingeniería, Licenciatura o Analista).
+- Deseable: experiencia en turismo, C#, ASP.NET, React y metodologías ágiles (Scrum/Kanban) con Jira o Azure DevOps.
+
+Responsabilidades:
+- Adquirir rápidamente conocimiento del negocio, los procesos y los sistemas existentes.
+- Relevar y analizar necesidades de clientes internos y externos, y definir si requieren solución operativa o desarrollo evolutivo.
+- Redactar historias de usuario de punta a punta, con reglas de negocio, detalle técnico (modelo de datos, queries si aplica), mockups y criterios de aceptación claros.
+- Dar seguimiento a cada historia durante todo su ciclo de vida y validar funcionalmente los desarrollos, otorgando la aprobación final.
+- Trabajar con desarrollo y QA para asegurar la correcta implementación y detectar oportunidades de mejora en procesos y entregables.
+
+Skills: SQL, Modelado de datos, Historias de usuario, Criterios de aceptación, Análisis funcional, Scrum, Kanban, Jira, Azure DevOps, C#
+
+Beneficios:
+- Prepaga de primer nivel: cobertura médica premium para vos y tu grupo familiar.
+- Modalidad híbrida: presencial una vez cada 15 días, el resto remoto.
+- Día de cumpleaños libre y snacks y frutas en la oficina.
+- Impacto real: trabajo sobre producto propio, con participación en las decisiones y la evolución del producto.`;
+
 export const prompts = {
   scoreApplication({ candidate, job }: ScoreApplicationInput): Prompt {
     // El rol canónico es `position`; `title` es el headline. Priorizamos el puesto real.
@@ -144,22 +183,40 @@ export const prompts = {
     return {
       system:
         "Sos un especialista en employer branding y redacción de avisos de empleo en español " +
-        "rioplatense. A partir de unos pocos datos, completás una oferta de trabajo estructurada, " +
-        "atractiva y realista. Devolvés SOLO un objeto JSON con los campos pedidos. Los textos " +
-        "(objectives, requirements, responsibilities) van en Markdown con viñetas, SIN un título " +
-        "u encabezado propio al inicio (nada de '## Objetivos del puesto' ni similar): la interfaz " +
-        "ya muestra el título de cada sección, empezá directo con el contenido. No inventes " +
-        "datos sensibles ni discriminatorios (nada de edad, género ni nivel educativo obligatorio).",
+        "rioplatense. Tu trabajo es INTERPRETAR y ENRIQUECER: a partir del título del puesto y " +
+        "unas pocas notas, proponés las skills, requisitos, responsabilidades y objetivos " +
+        "TÍPICOS de ese rol y ese seniority, aunque el reclutador no los haya escrito — él después " +
+        "edita. Un aviso de plantilla genérica ('ejecutar las tareas del rol', 'buena " +
+        "comunicación') es un fracaso: apuntá al nivel de detalle de un aviso real y bien escrito " +
+        "de ese puesto.\n\n" +
+        "Reglas duras:\n" +
+        "- `skills`: SOLO tecnologías, herramientas y competencias profesionales reales y " +
+        "concretas del puesto (ej. para un Data Engineer: 'Python', 'SQL', 'Airflow', 'Spark', " +
+        "'dbt', 'AWS'). NUNCA uses palabras sueltas del título o del brief como skills ('data', " +
+        "'engineer', 'buscamos', 'para', 'diseñar' NO son skills). Si el rol no es técnico, poné " +
+        "competencias reales del rubro, no verbos genéricos.\n" +
+        "- Devolvés SOLO un objeto JSON con los campos pedidos.\n" +
+        "- objectives, requirements y responsibilities: Markdown con viñetas, SIN encabezado " +
+        "propio al inicio (nada de '## Objetivos'): la interfaz ya muestra el título de cada " +
+        "sección.\n" +
+        "- No inventes datos sensibles ni discriminatorios (nada de edad, género ni nivel " +
+        "educativo obligatorio salvo que el brief lo pida)." +
+        (JOB_OFFER_GOLD_EXAMPLE.trim()
+          ? "\n\nEjemplo del nivel de calidad esperado (adaptá el rubro y el detalle al puesto " +
+            "pedido, no lo copies):\n" +
+            JOB_OFFER_GOLD_EXAMPLE
+          : ""),
       user:
         `Generá una oferta de trabajo a partir de:\n` +
         `- Nombre de la publicación: "${name}"\n` +
         (ctx ? `- Contexto: ${ctx}\n` : "") +
         `- Notas del reclutador: ${brief || "sin notas adicionales"}\n\n` +
-        `Devolvé: position (el puesto real a cubrir), jobArea (uno de: tecnologia, salud, ` +
+        `Inferí lo que el rol "${name}" implica típicamente y completá:\n` +
+        `position (el puesto real a cubrir), jobArea (uno de: tecnologia, salud, ` +
         `finanzas, ventas, marketing, rrhh, operaciones, legal, educacion, ingenieria, diseno, ` +
         `atencion_cliente, otro), objectives, requirements y responsibilities (Markdown con ` +
         `viñetas), benefits (lista de {name, description}), vacancies (entero ≥1) y skills ` +
-        `(lista de tecnologías/competencias clave para el matching).`,
+        `(lista de tecnologías/competencias clave reales para el matching).`,
     };
   },
 
@@ -330,8 +387,21 @@ export const prompts = {
     return {
       system:
         "Actuás como un asistente de RRHH que redacta informes de entrevista profesionales y " +
-        "estandarizados a partir de notas o una transcripción, en español rioplatense. Nunca " +
-        "inventás información ni emitís conclusiones sin evidencia en el texto que te dan.",
+        "estandarizados a partir de notas o una transcripción, en español rioplatense.\n\n" +
+        "Método, en este orden: (1) EXTRAER — recorré el texto y sacá cada dato que esté " +
+        "presente, aunque esté escrito informal, abreviado o con typos (ej. 'pretende 2500 " +
+        "USD' → remuneración pretendida: 'USD 2.500'; 'vive en La Plata' → ubicación: 'La " +
+        "Plata'; 'puede arrancar en 2 semanas' → disponibilidad: '2 semanas'). (2) ORGANIZAR " +
+        "— ubicá cada dato en su sección. (3) SINTETIZAR — redactá prosa profesional SOLO con " +
+        "lo extraído.\n\n" +
+        "Reglas duras:\n" +
+        "- Si el dato ESTÁ en las notas, tenés que capturarlo. 'No informado' es solo para lo " +
+        "que genuinamente no aparece.\n" +
+        "- NUNCA inventes información ni emitas conclusiones sin evidencia en el texto.\n" +
+        "- NUNCA agregues frases de relleno para que una sección se vea más completa o " +
+        "'profesional'. Si una sección tiene poca sustancia real, que quede corta. Un informe " +
+        "breve y fiel es mejor que uno largo y genérico.\n" +
+        "- El recruiter revisa esto y se lo manda al cliente/hiring manager: escribí a ese nivel.",
       user:
         `Entrevista de ${candidateName} para el puesto de ${jobTitle}, realizada el ` +
         `${interviewDate}, entrevistador/a: ${interviewerName}.\n\n` +

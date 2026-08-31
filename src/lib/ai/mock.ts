@@ -128,6 +128,9 @@ export class MockAiProvider implements AiProvider {
         ubicacion: clamp(ubicacion),
       },
       strengths: strengths.slice(0, 4),
+      // El mock nunca es un análisis real: sea porque no hay IA configurada, sea porque Gemini
+      // falló y `GeminiAiProvider` delegó acá. La UI usa esto para bajarle el peso visualmente.
+      degraded: true,
     };
   }
 

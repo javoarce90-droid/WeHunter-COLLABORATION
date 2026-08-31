@@ -66,6 +66,10 @@ export type ScoreApplicationResult = {
   breakdown: ScoreBreakdown;
   /** Puntos fuertes del candidato para este puesto (2–4 items). */
   strengths: string[];
+  /** true si este score NO lo produjo el modelo real: o no hay IA configurada, o Gemini falló
+   *  y se degradó al heurístico local. La UI lo muestra como "estimación sin IA" para que el
+   *  recruiter no le dé el mismo peso que a un análisis real. */
+  degraded?: boolean;
 };
 
 export type DraftOfferInput = {
