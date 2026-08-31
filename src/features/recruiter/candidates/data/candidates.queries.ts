@@ -596,11 +596,13 @@ export type PoolMatchCandidate = {
 
 /**
  * Candidatos del pool prefiltrados para matchear con IA contra una búsqueda (sourcing interno):
- * acota por overlap de skills con el job (operador `&&` de Postgres), excluye archivados y
- * excluye los ignorados para ESTA búsqueda (ver `pool_match_ignored`) — esto es lo que evita
- * correr la IA contra todo el pool y lo que hace que un candidato ignorado no reaparezca en las
- * siguientes tandas. Si el job matchea seniority, esos candidatos van primero; el desempate
- * final es recencia. Tope duro en `limit` (ver `POOL_MATCH_MAX_CANDIDATES` en sourcing/domain).
+ * acota por overlap de skills con el job (operador `&&` de Postgres), excluye archivados,
+ * excluye los ignorados para ESTA búsqueda (ver `pool_match_ignored`) y excluye a los que YA
+ * están postulados a ESTA búsqueda (ver `applications`) — no tiene sentido "descubrir" con IA a
+ * alguien que ya está en el pipeline. Esto es lo que evita correr la IA contra todo el pool y lo
+ * que hace que un candidato ignorado/postulado no reaparezca en las siguientes tandas. Si el job
+ * matchea seniority, esos candidatos van primero; el desempate final es recencia. Tope duro en
+ * `limit` (ver `POOL_MATCH_MAX_CANDIDATES` en sourcing/domain).
  */
 export async function listCandidatesForPoolMatch(
   organizationId: string,
@@ -615,6 +617,8 @@ export async function listCandidatesForPoolMatch(
     hasJobSkills ? arrayOverlaps(candidates.skills, job.skills!) : undefined,
     // RLS ya acota `pool_match_ignored` a la org, no hace falta filtrar por organization_id acá.
     sql`NOT EXISTS (SELECT 1 FROM pool_match_ignored pmi WHERE pmi.candidate_id = ${candidates.id} AND pmi.job_id = ${job.id})`,
+    // Ya postulado a esta búsqueda: está en el pipeline, no es un "descubrimiento". Ídem RLS.
+    sql`NOT EXISTS (SELECT 1 FROM applications a WHERE a.candidate_id = ${candidates.id} AND a.job_id = ${job.id})`,
   );
 
   const orderBy = job.seniority
