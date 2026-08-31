@@ -12,6 +12,7 @@ import {
   type CompletenessFilter,
 } from "@/features/recruiter/candidates/data/candidates.queries";
 import { listJobs } from "@/features/recruiter/jobs/data/jobs.queries";
+import { aceptaPostulaciones } from "@/features/recruiter/jobs/domain/cambiar-estado-busqueda";
 import { CandidatesList } from "@/features/recruiter/candidates/ui/CandidatesList";
 import { SparkleIcon } from "@/components/ui/ai";
 import {
@@ -181,7 +182,9 @@ async function CandidatesSection({
   return (
     <CandidatesList
       candidates={candidates}
-      jobs={jobs.map((j) => ({ id: j.id, title: j.title }))}
+      jobs={jobs
+        .filter((j) => aceptaPostulaciones(j.status))
+        .map((j) => ({ id: j.id, title: j.title }))}
       filter={filter}
       query={query}
       seniority={seniority}
