@@ -3,7 +3,6 @@
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { AiButton, SparkleIcon } from "@/components/ui/ai";
 import { CandidateForm } from "./CandidateForm";
@@ -71,7 +70,6 @@ export function AiUpdateCandidateFlow({
   resume: ExistingResume;
 }) {
   const [file, setFile] = useState<File | null>(null);
-  const [linkedinUrl, setLinkedinUrl] = useState(candidate.linkedinUrl ?? "");
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState("");
   const [state, setState] = useState<ActualizarConIaState>({});
@@ -107,7 +105,6 @@ export function AiUpdateCandidateFlow({
     setError("");
     const fd = new FormData();
     fd.set("cv", file);
-    if (linkedinUrl.trim()) fd.set("linkedinUrl", linkedinUrl.trim());
     startTransition(async () => {
       const res = await actualizarBorradorCandidatoConIaAction(candidate.id, {}, fd);
       setState(res);
@@ -261,16 +258,6 @@ export function AiUpdateCandidateFlow({
               <p className="mt-1 text-[11px] text-muted">PDF o .docx · hasta 5 MB</p>
             </div>
           </div>
-
-          <Input
-            label="URL de LinkedIn (opcional)"
-            type="text"
-            inputMode="url"
-            value={linkedinUrl}
-            onChange={(e) => setLinkedinUrl(e.target.value)}
-            placeholder="linkedin.com/in/…"
-            helperText="Suma contexto al CV. No reemplaza el CV — la IA necesita el archivo."
-          />
         </fieldset>
 
         {error && (

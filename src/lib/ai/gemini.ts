@@ -7,11 +7,13 @@ import {
   type Part,
   type GenerateContentParameters,
   type GenerateContentResponse,
+  type GenerateContentResponseUsageMetadata,
 } from "@google/genai";
 
 import { MockAiProvider } from "./mock";
 import { prompts } from "./prompts";
 import { AiUnavailableError } from "./errors";
+import { estimateAiCallCost } from "./pricing";
 import { reconcileBatchScores } from "./batch-reconcile";
 import type {
   AiProvider,
@@ -76,12 +78,13 @@ const MODALITIES = new Set(Object.keys(MODALITY_LABELS));
  * ATS en producción no puede romperse cada vez que sale un modelo nuevo. Si querés fijar una
  * versión puntual (determinismo para evals), seteá GEMINI_MODEL_PRIMARY / GEMINI_MODEL_FALLBACK.
  *
- * Por operación: Pro (más capaz pero ~10× más lento) NO se usa por defecto en ninguna — todas
- * hoy bloquean un spinner o una función serverless. Para promover una operación puntual a Pro
- * (candidata: `interviewReport`) sin tocar código, seteá GEMINI_MODEL_OVERRIDES (ver más abajo).
+ * La degradación es a un flash MÁS chico y barato, NO a Pro: todas las operaciones bloquean un
+ * spinner o una función serverless, así que un fallback ~10× más lento y ~4× más caro es peor
+ * que el problema que resuelve. Para promover una operación puntual a Pro (candidata:
+ * `interviewReport`) sin tocar este default, seteá GEMINI_MODEL_OVERRIDES (ver más abajo).
  */
 export const DEFAULT_PRIMARY_MODEL = "gemini-flash-latest";
-export const DEFAULT_FALLBACK_MODEL = "gemini-pro-latest";
+export const DEFAULT_FALLBACK_MODEL = "gemini-flash-lite-latest";
 
 /**
  * Cascada de modelos por operación, vía env `GEMINI_MODEL_OVERRIDES` (JSON). Clave = nombre de
@@ -136,25 +139,36 @@ export class GeminiAiProvider implements AiProvider {
    * `this.models` (degradación de modelo, todavía IA real). Si todos fallan, propaga el último
    * error — el método llamador decide si degrada al heurístico local o corta con
    * AiUnavailableError. Devuelve también qué modelo respondió y cuántos intentos costó.
+   *
+   * `timeoutMs` acota el PRESUPUESTO TOTAL (todos los modelos + reintentos): vencido, el
+   * próximo intento aborta al instante en vez de colgar la request hasta el límite de la
+   * función serverless. El SDK aclara que el abort es del lado cliente — se factura igual.
    */
   private async generate(
     op: string,
     params: Omit<GenerateContentParameters, "model">,
+    opts: { timeoutMs?: number } = {},
   ): Promise<{ res: GenerateContentResponse; attempts: number; model: string }> {
     const chain = this.overridesByOp[op]?.length
       ? this.overridesByOp[op]
       : this.models;
+    const signal = opts.timeoutMs ? AbortSignal.timeout(opts.timeoutMs) : undefined;
     let lastErr: unknown;
     for (const model of chain) {
       try {
         const { value, attempts } = await withRetry(() =>
-          this.client.models.generateContent({ ...params, model }),
+          this.client.models.generateContent({
+            ...params,
+            model,
+            config: { ...params.config, ...(signal ? { abortSignal: signal } : {}) },
+          }),
         );
         return { res: value, attempts, model };
       } catch (err) {
         lastErr = err;
-        // Se prueba el siguiente modelo ante CUALQUIER error: un 429 de cuota del Pro puede no
-        // aplicar al Flash, y un fallo de contenido puede resolverse distinto en otro modelo.
+        // Se prueba el siguiente modelo ante CUALQUIER error: un 429 de cuota de un modelo puede
+        // no aplicar al otro, y un fallo de contenido puede resolverse distinto. Un abort por
+        // `timeoutMs` NO se reintenta y hace fallar el próximo intento al instante.
       }
     }
     throw lastErr;
@@ -165,14 +179,19 @@ export class GeminiAiProvider implements AiProvider {
   private async generateText(
     op: string,
     prompt: { system: string; user: string },
-  ): Promise<{ text: string; attempts: number; model: string }> {
+  ): Promise<{
+    text: string;
+    attempts: number;
+    model: string;
+    usage?: GenerateContentResponseUsageMetadata;
+  }> {
     const { res, attempts, model } = await this.generate(op, {
       contents: prompt.user,
       config: { systemInstruction: prompt.system, temperature: 0.7 },
     });
     const text = res.text?.trim();
     if (!text) throw new Error("Gemini devolvió una respuesta vacía");
-    return { text, attempts, model };
+    return { text, attempts, model, usage: res.usageMetadata };
   }
 
   /** Envoltura común de las operaciones de prosa de bajo riesgo (oferta, aviso, insights):
@@ -185,8 +204,8 @@ export class GeminiAiProvider implements AiProvider {
   ): Promise<string> {
     const t0 = Date.now();
     try {
-      const { text, attempts, model } = await this.generateText(op, prompt);
-      recordAiCall(op, "ok", { ms: Date.now() - t0, attempts, model });
+      const { text, attempts, model, usage } = await this.generateText(op, prompt);
+      recordAiCall(op, "ok", { ms: Date.now() - t0, attempts, model, usage });
       return text;
     } catch (err) {
       recordAiCall(op, "degraded", { ms: Date.now() - t0, attempts: this.models.length, err });
@@ -219,7 +238,7 @@ export class GeminiAiProvider implements AiProvider {
       const result = normalizeScore(
         JSON.parse(raw) as Partial<ScoreApplicationResult>,
       );
-      recordAiCall("scoreApplication", "ok", { ms: Date.now() - t0, attempts, model });
+      recordAiCall("scoreApplication", "ok", { ms: Date.now() - t0, attempts, model, usage: res.usageMetadata });
       return result;
     } catch (err) {
       // Loop de scoring (N postulados): NO se corta el flujo — se degrada al heurístico local,
@@ -307,7 +326,7 @@ export class GeminiAiProvider implements AiProvider {
       recordAiCall(
         "scoreApplicationsBatch",
         fromModel.size === candidates.length ? "ok" : "degraded",
-        { ms: Date.now() - t0, attempts, model },
+        { ms: Date.now() - t0, attempts, model, usage: res.usageMetadata },
       );
       return reconciled;
     } catch (err) {
@@ -423,7 +442,7 @@ export class GeminiAiProvider implements AiProvider {
       if (typeof parsed.position !== "string" || !parsed.position.trim()) {
         throw new Error("Gemini devolvió un borrador con forma inesperada");
       }
-      recordAiCall("draftJobOffer", "ok", { ms: Date.now() - t0, attempts, model });
+      recordAiCall("draftJobOffer", "ok", { ms: Date.now() - t0, attempts, model, usage: res.usageMetadata });
 
       const benefits = Array.isArray(parsed.benefits)
         ? parsed.benefits
@@ -513,7 +532,7 @@ export class GeminiAiProvider implements AiProvider {
       const parsed = JSON.parse(raw) as unknown;
       if (!Array.isArray(parsed))
         throw new Error("Gemini devolvió una forma inesperada");
-      recordAiCall("draftScreeningQuestions", "ok", { ms: Date.now() - t0, attempts, model });
+      recordAiCall("draftScreeningQuestions", "ok", { ms: Date.now() - t0, attempts, model, usage: res.usageMetadata });
 
       const VALID_TYPES = new Set([
         "yes_no",
@@ -562,27 +581,44 @@ export class GeminiAiProvider implements AiProvider {
   private async fetchLinkedinProfile(
     linkedinUrl: string,
   ): Promise<{ text: string | null; status: "ok" | "low_signal" | "failed" }> {
+    const t0 = Date.now();
     try {
       const prompt = prompts.fetchLinkedinProfile(linkedinUrl);
-      const { res } = await this.generate("fetchLinkedinProfile", {
-        contents: createUserContent([prompt.user]),
-        config: {
-          systemInstruction: prompt.system,
-          temperature: 0.1,
-          tools: [{ urlContext: {} }],
+      // Best-effort y casi siempre falla (LinkedIn bloquea el scrapeo): timeout corto para no
+      // colgar el onboarding esperando un grounding que no va a llegar.
+      const { res, attempts, model } = await this.generate(
+        "fetchLinkedinProfile",
+        {
+          contents: createUserContent([prompt.user]),
+          config: {
+            systemInstruction: prompt.system,
+            temperature: 0.1,
+            tools: [{ urlContext: {} }],
+          },
         },
-      });
+        { timeoutMs: 8_000 },
+      );
 
       const retrievalStatus =
         res.candidates?.[0]?.urlContextMetadata?.urlMetadata?.[0]
           ?.urlRetrievalStatus;
       const text = res.text?.trim() || null;
-      if (retrievalStatus !== "URL_RETRIEVAL_STATUS_SUCCESS" || !text) {
-        return { text: null, status: "failed" };
-      }
-      return { text, status: text.length >= 80 ? "ok" : "low_signal" };
+      const ok = retrievalStatus === "URL_RETRIEVAL_STATUS_SUCCESS" && !!text;
+      // Se factura aunque LinkedIn bloquee (el grounding consume tokens igual).
+      recordAiCall("fetchLinkedinProfile", ok ? "ok" : "degraded", {
+        ms: Date.now() - t0,
+        attempts,
+        model,
+        usage: res.usageMetadata,
+      });
+      if (!ok) return { text: null, status: "failed" };
+      return { text: text!, status: text!.length >= 80 ? "ok" : "low_signal" };
     } catch (err) {
-      recordAiCall("fetchLinkedinProfile", "degraded", { ms: 0, attempts: 1, err });
+      recordAiCall("fetchLinkedinProfile", "degraded", {
+        ms: Date.now() - t0,
+        attempts: this.models.length,
+        err,
+      });
       return { text: null, status: "failed" };
     }
   }
@@ -612,7 +648,9 @@ export class GeminiAiProvider implements AiProvider {
       parts.push(createPartFromText(prompt.user));
 
       const t0 = Date.now();
-      const { res, attempts, model } = await this.generate("draftCandidateProfile", {
+      const { res, attempts, model } = await this.generate(
+        "draftCandidateProfile",
+        {
         contents: createUserContent(parts),
         config: {
           systemInstruction: prompt.system,
@@ -685,7 +723,9 @@ export class GeminiAiProvider implements AiProvider {
             ],
           },
         },
-      });
+        },
+        { timeoutMs: 25_000 },
+      );
 
       const raw = res.text?.trim();
       if (!raw) throw new Error("Gemini devolvió una respuesta vacía");
@@ -693,7 +733,7 @@ export class GeminiAiProvider implements AiProvider {
       if (typeof parsed.headline !== "string" || !parsed.headline.trim()) {
         throw new Error("Gemini devolvió un perfil con forma inesperada");
       }
-      recordAiCall("draftCandidateProfile", "ok", { ms: Date.now() - t0, attempts, model });
+      recordAiCall("draftCandidateProfile", "ok", { ms: Date.now() - t0, attempts, model, usage: res.usageMetadata });
 
       return {
         fullName: str(parsed.fullName),
@@ -760,7 +800,7 @@ export class GeminiAiProvider implements AiProvider {
         : [];
       if (questions.length === 0)
         throw new Error("Gemini no devolvió preguntas");
-      recordAiCall("interviewGuide", "ok", { ms: Date.now() - t0, attempts, model });
+      recordAiCall("interviewGuide", "ok", { ms: Date.now() - t0, attempts, model, usage: res.usageMetadata });
       return questions;
     } catch (err) {
       recordAiCall("interviewGuide", "degraded", {
@@ -860,7 +900,7 @@ export class GeminiAiProvider implements AiProvider {
       ) {
         throw new Error("Gemini devolvió un informe con forma inesperada");
       }
-      recordAiCall("interviewReport", "ok", { ms: Date.now() - t0, attempts, model });
+      recordAiCall("interviewReport", "ok", { ms: Date.now() - t0, attempts, model, usage: res.usageMetadata });
 
       const RECOMMENDATIONS = new Set<InterviewReportRecommendation>([
         "avanzar",
@@ -905,15 +945,24 @@ export class GeminiAiProvider implements AiProvider {
 
 /** Resultado observable de una operación de IA. `ok` = el modelo real respondió (con o sin
  *  reintentos); `degraded` = falló y se sirvió el heurístico local; `unavailable` = falló y se
- *  cortó con AiUnavailableError. Se emite una línea por llamada para poder responder "¿la IA
- *  está funcionando?" sin adivinar (hoy no hay forma). */
+ *  cortó con AiUnavailableError. Se emite una línea `ai_call` por llamada — con outcome, modelo,
+ *  tokens (prompt/output/thinking) y `usd` estimado (ver pricing.ts) — para responder "¿la IA
+ *  está funcionando?" y "¿cuánto cuesta cada operación?" sin adivinar. */
 type AiCallOutcome = "ok" | "degraded" | "unavailable";
 
 function recordAiCall(
   op: string,
   outcome: AiCallOutcome,
-  meta: { ms: number; attempts: number; model?: string; err?: unknown },
+  meta: {
+    ms: number;
+    attempts: number;
+    model?: string;
+    usage?: GenerateContentResponseUsageMetadata;
+    err?: unknown;
+  },
 ) {
+  const cost =
+    meta.model && meta.usage ? estimateAiCallCost(meta.model, meta.usage) : null;
   const line = {
     tag: "ai_call",
     op,
@@ -921,16 +970,30 @@ function recordAiCall(
     ms: Math.round(meta.ms),
     attempts: meta.attempts,
     ...(meta.model ? { model: meta.model } : {}),
+    ...(cost
+      ? {
+          promptTokens: cost.promptTokens,
+          outputTokens: cost.outputTokens,
+          thoughtTokens: cost.thoughtTokens,
+          ...(cost.cachedTokens ? { cachedTokens: cost.cachedTokens } : {}),
+          ...(cost.usd != null ? { usd: Number(cost.usd.toFixed(5)) } : {}),
+        }
+      : {}),
     ...(meta.err
       ? { error: meta.err instanceof Error ? meta.err.message : String(meta.err) }
       : {}),
   };
-  // JSON en una línea → grep-eable en los logs de Vercel (ej. `outcome!="ok"` para ver degradación).
+  // JSON en una línea → grep-eable en los logs de Vercel (ej. `outcome!="ok"` para ver
+  // degradación; sumar `usd` para el gasto por operación).
   if (outcome === "ok") console.log(JSON.stringify(line));
   else console.warn(JSON.stringify(line));
 }
 
-const RETRY_BACKOFF_MS = [800, 2500];
+// Un solo reintento, corto: todas las operaciones son interactivas (spinner / función
+// serverless). El backoff largo previo (800+2500ms) sumaba segundos por modelo antes de
+// cascadear; la cascada de modelos es la segunda red, y después de eso el llamador degrada
+// o corta.
+const RETRY_BACKOFF_MS = [700];
 /** Intentos totales = primer intento + un reintento por cada backoff. */
 const MAX_ATTEMPTS = RETRY_BACKOFF_MS.length + 1;
 
@@ -938,6 +1001,7 @@ const MAX_ATTEMPTS = RETRY_BACKOFF_MS.length + 1;
  * Reintenta una llamada a Gemini ante errores transitorios (429 rate-limit, 503, red) con
  * backoff. Los 429 por cuota DIARIA no se recuperan en segundos — igual se reintenta una vez
  * por si es rate-limit por minuto — pero si persiste, el llamador decide (degradar o cortar).
+ * Un abort por timeout (`generate({ timeoutMs })`) NO es transitorio: corta sin reintentar.
  * Devuelve el valor y cuántos intentos costó; propaga el último error si se agotan.
  */
 async function withRetry<T>(
@@ -957,6 +1021,13 @@ async function withRetry<T>(
 }
 
 function isRetryableError(err: unknown): boolean {
+  // Abort por `timeoutMs`: el presupuesto ya se gastó, reintentar solo cuelga más.
+  if (
+    err instanceof Error &&
+    (err.name === "AbortError" || err.name === "TimeoutError")
+  ) {
+    return false;
+  }
   if (isQuotaError(err)) return true;
   const status =
     err && typeof err === "object" && "status" in err

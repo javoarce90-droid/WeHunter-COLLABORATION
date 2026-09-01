@@ -5,14 +5,16 @@ import type { DraftCandidateProfile } from "@/lib/ai";
 
 /**
  * Caso de uso: generar con IA un borrador de candidato a partir de un CV (PDF o texto ya
- * extraído de un .docx). La URL de LinkedIn es opcional y solo suma contexto — el CV es
- * obligatorio (sin archivo no hay nada que analizar). NO persiste nada — el recruiter revisa
- * y edita el borrador en el formulario antes de guardar (mismo criterio que el onboarding del
- * candidato, `generar-perfil-con-ia.ts`). Autorización primaria: rol `candidates.manage`.
+ * extraído de un .docx). El CV es obligatorio (sin archivo no hay nada que analizar). No
+ * scrapeamos LinkedIn en el flujo del recruiter — falla casi siempre y agrega ~10s a la
+ * espera; si el CV trae una URL de LinkedIn, la IA la extrae igual. NO persiste nada — el
+ * recruiter revisa y edita el borrador en el formulario antes de guardar (mismo criterio que
+ * el onboarding del candidato, `generar-perfil-con-ia.ts`, que sí conserva LinkedIn como
+ * fuente porque ahí un candidato puede no tener el PDF a mano). Autorización primaria: rol
+ * `candidates.manage`.
  */
 
 export interface GenerarBorradorCandidatoInput {
-  linkedinUrl?: string;
   cvFile?: { base64: string; mimeType: "application/pdf" };
   cvText?: string;
 }
