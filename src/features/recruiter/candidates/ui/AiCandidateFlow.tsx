@@ -4,7 +4,6 @@ import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { SparkleIcon } from "@/components/ui/ai";
 import { CandidateForm } from "./CandidateForm";
@@ -49,7 +48,6 @@ function draftToDefaults(draft: DraftCandidateProfile, cvUrl?: string) {
 export function AiCandidateFlow() {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
-  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState("");
   const [single, setSingle] = useState<BorradorCandidatoState>({});
@@ -105,7 +103,6 @@ export function AiCandidateFlow() {
     }
     const fd = new FormData();
     if (files[0]) fd.set("cv", files[0]);
-    if (linkedinUrl.trim()) fd.set("linkedinUrl", linkedinUrl.trim());
     startTransition(async () => {
       const res = await generarBorradorCandidatoConIaAction({}, fd);
       setSingle(res);
@@ -232,18 +229,6 @@ export function AiCandidateFlow() {
             <p className="mt-1 text-[11px] text-muted">PDF o .docx · hasta 5 MB cada uno</p>
           </div>
         </div>
-
-        {!isBatch && (
-          <Input
-            label="URL de LinkedIn (opcional)"
-            type="text"
-            inputMode="url"
-            value={linkedinUrl}
-            onChange={(e) => setLinkedinUrl(e.target.value)}
-            placeholder="linkedin.com/in/…"
-            helperText="Suma contexto al CV. No reemplaza el CV — la IA necesita el archivo."
-          />
-        )}
         </fieldset>
 
         {isBatch && (

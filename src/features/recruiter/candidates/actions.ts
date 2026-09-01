@@ -13,7 +13,6 @@ import {
   IMPORT_FILE_MAX_BYTES,
   AI_CV_ALLOWED_TYPES,
 } from "./schema";
-import { normalizeUrl } from "@/lib/url";
 import { cargarCandidato } from "./domain/cargar-candidato";
 import { generarBorradorCandidato } from "./domain/generar-borrador-candidato";
 import {
@@ -442,13 +441,8 @@ export async function generarBorradorCandidatoConIaAction(
   const membership = await getActiveMembership();
   if (!membership) return { error: "No autorizado." };
 
-  const linkedinUrlRaw = formData.get("linkedinUrl");
-  const linkedinUrl =
-    typeof linkedinUrlRaw === "string" && linkedinUrlRaw.trim()
-      ? normalizeUrl(linkedinUrlRaw)
-      : "";
-
-  // El CV es obligatorio — la URL de LinkedIn sola no da nada que analizar de forma fiable.
+  // El CV es obligatorio. No scrapeamos LinkedIn en el flujo del recruiter (falla casi
+  // siempre y suma ~10s); si el CV trae una URL de LinkedIn, la IA la extrae igual.
   const cv = readAiCvFile(formData);
   if ("error" in cv) return { error: cv.error };
 
@@ -465,7 +459,6 @@ export async function generarBorradorCandidatoConIaAction(
 
   const result = await generarBorradorCandidato(
     {
-      linkedinUrl: linkedinUrl || undefined,
       cvFile: cvSource && "cvFile" in cvSource ? cvSource.cvFile : undefined,
       cvText: cvSource && "cvText" in cvSource ? cvSource.cvText : undefined,
     },
@@ -522,12 +515,6 @@ export async function actualizarBorradorCandidatoConIaAction(
   ]);
   if (!candidate) return { error: "Candidato no encontrado." };
 
-  const linkedinUrlRaw = formData.get("linkedinUrl");
-  const linkedinUrl =
-    typeof linkedinUrlRaw === "string" && linkedinUrlRaw.trim()
-      ? normalizeUrl(linkedinUrlRaw)
-      : "";
-
   const cv = readAiCvFile(formData);
   if ("error" in cv) return { error: cv.error };
 
@@ -542,9 +529,9 @@ export async function actualizarBorradorCandidatoConIaAction(
     return { error: "No se pudo subir el CV. Revisá el archivo e intentá de nuevo." };
   }
 
+  // Solo el CV (mismo criterio que "Crear con IA"): no scrapeamos LinkedIn.
   const result = await generarBorradorCandidato(
     {
-      linkedinUrl: linkedinUrl || undefined,
       cvFile: cvSource && "cvFile" in cvSource ? cvSource.cvFile : undefined,
       cvText: cvSource && "cvText" in cvSource ? cvSource.cvText : undefined,
     },
