@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { REMEMBER_COOKIE } from "@/lib/supabase/remember";
 import { isRecruiterRoute } from "@/lib/auth/route-realms";
+import { mapSignUpError } from "@/lib/supabase/auth-errors";
 
 /**
  * Server actions de autenticación del candidato. Mismo Supabase Auth que el recruiter
@@ -19,6 +20,8 @@ import { isRecruiterRoute } from "@/lib/auth/route-realms";
 
 export interface CandidateAuthFormState {
   error?: string;
+  /** Qué campo generó el error — el form hace foco ahí en vez de perder de vista dónde corregir. */
+  field?: string;
 }
 
 const credentialsSchema = z.object({
@@ -84,7 +87,11 @@ export async function candidateRegister(
     fullName: formData.get("fullName"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    const issue = parsed.error.issues[0];
+    return {
+      error: issue?.message ?? "Datos inválidos",
+      field: issue?.path[0] ? String(issue.path[0]) : undefined,
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -94,13 +101,17 @@ export async function candidateRegister(
     options: { data: { full_name: parsed.data.fullName, account_type: "candidate" } },
   });
   if (error) {
-    return { error: error.message };
+    const mapped = mapSignUpError(error);
+    return { error: mapped.message, field: mapped.field };
   }
 
   // Supabase no devuelve error por un email ya registrado (protección anti-enumeración):
   // responde éxito sin sesión y sin crear usuario. La señal es identities vacío.
   if (data.user && data.user.identities && data.user.identities.length === 0) {
-    return { error: "Ese email ya tiene una cuenta. Iniciá sesión, o registrate con un email distinto." };
+    return {
+      error: "Ese email ya tiene una cuenta. Iniciá sesión, o registrate con un email distinto.",
+      field: "email",
+    };
   }
 
   const redirectTo = safeRedirect(formData.get("redirect"));

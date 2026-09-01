@@ -6,6 +6,7 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { REMEMBER_COOKIE } from "@/lib/supabase/remember";
 import { isCandidateRoute } from "@/lib/auth/route-realms";
+import { mapSignUpError } from "@/lib/supabase/auth-errors";
 
 /**
  * Server actions de autenticación. Son un caparazón fino sobre Supabase Auth:
@@ -104,7 +105,8 @@ export async function register(
     options: { data: { full_name: parsed.data.fullName, account_type: "recruiter" } },
   });
   if (error) {
-    return { error: error.message, field: "email" };
+    const mapped = mapSignUpError(error);
+    return { error: mapped.message, field: mapped.field ?? "email" };
   }
 
   // Supabase no devuelve error por un email ya registrado (protección anti-enumeración):
