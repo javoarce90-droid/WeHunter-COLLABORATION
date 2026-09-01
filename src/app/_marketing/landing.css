@@ -2631,6 +2631,17 @@ footer {
 .legal-body strong {
   color: var(--ink);
 }
+.legal-body h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 14px 0 5px;
+}
+.legal-body a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 /* ═══ V2 NEW SECTIONS ═══ */
 /* Font override: Manrope everywhere */

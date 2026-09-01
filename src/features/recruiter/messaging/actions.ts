@@ -5,15 +5,12 @@ import { revalidatePath } from "next/cache";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
 import { getCandidateById } from "../candidates/data/candidates.queries";
 import { getConnectionByProfile } from "../google-calendar/data/connections.queries";
-import { listCandidateGmailMessages } from "../google-calendar/data/gmail-client";
 import { enviarMensaje } from "./domain/enviar-mensaje";
 import { sendViaChannel } from "./data/gmail-send";
-import { sincronizarGmail } from "./domain/sincronizar-gmail";
 import { MESSAGE_CHANNELS } from "./schema";
 import {
   ensureThread,
   recordOutbound,
-  recordSyncedMessages,
   insertTemplate,
   deleteTemplate,
 } from "./data/messaging.mutations";
@@ -76,38 +73,6 @@ export async function enviarMensajeAction(
 
   revalidatePath("/messages");
   return { ok: true, threadId: result.threadId };
-}
-
-export async function sincronizarGmailAction(
-  candidateId: string,
-): Promise<{ ok: boolean; synced?: number; error?: string }> {
-  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
-  if (!user || !membership) return { ok: false, error: "No autorizado." };
-  const org = membership.organizationId;
-
-  // Se resuelve una sola vez y se comparte entre getConnection/fetchMessages: evita pedirla
-  // dos veces (una para chequear que existe, otra para usarla contra la API de Gmail).
-  const connection = await getConnectionByProfile(user.id, org);
-
-  const result = await sincronizarGmail(
-    candidateId,
-    { organizationId: org, role: membership.role },
-    {
-      getCandidate: getCandidateById,
-      getConnection: async () => connection,
-      fetchMessages: (email) =>
-        connection
-          ? listCandidateGmailMessages(connection, email)
-          : Promise.resolve({ error: "Conexión de Google no encontrada." }),
-      ensureThread: (cId) => ensureThread(org, cId, "email"),
-      recordSyncedMessages: (threadId, items) => recordSyncedMessages(org, threadId, items),
-    },
-  );
-
-  if (!result.ok) return { ok: false, error: result.error };
-
-  revalidatePath("/messages");
-  return { ok: true, synced: result.data.synced };
 }
 
 const templateSchema = z.object({

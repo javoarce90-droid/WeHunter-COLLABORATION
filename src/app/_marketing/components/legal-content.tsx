@@ -1633,6 +1633,83 @@ export function PrivacidadContent() {
           El usuario podrá revocar dichas autorizaciones cuando la integración lo permita.
         </p>
 
+        <h3>15.1 Uso de datos de las APIs de Google</h3>
+        <p>
+          Cuando el usuario conecta su cuenta de Google en WeHunter, la plataforma accede a las
+          APIs de Google únicamente con los permisos (scopes) que el usuario autoriza de forma
+          expresa en la pantalla de consentimiento de Google:
+        </p>
+        <ul>
+          <li>
+            <strong>Envío de correos (Gmail — gmail.send):</strong> permite que el reclutador
+            envíe, desde su propia cuenta de Gmail y a su nombre, comunicaciones individuales a
+            los candidatos de sus procesos de selección (invitaciones a entrevista, cartas de
+            oferta, avances o cierre del proceso). WeHunter no lee, no lista, no descarga ni
+            modifica los correos del usuario, y no envía correos masivos ni comunicaciones de
+            marketing.
+          </li>
+          <li>
+            <strong>Eventos de calendario (Google Calendar — calendar.events):</strong> cuando el
+            reclutador agenda una entrevista en WeHunter, la plataforma crea, actualiza o elimina
+            ese evento en su calendario, con los participantes como invitados, para mantener la
+            agenda sincronizada. WeHunter solo accede a los eventos que la propia plataforma creó;
+            no consulta la lista de calendarios ni otros eventos del usuario.
+          </li>
+          <li>
+            <strong>Dirección de correo (userinfo.email):</strong> para identificar y mostrar qué
+            cuenta de Google quedó vinculada y asociar correctamente los envíos.
+          </li>
+        </ul>
+        <p>
+          El uso y la transferencia por parte de WeHunter de la información recibida de las APIs de
+          Google se ajustará a la{" "}
+          <a
+            href="https://developers.google.com/terms/api-services-user-data-policy"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Política de Datos de Usuario de los Servicios de API de Google
+          </a>
+          , incluidos los requisitos de Uso Limitado (<em>Limited Use</em>).
+        </p>
+        <p>En particular, WeHunter:</p>
+        <ul>
+          <li>
+            no utiliza los datos obtenidos de las APIs de Google con fines publicitarios ni para
+            elaborar perfiles con esa finalidad;
+          </li>
+          <li>no vende ni cede esos datos a terceros;</li>
+          <li>
+            no utiliza esos datos para entrenar modelos de inteligencia artificial generalizados o
+            de terceros;
+          </li>
+          <li>
+            no permite que personas lean esos datos, salvo que el usuario lo haya autorizado
+            expresamente, sea necesario por motivos de seguridad (por ejemplo, investigar un
+            abuso), sea exigido por la ley, o se trate de datos agregados y anonimizados utilizados
+            para operar o mejorar la funcionalidad;
+          </li>
+          <li>
+            limita el uso de esos datos a proveer o mejorar las funcionalidades de integración
+            descritas más arriba, que son visibles para el usuario.
+          </li>
+        </ul>
+        <p>
+          El usuario puede revocar en cualquier momento el acceso de WeHunter a su cuenta de Google
+          desde{" "}
+          <a
+            href="https://myaccount.google.com/permissions"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            la configuración de permisos de su Cuenta de Google
+          </a>{" "}
+          o desde la sección Configuración → Integraciones de la plataforma. Al revocar el acceso,
+          WeHunter deja de utilizar esos permisos; los tokens de acceso almacenados se eliminan y
+          los datos ya incorporados a los procesos de selección (por ejemplo, un evento de
+          entrevista ya creado) se rigen por los plazos de conservación previstos en esta Política.
+        </p>
+
         <h2>16. Proveedores Tecnológicos</h2>
         <p>
           Para operar la plataforma, WeHunter podrá utilizar proveedores especializados en

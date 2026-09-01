@@ -1403,9 +1403,9 @@ export const messageThreads = pgTable("message_threads", {
   ),
 }));
 
-// Mensaje dentro de un hilo. El envío saliente sigue siendo mock (no hay integración real de
-// envío); el canal `email` sí tiene lectura real: `externalId` (id del mensaje en Gmail) marca
-// los que vinieron del sync — permite re-sincronizar sin duplicar (§8 backlog).
+// Mensaje dentro de un hilo. El canal `email` se envía de verdad por Gmail (scope gmail.send):
+// `externalId` guarda el id real del mensaje que devolvió Gmail. El canal `whatsapp` sigue mock
+// (click-to-chat). No hay lectura de Gmail: eso exige gmail.readonly (restringido) + CASA.
 export const messages = pgTable("messages", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -1416,8 +1416,8 @@ export const messages = pgTable("messages", {
     .notNull(),
   direction: messageDirection("direction").notNull().default("outbound"),
   body: text("body").notNull(),
-  // null = mensaje nativo de WeHunter (mock). Con valor = vino del sync de Gmail (id real del
-  // mensaje). Postgres no exige unicidad entre NULLs, así que esto no molesta a los mocks.
+  // null = canal sin envío real (whatsapp). Con valor = id que devolvió Gmail al enviar.
+  // Postgres no exige unicidad entre NULLs, así que esto no molesta a los mensajes sin id.
   externalId: text("external_id"),
   createdBy: uuid("created_by").references(() => profiles.id),
   ...timestamps,

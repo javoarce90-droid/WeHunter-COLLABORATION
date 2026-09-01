@@ -92,12 +92,10 @@ export function Inbox({
         </div>
       </div>
 
-      {/* Honestidad: el envío todavía no se entrega de verdad (sin Gmail/WhatsApp real). */}
+      {/* El canal email se envía de verdad por Gmail; whatsapp abre wa.me para mandarlo a mano. */}
       <p className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-xs text-muted">
-        Modo borrador: lo que escribís acá se registra en el historial, pero
-        todavía no sale de verdad por Gmail ni WhatsApp. Los hilos de email sí
-        podés traerlos reales con &quot;Sincronizar con Gmail&quot;, uno por
-        candidato.
+        El canal Email se envía de verdad desde tu cuenta de Gmail conectada. El
+        canal WhatsApp abre el chat en wa.me para que lo envíes vos.
       </p>
 
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">

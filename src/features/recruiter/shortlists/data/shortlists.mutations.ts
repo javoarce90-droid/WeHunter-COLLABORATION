@@ -51,6 +51,65 @@ export async function createShortlistWithCandidates(args: {
   }, "db.shortlists.create");
 }
 
+/**
+ * Suma candidatos (por applicationId) a una shortlist que ya existe. Idempotente: el índice
+ * único `shortlist_candidates_unique (shortlist_id, application_id)` + `onConflictDoNothing`
+ * hacen que re-agregar a alguien que ya está no rompa ni duplique. Devuelve cuántos se
+ * insertaron de verdad (los que ya estaban no cuentan).
+ */
+export async function addCandidatesToShortlist(args: {
+  organizationId: string;
+  shortlistId: string;
+  applicationIds: string[];
+}): Promise<{ added: number }> {
+  if (args.applicationIds.length === 0) return { added: 0 };
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .insert(shortlistCandidates)
+        .values(
+          args.applicationIds.map((applicationId) => ({
+            organizationId: args.organizationId,
+            shortlistId: args.shortlistId,
+            applicationId,
+          })),
+        )
+        .onConflictDoNothing({
+          target: [shortlistCandidates.shortlistId, shortlistCandidates.applicationId],
+        })
+        .returning({ id: shortlistCandidates.id }),
+    "db.shortlists.candidates.add",
+  );
+  return { added: rows.length };
+}
+
+/**
+ * Saca UN candidato de una shortlist — borra solo la fila de `shortlist_candidates` (y por
+ * cascada su feedback/comentarios de ESA shortlist). No toca `applications`: el candidato
+ * sigue en la búsqueda y en el pipeline.
+ */
+export async function removeShortlistCandidate(
+  shortlistCandidateId: string,
+  organizationId: string,
+): Promise<{ removed: boolean }> {
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .delete(shortlistCandidates)
+        .where(
+          and(
+            eq(shortlistCandidates.id, shortlistCandidateId),
+            eq(shortlistCandidates.organizationId, organizationId),
+          ),
+        )
+        .returning({ id: shortlistCandidates.id }),
+    "db.shortlists.candidates.remove",
+  );
+  return { removed: rows.length > 0 };
+}
+
 /** De los applicationIds pedidos, devuelve los que realmente son del job y la org. */
 export async function filterValidApplications(
   jobId: string,

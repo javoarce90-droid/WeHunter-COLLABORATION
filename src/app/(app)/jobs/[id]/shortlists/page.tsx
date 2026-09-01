@@ -96,11 +96,17 @@ export default async function ShortlistsPage({ params, searchParams }: Props) {
     (acc[s.shortlistId] ??= []).push(s);
     return acc;
   }, {});
-  const shortlists = summaries.map((sl) => ({
-    ...sl,
-    candidates: candidatesByShortlist[sl.id] ?? [],
-    shares: sharesByShortlist[sl.id] ?? [],
-  }));
+  const shortlists = summaries.map((sl) => {
+    const members = candidatesByShortlist[sl.id] ?? [];
+    const inShortlist = new Set(members.map((c) => c.applicationId));
+    return {
+      ...sl,
+      candidates: members,
+      shares: sharesByShortlist[sl.id] ?? [],
+      // "+ Agregar candidato": los del pipeline que todavía no están en esta shortlist.
+      availableCandidates: candidateOptions.filter((c) => !inShortlist.has(c.applicationId)),
+    };
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -137,6 +143,7 @@ export default async function ShortlistsPage({ params, searchParams }: Props) {
               jobStages={jobStages}
               teamMembers={teamMembers}
               interviewsByApplication={interviewsByApplication}
+              availableCandidates={sl.availableCandidates}
             />
           ))}
         </div>
