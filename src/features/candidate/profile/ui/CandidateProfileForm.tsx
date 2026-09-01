@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { Suspense, use, useActionState, useMemo, useState } from "react";
 import { actualizarPerfilAction, type ProfileFormState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,10 @@ interface CandidateProfileFormProps {
   initialSummary?: string | null;
   initialSkills?: string[] | null;
   initialCvUrl: string | null;
-  initialCvDownloadUrl: string | null;
+  /** La signed URL para "Ver CV". Puede llegar ya resuelta (onboarding) o como promesa sin
+   *  await-ear (perfil): la página la deja fuera del critical path y acá se lee con `use()`
+   *  dentro de un <Suspense>. */
+  initialCvDownloadUrl: string | null | Promise<string | null>;
   /** Onboarding pasa su propia action (marca candidateOnboardingCompletedAt al guardar). */
   action?: typeof actualizarPerfilAction;
   submitLabel?: string;
@@ -51,6 +54,13 @@ export function CandidateProfileForm({
   const [state, formAction, pending] = useActionState(action, initialState);
   const [dragActive, setDragActive] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+
+  // Normaliza el prop (string, null o promesa) a una promesa estable — así `use()` no
+  // re-suspende en cada render cuando llega un valor ya resuelto.
+  const cvDownloadUrlPromise = useMemo(
+    () => Promise.resolve(initialCvDownloadUrl),
+    [initialCvDownloadUrl],
+  );
 
   const [email] = useState(initialEmail);
   const [headline, setHeadline] = useState(initialHeadline || "");
@@ -260,15 +270,10 @@ export function CandidateProfileForm({
                   {fileName ? "Listo para guardar con tu perfil" : "Ya tenés un currículum activo en tu perfil."}
                 </p>
               </div>
-              {initialCvDownloadUrl && !fileName && (
-                <a
-                  href={initialCvDownloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-semibold text-primary hover:text-primary-hover shrink-0 px-2.5 py-1 bg-white border border-border rounded-md hover:shadow-sm transition-all"
-                >
-                  Ver CV
-                </a>
+              {!fileName && (
+                <Suspense fallback={null}>
+                  <CvDownloadLink promise={cvDownloadUrlPromise} />
+                </Suspense>
               )}
             </div>
           )}
@@ -349,5 +354,22 @@ export function CandidateProfileForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Enlace "Ver CV" del bloque de currículum activo. Lee la signed URL con `use()` para que,
+ *  cuando llega como promesa sin resolver, quede detrás del <Suspense> del form. */
+function CvDownloadLink({ promise }: { promise: Promise<string | null> }) {
+  const url = use(promise);
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="shrink-0 rounded-md border border-border bg-white px-3 py-1 text-xs font-semibold text-primary transition-all hover:text-primary-hover hover:shadow-sm animate-fade-in"
+    >
+      Ver CV
+    </a>
   );
 }

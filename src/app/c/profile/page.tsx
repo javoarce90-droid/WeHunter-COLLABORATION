@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getAccountType, getCandidateProfile } from "@/lib/auth/session";
 import { getCvSignedUrl } from "@/features/recruiter/candidates/data/candidates.storage";
@@ -26,17 +27,23 @@ export default async function CandidateProfilePage() {
     redirect("/c/login");
   }
 
-  const accountType = await getAccountType();
+  // accountType (guard de redirect) y el currículum completo son lecturas RLS independientes:
+  // en paralelo, no una tras otra. Si el usuario resulta ser recruiter se descarta `resume` y
+  // se redirige — una query de más en ese caso raro, aceptable frente a ahorrar un round-trip
+  // en el caso común.
+  const [accountType, resume] = await Promise.all([getAccountType(), getMyResume()]);
   if (accountType === "recruiter") {
     redirect("/dashboard");
   }
 
-  const [cvDownloadUrl, resume] = await Promise.all([
-    candidate.cvUrl ? getCvSignedUrl(candidate.cvUrl) : Promise.resolve(null),
-    getMyResume(),
-  ]);
-
   const completitud = calcularCompletitud(candidate, resume);
+
+  // La signed URL del CV solo alimenta el botón "Ver CV" (acción secundaria). No se await-ea
+  // en el critical path: se resuelve aparte y se streamea vía <Suspense>, así una respuesta
+  // lenta de Storage no retrasa el render del perfil.
+  const cvDownloadUrlPromise: Promise<string | null> = candidate.cvUrl
+    ? getCvSignedUrl(candidate.cvUrl)
+    : Promise.resolve(null);
 
   return (
     <div className="min-h-screen bg-bg flex flex-col">
@@ -128,15 +135,10 @@ export default async function CandidateProfilePage() {
             </div>
           </div>
 
-          {cvDownloadUrl && (
-            <a
-              href={cvDownloadUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonVariants({ variant: "secondary", size: "sm" })}
-            >
-              Ver CV
-            </a>
+          {candidate.cvUrl && (
+            <Suspense fallback={null}>
+              <VerCvButton urlPromise={cvDownloadUrlPromise} />
+            </Suspense>
           )}
         </div>
 
@@ -152,7 +154,7 @@ export default async function CandidateProfilePage() {
             initialSummary={candidate.bio}
             initialSkills={candidate.skills}
             initialCvUrl={candidate.cvUrl}
-            initialCvDownloadUrl={cvDownloadUrl}
+            initialCvDownloadUrl={cvDownloadUrlPromise}
             wide
           />
 
@@ -167,5 +169,24 @@ export default async function CandidateProfilePage() {
         <DeleteAccountSection />
       </main>
     </div>
+  );
+}
+
+/**
+ * Botón "Ver CV" del hero. Aislado en su propio componente async para que el POST a Supabase
+ * Storage (signed URL) viva detrás de un <Suspense> y no bloquee el primer render del perfil.
+ */
+async function VerCvButton({ urlPromise }: { urlPromise: Promise<string | null> }) {
+  const url = await urlPromise;
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`${buttonVariants({ variant: "secondary", size: "sm" })} animate-fade-in`}
+    >
+      Ver CV
+    </a>
   );
 }
