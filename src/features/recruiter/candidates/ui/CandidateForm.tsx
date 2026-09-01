@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import Link from "next/link";
+import { AlertCircle } from "lucide-react";
 import type { CandidateFormState } from "../actions";
 import { verificarEmailCandidatoAction } from "../actions";
 import type { CandidateSource } from "../domain/candidate-details";
@@ -79,10 +80,10 @@ export function CandidateForm({
   const [emailValue, setEmailValue] = useState(defaults?.email ?? "");
   const [phoneValue, setPhoneValue] = useState(defaults?.phone ?? "");
   const missingFields = [
-    !fullNameValue.trim() && "nombre",
-    !emailValue.trim() && "email",
-    !phoneValue.trim() && "teléfono",
-  ].filter((f): f is string => typeof f === "string");
+    { done: !!fullNameValue.trim(), label: "nombre", anchor: "cf-fullName" },
+    { done: !!emailValue.trim(), label: "email", anchor: "cf-email" },
+    { done: !!phoneValue.trim(), label: "teléfono", anchor: "cf-phone" },
+  ].filter((f) => !f.done);
   const missingRequired = missingFields.length > 0;
   // Solo desde un borrador de IA (CV incompleto → submit deshabilitado sin explicación) o si
   // el recruiter ya empezó a completar; no en un form manual recién abierto.
@@ -90,6 +91,17 @@ export function CandidateForm({
     !!fullNameValue.trim() || !!emailValue.trim() || !!phoneValue.trim();
   const showMissingHint =
     missingRequired && (!!defaults?.existingCvUrl || startedFilling);
+
+  /** Lleva el foco (y el scroll) al campo obligatorio que falta, desde el aviso del footer. */
+  function goToField(anchor: string) {
+    const el = document.getElementById(anchor);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const input =
+      el instanceof HTMLInputElement
+        ? el
+        : el?.querySelector<HTMLElement>("input:not([type='hidden'])");
+    input?.focus({ preventScroll: true });
+  }
 
   // Chequeo de email en vivo
   const [liveCheck, setLiveCheck] = useState<VerificarCandidatoPorEmailResult>({});
@@ -185,6 +197,7 @@ export function CandidateForm({
             </CardHeader>
             <CardContent className="p-5 flex flex-col gap-4">
               <Input
+                id="cf-fullName"
                 label="Nombre completo *"
                 name="fullName"
                 type="text"
@@ -197,6 +210,7 @@ export function CandidateForm({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <Input
+                  id="cf-email"
                   label="Email *"
                   name="email"
                   type="email"
@@ -211,6 +225,7 @@ export function CandidateForm({
                   }}
                 />
                 <PhoneInput
+                  id="cf-phone"
                   label="Teléfono *"
                   name="phone"
                   value={phoneValue}
@@ -454,37 +469,58 @@ export function CandidateForm({
         </div>
       </div>
 
-      {state.error && !shownDuplicate && !shownProfileMatch && (
-        <p className="text-xs font-medium text-danger bg-danger/5 p-3.5 rounded-[var(--radius)] border border-danger/10 animate-pop-in">
-          {state.error}
-        </p>
-      )}
-
-      {showMissingHint && (
-        <p className="text-xs font-medium text-warning bg-warning/5 p-3.5 rounded-[var(--radius)] border border-warning/10 animate-pop-in">
-          {missingFields.length === 1
-            ? `Falta el ${missingFields[0]} para poder guardar el candidato.`
-            : `Faltan datos obligatorios: ${missingFields.slice(0, -1).join(", ")} y ${missingFields.at(-1)}.`}{" "}
-          {defaults?.existingCvUrl
-            ? "La IA no pudo extraerlos del CV — completalos arriba."
-            : "Completá los campos marcados con * más arriba."}
-        </p>
-      )}
-
-      {/* Footer de Acciones Sticky / Flotante (Glassmorphism mas transparente con botones 100% opacos) */}
-      <div className="sticky bottom-4 z-10 flex items-center justify-between gap-4 bg-surface/50 backdrop-blur-md border border-border/70 shadow-[0_8px_32px_rgba(0,0,0,0.12)] p-4 rounded-[var(--radius)] transition-all">
-        <Link href={cancelHref} className="text-sm font-semibold text-muted hover:text-text transition-colors">
-          Cancelar
-        </Link>
-        <Button
-          type="submit"
-          disabled={missingRequired}
-          loading={pending || checkingEmail}
-          size="default"
-          className="font-bold px-8 py-2.5 shadow-sm"
-        >
-          {pending ? "Guardando…" : checkingEmail ? "Revisando…" : submitLabel}
-        </Button>
+      {/* Footer de acciones sticky. El motivo por el que el submit está bloqueado vive ACÁ
+          dentro, no en el flujo del documento: si no, queda escondido bajo el fold detrás
+          de esta barra flotante y el usuario nunca lo ve. */}
+      <div className="sticky bottom-4 z-10 flex flex-col overflow-hidden rounded-[var(--radius)] border border-border/70 bg-surface/70 shadow-[0_8px_32px_rgba(0,0,0,0.12)] backdrop-blur-md">
+        {state.error && !shownDuplicate && !shownProfileMatch ? (
+          <p className="flex items-start gap-2 border-b border-border/60 bg-danger/10 px-4 py-3 text-xs font-medium text-danger animate-pop-in">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 translate-y-px" aria-hidden />
+            <span>{state.error}</span>
+          </p>
+        ) : showMissingHint ? (
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/60 bg-warning/10 px-4 py-3 text-xs font-medium text-warning animate-pop-in">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span>
+              {missingFields.length === 1
+                ? "Completá el"
+                : "Faltan datos para guardar:"}
+            </span>
+            {missingFields.map((f) => (
+              <button
+                key={f.anchor}
+                type="button"
+                onClick={() => goToField(f.anchor)}
+                className="rounded bg-warning/15 px-1.5 font-semibold capitalize underline-offset-2 transition-colors hover:bg-warning/25 hover:underline"
+              >
+                {f.label}
+              </button>
+            ))}
+            {missingFields.length === 1 && <span>para guardar.</span>}
+            {defaults?.existingCvUrl && (
+              <span className="font-normal text-muted">
+                La IA no los encontró en el CV.
+              </span>
+            )}
+          </p>
+        ) : null}
+        <div className="flex items-center justify-between gap-4 p-4">
+          <Link
+            href={cancelHref}
+            className="text-sm font-semibold text-muted transition-colors hover:text-text"
+          >
+            Cancelar
+          </Link>
+          <Button
+            type="submit"
+            disabled={missingRequired}
+            loading={pending || checkingEmail}
+            size="default"
+            className="px-8 font-bold shadow-sm"
+          >
+            {pending ? "Guardando…" : checkingEmail ? "Revisando…" : submitLabel}
+          </Button>
+        </div>
       </div>
     </form>
   );
