@@ -18,30 +18,20 @@ export default async function CareerSiteApplyPage({
   if (!result) notFound();
 
   const user = await getCurrentUser();
-  const redirectTarget = `/careers/${slug}/${jobId}/postular`;
+  const accent = result.organization.settings?.accentColor;
 
+  // Visitante sin cuenta: se postula igual — carga sus datos y CV en el form y entra como
+  // candidato de la org. El registro se le ofrece después de enviar.
   if (!user) {
     return (
-      <div className="rounded-[var(--radius)] border border-border bg-surface p-6 text-center shadow-[var(--shadow)]">
-        <p className="text-sm text-text">
-          Para postularte a <strong>{result.job.title}</strong> necesitás una cuenta.
-        </p>
-        <div className="mt-4 flex justify-center gap-3">
-          <Link
-            href={`/c/login?redirect=${encodeURIComponent(redirectTarget)}`}
-            className="rounded-[var(--radius)] border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text transition-colors hover:bg-bg"
-          >
-            Ingresar
-          </Link>
-          <Link
-            href={`/c/register?redirect=${encodeURIComponent(redirectTarget)}`}
-            style={accentStyle(result.organization.settings?.accentColor)}
-            className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-90"
-          >
-            Crear cuenta
-          </Link>
-        </div>
-      </div>
+      <ApplyForm
+        mode="anon"
+        slug={slug}
+        job={result.job}
+        defaultName=""
+        defaultEmail=""
+        accentColor={accent}
+      />
     );
   }
 
@@ -57,6 +47,7 @@ export default async function CareerSiteApplyPage({
     cvUrl: candidate?.cvUrl ?? null,
   });
   if (!perfil.ok) {
+    const redirectTarget = `/careers/${slug}/${jobId}/postular`;
     return (
       <div className="rounded-[var(--radius)] border border-border bg-surface p-6 text-center shadow-[var(--shadow)]">
         <p className="text-sm text-text">
@@ -67,8 +58,8 @@ export default async function CareerSiteApplyPage({
         <div className="mt-4 flex justify-center">
           <Link
             href={`/c/profile?redirect=${encodeURIComponent(redirectTarget)}`}
-            style={accentStyle(result.organization.settings?.accentColor)}
-            className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-90"
+            style={{ color: "var(--primary-contrast, #fff)", ...accentStyle(accent) }}
+            className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-4 py-3 text-sm font-semibold transition-[filter] hover:brightness-95"
           >
             Completar perfil
           </Link>
@@ -85,7 +76,7 @@ export default async function CareerSiteApplyPage({
       defaultEmail={user.email ?? ""}
       defaultPhone={candidate?.phone ?? undefined}
       existingCvUrl={candidate?.cvUrl}
-      accentColor={result.organization.settings?.accentColor}
+      accentColor={accent}
     />
   );
 }

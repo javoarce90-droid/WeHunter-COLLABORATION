@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { getDb } from "@/db/client";
+import { admin, getDb } from "@/db/client";
 
 export type ApplyResult = { applicationId: string; candidateId: string };
 
@@ -24,6 +24,8 @@ export async function applyToJobRpc(args: {
   fullName: string;
   email: string;
   phone: string | null;
+  /** El flujo autenticado toma la ubicación del perfil (no la pisa acá); se acepta por paridad de firma. */
+  location: string | null;
   coverNote: string | null;
   cvPath: string | null;
   expectedSalary: number | null;
@@ -43,6 +45,48 @@ export async function applyToJobRpc(args: {
           ) as result`,
         ),
       "db.career-site.apply",
+    );
+    const data = rows[0]?.result;
+    return data ? { ok: true, data } : { ok: false, reason: "unavailable" };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "";
+    const screening = message.match(/screening: faltan respuestas obligatorias \((.+)\)/);
+    if (screening) {
+      return { ok: false, reason: "screening", faltantes: screening[1] ?? "" };
+    }
+    return { ok: false, reason: "unavailable" };
+  }
+}
+
+/**
+ * Variante anónima: invoca apply_to_career_site_job_anon con el cliente `admin` SOLO para
+ * poder ejecutarla sin usuario autenticado (mismo criterio que shortlist-review.data.ts —
+ * el admin no arma queries acá, solo dispara la función definer, que hace toda la
+ * validación de negocio). El honeypot + rate-limit por IP viven en la action.
+ *
+ * Traduce el rechazo igual que applyToJobRpc: `screening:` → preguntas obligatorias,
+ * cualquier otro → "unavailable".
+ */
+export async function applyToJobAnonRpc(args: {
+  jobId: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  location: string | null;
+  coverNote: string | null;
+  cvPath: string | null;
+  expectedSalary: number | null;
+  expectedSalaryCurrency: string | null;
+  screeningAnswers: { questionId: string; value: string }[];
+}): Promise<ApplyOutcome> {
+  try {
+    const rows = await admin.execute<{ result: ApplyResult }>(
+      sql`select apply_to_career_site_job_anon(
+        ${args.jobId}::uuid, ${args.fullName}, ${args.email},
+        ${args.phone}, ${args.location}, ${args.coverNote}, ${args.cvPath},
+        ${JSON.stringify(args.screeningAnswers)}::jsonb,
+        ${args.expectedSalary}, ${args.expectedSalaryCurrency}
+      ) as result`,
     );
     const data = rows[0]?.result;
     return data ? { ok: true, data } : { ok: false, reason: "unavailable" };

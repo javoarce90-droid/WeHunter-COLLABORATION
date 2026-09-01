@@ -29,6 +29,7 @@ export type PostularDesdeCareerSiteDeps = {
     fullName: string;
     email: string;
     phone: string | null;
+    location: string | null;
     coverNote: string | null;
     cvPath: string | null;
     expectedSalary: number | null;
@@ -83,6 +84,7 @@ export async function postularDesdeCareerSite(
     fullName,
     email: input.email.trim(),
     phone: input.phone?.trim() || null,
+    location: input.location?.trim() || null,
     coverNote: input.coverNote?.trim() || null,
     cvPath: input.cvPath?.trim() || null,
     expectedSalary: input.expectedSalary ?? null,

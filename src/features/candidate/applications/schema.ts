@@ -42,5 +42,21 @@ export const postularInputSchema = z.object({
   screeningAnswers: screeningAnswersField,
 });
 
+// Postulación SIN cuenta desde el Career Site público. A diferencia del flujo autenticado
+// (donde nombre/teléfono/ubicación salen del perfil), acá el visitante los tipea y son
+// todos obligatorios — es el dato mínimo que el recruiter necesita para evaluarlo. El CV
+// se valida aparte en la action (es un File, no entra al schema).
+export const postularAnonimoInputSchema = z.object({
+  jobId: z.string().uuid("Búsqueda inválida."),
+  fullName: z.string().trim().min(1, "Ingresá tu nombre.").max(160),
+  email: z.string().trim().email("Email inválido."),
+  phone: z.string().trim().min(1, "Ingresá tu teléfono.").max(40),
+  location: z.string().trim().min(1, "Ingresá tu ubicación.").max(160),
+  coverNote: z.string().trim().max(2000, "El mensaje no puede superar los 2.000 caracteres.").optional(),
+  expectedSalary: expectedSalaryField,
+  expectedSalaryCurrency: z.string().trim().max(3).optional(),
+  screeningAnswers: screeningAnswersField,
+});
+
 // El CV reusa las mismas restricciones que la carga de candidatos del lado recruiter.
 export { CV_MAX_BYTES, CV_ALLOWED_TYPES };
