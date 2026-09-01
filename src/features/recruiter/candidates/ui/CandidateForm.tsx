@@ -78,8 +78,18 @@ export function CandidateForm({
   const [fullNameValue, setFullNameValue] = useState(defaults?.fullName ?? "");
   const [emailValue, setEmailValue] = useState(defaults?.email ?? "");
   const [phoneValue, setPhoneValue] = useState(defaults?.phone ?? "");
-  const missingRequired =
-    !fullNameValue.trim() || !emailValue.trim() || !phoneValue.trim();
+  const missingFields = [
+    !fullNameValue.trim() && "nombre",
+    !emailValue.trim() && "email",
+    !phoneValue.trim() && "teléfono",
+  ].filter((f): f is string => typeof f === "string");
+  const missingRequired = missingFields.length > 0;
+  // Solo desde un borrador de IA (CV incompleto → submit deshabilitado sin explicación) o si
+  // el recruiter ya empezó a completar; no en un form manual recién abierto.
+  const startedFilling =
+    !!fullNameValue.trim() || !!emailValue.trim() || !!phoneValue.trim();
+  const showMissingHint =
+    missingRequired && (!!defaults?.existingCvUrl || startedFilling);
 
   // Chequeo de email en vivo
   const [liveCheck, setLiveCheck] = useState<VerificarCandidatoPorEmailResult>({});
@@ -450,8 +460,19 @@ export function CandidateForm({
         </p>
       )}
 
+      {showMissingHint && (
+        <p className="text-xs font-medium text-warning bg-warning/5 p-3.5 rounded-[var(--radius)] border border-warning/10 animate-pop-in">
+          {missingFields.length === 1
+            ? `Falta el ${missingFields[0]} para poder guardar el candidato.`
+            : `Faltan datos obligatorios: ${missingFields.slice(0, -1).join(", ")} y ${missingFields.at(-1)}.`}{" "}
+          {defaults?.existingCvUrl
+            ? "La IA no pudo extraerlos del CV — completalos arriba."
+            : "Completá los campos marcados con * más arriba."}
+        </p>
+      )}
+
       {/* Footer de Acciones Sticky / Flotante (Glassmorphism mas transparente con botones 100% opacos) */}
-      <div className="sticky bottom-4 z-10 flex items-center justify-between bg-surface/50 backdrop-blur-md border border-border/70 shadow-[0_8px_32px_rgba(0,0,0,0.12)] p-4 rounded-[var(--radius)] transition-all">
+      <div className="sticky bottom-4 z-10 flex items-center justify-between gap-4 bg-surface/50 backdrop-blur-md border border-border/70 shadow-[0_8px_32px_rgba(0,0,0,0.12)] p-4 rounded-[var(--radius)] transition-all">
         <Link href={cancelHref} className="text-sm font-semibold text-muted hover:text-text transition-colors">
           Cancelar
         </Link>
