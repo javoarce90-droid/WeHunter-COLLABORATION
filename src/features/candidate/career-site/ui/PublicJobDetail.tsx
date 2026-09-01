@@ -74,8 +74,8 @@ export function PublicJobDetail({
         <ShareButtons url={shareUrl} title={job.title} />
         <Link
           href={`/careers/${slug}/${job.id}/postular`}
-          style={accentStyle(accentColor)}
-          className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-[filter] hover:brightness-90"
+          style={{ color: "var(--primary-contrast, #fff)", ...accentStyle(accentColor) }}
+          className="inline-flex items-center justify-center rounded-[var(--radius)] bg-primary px-5 py-3 text-sm font-semibold transition-[filter] hover:brightness-95"
         >
           Postular
         </Link>

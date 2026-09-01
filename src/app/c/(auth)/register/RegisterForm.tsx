@@ -12,7 +12,15 @@ import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
 
 const initialState: CandidateAuthFormState = {};
 
-export function RegisterForm({ redirectTo }: { redirectTo: string }) {
+export function RegisterForm({
+  redirectTo,
+  defaultName = "",
+  defaultEmail = "",
+}: {
+  redirectTo: string;
+  defaultName?: string;
+  defaultEmail?: string;
+}) {
   const [state, formAction, pending] = useActionState(
     candidateRegister,
     initialState,
@@ -25,8 +33,8 @@ export function RegisterForm({ redirectTo }: { redirectTo: string }) {
   // Controlados a propósito: `useActionState` remonta los inputs no controlados de un form
   // cuando la action termina (incluso si el resultado es un error) — sin esto, un error de
   // registro borraba nombre, email y contraseña también. Mismo fix que (auth)/register.
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState(defaultName);
+  const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState("");
 
   const fullNameRef = useRef<HTMLInputElement>(null);
