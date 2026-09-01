@@ -32,3 +32,26 @@ export async function uploadCareerSiteApplicationCv(
   }
   return { path };
 }
+
+/**
+ * Igual que uploadCareerSiteApplicationCv pero para la postulación SIN cuenta: no hay userId,
+ * así que el path "pending" se ancla a un token random. apply_to_career_site_job_anon lo
+ * guarda tal cual como cv_url; el lector de signed-URL del recruiter (candidates.storage.ts)
+ * lo firma igual, es un path dentro de `{organizationId}/...`.
+ */
+export async function uploadCareerSiteApplicationCvAnon(
+  organizationId: string,
+  file: File,
+): Promise<{ path: string }> {
+  const supabase = createSupabaseServiceClient();
+  const ext = CV_EXT_BY_TYPE[file.type] ?? "";
+  const path = `${organizationId}/pending-anon-${crypto.randomUUID()}${ext}`;
+  const { error } = await supabase.storage.from(CV_BUCKET).upload(path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (error) {
+    throw new Error(`No se pudo subir el CV: ${error.message}`);
+  }
+  return { path };
+}

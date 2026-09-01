@@ -29,6 +29,14 @@ describe("postularDesdeCareerSite", () => {
     );
   });
 
+  it("reenvía la ubicación a la función de postulación (flujo sin cuenta)", async () => {
+    const deps = makeDeps();
+    await postularDesdeCareerSite(input, deps);
+    expect(deps.applyToJob).toHaveBeenCalledWith(
+      expect.objectContaining({ location: "CABA, Argentina" }),
+    );
+  });
+
   it("rechaza nombre vacío", async () => {
     const deps = makeDeps();
     const result = await postularDesdeCareerSite({ ...input, fullName: "   " }, deps);
