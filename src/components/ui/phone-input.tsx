@@ -10,6 +10,9 @@ interface PhoneInputProps {
   value?: string;
   onChange: (value: string | undefined) => void;
   placeholder?: string;
+  /** Va en el contenedor: permite `scrollIntoView` + foco desde afuera (ej. un aviso de
+   *  campo faltante que lleva al usuario acá). */
+  id?: string;
 }
 
 // react-phone-number-input exige que `value` sea E.164 estricto (sin espacios/guiones) o
@@ -25,10 +28,17 @@ function toStrictE164(value?: string): string | undefined {
  * vía react-phone-number-input). El valor circula en formato E.164 (+549...) — mismo formato
  * que usan los links wa.me, así que no hace falta reformatear en ningún lado que lo consuma.
  */
-export function PhoneInput({ name, label, value, onChange, placeholder }: PhoneInputProps) {
+export function PhoneInput({
+  name,
+  label,
+  value,
+  onChange,
+  placeholder,
+  id,
+}: PhoneInputProps) {
   const sanitizedValue = toStrictE164(value);
   return (
-    <div className="flex flex-col gap-1">
+    <div id={id} className="flex flex-col gap-1">
       {label && <label className={fieldLabelClass}>{label}</label>}
       <PhoneInputPrimitive
         international
