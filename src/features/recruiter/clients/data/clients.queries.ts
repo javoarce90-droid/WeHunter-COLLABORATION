@@ -1,7 +1,7 @@
 import { and, count, eq, inArray, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { clients, jobs, memberships, profiles, requisitions, clientShares, type Client } from "@/db/schema";
-import type { OrgRole } from "@/lib/auth/session";
+import type { OrgRole, WorkspaceType } from "@/lib/auth/session";
 import { paginationRange } from "@/lib/pagination";
 
 /** Lecturas de clientes. Cliente RLS; filtramos por organization activa. */
@@ -32,13 +32,21 @@ export type ClientWithStats = Client & {
 /** Listado de clientes con sus contadores (búsquedas, solicitudes, si tiene link de acceso
  *  activo) — una sola query: el conteo de búsquedas por join+group, el resto por subquery
  *  correlacionada para no generar fan-out con el join (database.md regla #3). Paginado
- *  (`page`, 10 por página) — el total viene de `countClients` en paralelo, no en serie. */
+ *  (`page`, 10 por página) — el total viene de `countClients` en paralelo, no en serie.
+ *
+ *  En Freelance el owner nunca queda "assigned_client_id" de todos los clientes a la vez —
+ *  esa columna es un solo valor por membership, y cada alta de cliente se lo pisa al único
+ *  miembro (ver `crear-cliente.ts`), dejando ese campo apuntando solo al cliente más reciente.
+ *  Como el owner ES el recruiter de todos sus clientes en Freelance (no hay elección real
+ *  posible), ahí el nombre sale directo del owner activo de la org en vez de la columna. */
 export async function listClientsWithStats(
   organizationId: string,
   page: number = 1,
+  workspaceType: WorkspaceType | null = null,
 ): Promise<{ clients: ClientWithStats[]; total: number }> {
   const db = await getDb();
   const { limit, offset } = paginationRange(page);
+  const isFreelance = workspaceType === "freelance";
   const [rows, total] = await Promise.all([
     db.rls(
       (tx) =>
@@ -56,7 +64,16 @@ export async function listClientsWithStats(
                 and ${clientShares.revokedAt} is null
                 and (${clientShares.expiresAt} is null or ${clientShares.expiresAt} > now())
             )`,
-            assignedRecruiterName: sql<string | null>`(
+            assignedRecruiterName: isFreelance
+              ? sql<string | null>`(
+                  select ${profiles.fullName} from ${memberships}
+                  inner join ${profiles} on ${profiles.id} = ${memberships.profileId}
+                  where ${memberships.organizationId} = ${organizationId}
+                    and ${memberships.role} = 'owner'
+                    and ${memberships.status} = 'active'
+                  limit 1
+                )`
+              : sql<string | null>`(
               select ${profiles.fullName} from ${memberships}
               inner join ${profiles} on ${profiles.id} = ${memberships.profileId}
               where ${memberships.assignedClientId} = ${clients.id}
@@ -151,26 +168,37 @@ export type AssignableRecruiter = {
 
 /** Recruiters activos de la org + cuál (si alguno) está asignado a este cliente — una sola
  *  query, así el select de "Recruiter asignado" trae su propio default sin una segunda
- *  transacción (database.md regla #3). */
+ *  transacción (database.md regla #3).
+ *
+ *  En Freelance el único miembro es el owner (nunca "recruiter" — `create_organization_with_owner`
+ *  lo crea siempre así), así que filtrar por rol lo dejaba afuera y "Recruiter asignado" mostraba
+ *  "Sin asignar" para todo cliente. Ahí el owner ES el recruiter siempre, sin elección real
+ *  posible (mismo criterio que excluye a Freelance de reasignar responsables de búsqueda en
+ *  gestionar-responsables.ts): se lo incluye y se lo marca `assigned` siempre, sin depender de
+ *  `assignedClientId` (que solo tiene sentido cuando hay más de un recruiter para elegir). */
 export async function listAssignableRecruiters(
   organizationId: string,
   clientId: string,
+  workspaceType: WorkspaceType | null,
 ): Promise<AssignableRecruiter[]> {
   const db = await getDb();
+  const isFreelance = workspaceType === "freelance";
   return db.rls(
     (tx) =>
       tx
         .select({
           membershipId: memberships.id,
           name: profiles.fullName,
-          assigned: sql<boolean>`${memberships.assignedClientId} = ${clientId}`,
+          assigned: isFreelance
+            ? sql<boolean>`true`
+            : sql<boolean>`${memberships.assignedClientId} = ${clientId}`,
         })
         .from(memberships)
         .innerJoin(profiles, eq(memberships.profileId, profiles.id))
         .where(
           and(
             eq(memberships.organizationId, organizationId),
-            eq(memberships.role, "recruiter"),
+            isFreelance ? eq(memberships.role, "owner") : eq(memberships.role, "recruiter"),
             eq(memberships.status, "active"),
           ),
         )
