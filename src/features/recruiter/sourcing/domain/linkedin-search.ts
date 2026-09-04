@@ -86,6 +86,49 @@ const DEMO_PROFILES = [
   },
 ];
 
+/** País (nombre tal como puede aparecer en `location`) → código `gl` de Google/Serper. Cubre los
+ *  mercados donde recluta WeHunter. Sin esto, la ubicación es solo una palabra suelta dentro del
+ *  texto libre de búsqueda — Google puede ignorarla sin aviso cuando hay pocos resultados que la
+ *  contengan literalmente, y devuelve perfiles de cualquier país (bug reportado: candidatos de
+ *  Japón/Brasil con una búsqueda pensada para Argentina). `gl` sí es un filtro real a nivel API. */
+const COUNTRY_TO_GL: Record<string, string> = {
+  argentina: "ar",
+  uruguay: "uy",
+  chile: "cl",
+  brasil: "br",
+  brazil: "br",
+  mexico: "mx",
+  méxico: "mx",
+  colombia: "co",
+  peru: "pe",
+  perú: "pe",
+  paraguay: "py",
+  bolivia: "bo",
+  ecuador: "ec",
+  españa: "es",
+  spain: "es",
+  "estados unidos": "us",
+  usa: "us",
+};
+
+/** Busca en `text` (la query armada, ej. "...Buenos Aires Argentina") algún país conocido y
+ *  devuelve su código `gl`. `undefined` si no reconoce ninguno — en ese caso no se manda `gl` y
+ *  el comportamiento queda como antes (sin restricción geográfica a nivel API). */
+const DIACRITICS = /[̀-ͯ]/g; // marcas combinantes que deja `normalize("NFD")`
+
+function stripAccents(s: string): string {
+  return s.normalize("NFD").replace(DIACRITICS, "");
+}
+
+export function inferGoogleCountryCode(text: string): string | undefined {
+  const normalized = stripAccents(text.toLowerCase());
+  for (const [country, gl] of Object.entries(COUNTRY_TO_GL)) {
+    const plain = stripAccents(country);
+    if (new RegExp(`\\b${plain}\\b`).test(normalized)) return gl;
+  }
+  return undefined;
+}
+
 /**
  * Busca candidatos en LinkedIn a través de la API de Serper (Google X-Ray) si existe la llave
  * de entorno, o genera resultados dinámicos y realistas coincidiendo con la query. `page` (1+)
@@ -106,13 +149,14 @@ export async function searchLinkedInCandidates(
   if (serperKey) {
     try {
       const xray = buildLinkedInXRayQuery(rawQuery);
+      const gl = inferGoogleCountryCode(rawQuery);
       const res = await fetch("https://google.serper.dev/search", {
         method: "POST",
         headers: {
           "X-API-KEY": serperKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ q: xray, num: 10, page: pageNum }),
+        body: JSON.stringify({ q: xray, num: 10, page: pageNum, ...(gl ? { gl } : {}) }),
         cache: "no-store",
       });
 

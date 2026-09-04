@@ -90,6 +90,10 @@ export type SourcingMetrics = {
  *  perfiles IT). El puesto real sigue siendo el ancla principal del query. */
 const MAX_SOURCING_QUERY_SKILLS = 3;
 
+/** Default de ubicación cuando la búsqueda no la tiene cargada: sin esto, el query a Serper queda
+ *  sin ningún término geográfico y Google devuelve perfiles de LinkedIn de cualquier país. */
+const DEFAULT_SOURCING_LOCATION = "Argentina";
+
 /** Cuántas variantes de query distintas se prueban para la misma búsqueda, de más precisa a más
  *  amplia. Combinadas con la paginación de Serper (ver `SEARCH_PAGES_PER_VARIANT`) definen el
  *  universo de perfiles que "Buscar más candidatos" puede recorrer. */
@@ -139,11 +143,13 @@ export function buildJobSourcingQueryVariant(job: JobSourcingContext, attempt: n
       ? allSkills.slice(MAX_SOURCING_QUERY_SKILLS, MAX_SOURCING_QUERY_SKILLS * 2)
       : allSkills.slice(0, MAX_SOURCING_QUERY_SKILLS);
 
+  const location = job.location?.trim() || DEFAULT_SOURCING_LOCATION;
+
   const terms = [
     anchor,
     ...skills,
     effectiveAttempt <= 1 ? job.seniority : null,
-    effectiveAttempt <= 2 ? job.location : null,
+    effectiveAttempt <= 2 ? location : null,
   ].filter((t): t is string => Boolean(t && t.trim()));
 
   return terms.join(" ");
