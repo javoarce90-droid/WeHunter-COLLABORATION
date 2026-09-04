@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
+import { isFromInteractiveDescendant } from "@/lib/interactive-target";
 import type {
   AgendaInterview,
   SchedulableApplication,
@@ -83,11 +84,17 @@ function InterviewRow({
     <div
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
-      onClick={onClick}
+      // `isFromInteractiveDescendant`: la fila activa "Detalle de la entrevista" salvo que el
+      // click/tecla haya nacido en un control propio (link, botón de informe, o el diálogo de
+      // informe ya abierto — no usa portal, así que tipear ahí adentro burbujea igual). Sin
+      // este chequeo, cualquier control nuevo que se agregue a la fila necesitaría acordarse de
+      // cortar la propagación a mano (así se coló el bug real de "s se abre Agendar
+      // entrevista").
+      onClick={onClick && ((e) => !isFromInteractiveDescendant(e) && onClick())}
       onKeyDown={
         onClick
           ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
+              if ((e.key === "Enter" || e.key === " ") && !isFromInteractiveDescendant(e)) {
                 e.preventDefault();
                 onClick();
               }
@@ -116,7 +123,6 @@ function InterviewRow({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <Link
             href={`/candidates/${interview.candidateId}`}
-            onClick={(e) => e.stopPropagation()}
             className="truncate rounded-sm font-semibold text-text outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
           >
             {interview.candidateName}
@@ -139,7 +145,6 @@ function InterviewRow({
                   href={interview.location}
                   target="_blank"
                   rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
                   className="truncate text-primary hover:text-primary-hover hover:underline"
                 >
                   {interview.location}
@@ -164,7 +169,6 @@ function InterviewRow({
             candidateName={interview.candidateName}
             scheduledAt={interview.scheduledAt}
             status={interview.status}
-            stopPropagation
           />
         </div>
       )}
