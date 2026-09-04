@@ -56,6 +56,8 @@
   /* ease-out exponenciales: entran rápido y desaceleran, sin rebote. */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  /* ease-in para salidas: acelera al irse (una fila triada, un overlay que cierra). */
+  --ease-in-quart: cubic-bezier(0.5, 0, 0.75, 0);
 
   /* — Escala z-index semántica (nunca valores mágicos como 9999) — */
   --z-base: 0;
@@ -96,6 +98,10 @@
   --animate-sheet-in: sheet-in var(--motion-slow) var(--ease-out-expo);
   --animate-toast-in: toast-in var(--motion-base) var(--ease-out-expo);
   --animate-view-in: view-in var(--motion-view) var(--ease-out-quart);
+  /* Salidas de overlays (exit faster than entrance). `forwards`: se quedan en el frame
+     final hasta que el <dialog> se cierra de verdad. */
+  --animate-pop-out: pop-out var(--motion-fast) var(--ease-in-quart) forwards;
+  --animate-sheet-out: sheet-out var(--motion-base) var(--ease-in-quart) forwards;
 }
 
 /* — Keyframes de overlays/feedback (materiales: opacity + transform, GPU-friendly) — */
@@ -124,6 +130,24 @@
 @keyframes view-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pop-out {
+  to { opacity: 0; transform: translateY(4px) scale(0.98); }
+}
+@keyframes sheet-out {
+  to { transform: translateX(100%); }
+}
+
+/* Anillo del score de IA: se dibuja de 0 al valor final al aparecer (la IA "acaba de
+   calcular esto"). `@property` hace animable el ángulo del conic-gradient; sin soporte,
+   el navegador lo pinta directo en su valor final — degradación limpia. */
+@property --ai-ring {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes ai-ring-fill {
+  from { --ai-ring: 0deg; }
 }
 
 /* Reduced motion no es opcional: cortamos animación/transición a lo mínimo. */
