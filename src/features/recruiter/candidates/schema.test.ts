@@ -81,6 +81,25 @@ describe("candidateInputSchema.seniority", () => {
   });
 });
 
+describe("candidateInputSchema.skills", () => {
+  it("acepta el campo ausente y separa por coma", () => {
+    const r1 = candidateInputSchema.safeParse(base);
+    expect(r1.success && r1.data.skills).toBeUndefined();
+    const r2 = candidateInputSchema.safeParse({ ...base, skills: "React, Node " });
+    expect(r2.success && r2.data.skills).toEqual(["React", "Node"]);
+  });
+
+  it("rechaza una skill de más de 40 caracteres con mensaje en español (no el default de Zod)", () => {
+    const r = candidateInputSchema.safeParse({
+      ...base,
+      skills: "a".repeat(41),
+    });
+    expect(r.success).toBe(false);
+    if (r.success) return;
+    expect(r.error.issues[0].message).toBe("Cada skill puede tener hasta 40 caracteres.");
+  });
+});
+
 describe("CV tipos/extensiones", () => {
   it("la extensión sale del MIME validado y los tipos permitidos derivan del mapa", () => {
     expect(CV_EXT_BY_TYPE["application/pdf"]).toBe(".pdf");

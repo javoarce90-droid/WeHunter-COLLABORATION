@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 import type { CandidateFormState } from "../actions";
@@ -102,6 +102,13 @@ export function CandidateForm({
         : el?.querySelector<HTMLElement>("input:not([type='hidden'])");
     input?.focus({ preventScroll: true });
   }
+
+  // Cuando el server devuelve un error de validación asociado a un campo (`state.field`), lo
+  // llevamos ahí directo — no hace falta que el recruiter encuentre solo cuál de todos los
+  // campos del form es el que hay que corregir.
+  useEffect(() => {
+    if (state.field) goToField(`cf-${state.field}`);
+  }, [state]);
 
   // Chequeo de email en vivo
   const [liveCheck, setLiveCheck] = useState<VerificarCandidatoPorEmailResult>({});
@@ -205,6 +212,7 @@ export function CandidateForm({
                 defaultValue={defaults?.fullName ?? ""}
                 required
                 autoFocus
+                error={state.field === "fullName" ? state.error : undefined}
                 onChange={(e) => setFullNameValue(e.target.value)}
               />
 
@@ -217,6 +225,7 @@ export function CandidateForm({
                   placeholder="ada@ejemplo.com"
                   defaultValue={defaults?.email ?? ""}
                   required
+                  error={state.field === "email" ? state.error : undefined}
                   onBlur={onEmailBlur}
                   onChange={(e) => {
                     lastCheckedEmail.current = "";
@@ -231,6 +240,7 @@ export function CandidateForm({
                   value={phoneValue}
                   onChange={(v) => setPhoneValue(v ?? "")}
                   placeholder="Ej: 9 351 555-1234"
+                  error={state.field === "phone" ? state.error : undefined}
                 />
               </div>
 
@@ -361,11 +371,13 @@ export function CandidateForm({
               </div>
 
               <SkillsPillsInput
+                id="cf-skills"
                 name="skills"
                 label="Skills / Tecnologías"
                 initialSkills={defaults?.skills ?? []}
                 placeholder="Escribí una habilidad y presioná Enter o coma..."
                 helpText="Agregá las tecnologías clave del candidato."
+                error={state.field === "skills" ? state.error : undefined}
               />
 
               <Textarea

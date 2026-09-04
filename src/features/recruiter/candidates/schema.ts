@@ -11,7 +11,7 @@ const skillsField = z.preprocess((v) => {
   if (typeof v !== "string") return undefined;
   const parts = v.split(",").map((s) => s.trim()).filter(Boolean);
   return parts.length ? parts : undefined;
-}, z.array(z.string().max(40)).max(30).optional());
+}, z.array(z.string().max(40, "Cada skill puede tener hasta 40 caracteres.")).max(30, "Podés cargar hasta 30 skills.").optional());
 
 export const candidateSourceSchema = z.enum([
   "manual",
