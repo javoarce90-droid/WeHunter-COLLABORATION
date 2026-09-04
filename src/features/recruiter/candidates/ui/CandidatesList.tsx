@@ -69,6 +69,18 @@ function sourceLabel(source: string | null): string {
   return CANDIDATE_SOURCE_LABELS[source as CandidateSource] ?? source;
 }
 
+/** Qué dato de contacto le falta a un candidato — la carga con IA en lote ya no rechaza un CV
+ *  por esto (ver `procesarCvParaPool`), así que puede pasar de verdad. Sin email/teléfono no
+ *  se le puede escribir ni mandar WhatsApp (ambos flujos ya avisan solos al intentarlo) — el
+ *  badge es para que el recruiter lo note ANTES de intentarlo, en la lista. */
+function missingContactLabel(candidate: Pick<Candidate, "email" | "phone">): string | null {
+  const missing = [!candidate.email && "email", !candidate.phone && "teléfono"].filter(
+    (v): v is string => !!v,
+  );
+  if (missing.length === 0) return null;
+  return `Falta ${missing.join(" y ")}`;
+}
+
 function buildCandidatesHref(
   filter: CandidateFilterKey,
   query: string,
@@ -453,6 +465,7 @@ export function CandidatesList({
               {visible.map((candidate) => {
                 const isSelected = selected.has(candidate.id);
                 const isDup = duplicateIdSet.has(candidate.id);
+                const missingContact = missingContactLabel(candidate);
                 return (
                   <tr
                     key={candidate.id}
@@ -485,6 +498,14 @@ export function CandidatesList({
                             title="Comparte email o LinkedIn con otro candidato"
                           >
                             Duplicado
+                          </Badge>
+                        )}
+                        {missingContact && (
+                          <Badge
+                            variant="warning"
+                            title={`${missingContact} — no se le puede escribir hasta completarlo`}
+                          >
+                            {missingContact}
                           </Badge>
                         )}
                       </div>

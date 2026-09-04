@@ -88,6 +88,21 @@ describe("cargarCandidato", () => {
     expect(d.insertCandidate).not.toHaveBeenCalled();
   });
 
+  it("con allowMissingEmail crea igual sin email (alta por lote con IA)", async () => {
+    const d = deps("cand-9");
+    const res = await cargarCandidato(
+      { fullName: "Grace Hopper", allowMissingEmail: true },
+      ctx,
+      d,
+    );
+    expect(res).toEqual({ ok: true, data: { candidateId: "cand-9" } });
+    expect(d.insertCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({ email: null }),
+    );
+    // Sin email no hay con qué buscar una cuenta vinculable — no debería ni consultarse.
+    expect(d.findLinkableProfile).not.toHaveBeenCalled();
+  });
+
   it("normaliza el teléfono (trim) y lo guarda null si viene vacío", async () => {
     const d = deps();
     await cargarCandidato(
