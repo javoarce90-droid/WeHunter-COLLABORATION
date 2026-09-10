@@ -7,10 +7,14 @@ import { fieldClasses } from "@/components/ui/input";
 interface SkillsPillsInputProps {
   /** Nombre del input hidden que se manda en el FormData (mismo criterio que el resto del form). */
   name: string;
+  /** Para que un aviso externo (ej. el banner de error del form) pueda enfocar este control. */
+  id?: string;
   initialSkills?: string[];
   label?: string;
   placeholder?: string;
   helpText?: string;
+  /** Mismo contrato que `Input`: pinta el borde en rojo y reemplaza `helpText` por este texto. */
+  error?: string;
 }
 
 /** Alto aprox. de 2 filas de pills (24px cada una + 6px de gap entre filas). */
@@ -22,7 +26,15 @@ const COLLAPSED_MAX_HEIGHT = 60;
  * El form sigue recibiendo un string separado por comas vía el input hidden `name`. Con muchas
  * skills la lista se recorta a 2 filas con un "Ver más" (si no, la card queda desproporcionada).
  */
-export function SkillsPillsInput({ name, initialSkills = [], label, placeholder, helpText }: SkillsPillsInputProps) {
+export function SkillsPillsInput({
+  name,
+  id,
+  initialSkills = [],
+  label,
+  placeholder,
+  helpText,
+  error,
+}: SkillsPillsInputProps) {
   const [skills, setSkills] = useState<string[]>(initialSkills);
   const [draft, setDraft] = useState("");
   const [expanded, setExpanded] = useState(false);
@@ -58,7 +70,7 @@ export function SkillsPillsInput({ name, initialSkills = [], label, placeholder,
   };
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div id={id} className="flex flex-col gap-1.5">
       {label && <label className="text-xs font-semibold text-muted">{label}</label>}
       <input type="hidden" name={name} value={skills.join(",")} />
       <input
@@ -68,9 +80,13 @@ export function SkillsPillsInput({ name, initialSkills = [], label, placeholder,
         onKeyDown={handleKeyDown}
         onBlur={addSkill}
         placeholder={placeholder}
-        className={fieldClasses()}
+        className={fieldClasses(!!error)}
       />
-      {helpText && <p className="text-[10px] text-muted">{helpText}</p>}
+      {error ? (
+        <p className="text-xs text-danger">{error}</p>
+      ) : (
+        helpText && <p className="text-[10px] text-muted">{helpText}</p>
+      )}
       {skills.length > 0 && (
         <div className="flex flex-col gap-1.5 mt-0.5">
           <div

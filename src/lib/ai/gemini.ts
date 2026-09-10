@@ -847,11 +847,12 @@ export class GeminiAiProvider implements AiProvider {
               situacionMotivacion: { type: Type.STRING },
               experienciaRelevante: {
                 type: Type.STRING,
-                description: "Markdown: un bloque por empleo relevante.",
+                description:
+                  "Texto plano con viñetas ('- '), SIN **negrita**: un bloque por empleo relevante.",
               },
               stackConocimientos: {
                 type: Type.STRING,
-                description: "Markdown: '**Domina:** …' y '**En formación:** …'.",
+                description: "Texto plano, SIN **negrita**: 'Domina: …' y 'En formación: …'.",
               },
               fortalezas: { type: Type.ARRAY, items: { type: Type.STRING } },
               oportunidadesMejora: {

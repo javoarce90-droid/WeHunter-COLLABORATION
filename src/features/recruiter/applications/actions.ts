@@ -16,6 +16,7 @@ import { moverEtapa } from "./domain/mover-etapa";
 import { moverAEtapa } from "./domain/mover-a-etapa";
 import { pasarAlPipeline } from "./domain/pasar-al-pipeline";
 import { guardarEnTalentPool } from "./domain/guardar-en-talent-pool";
+import { quitarDeTalentPool } from "./domain/quitar-de-talent-pool";
 import { rechazarPostulacion } from "./domain/rechazar-postulacion";
 import { puntuarPostulaciones } from "./domain/puntuar-postulaciones";
 import { personalizarMensaje } from "./domain/personalizar-mensaje";
@@ -843,6 +844,68 @@ export async function guardarEnTalentPoolAction(input: {
     } catch {
       // no-op: la acción ya se aplicó, un fallo al notificar no debe revertirla.
     }
+  }
+
+  revalidatePath(`/jobs/${jobId}/postulados`);
+  revalidatePath(`/jobs/${jobId}/pipeline`);
+  revalidatePath("/candidates");
+  return { ok: true, hechas, saltadas };
+}
+
+/**
+ * "Deshacer" de `guardarEnTalentPoolAction`: saca uno o varios candidatos del pool. Se llama
+ * desde el toast justo después de guardar (misclic). No notifica: es la corrección de una
+ * acción del propio recruiter, no un evento. Los que ya no están en el pool se saltan.
+ */
+export async function quitarDeTalentPoolAction(input: {
+  jobId: string;
+  applicationIds: string[];
+}): Promise<AccionMasivaResult> {
+  const parsed = accionMasivaSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+    };
+  }
+  const { jobId, applicationIds } = parsed.data;
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const ctx = {
+    organizationId: membership.organizationId,
+    role: membership.role,
+  };
+  const deps = {
+    getApplicationById,
+    getCandidateSavedToPool: async (
+      candidateId: string,
+      organizationId: string,
+    ) => {
+      const candidate = await getCandidateById(candidateId, organizationId);
+      return candidate ? candidate.savedToPool : null;
+    },
+    setSavedToPool,
+  };
+
+  let hechas = 0;
+  let saltadas = 0;
+  let firstError: string | undefined;
+  for (const applicationId of applicationIds) {
+    const res = await quitarDeTalentPool({ applicationId }, ctx, deps);
+    if (res.ok) hechas += 1;
+    else {
+      saltadas += 1;
+      firstError ??= res.error;
+    }
+  }
+
+  if (hechas === 0) {
+    return {
+      ok: false,
+      error: firstError ?? "No se pudo sacar del Talent Pool.",
+    };
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);

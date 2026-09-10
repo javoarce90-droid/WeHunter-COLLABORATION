@@ -83,6 +83,7 @@ export function MatchCell({
   completeness,
   degraded,
   onOpenCopiloto,
+  countUp = false,
 }: {
   score: number | null;
   summary: string | null;
@@ -94,6 +95,8 @@ export function MatchCell({
   degraded?: boolean;
   /** Si viene, el anillo se vuelve clickeable y abre el modal del Copiloto IA. */
   onOpenCopiloto?: () => void;
+  /** Anima el número de 0 al valor al aparecer (bandeja y su ficha). */
+  countUp?: boolean;
 }) {
   if (score == null) return <span className="text-xs text-muted">—</span>;
   const confidence = matchConfidence(score);
@@ -107,10 +110,10 @@ export function MatchCell({
           aria-label={`Ver Copiloto IA — ${score} de 100`}
           className="rounded-full outline-none transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"
         >
-          <AiScore score={score} size={size} detail={summary} />
+          <AiScore score={score} size={size} detail={summary} countUp={countUp} />
         </button>
       ) : (
-        <AiScore score={score} size={size} detail={summary} />
+        <AiScore score={score} size={size} detail={summary} countUp={countUp} />
       )}
       <div className="flex flex-col gap-0.5">
         <span

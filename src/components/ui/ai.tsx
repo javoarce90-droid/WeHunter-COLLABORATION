@@ -1,5 +1,6 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, CSSProperties } from "react";
 import { Spinner } from "./spinner";
+import { ScoreCountUp } from "./score-count-up";
 
 /** Ícono ✦ de IA (sparkle). */
 export function SparkleIcon({ size = 14 }: { size?: number }) {
@@ -92,23 +93,36 @@ export function AiScore({
   score,
   size = 30,
   detail,
+  countUp = false,
 }: {
   score: number;
   size?: number;
   /** Resumen del match para el tooltip (ej. ai_summary). */
   detail?: string | null;
+  /** Anima el número de 0 al valor al montarse (solo donde el score "acaba de llegar" —
+   *  la bandeja y su ficha, no cada re-render de un modal). El anillo se dibuja siempre. */
+  countUp?: boolean;
 }) {
   const color = scoreColor(score);
   const ring = size;
   const inner = size - 6;
+  const angle = `${score * 3.6}deg`;
   return (
     <span
       className="relative inline-flex shrink-0 items-center justify-center rounded-full"
-      style={{
-        width: ring,
-        height: ring,
-        background: `conic-gradient(${color} ${score * 3.6}deg, var(--border) 0deg)`,
-      }}
+      style={
+        {
+          width: ring,
+          height: ring,
+          "--ai-ring": angle,
+          background: `conic-gradient(${color} var(--ai-ring, ${angle}), var(--border) 0deg)`,
+          // El anillo solo se dibuja de 0 donde el score "acaba de llegar" (bandeja). En el
+          // resto (tablero, ficha, modales) es un dato ya conocido: se pinta directo.
+          animation: countUp
+            ? "ai-ring-fill var(--motion-slow) var(--ease-out-quart)"
+            : undefined,
+        } as CSSProperties
+      }
       role="img"
       aria-label={`Score IA ${score} de 100${detail ? `. ${detail}` : ""}`}
       title={`Compatibilidad IA: ${score}/100${detail ? `\n${detail}` : ""}`}
@@ -117,7 +131,7 @@ export function AiScore({
         className="flex items-center justify-center rounded-full bg-surface font-bold tabular-nums text-text"
         style={{ width: inner, height: inner, fontSize: size <= 24 ? 8 : 10 }}
       >
-        {score}
+        {countUp ? <ScoreCountUp target={score} /> : score}
       </span>
     </span>
   );

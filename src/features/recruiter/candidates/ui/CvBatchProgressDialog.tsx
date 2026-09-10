@@ -17,6 +17,9 @@ type Row = {
   status: RowStatus;
   detail?: string;
   candidateId?: string;
+  /** Solo con `status: "created"` — qué dato de contacto no encontró la IA en el CV (el
+   *  candidato se crea igual, ver `procesarCvParaPool`). */
+  missingContact?: ("email" | "phone")[];
 };
 
 const CONCURRENCY = 3;
@@ -82,7 +85,12 @@ export function CvBatchProgressDialog({ files, open, onClose, onFinished }: Prop
           }
           row =
             outcome.status === "created"
-              ? { status: "created", detail: outcome.candidateName, candidateId: outcome.candidateId }
+              ? {
+                  status: "created",
+                  detail: outcome.candidateName,
+                  candidateId: outcome.candidateId,
+                  missingContact: outcome.missingContact,
+                }
               : outcome.status === "skipped_duplicate"
                 ? { status: "duplicate", detail: outcome.candidateName, candidateId: outcome.candidateId }
                 : { status: "failed", detail: outcome.reason };
@@ -305,7 +313,7 @@ function RowState({ row }: { row: Row }) {
   }
   const label = row.status === "created" ? "Agregado" : "Ya en el pool";
   return (
-    <span className="flex min-w-0 items-center gap-2 sm:max-w-[55%]">
+    <span className="flex min-w-0 flex-wrap items-center gap-2 sm:max-w-[55%] sm:justify-end">
       <Badge
         variant={row.status === "created" ? "success" : "muted"}
         className={NOWRAP_BADGE}
@@ -323,6 +331,15 @@ function RowState({ row }: { row: Row }) {
         ) : (
           <span className="min-w-0 truncate text-xs text-muted">{row.detail}</span>
         ))}
+      {row.missingContact && row.missingContact.length > 0 && (
+        <Badge
+          variant="warning"
+          className={NOWRAP_BADGE}
+          title="La IA no lo encontró en el CV — completalo a mano para poder escribirle"
+        >
+          Falta {row.missingContact.map((f) => (f === "email" ? "email" : "teléfono")).join(" y ")}
+        </Badge>
+      )}
     </span>
   );
 }

@@ -28,6 +28,10 @@ export interface CargarCandidatoInput extends CandidateDetailsInput {
   /** Path de un CV ya subido a Storage (flujo "Crear con IA": el CV se sube al generar el
    *  borrador, antes de este paso). Se usa como `cvUrl` cuando no hay `deps.uploadCv`. */
   existingCvUrl?: string | null;
+  /** true = permite crear sin email (solo el alta por lote con IA sin revisión, ver
+   *  `procesar-cv-para-pool.ts`). El form manual sigue exigiéndolo — ya lo valida Zod antes de
+   *  llegar acá, así que para ese camino esto queda en `false`/`undefined` sin cambiar nada. */
+  allowMissingEmail?: boolean;
 }
 
 export interface CargarCandidatoCtx {
@@ -87,10 +91,12 @@ export async function cargarCandidato(
   }
 
   // `cargarCandidato` es siempre el camino de ALTA (editar candidatos vive en otro caso de
-  // uso, con email opcional). Requerido acá porque sin email ni el chequeo de duplicados
-  // (parcialmente) ni el de cuenta vinculable (findLinkableProfile) tienen con qué buscar.
+  // uso, con email opcional). Requerido por default porque sin email ni el chequeo de
+  // duplicados (parcialmente) ni el de cuenta vinculable (findLinkableProfile) tienen con qué
+  // buscar — ambos ya toleran `email: null` (cortan solo esa búsqueda), así que el único
+  // caller que lo necesita de verdad opcional (`allowMissingEmail`) no requiere tocar nada más.
   const email = input.email?.trim().toLowerCase() || null;
-  if (!email) {
+  if (!email && !input.allowMissingEmail) {
     return { ok: false, error: "El email es obligatorio para cargar un candidato." };
   }
   const details = normalizeCandidateDetails(input);
@@ -113,11 +119,13 @@ export async function cargarCandidato(
 
   // Cuenta real vinculable (profiles, global — nunca cruza datos entre organizations, ver
   // database.md). Se re-consulta siempre por email server-side: nunca se confía en un
-  // profileId que venga del cliente (evita vincular a una cuenta arbitraria).
+  // profileId que venga del cliente (evita vincular a una cuenta arbitraria). Sin email
+  // (alta por lote con IA, `allowMissingEmail`) no hay con qué buscar — ni vale la pena
+  // la query.
   let linked: LinkableProfile | null = null;
-  if (input.linkProfile) {
+  if (email && input.linkProfile) {
     linked = await deps.findLinkableProfile(email);
-  } else if (!input.skipProfileLink) {
+  } else if (email && !input.skipProfileLink) {
     const match = await deps.findLinkableProfile(email);
     if (match) {
       return {

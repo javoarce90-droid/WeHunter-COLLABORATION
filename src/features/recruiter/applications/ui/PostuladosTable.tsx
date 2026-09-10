@@ -1,12 +1,22 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useTransition } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import dynamic from "next/dynamic";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog } from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +29,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { AiButton } from "@/components/ui/ai";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useToast } from "@/lib/toast";
+import { withViewTransition } from "@/lib/view-transition";
 import { PAGE_SIZE, totalPages as calcTotalPages } from "@/lib/pagination";
 import { CANDIDATE_SOURCE_LABELS } from "@/features/recruiter/candidates/ui/source-meta";
 import { AgregarCandidatos } from "./AgregarCandidatos";
@@ -41,6 +52,7 @@ import {
   analizarPostuladosAction,
   pasarAlPipelineAction,
   guardarEnTalentPoolAction,
+  quitarDeTalentPoolAction,
 } from "../actions";
 import { CriteriosChip } from "./CriteriosChip";
 import { MatchCell } from "./MatchCell";
@@ -88,6 +100,16 @@ type Props = {
 /** Foco visible estándar para botones de texto/íconos sin fondo (gap WCAG AA de PRODUCT.md). */
 const focusRing =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-surface";
+
+/** ms que tarda la fila triada en desvanecerse antes de salir del set visible. */
+const ROW_EXIT_MS = 150;
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
 
 type SortKey = "candidate" | "estado" | "date" | "match" | "criterios";
 type SortDir = "asc" | "desc";
@@ -186,6 +208,18 @@ export function PostuladosTable({
   // — se pagina el array ya filtrado/ordenado. Cualquier cambio de filtro/búsqueda/orden
   // vuelve a la página 1, porque el conjunto (o su orden) cambió.
   const [page, setPage] = useState(1);
+  // `exiting`: filas triadas con la animación CSS de salida en curso.
+  // `hidden`: filas ya sacadas del set visible (post-animación), hasta que el server revalide
+  // y `postulados` deje de traerlas. Un rechazo del server las devuelve con `unhide`.
+  const [exiting, setExiting] = useState<Set<string>>(new Set());
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // Cuántas postulaciones abarca el análisis de IA en curso (para el aviso "puede tardar").
+  const [analyzingCount, setAnalyzingCount] = useState(0);
+  // Fila "enfocada" por teclado (j/k). Es un realce visual, no foco del DOM: evita el salto de
+  // scroll y el lío de foco al cambiar de página o filtro.
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
   function changeQuery(next: string) {
     setQuery(next);
     setPage(1);
@@ -199,8 +233,47 @@ export function PostuladosTable({
     setPage(1);
   }
   function changeSortKey(key: SortKey) {
-    setSortKey(key);
-    setPage(1);
+    // Reordenar dentro de una View Transition: las filas se deslizan a su nueva posición en
+    // vez de saltar (cada `<tr>` lleva un `view-transition-name` propio).
+    withViewTransition(() => {
+      setSortKey(key);
+      setPage(1);
+    });
+  }
+
+  /**
+   * Saca una o varias filas de la bandeja con animación de salida: primero las desvanece
+   * (CSS, `exiting`), y al terminar las quita del set visible (`hidden`) dentro de una View
+   * Transition para que el resto de la lista suba sin saltar. Recién ahí corre `commit` (la
+   * mutación optimista + server action). Con `prefers-reduced-motion` va directo a `commit`.
+   */
+  function animateOut(ids: string[], commit: () => void) {
+    if (ids.length === 0) return;
+    if (prefersReducedMotion()) {
+      commit();
+      return;
+    }
+    setExiting((prev) => new Set([...prev, ...ids]));
+    window.setTimeout(() => {
+      setExiting((prev) => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
+      withViewTransition(() =>
+        setHidden((prev) => new Set([...prev, ...ids])),
+      );
+      commit();
+    }, ROW_EXIT_MS);
+  }
+
+  /** Devuelve filas escondidas a la bandeja (rollback cuando el server rechaza la acción). */
+  function unhide(ids: string[]) {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) next.delete(id);
+      return next;
+    });
   }
 
   const [rows, applyPatch] = useOptimistic(
@@ -230,6 +303,8 @@ export function PostuladosTable({
       // Bandeja fija: `listPostulados` ya trae solo pendientes, esto es la ventana de
       // transición optimista mientras se revalida (ver comentario de `Triage` arriba).
       if (triageDe(r) !== "pendiente") return false;
+      // Ya animó su salida (triada); se quita al toque, sin esperar el round-trip.
+      if (hidden.has(r.id)) return false;
       if (originFilter === "auto" && !r.selfApplied) return false;
       if (originFilter === "pool" && r.selfApplied) return false;
       if (soloCumplen) {
@@ -243,7 +318,7 @@ export function PostuladosTable({
       }
       return true;
     });
-  }, [rows, query, originFilter, soloCumplen, criteriosByApplication]);
+  }, [rows, query, originFilter, soloCumplen, hidden, criteriosByApplication]);
 
   const sorted = useMemo(() => {
     const factor = sort.dir === "asc" ? 1 : -1;
@@ -352,6 +427,7 @@ export function PostuladosTable({
   }
 
   function onAnalizar() {
+    setAnalyzingCount(rows.filter((r) => r.aiScore == null).length);
     startAnalyze(async () => {
       const res = await analizarPostuladosAction(jobId);
       if (!res.ok)
@@ -370,25 +446,29 @@ export function PostuladosTable({
   function onPasarAlPipeline(ids: string[]) {
     if (ids.length === 0) return;
     setDetailId(null);
-    startTransition(async () => {
-      ids.forEach((id) =>
-        applyPatch({ id, changes: { pipelineEnteredAt: new Date() } }),
-      );
-      const res = await pasarAlPipelineAction({ jobId, applicationIds: ids });
-      if (!res.ok) {
+    setFocusedId(null);
+    animateOut(ids, () => {
+      startTransition(async () => {
+        ids.forEach((id) =>
+          applyPatch({ id, changes: { pipelineEnteredAt: new Date() } }),
+        );
+        const res = await pasarAlPipelineAction({ jobId, applicationIds: ids });
+        if (!res.ok) {
+          unhide(ids);
+          toast({
+            message: res.error ?? "No se pudo avanzar.",
+            variant: "danger",
+          });
+          return;
+        }
         toast({
-          message: res.error ?? "No se pudo avanzar.",
-          variant: "danger",
+          message:
+            `${res.hechas} candidato${res.hechas !== 1 ? "s" : ""} al pipeline` +
+            (res.saltadas
+              ? ` · ${res.saltadas} saltado${res.saltadas !== 1 ? "s" : ""}`
+              : ""),
+          variant: "success",
         });
-        return;
-      }
-      toast({
-        message:
-          `${res.hechas} candidato${res.hechas !== 1 ? "s" : ""} al pipeline` +
-          (res.saltadas
-            ? ` · ${res.saltadas} saltado${res.saltadas !== 1 ? "s" : ""}`
-            : ""),
-        variant: "success",
       });
     });
   }
@@ -421,23 +501,27 @@ export function PostuladosTable({
     if (!rejectTarget) return;
     const ids = [...rejectTarget];
     setRejectTarget(null);
-    startTransition(async () => {
-      ids.forEach((id) => applyPatch({ id, changes: { stage: "rejected" } }));
-      const res = await rechazarVariosAction({
-        jobId,
-        applicationIds: ids,
-        reason,
-        note: note.trim() || undefined,
-        notifyCandidate,
-        subject: notifyCandidate ? subject : undefined,
-        message: notifyCandidate ? message : undefined,
-      });
-      if (!res.ok)
-        toast({
-          message: res.error ?? "No se pudo rechazar.",
-          variant: "danger",
+    setFocusedId(null);
+    animateOut(ids, () => {
+      startTransition(async () => {
+        ids.forEach((id) => applyPatch({ id, changes: { stage: "rejected" } }));
+        const res = await rechazarVariosAction({
+          jobId,
+          applicationIds: ids,
+          reason,
+          note: note.trim() || undefined,
+          notifyCandidate,
+          subject: notifyCandidate ? subject : undefined,
+          message: notifyCandidate ? message : undefined,
         });
-      else
+        if (!res.ok) {
+          unhide(ids);
+          toast({
+            message: res.error ?? "No se pudo rechazar.",
+            variant: "danger",
+          });
+          return;
+        }
         toast({
           message:
             `${res.rejected} rechazado${res.rejected !== 1 ? "s" : ""}` +
@@ -449,6 +533,7 @@ export function PostuladosTable({
               : ""),
           variant: "success",
         });
+      });
     });
   }
 
@@ -458,9 +543,29 @@ export function PostuladosTable({
     setPoolTarget(ids);
   }
 
+  function undoGuardarEnPool(ids: string[]) {
+    startTransition(async () => {
+      ids.forEach((id) =>
+        applyPatch({ id, candidateChanges: { savedToPool: false } }),
+      );
+      const res = await quitarDeTalentPoolAction({ jobId, applicationIds: ids });
+      toast(
+        res.ok
+          ? {
+              message: `${res.hechas} candidato${res.hechas !== 1 ? "s" : ""} fuera del pool`,
+            }
+          : {
+              message: res.error ?? "No se pudo deshacer.",
+              variant: "danger",
+            },
+      );
+    });
+  }
+
   function doGuardarEnPool() {
     if (!poolTarget) return;
     const ids = poolTarget;
+    const note = poolNote.trim();
     setPoolTarget(null);
     startTransition(async () => {
       ids.forEach((id) =>
@@ -469,7 +574,7 @@ export function PostuladosTable({
       const res = await guardarEnTalentPoolAction({
         jobId,
         applicationIds: ids,
-        note: poolNote.trim() || undefined,
+        note: note || undefined,
       });
       if (!res.ok) {
         toast({
@@ -485,6 +590,12 @@ export function PostuladosTable({
             ? ` · ${res.saltadas} saltado${res.saltadas !== 1 ? "s" : ""}`
             : ""),
         variant: "success",
+        // Sin nota = probable misclic → ofrecemos deshacer. Con nota, el recruiter invirtió
+        // una frase: menos probable que sea un error, y el "Deshacer" no borra la nota.
+        action:
+          note.length === 0
+            ? { label: "Deshacer", onClick: () => undoGuardarEnPool(ids) }
+            : undefined,
       });
     });
   }
@@ -494,6 +605,80 @@ export function PostuladosTable({
   // buscado en pantalla — por eso se chequea contra `rows` entero, no `filtered`/`sorted`.
   const hayPendientesDeAnalizar = rows.some((r) => r.aiScore == null);
   const isEmpty = postulados.length === 0;
+
+  const anyOverlayOpen =
+    rejectTarget != null ||
+    poolTarget != null ||
+    detailId != null ||
+    aiDetailId != null ||
+    compareIds != null;
+
+  // Atajos de teclado tipo bandeja: j/k para moverse, e al pipeline, x descartar, s
+  // seleccionar, Enter para abrir, / para buscar. La lógica vive en un ref que un efecto
+  // refresca cada render, así el listener del `window` queda estable (un solo add/remove)
+  // sin cargar closures viejas.
+  const kbdHandler = useRef<(e: KeyboardEvent) => void>(() => {});
+  const runKbd = (e: KeyboardEvent) => {
+    if (anyOverlayOpen) return;
+    const el = e.target as HTMLElement | null;
+    const typing =
+      !!el &&
+      (el.tagName === "INPUT" ||
+        el.tagName === "TEXTAREA" ||
+        el.tagName === "SELECT" ||
+        el.isContentEditable);
+    if (e.key === "/" && !typing) {
+      e.preventDefault();
+      searchRef.current?.focus();
+      return;
+    }
+    if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === "Escape" && focusedId) {
+      setFocusedId(null);
+      return;
+    }
+    if (paged.length === 0) return;
+    const idx = focusedId ? paged.findIndex((r) => r.id === focusedId) : -1;
+    if (e.key === "j" || e.key === "ArrowDown") {
+      e.preventDefault();
+      setFocusedId(paged[Math.min(idx + 1, paged.length - 1)]?.id ?? paged[0].id);
+    } else if (e.key === "k" || e.key === "ArrowUp") {
+      e.preventDefault();
+      setFocusedId(paged[Math.max(idx - 1, 0)]?.id ?? paged[0].id);
+    } else if (idx >= 0) {
+      const row = paged[idx];
+      if (e.key === "Enter" || e.key === "o") {
+        e.preventDefault();
+        setDetailId(row.id);
+      } else if (e.key === "e") {
+        e.preventDefault();
+        onPasarAlPipeline([row.id]);
+      } else if (e.key === "x") {
+        e.preventDefault();
+        openRejectDialog(new Set([row.id]));
+      } else if (e.key === "s") {
+        e.preventDefault();
+        toggleOne(row.id);
+      }
+    }
+  };
+  useEffect(() => {
+    kbdHandler.current = runKbd;
+  });
+  useEffect(() => {
+    if (isEmpty) return;
+    const listener = (e: KeyboardEvent) => kbdHandler.current(e);
+    window.addEventListener("keydown", listener);
+    return () => window.removeEventListener("keydown", listener);
+  }, [isEmpty]);
+
+  // Mantener a la vista la fila enfocada por teclado.
+  useEffect(() => {
+    if (!focusedId) return;
+    document
+      .getElementById(`postulado-row-${focusedId}`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [focusedId]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -554,6 +739,17 @@ export function PostuladosTable({
         </div>
       </div>
 
+      {isAnalyzing && analyzingCount > 0 && (
+        <p
+          role="status"
+          className="flex items-center gap-2 text-sm text-muted"
+        >
+          <Spinner />
+          Analizando {analyzingCount} postulación
+          {analyzingCount !== 1 ? "es" : ""} con IA — puede tardar unos segundos.
+        </p>
+      )}
+
       {isEmpty ? (
         <EmptyState
           title="Todavía no hay postulaciones"
@@ -576,13 +772,19 @@ export function PostuladosTable({
             <SearchInput
               value={query}
               onChange={changeQuery}
+              inputRef={searchRef}
               placeholder="Buscar por nombre o email…"
               aria-label="Buscar postulados"
             />
+            <p className="hidden text-xs text-muted lg:block">
+              <Kbd>j</Kbd> <Kbd>k</Kbd> moverte · <Kbd>e</Kbd> al pipeline ·{" "}
+              <Kbd>x</Kbd> descartar · <Kbd>s</Kbd> seleccionar · <Kbd>/</Kbd>{" "}
+              buscar
+            </p>
           </div>
 
           {selected.size > 0 && (
-            <div className="flex flex-wrap items-center gap-3 rounded-[var(--radius)] border border-primary/30 bg-primary-light px-4 py-2.5">
+            <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 rounded-[var(--radius)] border border-primary/30 bg-primary-light px-4 py-3 shadow-[var(--shadow-overlay)] animate-pop-in">
               <span className="text-sm font-semibold text-primary-hover">
                 {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
               </span>
@@ -627,7 +829,7 @@ export function PostuladosTable({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left">
-                    <th className="w-10 py-3 pl-4">
+                    <th className="w-12 py-3 pl-4 pr-3">
                       <Checkbox
                         checked={allVisibleSelected}
                         aria-label="Seleccionar todos"
@@ -644,11 +846,12 @@ export function PostuladosTable({
                       active={sort}
                       sortKey="candidate"
                       onSort={changeSortKey}
+                      className="w-[300px]"
                     />
-                    <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                    <th className="py-3 pr-5 text-xs font-semibold uppercase tracking-wide text-label">
                       Fuente
                     </th>
-                    <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                    <th className="py-3 pr-5 text-xs font-semibold uppercase tracking-wide text-label">
                       Origen
                     </th>
                     {showCriterios && (
@@ -665,7 +868,7 @@ export function PostuladosTable({
                       sortKey="match"
                       onSort={changeSortKey}
                     />
-                    <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                    <th className="py-3 pr-5 text-xs font-semibold uppercase tracking-wide text-label">
                       Salario pret.
                     </th>
                     <SortableTh
@@ -674,7 +877,7 @@ export function PostuladosTable({
                       sortKey="estado"
                       onSort={changeSortKey}
                     />
-                    <th className="py-3 pr-3 text-xs font-semibold uppercase tracking-wide text-label">
+                    <th className="py-3 pr-5 text-xs font-semibold uppercase tracking-wide text-label">
                       Postulaciones
                     </th>
                     <SortableTh
@@ -689,17 +892,34 @@ export function PostuladosTable({
                 <tbody className="divide-y divide-border">
                   {paged.map((row, i) => {
                     const triage = triageDe(row);
+                    const isExiting = exiting.has(row.id);
+                    const isFocused = focusedId === row.id;
                     return (
                       <tr
                         key={row.id}
+                        id={`postulado-row-${row.id}`}
                         // Tope en 8: una página con muchas filas no tarda más en asentarse
                         // por tener más — a partir de ahí todas entran con el mismo delay.
-                        style={{ animationDelay: `${Math.min(i, 8) * 50}ms` }}
+                        // `viewTransitionName`: al reordenar o sacar una fila, el navegador
+                        // desliza el resto a su nueva posición en vez de saltar.
+                        style={
+                          {
+                            animationDelay: isExiting
+                              ? undefined
+                              : `${Math.min(i, 8) * 50}ms`,
+                            viewTransitionName: `postulado-${row.id}`,
+                          } as CSSProperties
+                        }
                         className={[
-                          "animate-view-in transition-colors",
-                          selected.has(row.id)
-                            ? "bg-[var(--selected-bg)]"
-                            : "hover:bg-bg",
+                          "transition-[opacity,transform,background-color] duration-150",
+                          isExiting
+                            ? "pointer-events-none -translate-x-3 opacity-0 ease-[var(--ease-in-quart)]"
+                            : "animate-view-in",
+                          isFocused
+                            ? "bg-[var(--selected-bg)] ring-2 ring-inset ring-primary"
+                            : selected.has(row.id)
+                              ? "bg-[var(--selected-bg)]"
+                              : "hover:bg-bg",
                         ].join(" ")}
                       >
                         <td className="py-3 pl-4">
@@ -709,10 +929,10 @@ export function PostuladosTable({
                             aria-label={`Seleccionar ${row.candidate.fullName}`}
                           />
                         </td>
-                        <td className="py-3 pr-3">
-                          <div className="flex items-center gap-3">
+                        <td className="max-w-[300px] py-3 pr-5">
+                          <div className="flex min-w-0 items-center gap-3">
                             <Avatar name={row.candidate.fullName} size="sm" />
-                            <div className="min-w-0">
+                            <div className="min-w-0 max-w-[240px]">
                               <button
                                 type="button"
                                 onClick={() => setDetailId(row.id)}
@@ -728,16 +948,16 @@ export function PostuladosTable({
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 pr-3 text-muted">
+                        <td className="py-3 pr-5 text-muted">
                           {sourceLabel(row.candidate.source)}
                         </td>
-                        <td className="py-3 pr-3">
+                        <td className="py-3 pr-5">
                           <Badge variant={row.selfApplied ? "blue" : "primary"}>
                             {row.selfApplied ? "Auto-postulado" : "Del pool"}
                           </Badge>
                         </td>
                         {showCriterios && (
-                          <td className="py-3 pr-3">
+                          <td className="py-3 pr-5">
                             {criteriosByApplication[row.id] ? (
                               <CriteriosChip
                                 criterios={criteriosByApplication[row.id]}
@@ -747,10 +967,11 @@ export function PostuladosTable({
                             )}
                           </td>
                         )}
-                        <td className="py-3 pr-3">
+                        <td className="py-3 pr-5">
                           <MatchCell
                             score={row.aiScore}
                             summary={row.aiSummary}
+                            countUp
                             onOpenCopiloto={
                               row.aiScore != null
                                 ? () => setAiDetailId(row.id)
@@ -758,13 +979,13 @@ export function PostuladosTable({
                             }
                           />
                         </td>
-                        <td className="py-3 pr-3 text-muted tabular-nums">
+                        <td className="py-3 pr-5 text-muted tabular-nums">
                           {salaryLabel(
                             row.expectedSalary,
                             row.expectedSalaryCurrency,
                           )}
                         </td>
-                        <td className="py-3 pr-3">
+                        <td className="py-3 pr-5">
                           {triage === "descartado" ? (
                             <Badge variant="rejected">Descartado</Badge>
                           ) : triage === "pipeline" ? (
@@ -775,10 +996,10 @@ export function PostuladosTable({
                             <Badge variant="new">Sin revisar</Badge>
                           )}
                         </td>
-                        <td className="py-3 pr-3 text-muted tabular-nums">
+                        <td className="py-3 pr-5 text-muted tabular-nums">
                           {applicationCountLabel(row.applicationCount)}
                         </td>
-                        <td className="py-3 pr-3 text-muted tabular-nums">
+                        <td className="py-3 pr-5 text-muted tabular-nums">
                           {dateFmt.format(row.createdAt)}
                         </td>
                         <td className="py-3 pr-4">
@@ -1035,6 +1256,16 @@ export function PostuladosTable({
   );
 }
 
+/** Tecla en la ayuda de atajos. `<kbd>` es el uso legítimo de monospace: representa una
+ *  pulsación, no decora "lo técnico". */
+function Kbd({ children }: { children: ReactNode }) {
+  return (
+    <kbd className="rounded border border-border bg-surface px-2 py-0.5 font-mono text-[10px] font-semibold text-label">
+      {children}
+    </kbd>
+  );
+}
+
 function SortableTh({
   label,
   sortKey,
@@ -1051,7 +1282,7 @@ function SortableTh({
   const isActive = active.key === sortKey;
   return (
     <th
-      className={`py-3 pr-3 ${className}`}
+      className={`py-3 pr-5 ${className}`}
       aria-sort={
         isActive ? (active.dir === "asc" ? "ascending" : "descending") : "none"
       }

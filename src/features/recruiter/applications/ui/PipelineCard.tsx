@@ -1,7 +1,8 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 import { useDraggable } from "@dnd-kit/core";
+import { isFromInteractiveDescendant } from "@/lib/interactive-target";
 import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
 import { AiScore, SparkleIcon } from "@/components/ui/ai";
@@ -108,6 +109,10 @@ export function PipelineCard({
       : undefined;
 
   function onKeyDown(e: KeyboardEvent) {
+    // La card entera es "clickeable" (abre el detalle) y además intercepta 1-9 para saltar de
+    // etapa — un control real adentro (el menú de acciones, un futuro campo de texto) no debe
+    // disparar ninguna de las dos. Ver `isFromInteractiveDescendant`.
+    if (isFromInteractiveDescendant(e)) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       onOpen(application.id);
@@ -123,11 +128,16 @@ export function PipelineCard({
     }
   }
 
+  function onCardClick(e: MouseEvent) {
+    if (isDragOverlay || isFromInteractiveDescendant(e)) return;
+    onOpen(application.id);
+  }
+
   return (
     <article
       ref={setNodeRef}
       style={style}
-      onClick={() => !isDragOverlay && onOpen(application.id)}
+      onClick={onCardClick}
       onKeyDown={onKeyDown}
       aria-label={`${application.candidate.fullName}, etapa ${stageName}. Enter para ver detalle.`}
       {...attributes}

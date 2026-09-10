@@ -21,15 +21,19 @@ export async function setTalentState(
   );
 }
 
-/** Suma el candidato al pool de talento del recruiter (ver comentario en el schema:
- *  `saved_to_pool`). No toca nada de ninguna postulación — es del candidato, no de un job. */
-export async function setSavedToPool(candidateId: string): Promise<void> {
+/** Suma (o saca, con `value: false` — el "Deshacer" del guardado) el candidato al pool de
+ *  talento del recruiter (ver comentario en el schema: `saved_to_pool`). No toca nada de
+ *  ninguna postulación — es del candidato, no de un job. */
+export async function setSavedToPool(
+  candidateId: string,
+  value = true,
+): Promise<void> {
   const db = await getDb();
   await db.rls(
     (tx) =>
       tx
         .update(candidates)
-        .set({ savedToPool: true, updatedAt: new Date() })
+        .set({ savedToPool: value, updatedAt: new Date() })
         .where(eq(candidates.id, candidateId)),
     "db.candidates.set-saved-to-pool",
   );

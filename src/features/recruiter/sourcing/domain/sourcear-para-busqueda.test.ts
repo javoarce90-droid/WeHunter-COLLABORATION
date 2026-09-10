@@ -81,10 +81,16 @@ describe("buildJobSourcingQuery", () => {
     );
   });
 
-  it("ignora campos vacíos/null", () => {
+  it("defaultea a Argentina cuando la búsqueda no tiene location cargada", () => {
+    expect(buildJobSourcingQuery(job({ location: null }))).toBe(
+      "Senior Backend Engineer Python Supabase senior Argentina",
+    );
+  });
+
+  it("ignora campos vacíos/null pero defaultea location a Argentina", () => {
     expect(
       buildJobSourcingQuery(job({ skills: null, seniority: null, location: null })),
-    ).toBe("Senior Backend Engineer");
+    ).toBe("Senior Backend Engineer Argentina");
   });
 });
 
