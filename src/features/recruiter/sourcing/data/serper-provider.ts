@@ -1,12 +1,21 @@
-export type LinkedInCandidateResult = {
-  id: string; // sintético (determinístico), NO es un candidate id
-  name: string;
-  headline: string;
-  location: string;
-  skills: string[];
-  linkedinUrl: string;
-  snippet?: string | null;
-};
+import { normalizeLinkedinKey } from "../../candidates/domain/duplicate-keys";
+import type {
+  SourcingFilters,
+  SourcingProvider,
+  SourcingProviderCandidate,
+  SourcingProviderResult,
+} from "../domain/sourcing-provider";
+
+/**
+ * Proveedor de reversión sobre Serper (API de resultados de Google, X-Ray search). Implementa
+ * `SourcingProvider` — mismo patrón que `GeminiAiProvider`/`MockAiProvider` para IA
+ * (`src/lib/ai/`). Es el código que hasta acá vivía en `domain/linkedin-search.ts`, movido tal
+ * cual (mismo comportamiento) — ver `openspec/changes/integrar-harvestapi-sourcing/design.md` §4.
+ *
+ * Sin datos de experiencia/educación/certificaciones/idiomas reales: Serper nunca los tuvo (solo
+ * indexa snippets de Google, no el perfil completo) — quedan en `[]`/`null`. No es una
+ * regresión respecto de hoy, es el techo ya conocido de este proveedor.
+ */
 
 export type LinkedInSearchQuery = {
   query: string;
@@ -32,7 +41,7 @@ function stableHash(s: string): number {
 export function buildLinkedInXRayQuery(freeText: string): string {
   const clean = freeText.trim();
   if (!clean) return 'site:linkedin.com/in/';
-  
+
   // Dividir por comas o espacios sin romper comillas
   const terms = clean
     .split(/[\s,]+/)
@@ -41,6 +50,20 @@ export function buildLinkedInXRayQuery(freeText: string): string {
 
   const formattedTerms = terms.map((t) => (t.includes(' ') ? `"${t}"` : t)).join(' ');
   return `site:linkedin.com/in/ ${formattedTerms}`;
+}
+
+/** Arma el texto libre de búsqueda a partir de los filtros estructurados (puesto, hasta 3
+ *  skills, seniority, ubicación) — Serper no tiene filtros server-side reales, todo termina
+ *  como AND de texto en el X-Ray. Equivalente al intento 0 de `buildJobSourcingQuery` (hoy en
+ *  `sourcear-para-busqueda.ts`), pero a partir de `SourcingFilters` en vez de `JobSourcingContext`. */
+export function buildQueryFromFilters(filters: SourcingFilters): string {
+  const terms = [
+    filters.role,
+    ...filters.skills.slice(0, 3),
+    filters.seniority,
+    filters.location,
+  ].filter((t): t is string => Boolean(t && t.trim()));
+  return terms.join(" ");
 }
 
 const DEMO_PROFILES = [
@@ -132,13 +155,17 @@ export function inferGoogleCountryCode(text: string): string | undefined {
 /**
  * Busca candidatos en LinkedIn a través de la API de Serper (Google X-Ray) si existe la llave
  * de entorno, o genera resultados dinámicos y realistas coincidiendo con la query. `page` (1+)
- * pagina resultados reales — es lo que hace que "Buscar más candidatos" avance sobre perfiles
- * distintos en vez de repetir el mismo top-10.
+ * pagina resultados reales.
+ *
+ * Firma "legacy" (query/page) — uso interno de `SerperProvider.search()` (abajo), que la llama
+ * en loop hasta juntar `maxResults`. El flujo de Sourcing con IA ya no la usa directamente:
+ * `sourcear-para-busqueda.ts` llama al proveedor a través de la interface `SourcingProvider`
+ * ("Buscar más candidatos" se eliminó, design.md §1.1).
  */
 export async function searchLinkedInCandidates(
   input: LinkedInSearchQuery,
   page = 1,
-): Promise<{ candidates: LinkedInCandidateResult[]; isLiveApi: boolean; error?: string }> {
+): Promise<{ candidates: SourcingProviderCandidate[]; isLiveApi: boolean; error?: string }> {
   const rawQuery = input.query.trim();
   if (!rawQuery) return { candidates: [], isLiveApi: false };
 
@@ -163,7 +190,7 @@ export async function searchLinkedInCandidates(
       if (res.ok) {
         const data = await res.json();
         const organic = Array.isArray(data.organic) ? data.organic : [];
-        const liveCandidates: LinkedInCandidateResult[] = organic
+        const liveCandidates: SourcingProviderCandidate[] = organic
           .filter((item: { link?: string }) => item.link?.includes("linkedin.com/in/"))
           .map((item: { title?: string; snippet?: string; link?: string }, idx: number) => {
             const rawTitle = item.title ?? "Perfil de LinkedIn";
@@ -186,7 +213,12 @@ export async function searchLinkedInCandidates(
               location: "Ubicación en LinkedIn",
               skills: skills.length > 0 ? skills : ["LinkedIn"],
               linkedinUrl: link,
+              email: null,
               snippet,
+              experience: [],
+              education: [],
+              certifications: [],
+              languages: [],
             };
           });
 
@@ -207,7 +239,7 @@ export async function searchLinkedInCandidates(
   const queryTerms = rawQuery.toLowerCase().split(/[\s,]+/).filter(Boolean);
   const seed = stableHash(`${rawQuery}#${pageNum}`);
 
-  const candidates: LinkedInCandidateResult[] = DEMO_PROFILES.map((p, idx) => {
+  const candidates: SourcingProviderCandidate[] = DEMO_PROFILES.map((p, idx) => {
     // Adapta dinámicamente las skills para reflejar la búsqueda ingresada por el usuario
     const dynamicSkills = Array.from(
       new Set([...queryTerms.map((t) => t.toUpperCase()), ...p.skills]),
@@ -228,9 +260,54 @@ export async function searchLinkedInCandidates(
       location: p.location,
       skills: dynamicSkills,
       linkedinUrl: realLinkedinSearchUrl,
+      email: null,
       snippet: p.snippet,
+      experience: [],
+      education: [],
+      certifications: [],
+      languages: [],
     };
   });
 
   return { candidates, isLiveApi: false };
+}
+
+/** Tope de páginas que prueba `SerperProvider.search()` por llamada antes de darse por vencido
+ *  — sin esto, un `maxResults` alto contra una búsqueda con pocos resultados reales pediría
+ *  páginas indefinidamente. */
+const SEARCH_METHOD_MAX_PAGES = 3;
+
+export class SerperProvider implements SourcingProvider {
+  async search(
+    filters: SourcingFilters,
+    maxResults: number,
+    exclude: string[],
+  ): Promise<SourcingProviderResult> {
+    const query = buildQueryFromFilters(filters);
+    const excluded = new Set(exclude);
+    const collected: SourcingProviderCandidate[] = [];
+    let isLiveApi = true;
+
+    for (let page = 1; page <= SEARCH_METHOD_MAX_PAGES && collected.length < maxResults; page++) {
+      const res = await searchLinkedInCandidates({ query }, page);
+      if (res.error) {
+        return { candidates: [], isLiveApi: false, costUsd: 0, error: res.error };
+      }
+      isLiveApi = res.isLiveApi;
+      if (res.candidates.length === 0) break; // página vacía: no hay más para pedir
+
+      for (const c of res.candidates) {
+        const key = normalizeLinkedinKey(c.linkedinUrl) ?? c.id;
+        if (excluded.has(key)) continue;
+        excluded.add(key);
+        collected.push(c);
+        if (collected.length >= maxResults) break;
+      }
+    }
+
+    // Serper se paga por suscripción/plan, no encontramos un costo variable por perfil
+    // documentado en este proyecto (a diferencia de HarvestAPI) — costUsd queda en 0. Si
+    // aparece un costo real de Serper a futuro, ajustar acá.
+    return { candidates: collected, isLiveApi, costUsd: 0 };
+  }
 }

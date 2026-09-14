@@ -15,7 +15,7 @@ import { importarSourcingResultadoAction } from "../../applications/actions";
 import { AiAnalysisDialog } from "../../applications/ui/AiAnalysisDialog";
 import { CompareCandidatesDialog } from "./CompareCandidatesDialog";
 import { SourcingCandidateCard } from "./SourcingCandidateCard";
-import { MAX_SEARCH_STEPS } from "../domain/sourcear-para-busqueda";
+import { SOURCING_MAX_RESULTS } from "../domain/sourcear-para-busqueda";
 import type {
   ScoredLinkedInCandidate,
   SourcingMetrics,
@@ -89,9 +89,6 @@ export function AiJobSourcingResults({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
-  // true cuando "Buscar más candidatos" ya recorrió todo el universo de perfiles de esta
-  // búsqueda (todas las variantes de query × páginas de Serper). Lo informa el server.
-  const [exhausted, setExhausted] = useState(false);
   const [metrics, setMetrics] = useState<SourcingMetrics | null>(null);
   const [progressStage, setProgressStage] = useState<0 | 1 | 2>(0);
   const [hydrating, startHydrate] = useTransition();
@@ -108,7 +105,6 @@ export function AiJobSourcingResults({
       setResults(res.session.results);
       setMetrics(res.session.metrics);
       setIsLiveApi(res.session.isLiveApi);
-      setExhausted(res.session.attempt >= MAX_SEARCH_STEPS);
     });
     return () => {
       cancelled = true;
@@ -169,14 +165,15 @@ export function AiJobSourcingResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // `mode` 0 = búsqueda nueva (reemplaza todo y resetea las decisiones); 1 = "Buscar más
-  // candidatos" (el server avanza el cursor de páginas/variantes y devuelve el listado
-  // acumulado, ya deduplicado contra el pool y contra lo que este recruiter ya vio).
-  function ejecutarBusqueda(mode: 0 | 1) {
+  // Búsqueda única (design.md §1.1 — ya no existe "Buscar más candidatos"): reemplaza
+  // cualquier resultado anterior de esta búsqueda y resetea las decisiones. La cantidad
+  // (`SOURCING_MAX_RESULTS`) queda fija acá hasta que el selector de cantidad del prototipo
+  // (stepper 1–10) se implemente — ver grupo 11 de tasks.md.
+  function buscar() {
     notifiedRef.current = false;
     setProgressStage(0);
     startSearch(async () => {
-      const res = await sourcearParaBusquedaAction(jobId, mode);
+      const res = await sourcearParaBusquedaAction(jobId, SOURCING_MAX_RESULTS);
       if (!res.ok || !res.results || !res.metrics) {
         toast({
           message: res.error ?? "No se pudo buscar en LinkedIn.",
@@ -186,26 +183,13 @@ export function AiJobSourcingResults({
       }
       setMetrics(res.metrics);
       setIsLiveApi(res.isLiveApi ?? false);
-      setExhausted(res.exhausted ?? false);
       setResults(res.results);
-      if (mode === 0) {
-        setDecisions({});
-        setImportedVia({});
-        setPostularByCandidate({});
-        setSelected(new Set());
-        setCompareIds(null);
-      }
+      setDecisions({});
+      setImportedVia({});
+      setPostularByCandidate({});
+      setSelected(new Set());
+      setCompareIds(null);
     });
-  }
-
-  function buscar() {
-    if (results !== null) return; // primera búsqueda — para pedir otra tanda usar buscarMas()
-    ejecutarBusqueda(0);
-  }
-
-  function buscarMas() {
-    if (results === null) return;
-    ejecutarBusqueda(1);
   }
 
   function limpiar() {
@@ -216,7 +200,6 @@ export function AiJobSourcingResults({
     setIsLiveApi(true);
     setSelected(new Set());
     setCompareIds(null);
-    setExhausted(false);
     setMetrics(null);
     void limpiarSourcingSessionAction(jobId);
   }
@@ -235,6 +218,7 @@ export function AiJobSourcingResults({
           location: c.location,
           skills: c.skills,
           linkedinUrl: c.linkedinUrl,
+          email: c.email,
           summary: c.summary,
         })
       : await importarSourcingAction({
@@ -243,6 +227,7 @@ export function AiJobSourcingResults({
           location: c.location,
           skills: c.skills,
           linkedinUrl: c.linkedinUrl,
+          email: c.email,
         });
     return {
       id: c.id,
@@ -410,8 +395,8 @@ export function AiJobSourcingResults({
   }
 
   if (results.length === 0) {
-    // Serper puede haber encontrado candidatos y que el dedup contra el pool los haya filtrado a
-    // todos — es un caso distinto de "la API no devolvió nada", con su propio copy y CTA.
+    // El proveedor puede haber encontrado candidatos y que el dedup contra el pool los haya
+    // filtrado a todos — es un caso distinto de "no devolvió nada", con su propio copy.
     const todosEnPool = (metrics?.encontrados ?? 0) > 0 && (metrics?.nuevos ?? 0) === 0;
     return (
       <div className="flex flex-col items-center gap-4">
@@ -419,25 +404,13 @@ export function AiJobSourcingResults({
           title={todosEnPool ? "Ya tenés a todos en tu pool" : "No encontramos perfiles en LinkedIn"}
           description={
             todosEnPool
-              ? exhausted
-                ? "Recorrimos todos los resultados de LinkedIn para esta búsqueda y cada perfil ya está en tu pool. Sumá candidatos con Agregar candidatos, o ajustá la búsqueda."
-                : "Todos los perfiles de esta tanda ya están en tu pool. Seguí con Buscar más candidatos para traer más resultados de LinkedIn."
+              ? "Todos los perfiles de esta búsqueda ya están en tu pool. Ajustá la búsqueda o probá de nuevo."
               : "Probá de nuevo más tarde o sumá candidatos con Agregar candidatos."
           }
         />
-        <div className="flex items-center gap-2">
-          {todosEnPool && !exhausted && (
-            <div className="flex flex-col items-center gap-2">
-              <AiButton variant="outline" onClick={buscarMas} loading={searching}>
-                Buscar más candidatos
-              </AiButton>
-              {progressCaption}
-            </div>
-          )}
-          <Button variant="secondary" size="sm" onClick={limpiar} disabled={searching}>
-            Limpiar
-          </Button>
-        </div>
+        <Button variant="secondary" size="sm" onClick={limpiar} disabled={searching}>
+          Limpiar
+        </Button>
       </div>
     );
   }
@@ -471,18 +444,6 @@ export function AiJobSourcingResults({
           por match — tocá el anillo de cada uno para ver el detalle
         </span>
         <div className="flex items-center gap-3">
-          {exhausted ? (
-            <span className="text-xs text-muted">
-              Ya revisamos todos los perfiles de LinkedIn para esta búsqueda
-            </span>
-          ) : (
-            <div className="flex flex-col items-start gap-1">
-              <AiButton variant="outline" onClick={buscarMas} loading={searching}>
-                Buscar más candidatos
-              </AiButton>
-              {progressCaption}
-            </div>
-          )}
           {pendingResults.length > 1 && (
             <button
               type="button"

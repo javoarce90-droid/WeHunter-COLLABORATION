@@ -428,6 +428,60 @@ export async function findExistingLinkedinUrls(
   );
 }
 
+/** Qué linkedinUrls y qué emails (sin normalizar — esta función normaliza) ya existen en el
+ *  pool de la organización — UNA sola query para todo el lote (ambas claves juntas), nunca una
+ *  por candidato. Generaliza `findExistingLinkedinUrls` a las dos claves de dedup (regla
+ *  "Duplicados" de `limitar-sourcing-ia`: con HarvestAPI los candidatos de Sourcing sí traen
+ *  email real, así que el chequeo debe cubrir ambas, no solo LinkedIn). Devuelve las claves ya
+ *  normalizadas — comparar con `.has()` usando `normalizeLinkedinKey`/`normalizeEmailKey` sobre
+ *  cada candidato del lado del caller. */
+export async function findExistingCandidateKeys(
+  organizationId: string,
+  args: { linkedinUrls: string[]; emails: string[] },
+): Promise<{ linkedinUrls: Set<string>; emails: Set<string> }> {
+  const normalizedUrls = args.linkedinUrls
+    .map((u) => normalizeLinkedinKey(u))
+    .filter((u): u is string => u !== null);
+  const normalizedEmails = args.emails
+    .map((e) => normalizeEmailKey(e))
+    .filter((e): e is string => e !== null);
+  if (normalizedUrls.length === 0 && normalizedEmails.length === 0) {
+    return { linkedinUrls: new Set(), emails: new Set() };
+  }
+
+  const conditions: ReturnType<typeof sql>[] = [];
+  if (normalizedUrls.length > 0) {
+    conditions.push(
+      inArray(
+        sql`lower(regexp_replace(${candidates.linkedinUrl}, '/+$', ''))`,
+        normalizedUrls,
+      ),
+    );
+  }
+  if (normalizedEmails.length > 0) {
+    conditions.push(inArray(sql`lower(${candidates.email})`, normalizedEmails));
+  }
+
+  const db = await getDb();
+  const rows = await db.rls(
+    (tx) =>
+      tx
+        .select({ linkedinUrl: candidates.linkedinUrl, email: candidates.email })
+        .from(candidates)
+        .where(and(eq(candidates.organizationId, organizationId), or(...conditions))),
+    "db.candidates.find-existing-candidate-keys",
+  );
+
+  return {
+    linkedinUrls: new Set(
+      rows.map((r) => normalizeLinkedinKey(r.linkedinUrl)).filter((u): u is string => u !== null),
+    ),
+    emails: new Set(
+      rows.map((r) => normalizeEmailKey(r.email)).filter((e): e is string => e !== null),
+    ),
+  };
+}
+
 export type ResumeCounts = {
   experiences: number;
   education: number;

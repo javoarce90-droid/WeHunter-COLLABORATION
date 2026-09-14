@@ -1050,7 +1050,7 @@ function isQuotaError(err: unknown): boolean {
 }
 
 /** Cuántos candidatos por request de `scoreApplicationsBatch`. 10 = mismo tope que el resto de
- *  la app para tandas de IA (SOURCING_MAX_RESULTS, SOURCING_MANUAL_SCORE_CAP). Cuanto más chico,
+ *  la app para tandas de IA (SOURCING_MAX_RESULTS). Cuanto más chico,
  *  menos riesgo de que el modelo omita/mezcle candidatos; N > chunk se parte en varias requests
  *  (igual son muchísimas menos que una por candidato). */
 const BATCH_SCORE_CHUNK = 10;

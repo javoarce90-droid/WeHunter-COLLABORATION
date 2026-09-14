@@ -1,0 +1,222 @@
+change: integrar-harvestapi-sourcing
+created: 2026-09-14
+mode: manual-inline            # SDD phase agents unavailable this session; orchestrator runs phases inline
+execution_mode: interactive
+artifact_store: hybrid         # openspec files + engram
+delivery_strategy: ask-on-risk
+review_budget_lines: 800
+strict_tdd: true
+test_command: "pnpm test"
+
+phases:
+  explore:  done                # code architecture mapped 2026-09-14 (see proposal §1, §4)
+  proposal: approved            # user answered open questions and approved 2026-09-14, see §3.1-§3.3
+  spec:     approved            # all open questions closed 2026-09-14, incl. real HarvestAPI call
+  design:   awaiting-approval   # design.md written 2026-09-14
+  tasks:    awaiting-approval   # tasks.md written 2026-09-14, 12 groups, TDD-first ordering
+  apply:    blocked
+  verify:   blocked
+  archive:  blocked
+
+gates:
+  - after: proposal   # user validates scope decision before spec
+
+relationships:
+  related: [limitar-sourcing-ia]
+
+notes: |
+  Scope decided by user 2026-09-14 (round 1): adopt HarvestAPI directly, skipping the formal
+  comparative spike research-proveedores.md recommended. Risk accepted explicitly (see
+  proposal.md §3).
+
+  Round 2 (2026-09-14, same day): Serper fully retired (no fallback); experience/education
+  structured in schema; Sourcing Manual eliminated entirely — single unified sourcing flow;
+  Apify actor kept as default (direct API `api.harvestapi.io` confirmed to exist independent
+  of Apify, contradicting user's initial claim — corrected with evidence from
+  docs.harvestapi.io/guides/quickstart, but its pricing is unpublished so Apify stays default
+  until quoted). See proposal.md §3.1.
+
+  This change is the "vendor integration" work that limitar-sourcing-ia's proposal.md §10
+  marked as separate/out of scope. It feeds the per-profile cost that limitar-sourcing-ia's
+  credit config needs, and must resolve the billing questions blocking that change's
+  `charge_on_provider_duplicate` rule (spec.md requirement "Duplicados", lines 230-271).
+
+  Postulados entry point (`SourcingIADialog.tsx`, applications/ui) confirmed to share the
+  same `AiJobSourcingResults` component as the Sourcing tab, already job-scoped (no picker)
+  — inherits all changes automatically; only layout risk is the narrower side-panel width
+  (proposal.md §4.1).
+
+  Round 3 (2026-09-14, same day): confirmed via Apify actor docs that search ($0.10/page)
+  and full profile ($0.004/profile) are separate billing events. Structured fields expand to
+  languages + certifications (languages reuse the existing candidate "Idiomas" entity);
+  endorsements explicitly out of scope. Apify stays default, no quote requested for the
+  direct API. Persisted-profile TTL confirmed at 30-60 days (was a research suggestion,
+  now an explicit decision).
+
+  Round 4 (2026-09-14, same day) — CLOSED: user provided a live Apify token (used once,
+  discarded, not persisted anywhere — user rotates it) to run a real test against
+  `harvestapi/linkedin-profile-search`. Confirmed: `profileScraperMode: "Short"` returns
+  `linkedinUrl` built from LinkedIn's internal member ID (not the vanity URL), no
+  `publicIdentifier`; only `profileScraperMode: "Full"` (+$0.004/profile) returns the real
+  vanity URL + `publicIdentifier` + email fields. Conclusion: no cheap way to dedupe against
+  the Talent Pool before paying for the full profile. User's resolution: a Talent Pool
+  duplicate ALWAYS consumes 1 credit (same as NEW_PROFILE, no `charge_on_provider_duplicate`
+  flag needed) — post-full-profile, the system compares by linkedinUrl AND email (dedup
+  extended beyond linkedinUrl-only) and flags/links the result as already-in-pool instead of
+  silently no-charging it. Closed both this change's spec.md ("Detección de duplicado contra
+  el Talent Pool") and limitar-sourcing-ia's spec.md ("Duplicados" requirement, previously
+  pending).
+
+apply_progress: |
+  2026-09-14 — tasks.md grupos 1-3 implementados (fork), grupos 4+ sin empezar.
+
+  Hecho: `domain/sourcing-provider.ts` (interface + tipos), `data/serper-provider.ts`
+  (`SerperProvider implements SourcingProvider`, movido de `domain/linkedin-search.ts`
+  — borrado —, tests adaptados en `serper-provider.test.ts`),
+  `domain/get-sourcing-provider.ts` (+ test de `resolveSourcingProviderKind`, la lógica de
+  selección, separada de la instanciación real para poder testearla sin `HarvestApiProvider`).
+  `pnpm typecheck`, `pnpm test` (930/930) y `eslint` sobre los archivos tocados: todo verde.
+  `pnpm lint` completo tiene ~1580 errores preexistentes en todo el repo (incluye un worktree
+  duplicado `.claude/worktrees/shortlist-ui-fixes/`) — no relacionados con este change, no se
+  tocaron.
+
+  DESVIACIÓN DE DISEÑO (para revisar): design.md §5 y tasks.md grupo 3 pedían reemplazar el uso
+  directo de `searchLinkedInCandidates` en `sourcear-para-busqueda.ts`/`actions.ts` por
+  `getSourcingProvider().search(filters, maxResults, exclude)`. No lo hice. Motivo: la interface
+  nueva (`maxResults`/`exclude`, sin `page`) no tiene forma de expresar "traeme la página 2/3 de
+  esta misma búsqueda" — que es exactamente lo que `sourcearParaBusqueda()` usa hoy
+  (`stepToVariantPage`, `MAX_SEARCH_STEPS`, `SEARCH_PAGES_PER_VARIANT`) para "Buscar más
+  candidatos". Adaptar `SourcearParaBusquedaDeps.search` a la firma nueva sin resolver antes
+  ESE mecanismo (design.md §11 y tasks.md grupo 4 lo dejan EXPLÍCITAMENTE pendiente, a definir
+  recién investigando la paginación real de HarvestAPI) me parecía: (a) invadir una decisión de
+  arquitectura que ya está deliberadamente diferida al grupo 4, y (b) arriesgar una regresión
+  silenciosa en "Buscar más" con un heurístico inventado ahora (ej. derivar la página del
+  tamaño de `exclude`) que probablemente haya que tirar apenas se investigue cómo pagina
+  HarvestAPI de verdad.
+
+  Lo que SÍ hice como compromiso: `SerperProvider.search()` (el método de la interface) existe,
+  está testeado y funciona (con paginación interna simple, tope de 3 páginas) — pero no está
+  en el camino caliente de producción todavía. `actions.ts` ya no importa nada del
+  `linkedin-search.ts` borrado (ahora importa `searchLinkedInCandidates` — la función legacy
+  `(query, page)`, relocada tal cual — desde `data/serper-provider.ts`), con un comentario
+  TODO explícito en el call site de `sourcearParaBusquedaAction` señalando el pendiente y por
+  qué. `getSourcingProvider()` queda armado y testeado, listo para que el grupo 4 lo cablee
+  cuando resuelva paginación + `HarvestApiProvider` juntos.
+
+  Otras notas menores: `LinkedInSourcingTab.tsx` (Sourcing Manual, grupo 5 lo borra) tenía un
+  import roto por el borrado de `linkedin-search.ts` — lo arreglé con un alias de tipo mínimo
+  (`SourcingProviderCandidate as LinkedInCandidateResult`) sin tocar el resto del archivo, ya
+  que no es mi scope modificarlo/borrarlo todavía. `scorearCandidatoSourcingAction` (misma
+  action, grupo 5) necesitó rellenar los campos nuevos del tipo a mano para compilar — también
+  marcado con TODO. Costo de Serper: no encontré ningún número de costo variable por perfil
+  documentado en el repo (solo su modelo de suscripción) — `costUsd: 0` en `SerperProvider`,
+  con comentario explicando por qué, tal como pedía la consigna en vez de inventar un número.
+
+  Round 5 (2026-09-14, same day) — PRODUCT PIVOT, mid-apply: user shared the validated
+  credits prototype (https://claude.ai/artifact/MkCJ4AvdpCSgnQ8DXZQiPr) and said "Buscar más
+  candidatos" no longer exists. New flow: recruiter picks a quantity upfront (stepper 1-10)
+  and runs ONE search; results persist per job (survives navigation) until an explicit
+  "Limpiar" action (new, not in the prototype, added by this change). Re-running a search
+  REPLACES results, doesn't accumulate. This removes the exact blocker apply had just hit
+  (no way to express "page 2" in SourcingProvider.search()) — no more cursor/continuation
+  needed at all. Updated specs/sourcing-provider/spec.md (replaced "Buscar más" requirement
+  with "Búsqueda única con cantidad configurable" + "Limpiar"), design.md (§1.1 new section,
+  simplified SourcingProvider docs, UI section rewritten), tasks.md (group 3's pending item
+  reframed, group 4 dropped the now-moot pagination investigation, groups 10-11 gained
+  "Limpiar" tasks). Apply groups 1-2 (interface, SerperProvider) stay valid as-is; group 3's
+  remaining item is now simpler (no paginación to resolve, just simplify
+  sourcear-para-busqueda.ts by removing the cursor machinery — SourcingCursor,
+  stepToVariantPage, MAX_SEARCH_STEPS, SEARCH_PAGES_PER_VARIANT, MAX_STEPS_PER_CLICK,
+  mergeSourcingBatch, all now dead weight).
+
+apply_progress_2: |
+  2026-09-14 (fork, continuation) — tasks.md group 3 fully done: simplified
+  sourcear-para-busqueda.ts (dropped SourcingCursor/stepToVariantPage/MAX_SEARCH_STEPS/
+  SEARCH_PAGES_PER_VARIANT/MAX_STEPS_PER_CLICK/buildJobSourcingQueryVariant/
+  buildJobSourcingQuery/mergeSourcingBatch entirely — new signature
+  sourcearParaBusqueda(job, maxResults, deps), single deps.search(filters, maxResults, [])
+  call, new jobToSourcingFilters() replaces the query-string builders). Rewired
+  sourcearParaBusquedaAction (actions.ts) to getSourcingProvider().search(...) instead of the
+  legacy searchLinkedInCandidates import, signature now (jobId, maxResults) not (jobId, step),
+  no more session-cursor restore/merge logic. Minimal compile-compatibility patch to
+  AiJobSourcingResults.tsx (removed MAX_SEARCH_STEPS/exhausted/buscarMas(), buscar() now calls
+  the action with SOURCING_MAX_RESULTS fixed) — explicitly NOT the group 11 redesign (stepper
+  input, new copy) since that's out of this fork's scope. `pnpm typecheck` and `pnpm test`
+  (917/917) independently verified green by the parent after the fork report; eslint clean on
+  touched files.
+
+  Discovery: `limpiarSourcingSessionAction`/`deleteSourcingSession` (the "Limpiar" button)
+  ALREADY EXISTED in the codebase before this change — group 10's "Limpiar" mutation task may
+  already be satisfied; needs confirming with the user whether groups 10-11 still have real
+  work beyond the quantity stepper and detail-view UI.
+
+  Judgment call flagged for user confirmation: `exclude` is passed as `[]` on every
+  `SourcingProvider.search()` call — there's no query that enumerates "all Talent Pool
+  linkedinUrls/emails for this org" to pass upfront, so pool-membership is only checked AFTER
+  the (already-paid) search response comes back (existing `findExistingLinkedinUrls`
+  mechanism, unchanged). This is consistent with the closed Duplicados rule (a pool duplicate
+  still consumes credit regardless), but means `exclude` is currently a no-op in practice for
+  the real Sourcing flow — only meaningful if a future SourcingProvider implementation can use
+  it server-side. Not resolved further here; flagging instead of inventing a backfill-until-N-new
+  loop, which would reintroduce multi-call complexity the product pivot removed.
+
+apply_progress_3: |
+  2026-09-14 (orchestrator, direct — first fork attempt returned 0 tool_uses, a no-op text
+  reply, relaunched and executed inline as the fork itself) — tasks.md group 4 done:
+  `HarvestApiProvider implements SourcingProvider` (`data/harvest-api-provider.ts`), calling
+  the real Apify actor `harvestapi/linkedin-profile-search` (run-sync-get-dataset-items),
+  always `profileScraperMode: "Full"`. Skills mapped into `searchQuery` (free text, joined
+  with seniority) alongside hard filters `currentJobTitles`/`locations` — the actor's exact
+  skills field isn't confirmed publicly, documented as an assumption to validate with a real
+  token. Field names inside experience/education/certifications/languages are also assumed
+  (not 100% confirmed) — mapped defensively with aliases, documented in the file header.
+  Deterministic fallback (no token, or fetch throws, or non-ok response) mirrors
+  SerperProvider's pattern but WITH populated experience/education/certifications/languages
+  (Serper's fallback leaves those empty — HarvestAPI's doesn't, so dev/demo can render the
+  future detail view). costUsd = 0.10 + maxItems*0.004 on live calls (no real-cost field found
+  in Apify's response), 0 on fallback. Wired into `getSourcingProvider()` for real, removed
+  the temporary placeholder/console.warn.
+
+  Tests: `harvest-api-provider.test.ts` (9), `get-sourcing-provider.test.ts` gained 2 more
+  (verifies `getSourcingProvider()` returns the right class per env, using `vi.resetModules()`
+  + fresh dynamic imports on both sides — a stale top-level class reference after resetModules
+  makes plain `instanceof` always fail, worth remembering for future tests of this module).
+  `pnpm typecheck`, `pnpm test` (928/928), eslint on touched files: all green, verified
+  directly (not just trusted from a report).
+
+  2026-09-14 — tasks.md groups 5-6 done (same-turn orchestrator execution, not a sub-agent
+  fork this time). Group 5 (remove Sourcing Manual): deleted `LinkedInSourcingTab.tsx`,
+  `buscarLinkedinAction`, `scorearCandidatoSourcingAction`, and `scoreLinkedInCandidate`/
+  `SOURCING_MANUAL_SCORE_CAP` (only Sourcing Manual used them) from
+  `sourcear-para-busqueda.ts`; dropped the now-dead `scoreApplication` field from
+  `SourcearParaBusquedaDeps`. `SourcingView.tsx` simplified to render `AiSourcingTab` directly,
+  no tab selector. README.md fully rewritten — it described Sourcing Manual and the old
+  `linkedin-search.ts` architecture extensively; kept the useful sections (bulk actions,
+  compare candidates) adapted to the single-flow reality. `searchLinkedInCandidates` (legacy
+  query/page function in `serper-provider.ts`) was NOT dead — `SerperProvider.search()` itself
+  calls it internally — so it stayed.
+
+  Group 6 (dedup extended to email): new `findExistingCandidateKeys(organizationId,
+  {linkedinUrls, emails})` in `candidates.queries.ts`, one query (OR across both keys),
+  generalizing `findExistingLinkedinUrls` (which is now unused in production code — left as-is,
+  not deleted, flagged in tasks.md for a later cleanup call). Wired into
+  `sourcear-para-busqueda.ts`'s dedup loop (`SourcearParaBusquedaDeps.findExistingLinkedinUrls`
+  → `findExistingCandidateKeys`) — a Sourcing result now counts as "already in pool" if EITHER
+  its linkedinUrl OR its email matches. `importarSourcingResultadoAction`
+  (`applications/actions.ts`) and `importarSourcingAction` (`sourcing/actions.ts`, same
+  duplicate-candidate risk, same fix applied for consistency though not explicitly in the
+  original directive) now accept and propagate `email` to `findDuplicateCandidate` and
+  `insertCandidate` (previously always saved `email: null` for Sourcing-sourced candidates,
+  even though `findDuplicateCandidate` itself already supported email — the gap was only in
+  the callers). `AiJobSourcingResults.tsx`'s `importarUno` updated to pass `c.email`.
+
+  No DUPLICATE audit-log tagging or "already in your Talent Pool" UI banner yet — that's
+  explicitly groups 9 (consumption events) and 11 (UI), out of this group's scope.
+
+  Verified independently: `pnpm typecheck` clean, `pnpm test` 927/927, eslint clean on all
+  touched files (both groups).
+
+open_questions_for_client: []
+open_questions_for_design: |
+  See proposal.md §6: structured experience/education/languages/certifications schema shape
+  (tables vs jsonb) — the only remaining item, and it's technical, not product.

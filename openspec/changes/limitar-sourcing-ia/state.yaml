@@ -1,0 +1,50 @@
+change: limitar-sourcing-ia
+created: 2026-09-10
+mode: manual-inline            # SDD phase agents unavailable this session; orchestrator runs phases inline
+execution_mode: interactive
+artifact_store: hybrid         # openspec files + engram
+delivery_strategy: ask-on-risk
+review_budget_lines: 800
+strict_tdd: true
+test_command: "pnpm test"
+
+phases:
+  explore:  done
+  proposal: approved            # client closed definitions 2026-09-10
+  spec:     approved            # last 3 open questions closed 2026-09-11; Duplicados closed
+                                 # 2026-09-14 via integrar-harvestapi-sourcing (real API test)
+  ui-proto: awaiting-approval   # gate: client validation — artifact https://claude.ai/code/artifact/a7feb72b-dc07-4018-82e9-19dff94455c9
+  design:   blocked
+  tasks:    blocked
+  apply:    blocked
+  verify:   blocked
+  archive:  blocked
+
+gates:
+  - after: proposal   # requirement validated with the client
+  - after: ui-proto   # functional design + UI prototype validated with the client
+
+notes: |
+  Scope CONFIRMED by client 2026-09-10: credit system + generic consumption layer + internal
+  cost controls for external Sourcing only. Vendor selection = separate spike. Other AI
+  features and search/vacancy limits explicitly out of scope.
+
+  Client definitions closed: credits model (1 credit = 1 new profile), unlimited searches,
+  included-per-cycle + purchasable packs (packs don't expire), zero-balance blocks only
+  external sourcing, credit amounts configurable per plan (NOT hardcoded), no per-search
+  tanda cap. Phase-2 constraint: generic consumption layer (consumption types / per-plan
+  allowance / balance / event log) — model it, implement only `sourcing_profile`.
+
+  Credit/pack NUMBERS deferred until the provider spike gives real cost-per-useful-profile.
+
+open_questions_for_client: []
+# All closed 2026-09-11: talent-pool-before-sourcing (offer, not forced), insufficient
+# balance (capped BEFORE running — confirmed reading), plan/trial/pack numbers, duplicate
+# crediting deferred to provider spike (config flag), reuse = "already in Talent Pool"
+# (permanent), plan change mid-cycle = next cycle (no proration), purchased_balance does
+# NOT survive cancellation, low-balance warning = 10% of credit_budget default (configurable).
+#
+# Closed 2026-09-14 via integrar-harvestapi-sourcing (real HarvestAPI test — see that
+# change's state.yaml round 4): Duplicados requirement — a Talent Pool duplicate ALWAYS
+# consumes 1 credit, same as NEW_PROFILE; charge_on_provider_duplicate flag dropped, not
+# needed. Dedup extended to linkedinUrl + email (was linkedinUrl only).

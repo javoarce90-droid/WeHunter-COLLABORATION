@@ -274,15 +274,18 @@ const importarSourcingResultadoSchema = z.object({
   location: z.string().nullable(),
   skills: z.array(z.string()),
   linkedinUrl: z.string().trim().min(1),
+  email: z.string().trim().email().nullable().optional(),
   summary: z.string().nullable().optional(),
 });
 
 /**
  * Suma al pool y postula en un paso a un candidato encontrado por "Sourcing con IA" desde
  * Postulados (ítem 9.4). A diferencia de `crearYPostularCandidatoAction`, el candidato viene
- * de LinkedIn (sin email) — no se puede reusar `cargarCandidato`, que exige email siempre. Se
- * dedupea por `linkedinUrl`: si el recruiter vuelve a correr sourcing y aparece el mismo
- * perfil, se postula al candidato ya existente en vez de duplicarlo en el pool.
+ * de LinkedIn — no se puede reusar `cargarCandidato`, que exige email siempre (con HarvestAPI
+ * el email suele venir, pero no siempre). Se dedupea por `linkedinUrl` **y** `email` (regla
+ * "Duplicados" — ver `openspec/changes/integrar-harvestapi-sourcing/`): si el recruiter vuelve
+ * a correr sourcing y aparece el mismo perfil, se postula al candidato ya existente en vez de
+ * duplicarlo en el pool.
  */
 export async function importarSourcingResultadoAction(input: {
   jobId: string;
@@ -291,6 +294,7 @@ export async function importarSourcingResultadoAction(input: {
   location: string | null;
   skills: string[];
   linkedinUrl: string;
+  email?: string | null;
   summary?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   const parsed = importarSourcingResultadoSchema.safeParse(input);
@@ -304,6 +308,7 @@ export async function importarSourcingResultadoAction(input: {
 
   const duplicate = await findDuplicateCandidate(membership.organizationId, {
     linkedinUrl: parsed.data.linkedinUrl,
+    email: parsed.data.email ?? null,
   });
 
   const candidateId = duplicate
@@ -312,7 +317,7 @@ export async function importarSourcingResultadoAction(input: {
         await insertCandidate({
           organizationId: membership.organizationId,
           fullName: parsed.data.name,
-          email: null,
+          email: parsed.data.email ?? null,
           cvUrl: null,
           headline: parsed.data.headline,
           location: parsed.data.location,
