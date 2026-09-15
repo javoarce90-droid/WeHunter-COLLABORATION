@@ -16,8 +16,13 @@ phases:
   tasks:    awaiting-approval   # tasks.md written 2026-09-14, 12 groups, TDD-first ordering
   apply:    done                # all 12 groups of tasks.md done 2026-09-14, incl. UI (group 11,
                                  # via impeccable) and migration applied+verified (group 8)
-  verify:   ready                # not yet run
-  archive:  blocked
+  verify:   done                 # 2026-09-15: lint (scoped to change's 24 existing files, since
+                                 # full `pnpm lint` still has ~1580 preexisting repo-wide errors
+                                 # unrelated to this change), typecheck, and full test suite all
+                                 # green — typecheck 0 errors, test 945/945, eslint 0 problems
+  archive:  done                 # 2026-09-15: moved to openspec/changes/archive/, delta spec
+                                 # merged into openspec/specs/sourcing-provider/spec.md (first
+                                 # version of this domain — specs/ was empty before this)
 
 gates:
   - after: proposal   # user validates scope decision before spec
