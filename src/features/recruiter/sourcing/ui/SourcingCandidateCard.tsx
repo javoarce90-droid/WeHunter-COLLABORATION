@@ -1,12 +1,138 @@
 "use client";
 
+import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
-import { ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import { MatchCell } from "../../applications/ui/MatchCell";
+import type {
+  ProviderCertification,
+  ProviderEducation,
+  ProviderExperience,
+  ProviderLanguage,
+} from "../domain/sourcing-provider";
+
+type Resume = {
+  experience: ProviderExperience[];
+  education: ProviderEducation[];
+  certifications: ProviderCertification[];
+  languages: ProviderLanguage[];
+};
+
+function hasResumeContent(r: Resume | null | undefined): r is Resume {
+  return !!r && (r.experience.length + r.education.length + r.certifications.length + r.languages.length) > 0;
+}
+
+/** Rango de fechas de una experiencia/educación — `endDate: null` es "actualidad" (mismo
+ *  criterio que `candidate_work_experiences`), no un dato faltante. */
+function dateRange(start: string | null, end: string | null): string | null {
+  if (!start && !end) return null;
+  return `${start ?? "—"} – ${end ?? "Actualidad"}`;
+}
+
+/** Detalle completo del perfil (experiencia, educación, certificaciones, idiomas) que trae
+ *  HarvestAPI — ausente en modo demo/Serper (arrays vacíos, `hasResumeContent` lo filtra).
+ *  Colapsable e inline, no modal: tiene que caber igual en la tab completa de Sourcing y en
+ *  el panel lateral angosto de Postulados (`SourcingIADialog`, `max-w-xl`). */
+function ResumeDetail({ resume, name }: { resume: Resume; name: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-t border-border pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary-hover"
+      >
+        <ChevronDown
+          className={`h-3.5 w-3.5 transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+        />
+        {open ? "Ocultar experiencia y educación" : "Ver experiencia y educación"}
+      </button>
+
+      {open && (
+        <div className="mt-3 flex flex-col gap-4 text-xs">
+          {resume.experience.length > 0 && (
+            <section aria-label={`Experiencia de ${name}`} className="flex flex-col gap-2.5">
+              <h4 className="text-[11px] font-semibold text-label">Experiencia</h4>
+              {resume.experience.map((e, i) => (
+                <div key={i} className="flex flex-col gap-0.5">
+                  <p className="font-medium text-text">
+                    {e.position} <span className="font-normal text-muted">· {e.company}</span>
+                  </p>
+                  {dateRange(e.startDate, e.endDate) && (
+                    <p className="text-muted">{dateRange(e.startDate, e.endDate)}</p>
+                  )}
+                  {e.description && <p className="text-muted">{e.description}</p>}
+                </div>
+              ))}
+            </section>
+          )}
+
+          {resume.education.length > 0 && (
+            <section aria-label={`Educación de ${name}`} className="flex flex-col gap-2.5">
+              <h4 className="text-[11px] font-semibold text-label">Educación</h4>
+              {resume.education.map((e, i) => (
+                <div key={i} className="flex flex-col gap-0.5">
+                  <p className="font-medium text-text">
+                    {e.degree}
+                    {e.fieldOfStudy ? ` — ${e.fieldOfStudy}` : ""}{" "}
+                    <span className="font-normal text-muted">· {e.institution}</span>
+                  </p>
+                  {dateRange(e.startDate, e.endDate) && (
+                    <p className="text-muted">{dateRange(e.startDate, e.endDate)}</p>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
+
+          {resume.certifications.length > 0 && (
+            <section aria-label={`Certificaciones de ${name}`} className="flex flex-col gap-1.5">
+              <h4 className="text-[11px] font-semibold text-label">Certificaciones</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {resume.certifications.map((c, i) =>
+                  c.url ? (
+                    <a
+                      key={i}
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-md border border-border/40 bg-bg px-2 py-1 font-medium text-text hover:text-primary"
+                    >
+                      {c.name}
+                    </a>
+                  ) : (
+                    <span key={i} className="rounded-md border border-border/40 bg-bg px-2 py-1 font-medium text-text">
+                      {c.name}
+                    </span>
+                  ),
+                )}
+              </div>
+            </section>
+          )}
+
+          {resume.languages.length > 0 && (
+            <section aria-label={`Idiomas de ${name}`} className="flex flex-col gap-1.5">
+              <h4 className="text-[11px] font-semibold text-label">Idiomas</h4>
+              <div className="flex flex-wrap gap-1.5">
+                {resume.languages.map((l, i) => (
+                  <span key={i} className="rounded-md border border-border/40 bg-bg px-2 py-1 font-medium text-text">
+                    {l.language}
+                    {l.level ? ` — ${l.level}` : ""}
+                  </span>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type Match = {
   score: number;
@@ -115,6 +241,9 @@ type Props = {
   /** Solo para candidatos "pending" (ni importados ni omitidos) — habilita el checkbox de
    *  selección múltiple para acciones en lote. */
   selectable?: Selectable | null;
+  /** Experiencia/educación/certificaciones/idiomas reales de HarvestAPI. Ausente o con arrays
+   *  vacíos en modo demo/Serper — no se muestra el toggle en ese caso. */
+  resume?: Resume | null;
   imported: boolean;
   importedLabel: string;
   primaryActionLabel: string;
@@ -124,9 +253,7 @@ type Props = {
   onOmit: () => void;
 };
 
-/** Card de candidato de sourcing, compartida entre "Sourcing con IA" y "Sourcing Manual" —
- *  antes cada tab tenía su propio layout con detalles de spacing y tratamiento de CTA
- *  distintos para el mismo tipo de objeto. */
+/** Card de candidato de sourcing. */
 export function SourcingCandidateCard({
   name,
   headline,
@@ -138,6 +265,7 @@ export function SourcingCandidateCard({
   matchLoading,
   jobPicker,
   selectable,
+  resume,
   imported,
   importedLabel,
   primaryActionLabel,
@@ -229,6 +357,8 @@ export function SourcingCandidateCard({
           </>
         )}
       </div>
+
+      {hasResumeContent(resume) && <ResumeDetail resume={resume} name={name} />}
     </div>
   );
 }

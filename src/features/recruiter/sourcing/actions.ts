@@ -3,11 +3,13 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getActiveMembership, getCurrentUser } from "@/lib/auth/session";
-import { insertCandidate } from "../candidates/data/candidates.mutations";
+import { insertCandidate, insertCandidateResume } from "../candidates/data/candidates.mutations";
 import {
   findDuplicateCandidate,
   findExistingCandidateKeys,
 } from "../candidates/data/candidates.queries";
+import { findCachedProfile } from "./data/sourcing-provider-profiles.queries";
+import { upsertCachedProfile } from "./data/sourcing-provider-profiles.mutations";
 import {
   sourcearParaBusqueda,
   SOURCING_MAX_RESULTS,
@@ -15,6 +17,7 @@ import {
   type SourcingMetrics,
 } from "./domain/sourcear-para-busqueda";
 import { getSourcingProvider } from "./domain/get-sourcing-provider";
+import { recordSourcingConsumption } from "./domain/sourcing-consumption-event";
 import { getJobById } from "../jobs/data/jobs.queries";
 import { getAiProvider } from "@/lib/ai";
 import { can } from "@/lib/auth/roles";
@@ -28,6 +31,23 @@ import {
   deleteSourcingSession,
 } from "./data/sourcing-sessions.mutations";
 
+const importExperienceSchema = z.object({
+  company: z.string(),
+  position: z.string(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  description: z.string().nullable(),
+});
+const importEducationSchema = z.object({
+  institution: z.string(),
+  degree: z.string(),
+  fieldOfStudy: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+});
+const importCertificationSchema = z.object({ name: z.string(), url: z.string().nullable() });
+const importLanguageSchema = z.object({ language: z.string(), level: z.string().nullable() });
+
 const importSchema = z.object({
   name: z.string().trim().min(1),
   headline: z.string().nullable(),
@@ -35,6 +55,10 @@ const importSchema = z.object({
   skills: z.array(z.string()),
   linkedinUrl: z.string().optional().nullable(),
   email: z.string().trim().email().nullable().optional(),
+  experience: z.array(importExperienceSchema).optional(),
+  education: z.array(importEducationSchema).optional(),
+  certifications: z.array(importCertificationSchema).optional(),
+  languages: z.array(importLanguageSchema).optional(),
 });
 
 export async function importarSourcingAction(result: {
@@ -44,6 +68,10 @@ export async function importarSourcingAction(result: {
   skills: string[];
   linkedinUrl?: string | null;
   email?: string | null;
+  experience?: { company: string; position: string; startDate: string | null; endDate: string | null; description: string | null }[];
+  education?: { institution: string; degree: string; fieldOfStudy: string | null; startDate: string | null; endDate: string | null }[];
+  certifications?: { name: string; url: string | null }[];
+  languages?: { language: string; level: string | null }[];
 }): Promise<{ ok: boolean; error?: string }> {
   const parsed = importSchema.safeParse(result);
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
@@ -61,7 +89,7 @@ export async function importarSourcingAction(result: {
     email: parsed.data.email ?? null,
   });
   if (!duplicate) {
-    await insertCandidate({
+    const { candidateId } = await insertCandidate({
       organizationId: membership.organizationId,
       fullName: parsed.data.name,
       email: parsed.data.email ?? null,
@@ -74,6 +102,32 @@ export async function importarSourcingAction(result: {
       seniority: null,
       source: "linkedin",
       phone: null,
+    });
+
+    // Currículum estructurado solo al crear — mismo criterio que importarSourcingResultadoAction.
+    await insertCandidateResume(candidateId, {
+      workExperiences: (parsed.data.experience ?? []).map((e) => ({
+        company: e.company,
+        position: e.position,
+        startDate: e.startDate,
+        endDate: e.endDate,
+        description: e.description,
+        employmentType: null,
+        modality: null,
+        skills: null,
+      })),
+      education: (parsed.data.education ?? []).map((e) => ({
+        institution: e.institution,
+        degree: e.degree,
+        fieldOfStudy: e.fieldOfStudy,
+        startDate: e.startDate,
+        endDate: e.endDate,
+        description: null,
+        grade: null,
+        activities: null,
+      })),
+      certifications: parsed.data.certifications ?? [],
+      languages: parsed.data.languages ?? [],
     });
   }
 
@@ -136,6 +190,16 @@ export async function sourcearParaBusquedaAction(
       scoreApplicationsBatch: (input) => provider.scoreApplicationsBatch(input),
       findExistingCandidateKeys: (args) =>
         findExistingCandidateKeys(membership.organizationId, args),
+      recordConsumption: (event) =>
+        recordSourcingConsumption({
+          ...event,
+          organizationId: membership.organizationId,
+          jobId,
+          occurredAt: new Date(),
+        }),
+      findCachedProfile: (linkedinUrl) =>
+        findCachedProfile(membership.organizationId, linkedinUrl),
+      cacheProfile: (candidate) => upsertCachedProfile(membership.organizationId, candidate),
     },
   );
 

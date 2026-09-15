@@ -68,7 +68,7 @@ import { can } from "@/lib/auth/roles";
 import { candidateCreateInputSchema } from "../candidates/schema";
 import { cargarCandidato } from "../candidates/domain/cargar-candidato";
 import type { DuplicateCandidateMatch } from "../candidates/domain/duplicate-keys";
-import { insertCandidate } from "../candidates/data/candidates.mutations";
+import { insertCandidate, insertCandidateResume } from "../candidates/data/candidates.mutations";
 import { enviarMensaje } from "../messaging/domain/enviar-mensaje";
 import { sendViaChannel } from "../messaging/data/gmail-send";
 import { MESSAGE_CHANNELS } from "../messaging/schema";
@@ -267,6 +267,31 @@ export async function crearYPostularCandidatoAction(
   return {};
 }
 
+/** Currículum estructurado que puede venir de HarvestAPI (Serper no lo tiene — llegan arrays
+ *  vacíos, `insertCandidateResume` no hace nada con eso). */
+const sourcingExperienceSchema = z.object({
+  company: z.string(),
+  position: z.string(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  description: z.string().nullable(),
+});
+const sourcingEducationSchema = z.object({
+  institution: z.string(),
+  degree: z.string(),
+  fieldOfStudy: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+});
+const sourcingCertificationSchema = z.object({
+  name: z.string(),
+  url: z.string().nullable(),
+});
+const sourcingLanguageSchema = z.object({
+  language: z.string(),
+  level: z.string().nullable(),
+});
+
 const importarSourcingResultadoSchema = z.object({
   jobId: z.string().uuid("ID de búsqueda inválido."),
   name: z.string().trim().min(1),
@@ -276,6 +301,10 @@ const importarSourcingResultadoSchema = z.object({
   linkedinUrl: z.string().trim().min(1),
   email: z.string().trim().email().nullable().optional(),
   summary: z.string().nullable().optional(),
+  experience: z.array(sourcingExperienceSchema).optional(),
+  education: z.array(sourcingEducationSchema).optional(),
+  certifications: z.array(sourcingCertificationSchema).optional(),
+  languages: z.array(sourcingLanguageSchema).optional(),
 });
 
 /**
@@ -296,6 +325,10 @@ export async function importarSourcingResultadoAction(input: {
   linkedinUrl: string;
   email?: string | null;
   summary?: string | null;
+  experience?: { company: string; position: string; startDate: string | null; endDate: string | null; description: string | null }[];
+  education?: { institution: string; degree: string; fieldOfStudy: string | null; startDate: string | null; endDate: string | null }[];
+  certifications?: { name: string; url: string | null }[];
+  languages?: { language: string; level: string | null }[];
 }): Promise<{ ok: boolean; error?: string }> {
   const parsed = importarSourcingResultadoSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
@@ -311,24 +344,56 @@ export async function importarSourcingResultadoAction(input: {
     email: parsed.data.email ?? null,
   });
 
-  const candidateId = duplicate
-    ? duplicate.id
-    : (
-        await insertCandidate({
-          organizationId: membership.organizationId,
-          fullName: parsed.data.name,
-          email: parsed.data.email ?? null,
-          cvUrl: null,
-          headline: parsed.data.headline,
-          location: parsed.data.location,
-          linkedinUrl: parsed.data.linkedinUrl,
-          summary: parsed.data.summary ?? null,
-          skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
-          seniority: null,
-          source: "linkedin",
-          phone: null,
-        })
-      ).candidateId;
+  let candidateId: string;
+  if (duplicate) {
+    candidateId = duplicate.id;
+  } else {
+    candidateId = (
+      await insertCandidate({
+        organizationId: membership.organizationId,
+        fullName: parsed.data.name,
+        email: parsed.data.email ?? null,
+        cvUrl: null,
+        headline: parsed.data.headline,
+        location: parsed.data.location,
+        linkedinUrl: parsed.data.linkedinUrl,
+        summary: parsed.data.summary ?? null,
+        skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
+        seniority: null,
+        source: "linkedin",
+        phone: null,
+      })
+    ).candidateId;
+
+    // Currículum estructurado solo se persiste al crear el candidato — un duplicado ya
+    // existente no se vuelve a poblar acá (evita filas repetidas si el recruiter re-importa el
+    // mismo perfil en otra búsqueda). Serper no trae estos datos: llegan arrays vacíos y
+    // `insertCandidateResume` no hace nada (ver su guard de "todo vacío").
+    await insertCandidateResume(candidateId, {
+      workExperiences: (parsed.data.experience ?? []).map((e) => ({
+        company: e.company,
+        position: e.position,
+        startDate: e.startDate,
+        endDate: e.endDate,
+        description: e.description,
+        employmentType: null,
+        modality: null,
+        skills: null,
+      })),
+      education: (parsed.data.education ?? []).map((e) => ({
+        institution: e.institution,
+        degree: e.degree,
+        fieldOfStudy: e.fieldOfStudy,
+        startDate: e.startDate,
+        endDate: e.endDate,
+        description: null,
+        grade: null,
+        activities: null,
+      })),
+      certifications: parsed.data.certifications ?? [],
+      languages: parsed.data.languages ?? [],
+    });
+  }
 
   const postulado = await postularCandidato(
     { jobId: parsed.data.jobId, candidateId },

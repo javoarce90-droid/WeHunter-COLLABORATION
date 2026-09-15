@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { IconButton } from "@/components/ui/icon-button";
 import { AiButton } from "@/components/ui/ai";
+import { Minus, Plus } from "lucide-react";
 import { useToast } from "@/lib/toast";
 import {
   sourcearParaBusquedaAction,
@@ -31,6 +33,50 @@ const PROGRESS_MESSAGES = [
   "Comparando con tu pool de talentos — puede demorar un poco…",
   "Podés seguir navegando, te avisamos cuando estén los resultados.",
 ] as const;
+
+/** Selector de cantidad (1–`SOURCING_MAX_RESULTS`) previo a disparar la búsqueda — calcado del
+ *  prototipo validado (design.md §10, `AiJobSourcingResults` reemplaza "Buscar más candidatos"
+ *  por esto). Local a este archivo: un solo uso, no amerita promoverlo a `components/ui`. */
+function QuantityStepper({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (next: number) => void;
+  disabled?: boolean;
+}) {
+  const clamp = (n: number) => Math.min(SOURCING_MAX_RESULTS, Math.max(1, n));
+  return (
+    <div
+      role="group"
+      aria-label="Cantidad de candidatos a buscar"
+      className="inline-flex items-center gap-3 rounded-[var(--radius)] border border-border bg-surface px-3 py-2"
+    >
+      <IconButton
+        aria-label="Restar candidato"
+        variant="surface"
+        size="sm"
+        disabled={disabled || value <= 1}
+        onClick={() => onChange(clamp(value - 1))}
+      >
+        <Minus className="h-3.5 w-3.5" />
+      </IconButton>
+      <span className="w-6 text-center text-sm font-semibold tabular-nums text-text">
+        {value}
+      </span>
+      <IconButton
+        aria-label="Sumar candidato"
+        variant="surface"
+        size="sm"
+        disabled={disabled || value >= SOURCING_MAX_RESULTS}
+        onClick={() => onChange(clamp(value + 1))}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </IconButton>
+    </div>
+  );
+}
 
 type Decision = "pending" | "imported" | "omitido";
 
@@ -91,6 +137,7 @@ export function AiJobSourcingResults({
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
   const [metrics, setMetrics] = useState<SourcingMetrics | null>(null);
   const [progressStage, setProgressStage] = useState<0 | 1 | 2>(0);
+  const [quantity, setQuantity] = useState(SOURCING_MAX_RESULTS);
   const [hydrating, startHydrate] = useTransition();
 
   // Restaura la sesión de trabajo en curso al montar (ej. el recruiter navegó afuera mientras
@@ -166,14 +213,13 @@ export function AiJobSourcingResults({
   }, []);
 
   // Búsqueda única (design.md §1.1 — ya no existe "Buscar más candidatos"): reemplaza
-  // cualquier resultado anterior de esta búsqueda y resetea las decisiones. La cantidad
-  // (`SOURCING_MAX_RESULTS`) queda fija acá hasta que el selector de cantidad del prototipo
-  // (stepper 1–10) se implemente — ver grupo 11 de tasks.md.
+  // cualquier resultado anterior de esta búsqueda y resetea las decisiones. `quantity` es lo
+  // que el reclutador eligió en el stepper (1–SOURCING_MAX_RESULTS).
   function buscar() {
     notifiedRef.current = false;
     setProgressStage(0);
     startSearch(async () => {
-      const res = await sourcearParaBusquedaAction(jobId, SOURCING_MAX_RESULTS);
+      const res = await sourcearParaBusquedaAction(jobId, quantity);
       if (!res.ok || !res.results || !res.metrics) {
         toast({
           message: res.error ?? "No se pudo buscar en LinkedIn.",
@@ -220,6 +266,10 @@ export function AiJobSourcingResults({
           linkedinUrl: c.linkedinUrl,
           email: c.email,
           summary: c.summary,
+          experience: c.experience,
+          education: c.education,
+          certifications: c.certifications,
+          languages: c.languages,
         })
       : await importarSourcingAction({
           name: c.name,
@@ -228,6 +278,10 @@ export function AiJobSourcingResults({
           skills: c.skills,
           linkedinUrl: c.linkedinUrl,
           email: c.email,
+          experience: c.experience,
+          education: c.education,
+          certifications: c.certifications,
+          languages: c.languages,
         });
     return {
       id: c.id,
@@ -380,13 +434,19 @@ export function AiJobSourcingResults({
     return (
       <div className="flex flex-col items-center gap-4 py-8 text-center">
         <p className="max-w-sm text-sm text-muted">
-          Buscamos hasta 10 perfiles en LinkedIn a partir del contexto de
-          esta búsqueda (skills, seniority y ubicación) y te mostramos el %
-          de match de cada uno, ordenados de mayor a menor.
+          Buscamos en LinkedIn a partir del contexto de esta búsqueda
+          (skills, seniority y ubicación) y te mostramos el % de match de
+          cada uno, ordenados de mayor a menor.
         </p>
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-label">
+              Candidatos a buscar
+            </span>
+            <QuantityStepper value={quantity} onChange={setQuantity} disabled={searching} />
+          </div>
           <AiButton onClick={buscar} loading={searching}>
-            {searching ? "Buscando…" : "Buscar en LinkedIn"}
+            {searching ? "Buscando…" : "Buscar candidatos"}
           </AiButton>
           {progressCaption}
         </div>
@@ -535,6 +595,12 @@ export function AiJobSourcingResults({
                 ? null
                 : { checked: selected.has(c.id), onToggle: () => toggleSeleccionado(c.id) }
             }
+            resume={{
+              experience: c.experience,
+              education: c.education,
+              certifications: c.certifications,
+              languages: c.languages,
+            }}
             imported={imported}
             importedLabel={
               importedVia[c.id] === "postulado" ? "En el pool y postulado ✓" : "En el pool ✓"

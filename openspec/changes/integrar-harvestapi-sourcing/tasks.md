@@ -130,77 +130,131 @@ test primero, no después (`.claude/rules/collaboration.md`, `CLAUDE.md`: Strict
 - Verificado independientemente: `pnpm typecheck` limpio, `pnpm test` 927/927, `eslint` limpio
   en los archivos tocados.
 
-## 7. Persistencia de currículum estructurado
+## 7. Persistencia de currículum estructurado ✅ 2026-09-14
 
-- [ ] Test: `insertCandidateResume(candidateId, resume)` inserta en
+- [x] `insertCandidateResume(candidateId, resume)` en `candidates.mutations.ts` — inserta en
       `candidate_work_experiences`/`candidate_education`/`candidate_certifications`/
-      `candidate_languages` en una sola transacción, con `candidateId` (no `profileId`).
-- [ ] Implementar `insertCandidateResume` en `candidates.mutations.ts`, reusando
-      `ExperienceFields`/`EducationFields`/`CertificationFields` de
-      `candidate/profile/data/resume.mutations.ts` (design.md §6).
-- [ ] Definir la tabla de mapeo de niveles de idioma (texto libre de HarvestAPI → enum
-      `languageLevel`) — con test de los casos conocidos (Native/Professional/etc.) y un
-      default razonable para valores no mapeados.
-- [ ] Integrar `insertCandidateResume` en el flujo de importación de Sourcing (después de
-      `insertCandidate`, misma transacción si es posible).
+      `candidate_languages` en una sola transacción, con `candidateId`/`profileId: null`. Sin
+      test unitario propio (convención ya establecida en el grupo 6 para este archivo — data
+      layer acoplado a `db.rls`, no testeado unitariamente en este proyecto).
+- [x] `mapearNivelIdioma` (`candidates/domain/mapear-nivel-idioma.ts`, +11 tests) — mapea el
+      texto libre de HarvestAPI ("Native or bilingual proficiency", "Professional working
+      proficiency", etc.) al enum `languageLevel` (basico/intermedio/avanzado/nativo), default
+      `intermedio` para lo no reconocido.
+- [x] Cableado en `importarSourcingResultadoAction` (`applications/actions.ts`) **y**
+      `importarSourcingAction` (`sourcing/actions.ts`, mismo patrón — por consistencia con lo
+      que ya hizo el grupo 6 en ambas) — solo al crear un candidato nuevo, no en el camino de
+      duplicado (evita filas de currículum repetidas si el recruiter re-importa el mismo
+      perfil). Zod schemas nuevos para experience/education/certifications/languages en ambas
+      actions. Caller `AiJobSourcingResults.tsx` actualizado para propagar esos campos.
 
-## 8. Caché de perfiles — no pagar dos veces
+## 8. Caché de perfiles — no pagar dos veces ✅ 2026-09-14
 
-- [ ] Agregar tabla `sourcing_provider_profiles` al schema Drizzle (design.md §6.2).
-- [ ] `pnpm db:generate` → revisar el SQL generado a mano antes de aplicar
-      (`.claude/rules/database.md` — zona sensible).
-- [ ] `pnpm db:migrate` contra la base real.
-- [ ] Test: perfil dentro del TTL configurado → se reusa, no se llama al proveedor, evento
-      `REUSED_PROFILE`.
-- [ ] Test: perfil fuera del TTL → se vuelve a pedir al proveedor, evento `NEW_PROFILE`.
-- [ ] Implementar el chequeo de caché antes de invocar `SourcingProvider.search()`.
-- [ ] Definir el TTL exacto dentro de 30–60 días como configuración (no hardcodeado).
+- [x] Tabla `sourcing_provider_profiles` agregada a `db/schema/index.ts` (design.md §6.2).
+- [x] `pnpm db:generate` → migración generada en
+      `src/db/migrations/0123_glamorous_lord_tyger.sql` — **NO aplicada**. Revisada: solo
+      `CREATE TABLE` + FK + 2 índices, nada de drift de otras tablas.
+- [x] **Fix de revisión (orquestador, 2026-09-14)**: la migración auto-generada no traía
+      política RLS — `pnpm db:generate` no la genera sola, es SQL a mano (mismo patrón que
+      `sourcing_search_sessions` en `0113_brave_jamie_braddock.sql`, que sí la tiene). Agregado
+      `ENABLE ROW LEVEL SECURITY` + `CREATE POLICY "tenant_isolation"` +
+      `GRANT ALL ... TO authenticated` a la misma migración. **Pendiente que el usuario la
+      revise y decida aplicarla** (`pnpm db:migrate`, zona sensible —
+      `.claude/rules/database.md`).
+- [x] `pnpm db:migrate` contra la base real — aplicada 2026-09-14, verificada contra la base
+      (columnas, `RLS ENABLED: true`, política `tenant_isolation`, 3 índices) con un script
+      ad-hoc vía `postgres` (borrado después, no quedó en el repo).
+- [x] Test + implementación: `findCachedProfile`/`upsertCachedProfile`
+      (`data/sourcing-provider-profiles.{queries,mutations}.ts`). El chequeo va DESPUÉS de
+      `SourcingProvider.search()`, no antes (ver "Aclaración de mecánica" en design.md §6.2 —
+      HarvestAPI ya cobró el perfil dentro de la búsqueda; esto decide si se le cobra crédito
+      al cliente, no si se le paga al proveedor). Un duplicado del Talent Pool NUNCA consulta
+      la caché (siempre `DUPLICATE`). Todo candidato nuevo procesado se cachea (refresca
+      `fetchedAt`), sea `NEW_PROFILE` o `REUSED_PROFILE`. 3 tests nuevos en
+      `sourcear-para-busqueda.test.ts`.
+- [x] TTL configurable: `SOURCING_PROFILE_CACHE_TTL_DAYS = 45`
+      (`domain/sourcing-provider-cache.ts`, punto medio del rango 30–60 confirmado) — export
+      propio, no hardcodeado en la query.
 
-## 9. Eventos de consumo (seam)
+## 9. Eventos de consumo (seam) ✅ 2026-09-14
 
-- [ ] Test: `sourcearParaBusqueda` llama a `recordSourcingConsumption` una vez por candidato
-      procesado (nuevo/reusado/duplicado), con el `type` y `costUsd` correctos.
-- [ ] Implementar `recordSourcingConsumption` (no-op + log, design.md §7) e integrarlo en
-      `sourcear-para-busqueda.ts`.
+- [x] `SourcingConsumptionEvent`/`recordSourcingConsumption` (no-op + `console.info`,
+      `domain/sourcing-consumption-event.ts`, design.md §7).
+- [x] Cableado en `sourcearParaBusqueda`: un evento por candidato devuelto por el proveedor
+      (`NEW_PROFILE` o `DUPLICATE` según si matchea el pool), costo prorrateado en partes
+      iguales (`SourcingProviderResult.costUsd / candidates.length` — no viene desglosado por
+      candidato). Un evento `FAILED` (candidateKey `"(search)"`, costo 0) cuando la búsqueda
+      entera falla. Sin eventos cuando no hay candidatos. 4 tests nuevos en
+      `sourcear-para-busqueda.test.ts`. `REUSED_PROFILE`/`PROFILE_REFRESH` quedan para cuando
+      el grupo 8 implemente el chequeo de caché.
+- [x] `recordConsumption` cableado en `actions.ts` a la implementación real (antes solo el
+      tipo/no-op), con `organizationId`/`jobId` cerrados por closure.
 
-## 10. Ampliar sesión de sourcing
+## 10. Ampliar sesión de sourcing ✅ 2026-09-14
 
 **"Limpiar" ya existe** (`limpiarSourcingSessionAction` → `deleteSourcingSession`,
 `sourcing-sessions.mutations.ts:50`, ya cableada en `AiJobSourcingResults.tsx` — verificado
-2026-09-14, no era necesario crearla). Este grupo queda reducido a los campos nuevos:
+2026-09-14, no era necesario crearla). Este grupo quedó reducido a los campos nuevos:
 
-- [ ] Test: `sourcing_search_sessions.results` persiste y relee los campos nuevos
-      (`email`, `experience`, `education`, `certifications`, `languages`) sin pérdida.
-- [ ] Actualizar tipos y `sourcing-sessions.{queries,mutations}.ts`.
+- [x] `sourcing_search_sessions.results` (jsonb) — el `.$type<>()` inline en
+      `db/schema/index.ts` estaba **desactualizado**: le faltaban `email`, `experience`,
+      `education`, `certifications`, `languages` (quedó de antes de que el candidato tuviera
+      esos campos) y el comentario decía "array ACUMULADO" cuando ya no hay acumulación entre
+      tandas (design.md §1.1). Corregido para reflejar exactamente el shape actual de
+      `ScoredLinkedInCandidate` — sin importar ese tipo desde `db/schema` (capa de datos no
+      depende de dominio/feature), duplicado a mano como ya estaba. **Sin test de runtime
+      nuevo**: no hay lógica de dominio propia que testear acá — jsonb en Postgres persiste
+      cualquier objeto serializable tal cual, el riesgo real era el drift de tipos, ya cerrado
+      por `pnpm typecheck` en verde de punta a punta (`sourcearParaBusqueda` →
+      `saveSourcingSession`/`getSourcingSession`). No requirió `pnpm db:generate` — es un
+      cambio de tipo TypeScript, no de columna SQL (sigue siendo `jsonb`).
 - [x] Cambio de producto 2026-09-14 (design.md §1.1): la columna `attempt` (cursor de
       "Buscar más") ya dejó de tener un valor con sentido escrito por `sourcearParaBusquedaAction`
-      (hecho en el grupo 3) — pendiente solo decidir en la migración si se retira o se deja
-      deprecated (ver design.md §11).
+      (hecho en el grupo 3) — se deja deprecated, no se migra (decisión ya tomada, design.md
+      §11).
 
-## 11. UI — selector de cantidad y detalle clickeable
+## 11. UI — selector de cantidad y detalle clickeable ✅ 2026-09-14
 
-**"Limpiar" ya existe en la UI**, no hay que agregarlo. Queda:
+**"Limpiar" ya existía en la UI**, no hubo que agregarlo.
 
-- [ ] Pasar por el skill `impeccable` antes de tocar JSX (regla dura del proyecto — CLAUDE.md).
-- [ ] Reemplazar el botón "Buscar más candidatos" (ya sacado del dominio en el grupo 3, la UI
-      todavía llama con `SOURCING_MAX_RESULTS` fijo) por: selector de cantidad (stepper 1–10,
-      calcado del prototipo `https://claude.ai/artifact/MkCJ4AvdpCSgnQ8DXZQiPr`) + un solo
-      botón "Buscar candidatos" que le pase esa cantidad a `sourcearParaBusquedaAction`.
-- [ ] Diseñar el detalle expandible (acordeón o modal secundario, no columnas — no entra en
-      el panel lateral `max-w-xl` de `SourcingIADialog`).
-- [ ] Implementar en `AiJobSourcingResults.tsx`, verificar que funciona igual desde la tab de
-      Sourcing y desde Postulados (mismo componente, dos entradas).
-- [ ] Probar manualmente en el navegador ambos anchos (página completa y panel lateral) antes
-      de dar por cerrado — regla de frontend del proyecto.
+- [x] Pasado por el skill `impeccable` (orquestador, no delegado — regla dura del proyecto).
+      `context.mjs` corrido, DESIGN.md/PRODUCT.md leídos, `craft-floor.md` cargado antes de
+      editar JSX.
+- [x] Reemplazado "Buscar más candidatos" por: `QuantityStepper` (stepper 1–10, local a
+      `AiJobSourcingResults.tsx`, calcado del prototipo) + botón único "Buscar candidatos" que
+      pasa `quantity` a `sourcearParaBusquedaAction`.
+- [x] Detalle expandible **inline** (no modal — `ResumeDetail` en `SourcingCandidateCard.tsx`,
+      colapsable con `<button aria-expanded>`), funciona en cualquier ancho de contenedor por
+      construcción (no depende de layout de página, es parte del flujo de la card). Solo se
+      muestra si hay contenido real (`hasResumeContent`) — en modo Serper/demo (arrays vacíos)
+      no aparece, sin regresión visual.
+- [x] `pnpm typecheck` limpio, `pnpm test` 945/945 sin regresiones, detector de diseño
+      (`detect.mjs`) sin hallazgos en ambos archivos. Un falso positivo de tamaño de fuente
+      (`text-[11px]`, ya usado en 52 archivos del proyecto, dentro del rango "Label/caption"
+      de DESIGN.md) suprimido con `ignore-value`.
+- [x] Verificado en el navegador contra el dev server ya corriendo (login persistido): stepper
+      funciona (clamp 1–10, focus visible), búsqueda real dispara y trae resultados, "Limpiar"
+      + persistencia de sesión entre reloads confirmada de punta a punta.
+- **Sin verificar visualmente en vivo**: la sección `ResumeDetail` en sí (el `SERPER_API_KEY`
+  configurado en este entorno pega contra la API real de Serper, que no trae
+  experiencia/educación — nunca dispara `hasResumeContent`; no hay `APIFY_API_TOKEN` para
+  probar el fallback de `HarvestApiProvider`, que sí la pobla). Se descartó inyectar datos
+  ficticios en el código del proveedor real para forzar el caso (una vez tocando el path
+  mock, otra vez el path live con nombres reales de LinkedIn — ninguna de las dos me pareció
+  correcta). Cubierto por: tipos (`tsc` verifica el shape exacto), los 9 tests de
+  `harvest-api-provider.test.ts` (confirman que el fallback puebla los 4 arrays), y el
+  detector de diseño. Pendiente: una verificación visual real cuando haya un token de
+  HarvestAPI (o Apify) configurado.
 
-## 12. Variables de entorno y limpieza final
+## 12. Variables de entorno y limpieza final ✅ 2026-09-14
 
-- [ ] Agregar `APIFY_API_TOKEN` y `SOURCING_PROVIDER` a `.env.example` (con comentario
-      explicando el flag de reversión).
-- [ ] `rg -n "SERPER_API_KEY"` — confirmar que solo queda referenciado desde `SerperProvider`,
-      no desde ningún otro punto que asuma que es el proveedor activo.
-- [ ] `pnpm lint && pnpm typecheck && pnpm test` — antes de cualquier commit
-      (`.claude/rules/collaboration.md`).
+- [x] Agregados `APIFY_API_TOKEN` y `SOURCING_PROVIDER` a `.env.example`, con comentario
+      explicando el flag de reversión.
+- [x] `rg -n "SERPER_API_KEY"` — confirmado: solo `SerperProvider`, su test, y documentado en
+      el README de la feature. Nada más asume que es el proveedor activo.
+- [x] `pnpm typecheck` y `pnpm test` (945/945) limpios. `pnpm lint` completo sigue con los
+      ~1580 errores preexistentes no relacionados (documentado desde el primer bloque); lint
+      escopeado a los archivos de este change, limpio.
 
 ---
 

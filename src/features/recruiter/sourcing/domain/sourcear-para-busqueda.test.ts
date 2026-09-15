@@ -55,6 +55,9 @@ function deps(over: Partial<SourcearParaBusquedaDeps> = {}): SourcearParaBusqued
     search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0 }),
     scoreApplicationsBatch: batchScorer(),
     findExistingCandidateKeys: async () => ({ linkedinUrls: new Set(), emails: new Set() }),
+    recordConsumption: async () => {},
+    findCachedProfile: async () => null,
+    cacheProfile: async () => {},
     ...over,
   };
 }
@@ -314,5 +317,172 @@ describe("sourcearParaBusqueda", () => {
     if (!res.ok) return;
     expect(called).toBe(false);
     expect(res.metrics).toEqual({ encontrados: 0, enPool: 0, nuevos: 0 });
+  });
+});
+
+describe("sourcearParaBusqueda — eventos de consumo", () => {
+  it("emite NEW_PROFILE por cada candidato nuevo, con el costo prorrateado", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+    ];
+    const events: unknown[] = [];
+    const res = await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108 }),
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
+    );
+    expect(res.ok).toBe(true);
+    expect(events).toEqual([
+      { candidateKey: "https://www.linkedin.com/in/a", type: "NEW_PROFILE", costUsd: 0.054 },
+      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054 },
+    ]);
+  });
+
+  it("emite DUPLICATE para un candidato que ya está en el Talent Pool, con el mismo costo prorrateado que uno nuevo", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+    ];
+    const events: unknown[] = [];
+    const res = await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108 }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
+          emails: new Set(),
+        }),
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
+    );
+    expect(res.ok).toBe(true);
+    expect(events).toEqual([
+      { candidateKey: "https://www.linkedin.com/in/a", type: "DUPLICATE", costUsd: 0.054 },
+      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054 },
+    ]);
+  });
+
+  it("emite un único FAILED (candidateKey '(search)') cuando la búsqueda entera falla, sin costo", async () => {
+    const events: unknown[] = [];
+    const res = await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({
+          candidates: [],
+          isLiveApi: false,
+          costUsd: 0,
+          error: "Falló la búsqueda.",
+        }),
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
+    );
+    expect(res).toEqual({ ok: false, error: "Falló la búsqueda." });
+    expect(events).toEqual([{ candidateKey: "(search)", type: "FAILED", costUsd: 0 }]);
+  });
+
+  it("no emite ningún evento si la búsqueda no devuelve candidatos", async () => {
+    const events: unknown[] = [];
+    await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0.1 }),
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
+    );
+    expect(events).toEqual([]);
+  });
+
+  it("emite REUSED_PROFILE (no NEW_PROFILE) cuando el perfil ya estaba cacheado y no es un duplicado del pool", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+    ];
+    const events: unknown[] = [];
+    const res = await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108 }),
+        findCachedProfile: async (linkedinUrl) =>
+          linkedinUrl === "https://www.linkedin.com/in/a" ? candidates[0]! : null,
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    // sigue mostrándose como resultado — REUSED_PROFILE solo afecta el cobro, no la visibilidad.
+    expect(res.results.map((r) => r.id).sort()).toEqual(["a", "b"]);
+    expect(events).toEqual([
+      { candidateKey: "https://www.linkedin.com/in/a", type: "REUSED_PROFILE", costUsd: 0.054 },
+      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054 },
+    ]);
+  });
+
+  it("un duplicado del Talent Pool nunca consulta la caché — el evento es DUPLICATE, no REUSED_PROFILE", async () => {
+    const candidates = [candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
+    const cacheChecks: string[] = [];
+    const events: unknown[] = [];
+    await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.104 }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
+          emails: new Set(),
+        }),
+        findCachedProfile: async (linkedinUrl) => {
+          cacheChecks.push(linkedinUrl);
+          return null;
+        },
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
+    );
+    expect(cacheChecks).toEqual([]);
+    expect(events).toEqual([
+      { candidateKey: "https://www.linkedin.com/in/a", type: "DUPLICATE", costUsd: 0.104 },
+    ]);
+  });
+
+  it("cachea cada candidato nuevo procesado (sea NEW_PROFILE o REUSED_PROFILE), no los duplicados del pool", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+    ];
+    const cached: string[] = [];
+    await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108 }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
+          emails: new Set(),
+        }),
+        cacheProfile: async (c) => {
+          cached.push(c.linkedinUrl);
+        },
+      }),
+    );
+    expect(cached).toEqual(["https://www.linkedin.com/in/b"]);
   });
 });

@@ -1013,11 +1013,15 @@ export const sourcingSearchSessions = pgTable(
     profileId: uuid("profile_id")
       .references(() => profiles.id, { onDelete: "cascade" })
       .notNull(),
-    // Última variante de query usada (ver SOURCING_MAX_QUERY_ATTEMPTS) — "Buscar más
-    // candidatos" sigue desde acá en vez de repetir la variante 0.
+    // Cursor de "Buscar más candidatos" — DEPRECATED (integrar-harvestapi-sourcing/design.md
+    // §1.1: ya no existe esa iteración, cada búsqueda es una sola llamada). Se deja sin
+    // retirar del schema para no migrar datos de una caché de trabajo descartable; el código
+    // ya no le escribe un valor con sentido (queda en 0).
     attempt: integer("attempt").notNull(),
-    // Array ACUMULADO completo que la UI está mostrando (todas las tandas sumadas hasta el
-    // momento, deduplicadas — ver mergeSourcingBatch), no solo la última tanda.
+    // Resultado de la ÚLTIMA búsqueda (una sola llamada, no acumulado entre tandas — ya no
+    // existe "Buscar más candidatos", ver arriba). Shape espejado a `ScoredLinkedInCandidate`
+    // (`features/recruiter/sourcing/domain/sourcear-para-busqueda.ts`) — no se importa ese
+    // tipo acá a propósito, `db/schema` no depende de código de dominio/feature.
     results: jsonb("results")
       .$type<
         {
@@ -1027,7 +1031,24 @@ export const sourcingSearchSessions = pgTable(
           location: string;
           skills: string[];
           linkedinUrl: string;
+          email: string | null;
           snippet?: string | null;
+          experience: {
+            company: string;
+            position: string;
+            startDate: string | null;
+            endDate: string | null;
+            description: string | null;
+          }[];
+          education: {
+            institution: string;
+            degree: string;
+            fieldOfStudy: string | null;
+            startDate: string | null;
+            endDate: string | null;
+          }[];
+          certifications: { name: string; url: string | null }[];
+          languages: { language: string; level: string | null }[];
           score: number;
           summary: string;
           breakdown: {
@@ -1055,6 +1076,36 @@ export const sourcingSearchSessions = pgTable(
     jobProfileUnique: uniqueIndex("sourcing_search_sessions_job_profile_unique").on(
       t.jobId,
       t.profileId,
+    ),
+  }),
+);
+
+// Perfiles ya obtenidos del proveedor de Sourcing (HarvestAPI), a nivel organización — control
+// de costo "no pagar dos veces" (integrar-harvestapi-sourcing/design.md §6.2). Antes de volver a
+// pagarle al proveedor por un candidato, se chequea si ya hay una fila vigente (dentro del TTL
+// configurable, 30-60 días) para esa organización + linkedinUrl; si la hay, se reusa el
+// `payload` sin re-consultar. A diferencia de `sourcing_search_sessions` (caché de trabajo que
+// se pisa por búsqueda), esta tabla es un historial acumulativo por organización, no por job ni
+// por recruiter — el mismo perfil vale para cualquier búsqueda futura de esa org.
+export const sourcingProviderProfiles = pgTable(
+  "sourcing_provider_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    linkedinUrl: text("linkedin_url").notNull(), // normalizada al guardar (normalizeLinkedinKey)
+    // Payload completo del proveedor (mismo shape que SourcingProviderCandidate), para poder
+    // reusarlo sin re-llamar a HarvestAPI dentro del TTL.
+    payload: jsonb("payload").notNull(),
+    fetchedAt: timestamp("fetched_at").defaultNow().notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    orgIdx: index("sourcing_provider_profiles_org_idx").on(t.organizationId),
+    uniqueOrgUrl: uniqueIndex("sourcing_provider_profiles_org_url_idx").on(
+      t.organizationId,
+      t.linkedinUrl,
     ),
   }),
 );
@@ -1571,6 +1622,7 @@ export type Application = typeof applications.$inferSelect;
 export type PoolMatchResultRow = typeof poolMatchResults.$inferSelect;
 export type PoolMatchIgnoredRow = typeof poolMatchIgnored.$inferSelect;
 export type SourcingSearchSessionRow = typeof sourcingSearchSessions.$inferSelect;
+export type SourcingProviderProfileRow = typeof sourcingProviderProfiles.$inferSelect;
 export type ScreeningQuestion = typeof screeningQuestions.$inferSelect;
 export type ScreeningAnswer = typeof screeningAnswers.$inferSelect;
 export type Interview = typeof interviews.$inferSelect;

@@ -10,6 +10,7 @@ import type {
   SourcingProviderCandidate,
   SourcingProviderResult,
 } from "./sourcing-provider";
+import type { SourcingConsumptionEventType } from "./sourcing-consumption-event";
 
 /** Contexto mínimo de la búsqueda para armar los filtros y scorear a los candidatos. */
 export type JobSourcingContext = {
@@ -55,6 +56,24 @@ export type SourcearParaBusquedaDeps = {
     linkedinUrls: string[];
     emails: string[];
   }) => Promise<{ linkedinUrls: Set<string>; emails: Set<string> }>;
+  /** Emite un evento de consumo por cada perfil obtenido — seam hacia el sistema de créditos de
+   *  `limitar-sourcing-ia` (`sourcing-consumption-event.ts`). No decide si se cobra o no, solo
+   *  registra; el costo de la llamada se prorratea en partes iguales entre los candidatos
+   *  devueltos (`SourcingProviderResult.costUsd` no viene desglosado por candidato). */
+  recordConsumption: (event: {
+    candidateKey: string;
+    type: SourcingConsumptionEventType;
+    costUsd: number;
+  }) => Promise<void>;
+  /** Caché de perfiles ya obtenidos del proveedor (control interno "no pagar dos veces",
+   *  design.md §6.2) — devuelve el perfil cacheado si hay una fila vigente (dentro del TTL)
+   *  para esa `linkedinUrl` en esta organización, o `null`. NUNCA se consulta para un
+   *  candidato que ya matcheó como duplicado del Talent Pool (ese siempre es `DUPLICATE`,
+   *  sin importar la caché). */
+  findCachedProfile: (linkedinUrl: string) => Promise<SourcingProviderCandidate | null>;
+  /** Refresca la caché con el payload actual del candidato — se llama para todo candidato
+   *  procesado que no sea un duplicado del pool, esté o no ya cacheado. */
+  cacheProfile: (candidate: SourcingProviderCandidate) => Promise<void>;
 };
 
 /** Mapea un candidato del proveedor (solo snippet/skills, sin experiencia/educación
@@ -139,7 +158,10 @@ export async function sourcearParaBusqueda(
 ): Promise<SourcearParaBusquedaResult | { ok: false; error: string }> {
   const filters = jobToSourcingFilters(job);
   const res = await deps.search(filters, maxResults, []);
-  if (res.error) return { ok: false, error: res.error };
+  if (res.error) {
+    await deps.recordConsumption({ candidateKey: "(search)", type: "FAILED", costUsd: 0 });
+    return { ok: false, error: res.error };
+  }
 
   if (res.candidates.length === 0) {
     return {
@@ -154,6 +176,7 @@ export async function sourcearParaBusqueda(
     linkedinUrls: res.candidates.map((c) => c.linkedinUrl),
     emails: res.candidates.map((c) => c.email).filter((e): e is string => Boolean(e)),
   });
+  const perCandidateCost = res.costUsd / res.candidates.length;
   const nuevos: SourcingProviderCandidate[] = [];
   let enPool = 0;
   for (const c of res.candidates) {
@@ -163,9 +186,25 @@ export async function sourcearParaBusqueda(
       (urlKey !== null && existing.linkedinUrls.has(urlKey)) ||
       (emailKey !== null && existing.emails.has(emailKey));
     if (isKnown) {
+      await deps.recordConsumption({
+        candidateKey: urlKey ?? c.id,
+        type: "DUPLICATE",
+        costUsd: perCandidateCost,
+      });
       enPool += 1;
       continue;
     }
+    // No es un duplicado del pool — puede igual ser un perfil que esta org ya obtuvo antes
+    // (otra búsqueda, otro recruiter): si está cacheado y vigente, no se le cobra crédito al
+    // cliente aunque HarvestAPI haya facturado igual el perfil dentro de esta búsqueda (el
+    // costo lo absorbe WeHunter — design.md §6.2).
+    const cached = await deps.findCachedProfile(c.linkedinUrl);
+    await deps.recordConsumption({
+      candidateKey: urlKey ?? c.id,
+      type: cached ? "REUSED_PROFILE" : "NEW_PROFILE",
+      costUsd: perCandidateCost,
+    });
+    await deps.cacheProfile(c);
     nuevos.push(c);
   }
 

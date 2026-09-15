@@ -287,6 +287,17 @@ llamada (§3), "ya tener el perfil" solo puede chequearse **antes** de correr la
 sirve sobre todo para el caso "el mismo candidato vuelve a aparecer en otra búsqueda/otro
 recruiter de la misma org", no para evitar la llamada de búsqueda en sí.
 
+**Aclaración de mecánica (2026-09-14)**: dado lo anterior, el chequeo de caché va **después**
+de `SourcingProvider.search()`, no antes — por cada candidato devuelto, se busca en
+`sourcing_provider_profiles` por `(organizationId, linkedinUrl)`. Si hay fila vigente (dentro
+del TTL), el evento de consumo es `REUSED_PROFILE` (no cobra crédito al cliente — regla ya
+cerrada en `limitar-sourcing-ia`), aunque HarvestAPI ya haya facturado ese perfil dentro del
+costo de la página/`maxItems` de esta búsqueda — ese costo lo absorbe WeHunter, igual que el
+resto del "costo real vs. créditos cobrados" que ya registra el requisito "Registro de
+consumo y costo real". Si no hay fila vigente, el evento es `NEW_PROFILE` (consume crédito) y
+se hace upsert de la fila con el payload y `fetchedAt` actuales — refresca el caché para la
+próxima vez, sea el resultado nuevo o repetido.
+
 ---
 
 ## 7. Emisión de eventos de consumo (seam hacia `limitar-sourcing-ia`)
