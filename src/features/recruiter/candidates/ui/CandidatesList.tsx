@@ -62,6 +62,9 @@ interface Props {
   duplicateIds: string[];
   page: number;
   totalPages: number;
+  /** Búsqueda a preseleccionar en `MatchearPoolDialog` — llega desde el link "Ver candidatos
+   *  del Talent Pool" de Sourcing (`?matchPool=<jobId>`, limitar-sourcing-ia/design.md §9). */
+  matchPoolJobId?: string;
 }
 
 function sourceLabel(source: string | null): string {
@@ -282,6 +285,7 @@ export function CandidatesList({
   duplicateIds,
   page,
   totalPages,
+  matchPoolJobId,
 }: Props) {
   const toast = useToast();
   const router = useRouter();
@@ -391,7 +395,11 @@ export function CandidatesList({
           })}
         </FilterChipGroup>
         <div className="flex items-center gap-2">
-          <MatchearPoolDialog jobs={jobs} />
+          <MatchearPoolDialog
+            jobs={jobs}
+            initialJobId={matchPoolJobId}
+            initialOpen={!!matchPoolJobId}
+          />
           <MoreFiltersPopover
             filter={filter}
             query={query}

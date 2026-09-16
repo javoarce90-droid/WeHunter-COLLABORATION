@@ -48,6 +48,7 @@ export default async function CandidatesPage({
     seniority?: string;
     skill?: string;
     completeness?: string;
+    matchPool?: string;
   }>;
 }) {
   const {
@@ -57,6 +58,7 @@ export default async function CandidatesPage({
     seniority: rawSeniority,
     skill: rawSkill,
     completeness: rawCompleteness,
+    matchPool: matchPoolJobId,
   } = await searchParams;
   const filter: CandidateFilterKey = isCandidateFilterKey(rawFilter)
     ? rawFilter
@@ -113,6 +115,7 @@ export default async function CandidatesPage({
           seniority={seniority}
           skill={skill}
           completeness={completeness}
+          matchPoolJobId={matchPoolJobId}
         />
       </Suspense>
     </div>
@@ -126,6 +129,7 @@ async function CandidatesSection({
   seniority,
   skill,
   completeness,
+  matchPoolJobId,
 }: {
   filter: CandidateFilterKey;
   query: string;
@@ -133,6 +137,7 @@ async function CandidatesSection({
   seniority?: JobSeniority;
   skill: string;
   completeness?: CompletenessFilter;
+  matchPoolJobId?: string;
 }) {
   const membership = await getActiveMembership();
   if (!membership) {
@@ -195,6 +200,7 @@ async function CandidatesSection({
       duplicateIds={duplicateIds}
       page={page}
       totalPages={calcTotalPages(total)}
+      matchPoolJobId={matchPoolJobId}
     />
   );
 }

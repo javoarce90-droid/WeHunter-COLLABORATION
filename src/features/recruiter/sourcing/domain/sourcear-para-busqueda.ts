@@ -64,6 +64,7 @@ export type SourcearParaBusquedaDeps = {
     candidateKey: string;
     type: SourcingConsumptionEventType;
     costUsd: number;
+    provider: string;
   }) => Promise<void>;
   /** Caché de perfiles ya obtenidos del proveedor (control interno "no pagar dos veces",
    *  design.md §6.2) — devuelve el perfil cacheado si hay una fila vigente (dentro del TTL)
@@ -114,7 +115,13 @@ const DEFAULT_SOURCING_LOCATION = "Argentina";
  *  "Filtros estructurados, no texto libre tipo X-Ray"). */
 export function jobToSourcingFilters(job: JobSourcingContext): SourcingFilters {
   return {
-    role: job.position?.trim() || job.title.trim(),
+    // `job.title` (el nombre de la publicación), no `job.position` — `position` es el "rol
+    // canónico" que usa el scoring de IA (ver `jobToScoreJob`, que lee el job directo, no pasa
+    // por acá) pero puede tener redacción libre que no matchea cómo la gente escribe su
+    // puesto en LinkedIn (ej. "Product Designer Senior", orden invertido) — confirmado como
+    // causa real de 0 resultados en una búsqueda real (2026-09-15). `role` acá SOLO alimenta
+    // la query de los proveedores de búsqueda (Serper/HarvestAPI), nunca el scoring.
+    role: job.title.trim(),
     skills: job.skills ?? [],
     seniority: job.seniority,
     location: job.location?.trim() || DEFAULT_SOURCING_LOCATION,
@@ -159,7 +166,12 @@ export async function sourcearParaBusqueda(
   const filters = jobToSourcingFilters(job);
   const res = await deps.search(filters, maxResults, []);
   if (res.error) {
-    await deps.recordConsumption({ candidateKey: "(search)", type: "FAILED", costUsd: 0 });
+    await deps.recordConsumption({
+      candidateKey: "(search)",
+      type: "FAILED",
+      costUsd: 0,
+      provider: res.provider,
+    });
     return { ok: false, error: res.error };
   }
 
@@ -190,6 +202,7 @@ export async function sourcearParaBusqueda(
         candidateKey: urlKey ?? c.id,
         type: "DUPLICATE",
         costUsd: perCandidateCost,
+        provider: res.provider,
       });
       enPool += 1;
       continue;
@@ -203,6 +216,7 @@ export async function sourcearParaBusqueda(
       candidateKey: urlKey ?? c.id,
       type: cached ? "REUSED_PROFILE" : "NEW_PROFILE",
       costUsd: perCandidateCost,
+      provider: res.provider,
     });
     await deps.cacheProfile(c);
     nuevos.push(c);

@@ -243,6 +243,16 @@ export const subscriptionStatus = pgEnum("subscription_status", [
   "cancelled",
 ]);
 
+// Tipo de evento del registro de auditoría de créditos de Sourcing externo (limitar-sourcing-ia,
+// design.md §2.3). NEW_PROFILE/DUPLICATE consumen 1 crédito; REUSED_PROFILE/FAILED no.
+export const sourcingCreditEventType = pgEnum("sourcing_credit_event_type", [
+  "NEW_PROFILE",
+  "REUSED_PROFILE",
+  "DUPLICATE",
+  "PROFILE_REFRESH",
+  "FAILED",
+]);
+
 // ---- Tenancy ----
 
 // El tenant. Todo dato de dominio cuelga de acá.
@@ -380,6 +390,11 @@ export const plans = pgTable("plans", {
   currency: text("currency").notNull().default("USD"),
   trialDays: integer("trial_days").notNull().default(14),
   maxMembers: integer("max_members").notNull(),
+  // Créditos de Sourcing externo que otorga este plan por ciclo de facturación
+  // (limitar-sourcing-ia, design.md §2.1). Configuración, no código — se lee al renovar el
+  // ciclo (ver `sourcingCreditBalances.activeCreditBudget`, que congela este valor hasta la
+  // próxima renovación).
+  creditBudget: integer("credit_budget").notNull().default(0),
   // El token del plan de dLocal Go y su URL de checkout NO viven acá: son distintos por
   // entorno (sandbox ≠ live) y la base es una sola, así que están en env
   // (`DLOCALGO_PLAN_TOKEN_<CODE>`, ver dlocal-go.config.ts).
@@ -1110,6 +1125,66 @@ export const sourcingProviderProfiles = pgTable(
   }),
 );
 
+// Saldo de créditos de Sourcing externo, 1:1 por organización (limitar-sourcing-ia, design.md
+// §2.2). Tres campos separados a propósito — nunca colapsar en un solo `balance`:
+//  - `includedBalance`: créditos del ciclo actual, arranca en `activeCreditBudget` y solo baja.
+//  - `purchasedBalance`: créditos de packs comprados, acumulables, no vencen (fuera de alcance
+//    de este change hasta confirmar soporte de cobro único de dLocal Go — ver design.md §10 —
+//    pero el campo ya existe para no tener que migrar de nuevo cuando se habilite).
+//  - `activeCreditBudget`: foto CONGELADA de `plans.credit_budget` al momento de la última
+//    renovación de ciclo — evita que un cambio de plan a mitad de ciclo (`applyPlanChange`,
+//    que actualiza `subscriptions.plan_id` al instante) filtre el nuevo cupo antes de tiempo.
+// El saldo visible (`available_balance`) es `includedBalance + purchasedBalance`, calculado,
+// nunca persistido como columna propia.
+export const sourcingCreditBalances = pgTable("sourcing_credit_balances", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  includedBalance: integer("included_balance").notNull().default(0),
+  purchasedBalance: integer("purchased_balance").notNull().default(0),
+  activeCreditBudget: integer("active_credit_budget").notNull().default(0),
+  // Espeja `subscriptions.current_period_ends_at` al momento del último reset — solo para
+  // debug/auditoría, no gobierna nada por sí sola.
+  cycleEndsAt: timestamp("cycle_ends_at"),
+  // Última vez que se mostró el aviso de saldo bajo en el ciclo actual — evita re-avisar en
+  // cada acción (design.md §11). Se limpia en cada renovación de ciclo.
+  lowBalanceNotifiedAt: timestamp("low_balance_notified_at"),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: uniqueIndex("sourcing_credit_balances_org_idx").on(t.organizationId),
+}));
+
+// Registro de auditoría de cada evento de consumo de Sourcing externo (limitar-sourcing-ia,
+// design.md §2.3, spec.md "Registro de consumo y costo real"). Un evento por candidato devuelto
+// por el proveedor (o por búsqueda, para `FAILED`). `creditsCharged` es 0 o 1 — NEW_PROFILE y
+// DUPLICATE cobran 1 crédito cada uno (el duplicado contra el Talent Pool NO se exime, ver
+// spec.md "Duplicados"); REUSED_PROFILE y FAILED no cobran nada.
+export const sourcingCreditEvents = pgTable("sourcing_credit_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .references(() => organizations.id, { onDelete: "cascade" })
+    .notNull(),
+  jobId: uuid("job_id").references(() => jobs.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => profiles.id),
+  // linkedinUrl o email normalizado del candidato; "(search)" para un evento a nivel búsqueda
+  // (ej. FAILED cuando la búsqueda entera falló antes de devolver candidatos).
+  candidateKey: text("candidate_key").notNull(),
+  eventType: sourcingCreditEventType("event_type").notNull(),
+  creditsCharged: integer("credits_charged").notNull().default(0),
+  // "included" | "purchased" | null (null cuando creditsCharged = 0).
+  creditSource: text("credit_source"),
+  // Costo real/estimado del proveedor, prorrateado por candidato (SourcingProviderResult.costUsd
+  // no viene desglosado por candidato).
+  providerCostUsd: numeric("provider_cost_usd", { precision: 10, scale: 4 }),
+  provider: text("provider"), // "harvestapi" | "serper"
+  occurredAt: timestamp("occurred_at").notNull(),
+  ...timestamps,
+}, (t) => ({
+  orgIdx: index("sourcing_credit_events_org_idx").on(t.organizationId, t.occurredAt),
+  jobIdx: index("sourcing_credit_events_job_idx").on(t.jobId),
+}));
+
 // Pregunta de screening definida por el recruiter para una búsqueda puntual (§6 backlog).
 // `options` solo aplica a type = 'multiple_choice'. `position` = orden de presentación al
 // candidato (orden de carga en el form, sin drag&drop todavía — mismo criterio que `benefits`).
@@ -1639,6 +1714,9 @@ export type Plan = typeof plans.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type SubscriptionStatus = (typeof subscriptionStatus.enumValues)[number];
 export type SubscriptionPayment = typeof subscriptionPayments.$inferSelect;
+export type SourcingCreditBalance = typeof sourcingCreditBalances.$inferSelect;
+export type SourcingCreditEvent = typeof sourcingCreditEvents.$inferSelect;
+export type SourcingCreditEventType = (typeof sourcingCreditEventType.enumValues)[number];
 export type Notification = typeof notifications.$inferSelect;
 export type Shortlist = typeof shortlists.$inferSelect;
 export type ShortlistCandidate = typeof shortlistCandidates.$inferSelect;

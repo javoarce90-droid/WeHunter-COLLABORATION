@@ -22,9 +22,10 @@ de planillas y emails con un sistema que el reclutador controla de principio a f
 
 Ambicioso · Inteligente · Directo.
 
-La herramienta toma decisiones por vos cuando puede (IA), y cuando no puede, te da lo que
-necesitás sin rodeos. No explica de más. No pide confirmaciones innecesarias.
-Confía en que el reclutador sabe lo que hace.
+La herramienta toma decisiones por vos cuando puede (IA), y cuando no puede, te acompaña
+con claridad para que decidas y actúes rápido — sin asumir que el reclutador ya sabe qué
+hacer. Interacciones elegantes, sutiles y veloces; baja carga cognitiva. No explica de más.
+No pide confirmaciones innecesarias.
 
 ## Anti-references
 

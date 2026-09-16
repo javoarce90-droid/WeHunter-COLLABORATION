@@ -52,7 +52,7 @@ const batchScorer =
  *  necesitan simular candidatos ya conocidos pasan su propio `findExistingCandidateKeys`. */
 function deps(over: Partial<SourcearParaBusquedaDeps> = {}): SourcearParaBusquedaDeps {
   return {
-    search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0 }),
+    search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
     scoreApplicationsBatch: batchScorer(),
     findExistingCandidateKeys: async () => ({ linkedinUrls: new Set(), emails: new Set() }),
     recordConsumption: async () => {},
@@ -63,17 +63,24 @@ function deps(over: Partial<SourcearParaBusquedaDeps> = {}): SourcearParaBusqued
 }
 
 describe("jobToSourcingFilters", () => {
-  it("prioriza position sobre title y arma role/skills/seniority/location", () => {
+  it("usa title (no position) y arma role/skills/seniority/location", () => {
+    // `role` alimenta la query de los proveedores de búsqueda — `title` (nombre de la
+    // publicación) matchea mejor cómo la gente escribe su puesto en LinkedIn que `position`,
+    // que puede tener redacción libre (ej. "Backend Engineer Senior", orden invertido).
+    // Confirmado como causa real de 0 resultados en una búsqueda real (2026-09-15). `position`
+    // sigue siendo el rol canónico para el scoring de IA (`jobToScoreJob`), que no pasa por acá.
     expect(jobToSourcingFilters(job())).toEqual({
-      role: "Senior Backend Engineer",
+      role: "Backend Engineer",
       skills: ["Python", "Supabase"],
       seniority: "senior",
       location: "Buenos Aires",
     });
   });
 
-  it("usa title si no hay position", () => {
-    expect(jobToSourcingFilters(job({ position: null })).role).toBe("Backend Engineer");
+  it("ignora position aunque esté cargado — role siempre sale de title", () => {
+    expect(jobToSourcingFilters(job({ position: "Otro título distinto" })).role).toBe(
+      "Backend Engineer",
+    );
   });
 
   it("defaultea a Argentina cuando la búsqueda no tiene location cargada", () => {
@@ -96,14 +103,14 @@ describe("sourcearParaBusqueda", () => {
         search: async (filters, maxResults, exclude) => {
           calls += 1;
           received = { filters, maxResults, exclude };
-          return { candidates: [], isLiveApi: true, costUsd: 0 };
+          return { candidates: [], isLiveApi: true, costUsd: 0, provider: "harvestapi" };
         },
       }),
     );
     expect(calls).toBe(1);
     expect(received).toEqual({
       filters: {
-        role: "Senior Backend Engineer",
+        role: "Backend Engineer",
         skills: ["Python", "Supabase"],
         seniority: "senior",
         location: "Buenos Aires",
@@ -124,7 +131,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
         scoreApplicationsBatch: batchScorer(scores),
       }),
     );
@@ -144,7 +151,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: false, costUsd: 0 }),
+        search: async () => ({ candidates, isLiveApi: false, costUsd: 0, provider: "harvestapi" }),
         scoreApplicationsBatch: batchScorer(scores),
       }),
     );
@@ -160,7 +167,7 @@ describe("sourcearParaBusqueda", () => {
     const res = await sourcearParaBusqueda(
       job(),
       3,
-      deps({ search: async () => ({ candidates, isLiveApi: true, costUsd: 0 }) }),
+      deps({ search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }) }),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -174,7 +181,7 @@ describe("sourcearParaBusqueda", () => {
     const res = await sourcearParaBusqueda(
       job(),
       SOURCING_MAX_RESULTS,
-      deps({ search: async () => ({ candidates, isLiveApi: true, costUsd: 0 }) }),
+      deps({ search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }) }),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -190,6 +197,7 @@ describe("sourcearParaBusqueda", () => {
           candidates: [],
           isLiveApi: false,
           costUsd: 0,
+          provider: "harvestapi",
           error: "Falló la búsqueda.",
         }),
         scoreApplicationsBatch: async () => {
@@ -209,7 +217,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
         findExistingCandidateKeys: async () => ({
           linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
           emails: new Set(),
@@ -235,7 +243,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
         findExistingCandidateKeys: async () => ({
           linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
           emails: new Set(),
@@ -259,7 +267,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
         findExistingCandidateKeys: async () => ({
           linkedinUrls: new Set(),
           emails: new Set(["ana@ejemplo.com"]),
@@ -284,7 +292,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
         findExistingCandidateKeys: async () => ({
           linkedinUrls: new Set([
             "https://www.linkedin.com/in/a",
@@ -306,7 +314,7 @@ describe("sourcearParaBusqueda", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0 }),
+        search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
         findExistingCandidateKeys: async () => {
           called = true;
           return { linkedinUrls: new Set(), emails: new Set() };
@@ -331,7 +339,7 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108, provider: "harvestapi" }),
         recordConsumption: async (e) => {
           events.push(e);
         },
@@ -339,8 +347,8 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
     );
     expect(res.ok).toBe(true);
     expect(events).toEqual([
-      { candidateKey: "https://www.linkedin.com/in/a", type: "NEW_PROFILE", costUsd: 0.054 },
-      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054 },
+      { candidateKey: "https://www.linkedin.com/in/a", type: "NEW_PROFILE", costUsd: 0.054, provider: "harvestapi" },
+      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054, provider: "harvestapi" },
     ]);
   });
 
@@ -354,7 +362,7 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108, provider: "harvestapi" }),
         findExistingCandidateKeys: async () => ({
           linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
           emails: new Set(),
@@ -366,8 +374,8 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
     );
     expect(res.ok).toBe(true);
     expect(events).toEqual([
-      { candidateKey: "https://www.linkedin.com/in/a", type: "DUPLICATE", costUsd: 0.054 },
-      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054 },
+      { candidateKey: "https://www.linkedin.com/in/a", type: "DUPLICATE", costUsd: 0.054, provider: "harvestapi" },
+      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054, provider: "harvestapi" },
     ]);
   });
 
@@ -381,6 +389,7 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
           candidates: [],
           isLiveApi: false,
           costUsd: 0,
+          provider: "harvestapi",
           error: "Falló la búsqueda.",
         }),
         recordConsumption: async (e) => {
@@ -389,7 +398,7 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
       }),
     );
     expect(res).toEqual({ ok: false, error: "Falló la búsqueda." });
-    expect(events).toEqual([{ candidateKey: "(search)", type: "FAILED", costUsd: 0 }]);
+    expect(events).toEqual([{ candidateKey: "(search)", type: "FAILED", costUsd: 0, provider: "harvestapi" }]);
   });
 
   it("no emite ningún evento si la búsqueda no devuelve candidatos", async () => {
@@ -398,7 +407,7 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0.1 }),
+        search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0.1, provider: "harvestapi" }),
         recordConsumption: async (e) => {
           events.push(e);
         },
@@ -417,7 +426,7 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108, provider: "harvestapi" }),
         findCachedProfile: async (linkedinUrl) =>
           linkedinUrl === "https://www.linkedin.com/in/a" ? candidates[0]! : null,
         recordConsumption: async (e) => {
@@ -430,8 +439,8 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
     // sigue mostrándose como resultado — REUSED_PROFILE solo afecta el cobro, no la visibilidad.
     expect(res.results.map((r) => r.id).sort()).toEqual(["a", "b"]);
     expect(events).toEqual([
-      { candidateKey: "https://www.linkedin.com/in/a", type: "REUSED_PROFILE", costUsd: 0.054 },
-      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054 },
+      { candidateKey: "https://www.linkedin.com/in/a", type: "REUSED_PROFILE", costUsd: 0.054, provider: "harvestapi" },
+      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054, provider: "harvestapi" },
     ]);
   });
 
@@ -443,7 +452,7 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.104 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.104, provider: "harvestapi" }),
         findExistingCandidateKeys: async () => ({
           linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
           emails: new Set(),
@@ -459,7 +468,7 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
     );
     expect(cacheChecks).toEqual([]);
     expect(events).toEqual([
-      { candidateKey: "https://www.linkedin.com/in/a", type: "DUPLICATE", costUsd: 0.104 },
+      { candidateKey: "https://www.linkedin.com/in/a", type: "DUPLICATE", costUsd: 0.104, provider: "harvestapi" },
     ]);
   });
 
@@ -473,7 +482,7 @@ describe("sourcearParaBusqueda — eventos de consumo", () => {
       job(),
       SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108 }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108, provider: "harvestapi" }),
         findExistingCandidateKeys: async () => ({
           linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
           emails: new Set(),

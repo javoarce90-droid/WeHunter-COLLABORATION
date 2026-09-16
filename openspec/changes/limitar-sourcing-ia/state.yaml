@@ -13,11 +13,19 @@ phases:
   proposal: approved            # client closed definitions 2026-09-10
   spec:     approved            # last 3 open questions closed 2026-09-11; Duplicados closed
                                  # 2026-09-14 via integrar-harvestapi-sourcing (real API test)
-  ui-proto: awaiting-approval   # gate: client validation — artifact https://claude.ai/code/artifact/a7feb72b-dc07-4018-82e9-19dff94455c9
-  design:   blocked
-  tasks:    blocked
-  apply:    blocked
-  verify:   blocked
+  ui-proto: approved            # 2026-09-15: user confirmed client validated the prototype —
+                                 # artifact https://claude.ai/code/artifact/a7feb72b-dc07-4018-82e9-19dff94455c9
+  design:   approved            # approved by user 2026-09-15 — balance ledger (3-field split,
+                                 # frozen active_credit_budget), atomic decrement, dLocal
+                                 # reconcile hook for cycle renewal, packs flagged as OPEN
+                                 # pending dLocal Go one-off-charge confirmation (see design.md §10)
+  tasks:    approved            # approved by user 2026-09-15 — 11 groups, TDD-first ordering,
+                                 # packs purchase explicitly deferred out of this change (design.md §10)
+  apply:    done                 # 2026-09-15 — all 11 groups done, verified live against the
+                                 # dev server + real DB (migration applied by the user after
+                                 # review). One preexisting bug found in SourcingCandidateCard.tsx
+                                 # (unrelated feature/change, reported, not fixed here).
+  verify:   ready                # not yet run as its own formal step
   archive:  blocked
 
 gates:

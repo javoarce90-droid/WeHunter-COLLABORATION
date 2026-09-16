@@ -18,6 +18,9 @@ import {
 } from "./domain/sourcear-para-busqueda";
 import { getSourcingProvider } from "./domain/get-sourcing-provider";
 import { recordSourcingConsumption } from "./domain/sourcing-consumption-event";
+import { getAvailableSourcingBalance } from "../sourcing-credits/data/sourcing-credit-balances.queries";
+import { evaluarSolicitudSourcing } from "../sourcing-credits/domain/evaluar-solicitud-sourcing";
+import { sourcingCreditsEnabled } from "../sourcing-credits/domain/sourcing-credits-enabled";
 import { getJobById } from "../jobs/data/jobs.queries";
 import { getAiProvider } from "@/lib/ai";
 import { can } from "@/lib/auth/roles";
@@ -55,6 +58,7 @@ const importSchema = z.object({
   skills: z.array(z.string()),
   linkedinUrl: z.string().optional().nullable(),
   email: z.string().trim().email().nullable().optional(),
+  summary: z.string().nullable().optional(),
   experience: z.array(importExperienceSchema).optional(),
   education: z.array(importEducationSchema).optional(),
   certifications: z.array(importCertificationSchema).optional(),
@@ -68,6 +72,7 @@ export async function importarSourcingAction(result: {
   skills: string[];
   linkedinUrl?: string | null;
   email?: string | null;
+  summary?: string | null;
   experience?: { company: string; position: string; startDate: string | null; endDate: string | null; description: string | null }[];
   education?: { institution: string; degree: string; fieldOfStudy: string | null; startDate: string | null; endDate: string | null }[];
   certifications?: { name: string; url: string | null }[];
@@ -97,7 +102,7 @@ export async function importarSourcingAction(result: {
       headline: parsed.data.headline,
       location: parsed.data.location,
       linkedinUrl: parsed.data.linkedinUrl ?? null,
-      summary: null,
+      summary: parsed.data.summary ?? null,
       skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
       seniority: null,
       source: "linkedin",
@@ -157,6 +162,10 @@ export async function sourcearParaBusquedaAction(
   isLiveApi?: boolean;
   metrics?: SourcingMetrics;
   error?: string;
+  /** Solo presente cuando `error === "insufficient_credits"` — créditos de Sourcing
+   *  disponibles en este momento, para que la UI ofrezca "Buscar N" / "Comprar créditos"
+   *  (limitar-sourcing-ia/design.md §7, spec.md "Saldo insuficiente"). */
+  availableCredits?: number;
 }> {
   const parsed = sourcearParaBusquedaSchema.safeParse({ maxResults });
   if (!parsed.success) return { ok: false, error: "Cantidad de candidatos inválida." };
@@ -169,6 +178,16 @@ export async function sourcearParaBusquedaAction(
 
   const job = await getJobById(jobId, membership.organizationId);
   if (!job) return { ok: false, error: "Búsqueda no encontrada." };
+
+  // Interruptor de reversión (design.md §12): en `false` no se chequea ni se descuenta saldo —
+  // pero `recordSourcingConsumption` sigue auditando cada evento.
+  const availableCredits = sourcingCreditsEnabled()
+    ? await getAvailableSourcingBalance(membership.organizationId)
+    : Infinity;
+  const evaluation = evaluarSolicitudSourcing(parsed.data.maxResults, availableCredits);
+  if (!evaluation.ok) {
+    return { ok: false, error: "insufficient_credits", availableCredits: 0 };
+  }
 
   const provider = getAiProvider();
   const sourcingProvider = getSourcingProvider();
@@ -184,7 +203,7 @@ export async function sourcearParaBusquedaAction(
       requirements: job.requirements,
       responsibilities: job.responsibilities,
     },
-    parsed.data.maxResults,
+    evaluation.maxResults,
     {
       search: (filters, max, exclude) => sourcingProvider.search(filters, max, exclude),
       scoreApplicationsBatch: (input) => provider.scoreApplicationsBatch(input),
@@ -195,6 +214,7 @@ export async function sourcearParaBusquedaAction(
           ...event,
           organizationId: membership.organizationId,
           jobId,
+          userId: user?.id ?? null,
           occurredAt: new Date(),
         }),
       findCachedProfile: (linkedinUrl) =>

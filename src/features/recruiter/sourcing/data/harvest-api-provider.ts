@@ -19,13 +19,20 @@ import type {
  * diagnóstico de facturación (proposal.md §3.2), nunca en producción.
  *
  * Nombres de campo de la respuesta de HarvestAPI confirmados contra una llamada real
- * (2026-09-14): `id`, `publicIdentifier`, `linkedinUrl`, `firstName`, `lastName`, `headline`,
- * `location`, `emails`. Los nombres exactos de los campos DENTRO de `experience`/`education`/
- * `certifications`/`languages` NO están 100% confirmados (design.md §11) — se asumen acá los
- * más comunes en scrapers de LinkedIn (`company`/`position`/`startDate`/`endDate`/
- * `description`, `institution`/`degree`/`fieldOfStudy`, `name`/`url`, `language`/`level`). El
- * mapeo es defensivo (leyendo alias razonables) para no romper si el nombre real difiere un
- * poco; validar contra una llamada real con token cuando exista (ver `.env.example`).
+ * (2026-09-14, re-confirmado 2026-09-15 con un token real — perfil completo, incluidas
+ * `experience`/`education`): `id`, `publicIdentifier`, `linkedinUrl`, `firstName`, `lastName`,
+ * `headline`, `emails`, `about` (el "Acerca de" real del perfil). `location` NO es un string
+ * plano — es un objeto (`linkedinText`/`countryCode`/`parsed.{text,city,state,country}`), ver
+ * `extractLocationText`. `skills`/`topSkills` NO son `string[]` — son
+ * `{name, positions}[]` (`positions` = en qué experiencias se usó esa skill), ver
+ * `extractSkillNames`. `experience[]` usa `companyName` (no `company`), `duration` (texto tipo
+ * "1 yr", fallback cuando falta fecha) y `startDate`/`endDate` como objeto `{year, text}` igual
+ * que `education[]` (re-confirmado 2026-09-15 con un segundo candidato real que sí tenía fechas
+ * — el primer candidato de prueba no las tenía cargadas en LinkedIn, lo que hizo pensar que no
+ * existían). `education[]` usa `schoolName` (no `institution`), `period` (texto combinado) y
+ * `startDate`/`endDate` como el mismo objeto `{year, text}`, ver `extractYearText`.
+ * `certifications`/`languages` siguen sin confirmar con datos reales — su mapeo sigue siendo
+ * defensivo (alias razonables: `name`/`url`, `language`/`level`).
  */
 
 const APIFY_ACTOR_URL =
@@ -47,25 +54,46 @@ type RawHarvestItem = {
   lastName?: string;
   name?: string;
   headline?: string;
-  location?: string;
+  // Confirmado contra una llamada real (2026-09-15): NO es un string plano — viene como objeto
+  // estructurado. `linkedinText` es el texto tal cual lo muestra LinkedIn, `parsed` lo
+  // descompone. Se deja `string` como alternativa defensiva por si el actor cambia el shape.
+  location?:
+    | string
+    | {
+        linkedinText?: string;
+        countryCode?: string;
+        parsed?: { text?: string; city?: string; state?: string; country?: string };
+      };
+  // Confirmado contra una llamada real (2026-09-15): SÍ existe — es el "Acerca de" real del
+  // perfil de LinkedIn. La cabecera del archivo decía que HarvestAPI "no tiene snippet"; eso
+  // era una asunción sin validar, corregida acá.
+  about?: string;
   emails?: string[];
-  skills?: string[];
-  topSkills?: string[];
+  // Cada skill trae de qué experiencias sale (`positions`, texto libre tipo "8 experiences
+  // across X and 7 other companies") — no lo usamos, solo el nombre.
+  skills?: Array<string | { name?: string; positions?: string[] }>;
+  topSkills?: Array<string | { name?: string; positions?: string[] }>;
   experience?: Array<{
-    company?: string;
+    companyName?: string;
+    company?: string; // alias defensivo, no confirmado en la respuesta real
     position?: string;
     title?: string;
-    startDate?: string;
-    endDate?: string;
+    duration?: string; // texto tipo "1 yr" — fallback cuando no hay startDate/endDate
+    // Confirmado contra una llamada real (2026-09-15): igual que en `education`, viene como
+    // objeto `{year, text}`, no como string — ver `extractYearText`.
+    startDate?: string | { year?: number; text?: string };
+    endDate?: string | { year?: number; text?: string };
     description?: string;
   }>;
   education?: Array<{
-    institution?: string;
-    school?: string;
+    schoolName?: string;
+    institution?: string; // alias defensivo, no confirmado en la respuesta real
+    school?: string; // alias defensivo, no confirmado en la respuesta real
     degree?: string;
     fieldOfStudy?: string;
-    startDate?: string;
-    endDate?: string;
+    period?: string; // texto combinado tipo "2004 - 2006"
+    startDate?: string | { year?: number; text?: string };
+    endDate?: string | { year?: number; text?: string };
   }>;
   certifications?: Array<{ name?: string; title?: string; url?: string }>;
   languages?: Array<{ language?: string; name?: string; level?: string; proficiency?: string }>;
@@ -73,23 +101,48 @@ type RawHarvestItem = {
   // alcance del spec funcional. No se lee ni se mapea.
 };
 
+/** `skills`/`topSkills` de HarvestAPI vienen como `{name, positions}[]`, no `string[]` — ver
+ *  nota de cabecera. Defensivo ante el caso de que alguna vez llegue un string plano. */
+function extractSkillNames(raw: RawHarvestItem["skills"]): string[] {
+  return (raw ?? [])
+    .map((s) => (typeof s === "string" ? s : s.name))
+    .filter((s): s is string => Boolean(s && s.trim()));
+}
+
+/** `education[].startDate`/`endDate` vienen como `{year, text}`, no strings — ver nota de
+ *  cabecera. Defensivo ante un string plano. */
+function extractYearText(value: string | { year?: number; text?: string } | undefined): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return value.text ?? (value.year ? String(value.year) : null);
+}
+
 function mapExperience(raw: RawHarvestItem["experience"]): ProviderExperience[] {
-  return (raw ?? []).map((e) => ({
-    company: e.company ?? "",
-    position: e.position ?? e.title ?? "",
-    startDate: e.startDate ?? null,
-    endDate: e.endDate ?? null,
-    description: e.description ?? null,
-  }));
+  return (raw ?? []).map((e) => {
+    const startDate = extractYearText(e.startDate);
+    const endDate = extractYearText(e.endDate);
+    return {
+      company: e.companyName ?? e.company ?? "",
+      position: e.position ?? e.title ?? "",
+      startDate,
+      endDate,
+      // `duration` ("1 yr") solo se agrega a la descripción cuando no hay startDate/endDate
+      // reales que extraer — evita repetir la misma info dos veces cuando sí los hay.
+      description:
+        [e.description, !startDate && !endDate && e.duration ? `Duración: ${e.duration}` : null]
+          .filter((v): v is string => Boolean(v))
+          .join("\n\n") || null,
+    };
+  });
 }
 
 function mapEducation(raw: RawHarvestItem["education"]): ProviderEducation[] {
   return (raw ?? []).map((e) => ({
-    institution: e.institution ?? e.school ?? "",
+    institution: e.schoolName ?? e.institution ?? e.school ?? "",
     degree: e.degree ?? "",
     fieldOfStudy: e.fieldOfStudy ?? null,
-    startDate: e.startDate ?? null,
-    endDate: e.endDate ?? null,
+    startDate: extractYearText(e.startDate),
+    endDate: extractYearText(e.endDate),
   }));
 }
 
@@ -102,6 +155,14 @@ function mapLanguages(raw: RawHarvestItem["languages"]): ProviderLanguage[] {
     language: l.language ?? l.name ?? "",
     level: l.level ?? l.proficiency ?? null,
   }));
+}
+
+/** `location` puede llegar como string plano o como el objeto estructurado confirmado en una
+ *  llamada real (`linkedinText`/`parsed.text`) — ver `RawHarvestItem.location`. */
+function extractLocationText(location: RawHarvestItem["location"]): string {
+  if (!location) return "";
+  if (typeof location === "string") return location;
+  return location.linkedinText ?? location.parsed?.text ?? "";
 }
 
 function mapCandidate(item: RawHarvestItem, idx: number): SourcingProviderCandidate {
@@ -118,11 +179,13 @@ function mapCandidate(item: RawHarvestItem, idx: number): SourcingProviderCandid
     id: item.id ?? `harvest-${idx}`,
     name,
     headline: item.headline ?? "",
-    location: item.location ?? "",
-    skills: item.skills ?? item.topSkills ?? [],
+    location: extractLocationText(item.location),
+    skills: extractSkillNames(item.skills).length > 0
+      ? extractSkillNames(item.skills)
+      : extractSkillNames(item.topSkills),
     linkedinUrl,
     email,
-    snippet: null, // HarvestAPI no tiene "snippet" (eso era un concepto de Google/Serper).
+    snippet: item.about ?? null, // "Acerca de" real del perfil — ver nota en RawHarvestItem.
     experience: mapExperience(item.experience),
     education: mapEducation(item.education),
     certifications: mapCertifications(item.certifications),
@@ -301,14 +364,22 @@ export class HarvestApiProvider implements SourcingProvider {
   ): Promise<SourcingProviderResult> {
     if (this.apiToken) {
       try {
-        const searchQuery = [...filters.skills, filters.seniority]
+        // `currentJobTitles` es un filtro estricto de "puesto actual" — probado contra una
+        // llamada real (2026-09-15): combinado con un `searchQuery` largo (todas las skills)
+        // devolvió 0 resultados para un puesto con oferta real confirmada en LinkedIn (el
+        // usuario lo verificó a mano). Se lo reemplaza por keywords amplias en `searchQuery`.
+        // Primera vuelta con 3 skills (`filters.skills.slice(0, 3)`, mismo criterio que
+        // `SerperProvider`) siguió siendo más angosto que una búsqueda manual real de LinkedIn
+        // (`keywords=Product Designer`, 2 palabras) — el usuario confirmó con evidencia (una
+        // búsqueda manual con decenas de resultados vs. 2 acá) que 1 sola skill alcanza; más
+        // términos combinados reduce demasiado el pool.
+        const searchQuery = [filters.role, ...filters.skills.slice(0, 1), filters.seniority]
           .filter((t): t is string => Boolean(t && t.trim()))
           .join(" ");
         const body = {
           profileScraperMode: "Full" as const,
           takePages: 1,
           maxItems: maxResults,
-          currentJobTitles: [filters.role],
           locations: [filters.location],
           ...(searchQuery ? { searchQuery } : {}),
         };
@@ -331,7 +402,7 @@ export class HarvestApiProvider implements SourcingProvider {
           // devolver el costo real (header o campo de la respuesta), preferirlo acá; no se
           // encontró ese dato en la respuesta de la prueba real (2026-09-14).
           const costUsd = COST_PER_SEARCH_PAGE + maxResults * COST_PER_FULL_PROFILE;
-          return { candidates, isLiveApi: true, costUsd };
+          return { candidates, isLiveApi: true, costUsd, provider: "harvestapi" };
         }
       } catch {
         // Falla de red/timeout real — cae al fallback determinístico, igual que SerperProvider.
@@ -341,6 +412,6 @@ export class HarvestApiProvider implements SourcingProvider {
     // Sin token, o la llamada en vivo no llegó a responder bien: fallback determinístico para
     // que dev/demo sigan funcionando sin cuenta real de Apify/HarvestAPI.
     const candidates = excludeCandidates(fallbackCandidates(filters, maxResults), exclude);
-    return { candidates, isLiveApi: false, costUsd: 0 };
+    return { candidates, isLiveApi: false, costUsd: 0, provider: "harvestapi" };
   }
 }

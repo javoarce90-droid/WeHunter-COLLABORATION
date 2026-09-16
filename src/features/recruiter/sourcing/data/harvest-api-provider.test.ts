@@ -118,7 +118,139 @@ describe("HarvestApiProvider.search — mapeo de respuesta real", () => {
     expect(res.candidates[0]!.email).toBeNull();
   });
 
-  it("arma el input del actor con profileScraperMode Full, maxItems y filtros estructurados", async () => {
+  // Shape real confirmado contra una llamada real a HarvestAPI (2026-09-15) — distinto del
+  // fixture "ficticio" de arriba en varios campos clave: `skills` como objetos, `location` como
+  // objeto estructurado, `experience`/`education` con otros nombres de campo.
+  it("mapea `skills` real: objetos {name, positions}, no strings", async () => {
+    mockFetchOk([
+      fixtureItem({
+        skills: [
+          { name: "Gestión de backlog", positions: ["8 experiences across X"] },
+          { name: "Scrum", positions: [] },
+        ],
+      }),
+    ]);
+    const provider = new HarvestApiProvider("test-token");
+    const res = await provider.search(filters, 5, []);
+    expect(res.candidates[0]!.skills).toEqual(["Gestión de backlog", "Scrum"]);
+  });
+
+  it("cae a `topSkills` (mismo shape de objetos) cuando `skills` viene vacío", async () => {
+    mockFetchOk([
+      fixtureItem({
+        skills: [],
+        topSkills: [{ name: "Figma", positions: [] }],
+      }),
+    ]);
+    const provider = new HarvestApiProvider("test-token");
+    const res = await provider.search(filters, 5, []);
+    expect(res.candidates[0]!.skills).toEqual(["Figma"]);
+  });
+
+  it("mapea `location` real: objeto estructurado con `linkedinText`/`parsed.text`", async () => {
+    mockFetchOk([
+      fixtureItem({
+        location: {
+          linkedinText: "Buenos Aires, Buenos Aires Province, Argentina",
+          countryCode: "AR",
+          parsed: { text: "Buenos Aires, Argentina", city: "Buenos Aires", country: "Argentina" },
+        },
+      }),
+    ]);
+    const provider = new HarvestApiProvider("test-token");
+    const res = await provider.search(filters, 5, []);
+    expect(res.candidates[0]!.location).toBe("Buenos Aires, Buenos Aires Province, Argentina");
+  });
+
+  it("mapea `about` real al `snippet` del candidato (no un texto de match de IA)", async () => {
+    mockFetchOk([fixtureItem({ about: "Soy Analista Funcional Senior con experiencia en..." })]);
+    const provider = new HarvestApiProvider("test-token");
+    const res = await provider.search(filters, 5, []);
+    expect(res.candidates[0]!.snippet).toBe("Soy Analista Funcional Senior con experiencia en...");
+  });
+
+  it("mapea `experience` real: `companyName` (no `company`) y `duration` agregada a la descripción", async () => {
+    mockFetchOk([
+      fixtureItem({
+        experience: [
+          {
+            companyName: "Profesional Independiente",
+            position: "Analista Técnico Funcional Sr.",
+            duration: "1 yr",
+            description: "Relevamiento de requerimientos.",
+          },
+        ],
+      }),
+    ]);
+    const provider = new HarvestApiProvider("test-token");
+    const res = await provider.search(filters, 5, []);
+    expect(res.candidates[0]!.experience).toEqual([
+      {
+        company: "Profesional Independiente",
+        position: "Analista Técnico Funcional Sr.",
+        startDate: null,
+        endDate: null,
+        description: "Relevamiento de requerimientos.\n\nDuración: 1 yr",
+      },
+    ]);
+  });
+
+  it("mapea `experience[].startDate`/`endDate` reales como objeto {year, text} — sin repetir `duration` cuando ya hay fechas", async () => {
+    mockFetchOk([
+      fixtureItem({
+        experience: [
+          {
+            companyName: "Limelight",
+            position: "Senior Product Designer",
+            duration: "7 mos",
+            startDate: { year: 2025, text: "Mar 2025" },
+            endDate: { year: 2025, text: "Sep 2025" },
+          },
+        ],
+      }),
+    ]);
+    const provider = new HarvestApiProvider("test-token");
+    const res = await provider.search(filters, 5, []);
+    expect(res.candidates[0]!.experience).toEqual([
+      {
+        company: "Limelight",
+        position: "Senior Product Designer",
+        startDate: "Mar 2025",
+        endDate: "Sep 2025",
+        description: null,
+      },
+    ]);
+  });
+
+  it("mapea `education` real: `schoolName` y `startDate`/`endDate` como objeto {year, text}", async () => {
+    mockFetchOk([
+      fixtureItem({
+        education: [
+          {
+            schoolName: "UADE",
+            degree: "Ingeniero en Informática",
+            fieldOfStudy: "Ingeniería informática",
+            period: "2004 - 2006",
+            startDate: { year: 2004, text: "2004" },
+            endDate: { year: 2006, text: "2006" },
+          },
+        ],
+      }),
+    ]);
+    const provider = new HarvestApiProvider("test-token");
+    const res = await provider.search(filters, 5, []);
+    expect(res.candidates[0]!.education).toEqual([
+      {
+        institution: "UADE",
+        degree: "Ingeniero en Informática",
+        fieldOfStudy: "Ingeniería informática",
+        startDate: "2004",
+        endDate: "2006",
+      },
+    ]);
+  });
+
+  it("arma el input del actor con profileScraperMode Full, maxItems, ubicación estructurada y el resto como keywords", async () => {
     mockFetchOk([]);
     const provider = new HarvestApiProvider("test-token");
     await provider.search(filters, 7, []);
@@ -131,8 +263,24 @@ describe("HarvestApiProvider.search — mapeo de respuesta real", () => {
     expect(body.profileScraperMode).toBe("Full");
     expect(body.maxItems).toBe(7);
     expect(body.takePages).toBe(1);
-    expect(body.currentJobTitles).toEqual(["Backend Engineer"]);
     expect(body.locations).toEqual(["Argentina"]);
+    // `currentJobTitles` (filtro estricto de "puesto actual") se reemplazó por keywords en
+    // `searchQuery` — probado contra una llamada real (2026-09-15) que devolvió 0 resultados
+    // para un puesto con oferta real confirmada en LinkedIn, ver nota en harvest-api-provider.ts.
+    expect(body.currentJobTitles).toBeUndefined();
+    expect(body.searchQuery).toBe("Backend Engineer Python senior");
+  });
+
+  it("searchQuery usa 1 sola skill top, no todas — más angosto no da mejores resultados (confirmado con una búsqueda real, 2026-09-15)", async () => {
+    mockFetchOk([]);
+    const provider = new HarvestApiProvider("test-token");
+    await provider.search(
+      { ...filters, skills: ["Python", "Supabase", "AWS", "Docker", "Kubernetes"] },
+      3,
+      [],
+    );
+    const body = JSON.parse(capturedInit!.body as string);
+    expect(body.searchQuery).toBe("Backend Engineer Python senior");
   });
 
   it("costUsd = 0.10 + maxItems * 0.004 en una llamada real", async () => {

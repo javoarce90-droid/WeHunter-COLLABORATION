@@ -291,7 +291,7 @@ export class SerperProvider implements SourcingProvider {
     for (let page = 1; page <= SEARCH_METHOD_MAX_PAGES && collected.length < maxResults; page++) {
       const res = await searchLinkedInCandidates({ query }, page);
       if (res.error) {
-        return { candidates: [], isLiveApi: false, costUsd: 0, error: res.error };
+        return { candidates: [], isLiveApi: false, costUsd: 0, provider: "serper", error: res.error };
       }
       isLiveApi = res.isLiveApi;
       if (res.candidates.length === 0) break; // página vacía: no hay más para pedir
@@ -308,6 +308,6 @@ export class SerperProvider implements SourcingProvider {
     // Serper se paga por suscripción/plan, no encontramos un costo variable por perfil
     // documentado en este proyecto (a diferencia de HarvestAPI) — costUsd queda en 0. Si
     // aparece un costo real de Serper a futuro, ajustar acá.
-    return { candidates: collected, isLiveApi, costUsd: 0 };
+    return { candidates: collected, isLiveApi, costUsd: 0, provider: "serper" };
   }
 }

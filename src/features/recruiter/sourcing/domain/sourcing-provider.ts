@@ -59,6 +59,10 @@ export type SourcingProviderResult = {
   isLiveApi: boolean;
   /** Costo real de esta llamada (para el evento de consumo — ver domain/sourcing-consumption-event.ts). */
   costUsd: number;
+  /** Identidad del proveedor concreto ("harvestapi" | "serper") — para el registro de
+   *  auditoría de créditos (`sourcing_credit_events.provider`, limitar-sourcing-ia design.md
+   *  §2.3). El dominio/UI de Sourcing no la usan para decidir nada, solo la propagan. */
+  provider: string;
   error?: string;
 };
 

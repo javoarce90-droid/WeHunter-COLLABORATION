@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { registrarFeedbackSchema, solicitarEntrevistaSchema } from "./schema";
 import { registrarFeedback } from "./domain/registrar-feedback";
 import { solicitarEntrevista } from "./domain/solicitar-entrevista";
-import { submitFeedbackRpc, requestInterviewRpc } from "./data/shortlist-review.data";
+import {
+  submitFeedbackRpc,
+  requestInterviewRpc,
+  getSharedShortlist,
+} from "./data/shortlist-review.data";
+import type { SharedShortlist } from "./data/shortlist-review.data";
 
 export interface FeedbackActionState {
   error?: string;
@@ -65,4 +70,10 @@ export async function solicitarEntrevistaAction(
 
   revalidatePath(`/share/${parsed.data.token}`);
   return { ok: true };
+}
+
+/** Refetch del shortlist compartido — usado por el polling de `SharedShortlistView` para que
+ *  comentarios/feedback nuevos aparezcan sin que el Cliente tenga que refrescar la página. */
+export async function getSharedShortlistAction(token: string): Promise<SharedShortlist | null> {
+  return getSharedShortlist(token);
 }

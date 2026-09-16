@@ -10,6 +10,7 @@ import {
 import type { CandidateDetails } from "../domain/candidate-details";
 import type { TalentState } from "../domain/cambiar-estado-talento";
 import { mapearNivelIdioma } from "../domain/mapear-nivel-idioma";
+import { parseResumeDateToDb } from "../domain/parse-resume-date";
 import type {
   ExperienceFields,
   EducationFields,
@@ -149,14 +150,29 @@ export async function insertCandidateResume(
       await tx.insert(candidateWorkExperiences).values(
         resume.workExperiences.map(
           (e) =>
-            ({ profileId: null, candidateId, ...e }) as typeof candidateWorkExperiences.$inferInsert,
+            ({
+              profileId: null,
+              candidateId,
+              ...e,
+              // `date` en Postgres exige día completo — el proveedor de Sourcing da texto
+              // libre ("Mar 2025", "2004"), ver parse-resume-date.ts.
+              startDate: parseResumeDateToDb(e.startDate),
+              endDate: parseResumeDateToDb(e.endDate),
+            }) as typeof candidateWorkExperiences.$inferInsert,
         ),
       );
     }
     if (resume.education.length > 0) {
       await tx.insert(candidateEducation).values(
         resume.education.map(
-          (e) => ({ profileId: null, candidateId, ...e }) as typeof candidateEducation.$inferInsert,
+          (e) =>
+            ({
+              profileId: null,
+              candidateId,
+              ...e,
+              startDate: parseResumeDateToDb(e.startDate),
+              endDate: parseResumeDateToDb(e.endDate),
+            }) as typeof candidateEducation.$inferInsert,
         ),
       );
     }

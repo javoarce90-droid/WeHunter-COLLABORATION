@@ -1,6 +1,12 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { organizations, subscriptions, subscriptionPayments } from "@/db/schema";
+import {
+  organizations,
+  subscriptions,
+  subscriptionPayments,
+  plans,
+  sourcingCreditBalances,
+} from "@/db/schema";
 import type { WorkspaceType } from "@/lib/auth/session";
 import type {
   PaymentToRecord,
@@ -35,9 +41,11 @@ export async function ensurePendingSubscription(args: {
 
 /**
  * Aplica el resultado de `reconciliarSuscripcion` desde la vuelta del checkout (hay sesión →
- * cliente RLS). Misma lógica que `applyReconcileAsSystem` (webhook, cliente admin). El
- * `onConflictDoNothing` sobre `dlocal_payment_id` evita duplicar el cobro si el webhook llegó
- * primero.
+ * cliente RLS). Misma lógica que `applyReconcileAsSystem` (webhook, cliente admin), incluida la
+ * renovación de créditos de Sourcing en un cobro nuevo de verdad (`limitar-sourcing-ia/design.md`
+ * §4 — ver `renewSourcingCreditsOnNewPayment` en `subscriptions.system-mutations.ts` para el
+ * detalle, duplicado acá a propósito). El `onConflictDoNothing` sobre `dlocal_payment_id` evita
+ * duplicar el cobro si el webhook llegó primero.
  */
 export async function applyReconcile(args: {
   subscriptionId: string;
@@ -62,7 +70,7 @@ export async function applyReconcile(args: {
       .where(eq(subscriptions.organizationId, args.organizationId));
 
     if (args.payment) {
-      await tx
+      const inserted = await tx
         .insert(subscriptionPayments)
         .values({
           organizationId: args.organizationId,
@@ -73,7 +81,47 @@ export async function applyReconcile(args: {
           status: "PAID",
           paidAt: args.payment.paidAt,
         })
-        .onConflictDoNothing({ target: subscriptionPayments.dlocalPaymentId });
+        .onConflictDoNothing({ target: subscriptionPayments.dlocalPaymentId })
+        .returning({ id: subscriptionPayments.id });
+
+      if (inserted.length > 0) {
+        const sub = await tx
+          .select({ planId: subscriptions.planId })
+          .from(subscriptions)
+          .where(eq(subscriptions.organizationId, args.organizationId))
+          .limit(1);
+        const planId = sub[0]?.planId;
+        if (planId) {
+          const plan = await tx
+            .select({ creditBudget: plans.creditBudget })
+            .from(plans)
+            .where(eq(plans.id, planId))
+            .limit(1);
+          const creditBudget = plan[0]?.creditBudget ?? 0;
+          const cycleEndsAt = args.patch.currentPeriodEndsAt ?? null;
+
+          await tx
+            .insert(sourcingCreditBalances)
+            .values({
+              organizationId: args.organizationId,
+              includedBalance: creditBudget,
+              purchasedBalance: 0,
+              activeCreditBudget: creditBudget,
+              cycleEndsAt,
+              lowBalanceNotifiedAt: null,
+            })
+            .onConflictDoUpdate({
+              target: sourcingCreditBalances.organizationId,
+              set: {
+                includedBalance: creditBudget,
+                activeCreditBudget: creditBudget,
+                cycleEndsAt,
+                lowBalanceNotifiedAt: null,
+                updatedAt: new Date(),
+              },
+            });
+        }
+      }
     }
   }, "db.subscription.reconcile");
 }

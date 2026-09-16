@@ -1,5 +1,7 @@
 import { sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
+import { sourcingCreditBalances } from "@/db/schema";
+import { FREE_TRIAL_SOURCING_CREDITS } from "../../sourcing-credits/domain/free-trial-credits";
 import type { WorkspaceType } from "../schema";
 
 /**
@@ -45,13 +47,27 @@ export async function createOrganizationWithOwner({
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt++) {
     const candidate = attempt === 0 ? slug : `${slug}-${attempt + 1}`;
     try {
-      const rows = await db.rls(
-        (tx) =>
-          tx.execute<{ id: string }>(
-            sql`select create_organization_with_owner(${name}, ${candidate}, ${ownerId}, ${workspaceType}::workspace_type) as id`,
-          ),
-        "db.onboarding.create-org",
-      );
+      const rows = await db.rls(async (tx) => {
+        const result = await tx.execute<{ id: string }>(
+          sql`select create_organization_with_owner(${name}, ${candidate}, ${ownerId}, ${workspaceType}::workspace_type) as id`,
+        );
+        const organizationId = result[0]?.id;
+        // Semilla de créditos de Sourcing del período de prueba, en la misma transacción que
+        // crea la organización — limitar-sourcing-ia/design.md §13. Nunca la toca el hook de
+        // renovación de ciclo (§4): ese solo dispara con un cobro real, que un trial todavía
+        // no tiene.
+        if (organizationId) {
+          await tx.insert(sourcingCreditBalances).values({
+            organizationId,
+            includedBalance: FREE_TRIAL_SOURCING_CREDITS,
+            purchasedBalance: 0,
+            activeCreditBudget: FREE_TRIAL_SOURCING_CREDITS,
+            cycleEndsAt: null,
+            lowBalanceNotifiedAt: null,
+          });
+        }
+        return result;
+      }, "db.onboarding.create-org");
       const organizationId = rows[0]?.id;
       if (!organizationId) throw new Error("No se pudo crear la organization.");
       return { organizationId };
