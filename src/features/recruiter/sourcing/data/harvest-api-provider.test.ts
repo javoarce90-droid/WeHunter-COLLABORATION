@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { HarvestApiProvider } from "./harvest-api-provider";
+import { HarvestApiProvider, seniorityToHarvestApiIds } from "./harvest-api-provider";
 import type { SourcingFilters } from "../domain/sourcing-provider";
 
 const filters: SourcingFilters = {
@@ -250,7 +250,7 @@ describe("HarvestApiProvider.search — mapeo de respuesta real", () => {
     ]);
   });
 
-  it("arma el input del actor con profileScraperMode Full, maxItems, ubicación estructurada y el resto como keywords", async () => {
+  it("arma el input del actor con profileScraperMode Full, maxItems, ubicación estructurada y searchQuery booleano", async () => {
     mockFetchOk([]);
     const provider = new HarvestApiProvider("test-token");
     await provider.search(filters, 7, []);
@@ -264,14 +264,42 @@ describe("HarvestApiProvider.search — mapeo de respuesta real", () => {
     expect(body.maxItems).toBe(7);
     expect(body.takePages).toBe(1);
     expect(body.locations).toEqual(["Argentina"]);
-    // `currentJobTitles` (filtro estricto de "puesto actual") se reemplazó por keywords en
-    // `searchQuery` — probado contra una llamada real (2026-09-15) que devolvió 0 resultados
-    // para un puesto con oferta real confirmada en LinkedIn, ver nota en harvest-api-provider.ts.
+    // `currentJobTitles` (filtro estricto de "puesto actual") sigue fuera de alcance — probado
+    // contra una llamada real (2026-09-15) que devolvió 0 resultados, ver nota en
+    // harvest-api-provider.ts. La causa raíz real (2026-09-17): `searchQuery` SÍ soporta la
+    // sintaxis booleana nativa de LinkedIn (AND/OR en mayúsculas, paréntesis) — confirmado
+    // contra la doc oficial de HarvestAPI y la ayuda de búsqueda de LinkedIn. Sin comillas a
+    // propósito (mismo día, a pedido del usuario): fuerzan frase exacta, angostan demasiado.
     expect(body.currentJobTitles).toBeUndefined();
-    expect(body.searchQuery).toBe("Backend Engineer Python senior");
+    expect(body.searchQuery).toBe("Backend Engineer AND (Python OR Supabase)");
   });
 
-  it("searchQuery usa 1 sola skill top, no todas — más angosto no da mejores resultados (confirmado con una búsqueda real, 2026-09-15)", async () => {
+  it("seniority va por seniorityLevelIds estructurado, no como palabra suelta en searchQuery", async () => {
+    mockFetchOk([]);
+    const provider = new HarvestApiProvider("test-token");
+    await provider.search(filters, 7, []);
+    const body = JSON.parse(capturedInit!.body as string);
+    expect(body.searchQuery).not.toContain("senior");
+    // Los IDs reales todavía no están confirmados (placeholders `[]`, ver TODO en
+    // harvest-api-provider.ts) — mientras el mapa esté vacío, el campo se omite (mismo criterio
+    // que `searchQuery` opcional); esto sigue siendo válido cuando se completen los IDs reales.
+    const expectedIds = seniorityToHarvestApiIds("senior");
+    if (expectedIds.length > 0) {
+      expect(body.seniorityLevelIds).toEqual(expectedIds);
+    } else {
+      expect(body.seniorityLevelIds).toBeUndefined();
+    }
+  });
+
+  it("seniority null: seniorityLevelIds no aparece en el body", async () => {
+    mockFetchOk([]);
+    const provider = new HarvestApiProvider("test-token");
+    await provider.search({ ...filters, seniority: null }, 7, []);
+    const body = JSON.parse(capturedInit!.body as string);
+    expect(body.seniorityLevelIds).toBeUndefined();
+  });
+
+  it("searchQuery agrupa todas las skills con OR, hasta el tope de MAX_SEARCH_QUERY_SKILLS", async () => {
     mockFetchOk([]);
     const provider = new HarvestApiProvider("test-token");
     await provider.search(
@@ -280,7 +308,31 @@ describe("HarvestApiProvider.search — mapeo de respuesta real", () => {
       [],
     );
     const body = JSON.parse(capturedInit!.body as string);
-    expect(body.searchQuery).toBe("Backend Engineer Python senior");
+    expect(body.searchQuery).toBe(
+      "Backend Engineer AND (Python OR Supabase OR AWS OR Docker OR Kubernetes)",
+    );
+  });
+
+  it("searchQuery recorta al tope de skills cuando hay más de MAX_SEARCH_QUERY_SKILLS", async () => {
+    mockFetchOk([]);
+    const provider = new HarvestApiProvider("test-token");
+    await provider.search(
+      { ...filters, skills: ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"] },
+      3,
+      [],
+    );
+    const body = JSON.parse(capturedInit!.body as string);
+    expect(body.searchQuery).toBe(
+      "Backend Engineer AND (S1 OR S2 OR S3 OR S4 OR S5 OR S6)",
+    );
+  });
+
+  it("role vacío con skills presentes: searchQuery es solo el bloque de skills, sin AND colgante", async () => {
+    mockFetchOk([]);
+    const provider = new HarvestApiProvider("test-token");
+    await provider.search({ ...filters, role: "" }, 3, []);
+    const body = JSON.parse(capturedInit!.body as string);
+    expect(body.searchQuery).toBe("(Python OR Supabase)");
   });
 
   it("costUsd = 0.10 + maxItems * 0.004 en una llamada real", async () => {
@@ -299,51 +351,71 @@ describe("HarvestApiProvider.search — mapeo de respuesta real", () => {
   });
 });
 
-describe("HarvestApiProvider.search — sin token o con falla de red", () => {
+describe("HarvestApiProvider.search — sin token o con falla real (sin fallback a datos ficticios)", () => {
+  // Removido 2026-09-17 a pedido explícito del usuario: un mock silencioso le comunica algo
+  // falso al reclutador (candidatos que no tienen nada que ver con la búsqueda, siempre los
+  // mismos) — mejor un error honesto que el mock nunca corre en producción.
   const originalFetch = global.fetch;
 
   afterEach(() => {
     global.fetch = originalFetch;
   });
 
-  it("sin APIFY_API_TOKEN → fallback determinístico, isLiveApi false, costUsd 0", async () => {
+  it("sin APIFY_API_TOKEN → error explícito, sin candidatos, sin llamar a fetch", async () => {
+    let called = false;
+    global.fetch = (async () => {
+      called = true;
+      throw new Error("no debería llamar a fetch sin token");
+    }) as typeof fetch;
     const provider = new HarvestApiProvider(undefined);
     const res = await provider.search(filters, 4, []);
+    expect(called).toBe(false);
+    expect(res.candidates).toEqual([]);
     expect(res.isLiveApi).toBe(false);
     expect(res.costUsd).toBe(0);
-    expect(res.candidates.length).toBeGreaterThan(0);
-    expect(res.candidates.length).toBeLessThanOrEqual(4);
-    for (const c of res.candidates) {
-      expect(c.experience.length).toBeGreaterThan(0);
-      expect(c.education.length).toBeGreaterThan(0);
-    }
+    expect(res.error).toBeTruthy();
   });
 
-  it("si la llamada HTTP falla (red), cae al fallback determinístico en vez de tirar", async () => {
+  it("si la llamada HTTP falla (red), devuelve error en vez de datos ficticios", async () => {
     global.fetch = (async () => {
       throw new Error("network down");
     }) as typeof fetch;
     const provider = new HarvestApiProvider("test-token");
     const res = await provider.search(filters, 3, []);
-    expect(res.isLiveApi).toBe(false);
+    expect(res.candidates).toEqual([]);
     expect(res.costUsd).toBe(0);
-    expect(res.candidates.length).toBeGreaterThan(0);
+    expect(res.error).toBeTruthy();
   });
 
-  it("si Apify responde no-ok, cae al fallback determinístico", async () => {
+  it("si Apify responde no-ok (ej. 401 token vencido), devuelve error con el status, no datos ficticios", async () => {
     global.fetch = (async () => ({
       ok: false,
+      status: 401,
       json: async () => ({}),
     })) as unknown as typeof fetch;
     const provider = new HarvestApiProvider("test-token");
     const res = await provider.search(filters, 3, []);
-    expect(res.isLiveApi).toBe(false);
+    expect(res.candidates).toEqual([]);
+    expect(res.error).toContain("401");
+  });
+});
+
+describe("seniorityToHarvestApiIds", () => {
+  // Los IDs reales de HarvestAPI todavía no están confirmados (bloqueante antes de producción,
+  // ver TODO en harvest-api-provider.ts) — estos tests cubren la parte determinística
+  // (defensiva ante valores desconocidos), no los valores concretos de cada ID.
+  it("seniority desconocido devuelve array vacío", () => {
+    expect(seniorityToHarvestApiIds("staff")).toEqual([]);
   });
 
-  it("el fallback determinístico es determinístico (misma búsqueda → mismos ids)", async () => {
-    const provider = new HarvestApiProvider(undefined);
-    const a = await provider.search(filters, 4, []);
-    const b = await provider.search(filters, 4, []);
-    expect(a.candidates.map((c) => c.id)).toEqual(b.candidates.map((c) => c.id));
+  it("seniority null devuelve array vacío", () => {
+    expect(seniorityToHarvestApiIds(null)).toEqual([]);
+  });
+
+  it("las 4 claves de JobSeniority son consultables sin tirar error", () => {
+    for (const s of ["junior", "semisenior", "senior", "lead"]) {
+      expect(() => seniorityToHarvestApiIds(s)).not.toThrow();
+      expect(Array.isArray(seniorityToHarvestApiIds(s))).toBe(true);
+    }
   });
 });

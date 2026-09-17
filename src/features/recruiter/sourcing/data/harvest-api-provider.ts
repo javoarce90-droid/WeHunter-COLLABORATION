@@ -1,4 +1,5 @@
 import { normalizeEmailKey, normalizeLinkedinKey } from "../../candidates/domain/duplicate-keys";
+import type { JobSeniority } from "../../jobs/domain/job-details";
 import type {
   ProviderCertification,
   ProviderEducation,
@@ -208,150 +209,49 @@ function excludeCandidates(
   });
 }
 
-/** Perfiles ficticios para el fallback sin token/con falla de red — mismo criterio que
- *  `DEMO_PROFILES` de `serper-provider.ts`, pero con experiencia/educación/certificaciones/
- *  idiomas poblados (a diferencia de Serper, HarvestAPI sí tiene estos datos en producción, así
- *  que dev/demo debería poder mostrar la UI de detalle también sin token real). */
-const DEMO_PROFILES: Omit<SourcingProviderCandidate, "id">[] = [
-  {
-    name: "Agustín Benítez",
-    headline: "Senior Backend Engineer | Supabase · Python · Node.js",
-    location: "Buenos Aires, Argentina",
-    skills: ["Python", "Supabase", "PostgreSQL", "FastAPI"],
-    linkedinUrl: "https://www.linkedin.com/in/agustin-benitez-backend",
-    email: "agustin.benitez.demo@example.com",
-    snippet: null,
-    experience: [
-      {
-        company: "Fintech Demo SA",
-        position: "Senior Backend Engineer",
-        startDate: "2021-03",
-        endDate: null,
-        description: "Arquitectura backend serverless y RLS en Supabase.",
-      },
-    ],
-    education: [
-      {
-        institution: "Universidad de Buenos Aires",
-        degree: "Ingeniería en Informática",
-        fieldOfStudy: "Sistemas",
-        startDate: "2011",
-        endDate: "2017",
-      },
-    ],
-    certifications: [{ name: "AWS Certified Solutions Architect", url: null }],
-    languages: [
-      { language: "Español", level: "Native" },
-      { language: "Inglés", level: "Professional" },
-    ],
-  },
-  {
-    name: "Carolina Rossi",
-    headline: "Full Stack Lead Developer @ FinTech",
-    location: "Córdoba, Argentina",
-    skills: ["Python", "Supabase", "React", "TypeScript"],
-    linkedinUrl: "https://www.linkedin.com/in/carolina-rossi-dev",
-    email: "carolina.rossi.demo@example.com",
-    snippet: null,
-    experience: [
-      {
-        company: "Demo Labs",
-        position: "Full Stack Lead",
-        startDate: "2019-06",
-        endDate: null,
-        description: "Liderazgo de equipo full stack, sistemas distribuidos.",
-      },
-    ],
-    education: [
-      {
-        institution: "Universidad Nacional de Córdoba",
-        degree: "Licenciatura en Ciencias de la Computación",
-        fieldOfStudy: null,
-        startDate: "2010",
-        endDate: "2016",
-      },
-    ],
-    certifications: [],
-    languages: [{ language: "Español", level: "Native" }],
-  },
-  {
-    name: "Matías Fernández",
-    headline: "Python & Cloud Architect | Serverless & Postgres",
-    location: "Montevideo, Uruguay",
-    skills: ["Python", "Supabase", "AWS", "Docker"],
-    linkedinUrl: "https://www.linkedin.com/in/matias-fernandez-cloud",
-    email: "matias.fernandez.demo@example.com",
-    snippet: null,
-    experience: [
-      {
-        company: "Cloud Demo Corp",
-        position: "Cloud Architect",
-        startDate: "2020-01",
-        endDate: null,
-        description: "Diseño de microservicios y arquitectura serverless.",
-      },
-    ],
-    education: [
-      {
-        institution: "Universidad de la República",
-        degree: "Ingeniería en Computación",
-        fieldOfStudy: null,
-        startDate: "2009",
-        endDate: "2015",
-      },
-    ],
-    certifications: [{ name: "Google Cloud Professional Architect", url: null }],
-    languages: [
-      { language: "Español", level: "Native" },
-      { language: "Inglés", level: "Native" },
-    ],
-  },
-  {
-    name: "Sofía Martínez",
-    headline: "Software Engineer (Python / Django / Supabase)",
-    location: "Rosario, Argentina",
-    skills: ["Python", "Django", "Supabase", "REST API"],
-    linkedinUrl: "https://www.linkedin.com/in/sofia-martinez-swe",
-    email: "sofia.martinez.demo@example.com",
-    snippet: null,
-    experience: [
-      {
-        company: "Demo APIs SRL",
-        position: "Software Engineer",
-        startDate: "2018-08",
-        endDate: null,
-        description: "Desarrollo de APIs escalables con Django y Supabase.",
-      },
-    ],
-    education: [
-      {
-        institution: "Universidad Nacional de Rosario",
-        degree: "Analista de Sistemas",
-        fieldOfStudy: null,
-        startDate: "2013",
-        endDate: "2017",
-      },
-    ],
-    certifications: [],
-    languages: [{ language: "Español", level: "Native" }],
-  },
-];
+/** Mapeo `JobSeniority` (dominio) → `seniorityLevelIds` del actor de Apify
+ *  (`harvestapi/linkedin-profile-search`, tab "Input" en la consola, rango 100-320). Vive acá
+ *  (no en `domain/`) porque es un detalle de implementación de este proveedor concreto — el
+ *  dominio no debe conocer IDs propios de Apify, mismo criterio que `mapCandidate`.
+ *  TODO(bloqueante antes de producción): completar con los IDs reales — no se pudieron
+ *  confirmar por fetch automatizado, hay que entrar a la consola de Apify con un token real. */
+const SENIORITY_HARVEST_IDS: Record<JobSeniority, number[]> = {
+  junior: [],
+  semisenior: [],
+  senior: [],
+  lead: [],
+};
 
-function stableHash(s: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return Math.abs(h);
+export function seniorityToHarvestApiIds(seniority: string | null): number[] {
+  if (!seniority) return [];
+  return SENIORITY_HARVEST_IDS[seniority as JobSeniority] ?? [];
 }
 
-function fallbackCandidates(filters: SourcingFilters, maxResults: number): SourcingProviderCandidate[] {
-  const seed = stableHash(`${filters.role}#${filters.location}#${filters.skills.join(",")}`);
-  return DEMO_PROFILES.slice(0, Math.max(1, maxResults)).map((p, idx) => ({
-    ...p,
-    id: `harvest-mock-${seed}-${idx}`,
-  }));
+/** Tope de skills incluidas en el bloque `OR` del `searchQuery` — evita un query gigante que
+ *  LinkedIn interprete mal, ajustable con datos reales de uso. */
+const MAX_SEARCH_QUERY_SKILLS = 6;
+
+/** Arma el `searchQuery` con la sintaxis booleana real que soporta HarvestAPI/LinkedIn (AND/OR
+ *  en mayúsculas, comillas para frase exacta, paréntesis para agrupar — confirmado contra la
+ *  doc oficial de HarvestAPI y la ayuda de búsqueda booleana de LinkedIn). Antes se concatenaban
+ *  palabras sueltas sin ningún operador y con una sola skill — eso reducía artificialmente el
+ *  pool de resultados reales (causa raíz confirmada de búsquedas devolviendo 0 candidatos). */
+function buildSearchQuery(role: string, skills: string[]): string | undefined {
+  // Sin comillas a propósito (2026-09-17, a pedido del usuario): las comillas fuerzan frase
+  // exacta en la búsqueda booleana de LinkedIn — el mismo problema que ya angostó demasiado el
+  // pool con `currentJobTitles` (filtro estricto). El propio test manual del usuario contra
+  // LinkedIn (búsqueda real con decenas de resultados) tampoco usó comillas.
+  const parts: string[] = [];
+  const roleTrim = role.trim();
+  if (roleTrim) parts.push(roleTrim);
+  const skillTerms = skills
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .slice(0, MAX_SEARCH_QUERY_SKILLS);
+  if (skillTerms.length > 0) {
+    parts.push(skillTerms.length > 1 ? `(${skillTerms.join(" OR ")})` : skillTerms[0]!);
+  }
+  return parts.length > 0 ? parts.join(" AND ") : undefined;
 }
 
 export class HarvestApiProvider implements SourcingProvider {
@@ -362,56 +262,77 @@ export class HarvestApiProvider implements SourcingProvider {
     maxResults: number,
     exclude: string[],
   ): Promise<SourcingProviderResult> {
-    if (this.apiToken) {
-      try {
-        // `currentJobTitles` es un filtro estricto de "puesto actual" — probado contra una
-        // llamada real (2026-09-15): combinado con un `searchQuery` largo (todas las skills)
-        // devolvió 0 resultados para un puesto con oferta real confirmada en LinkedIn (el
-        // usuario lo verificó a mano). Se lo reemplaza por keywords amplias en `searchQuery`.
-        // Primera vuelta con 3 skills (`filters.skills.slice(0, 3)`, mismo criterio que
-        // `SerperProvider`) siguió siendo más angosto que una búsqueda manual real de LinkedIn
-        // (`keywords=Product Designer`, 2 palabras) — el usuario confirmó con evidencia (una
-        // búsqueda manual con decenas de resultados vs. 2 acá) que 1 sola skill alcanza; más
-        // términos combinados reduce demasiado el pool.
-        const searchQuery = [filters.role, ...filters.skills.slice(0, 1), filters.seniority]
-          .filter((t): t is string => Boolean(t && t.trim()))
-          .join(" ");
-        const body = {
-          profileScraperMode: "Full" as const,
-          takePages: 1,
-          maxItems: maxResults,
-          locations: [filters.location],
-          ...(searchQuery ? { searchQuery } : {}),
-        };
-
-        const res = await fetch(`${APIFY_ACTOR_URL}?token=${this.apiToken}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-          cache: "no-store",
-        });
-
-        if (res.ok) {
-          const data = (await res.json()) as RawHarvestItem[];
-          const items = Array.isArray(data) ? data : [];
-          const candidates = excludeCandidates(
-            items.map((item, idx) => mapCandidate(item, idx)),
-            exclude,
-          );
-          // Estimado — fee de página fijo + perfiles completos pedidos. Si Apify llegara a
-          // devolver el costo real (header o campo de la respuesta), preferirlo acá; no se
-          // encontró ese dato en la respuesta de la prueba real (2026-09-14).
-          const costUsd = COST_PER_SEARCH_PAGE + maxResults * COST_PER_FULL_PROFILE;
-          return { candidates, isLiveApi: true, costUsd, provider: "harvestapi" };
-        }
-      } catch {
-        // Falla de red/timeout real — cae al fallback determinístico, igual que SerperProvider.
-      }
+    // Sin fallback a datos ficticios (removido 2026-09-17, a pedido explícito del usuario): un
+    // mock silencioso le comunica algo falso al reclutador — le hace pensar que Sourcing no
+    // sirve, cuando en realidad el proveedor no está configurado o falló. Mejor un error
+    // honesto que el recruiter pueda entender y escalar.
+    if (!this.apiToken) {
+      return {
+        candidates: [],
+        isLiveApi: false,
+        costUsd: 0,
+        provider: "harvestapi",
+        error: "Sourcing con IA no está configurado en este entorno — falta el token de HarvestAPI.",
+      };
     }
 
-    // Sin token, o la llamada en vivo no llegó a responder bien: fallback determinístico para
-    // que dev/demo sigan funcionando sin cuenta real de Apify/HarvestAPI.
-    const candidates = excludeCandidates(fallbackCandidates(filters, maxResults), exclude);
-    return { candidates, isLiveApi: false, costUsd: 0, provider: "harvestapi" };
+    try {
+      // `currentJobTitles` es un filtro estricto de "puesto actual" — probado contra una
+      // llamada real (2026-09-15) combinado con un `searchQuery` pesado y devolvió 0
+      // resultados; queda fuera de alcance por ahora (no se reintentó como array de
+      // variantes). `locations` sigue como filtro estructurado tal cual venía. La causa raíz
+      // real confirmada (2026-09-17, doc oficial de HarvestAPI + ayuda de LinkedIn sobre
+      // búsqueda booleana): `searchQuery` SÍ soporta la sintaxis booleana nativa de LinkedIn
+      // (AND/OR en mayúsculas, paréntesis) — antes se mandaban palabras sueltas sin ningún
+      // operador y con una sola skill, lo que angostaba artificialmente el pool.
+      const searchQuery = buildSearchQuery(filters.role, filters.skills);
+      const seniorityLevelIds = seniorityToHarvestApiIds(filters.seniority);
+      const body = {
+        profileScraperMode: "Full" as const,
+        takePages: 1,
+        maxItems: maxResults,
+        locations: [filters.location],
+        ...(searchQuery ? { searchQuery } : {}),
+        ...(seniorityLevelIds.length > 0 ? { seniorityLevelIds } : {}),
+      };
+
+      const res = await fetch(`${APIFY_ACTOR_URL}?token=${this.apiToken}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        return {
+          candidates: [],
+          isLiveApi: true,
+          costUsd: 0,
+          provider: "harvestapi",
+          error: `HarvestAPI devolvió un error (HTTP ${res.status}) — probá de nuevo, y si sigue pasando avisale a tu administrador.`,
+        };
+      }
+
+      const data = (await res.json()) as RawHarvestItem[];
+      const items = Array.isArray(data) ? data : [];
+      const candidates = excludeCandidates(
+        items.map((item, idx) => mapCandidate(item, idx)),
+        exclude,
+      );
+      // Estimado — fee de página fijo + perfiles completos pedidos. Si Apify llegara a
+      // devolver el costo real (header o campo de la respuesta), preferirlo acá; no se
+      // encontró ese dato en la respuesta de la prueba real (2026-09-14).
+      const costUsd = COST_PER_SEARCH_PAGE + maxResults * COST_PER_FULL_PROFILE;
+      return { candidates, isLiveApi: true, costUsd, provider: "harvestapi" };
+    } catch {
+      // Falla de red/timeout real.
+      return {
+        candidates: [],
+        isLiveApi: true,
+        costUsd: 0,
+        provider: "harvestapi",
+        error: "No pudimos conectar con LinkedIn — probá de nuevo en unos minutos.",
+      };
+    }
   }
 }

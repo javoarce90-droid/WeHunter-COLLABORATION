@@ -432,13 +432,15 @@ export async function findExistingLinkedinUrls(
  *  pool de la organización — UNA sola query para todo el lote (ambas claves juntas), nunca una
  *  por candidato. Generaliza `findExistingLinkedinUrls` a las dos claves de dedup (regla
  *  "Duplicados" de `limitar-sourcing-ia`: con HarvestAPI los candidatos de Sourcing sí traen
- *  email real, así que el chequeo debe cubrir ambas, no solo LinkedIn). Devuelve las claves ya
- *  normalizadas — comparar con `.has()` usando `normalizeLinkedinKey`/`normalizeEmailKey` sobre
- *  cada candidato del lado del caller. */
+ *  email real, así que el chequeo debe cubrir ambas, no solo LinkedIn). Devuelve un mapa clave
+ *  normalizada → `candidateId` (no un Set): el requisito "Detección de duplicado contra el
+ *  Talent Pool" exige mostrarle al reclutador un link al candidato existente, no solo saber que
+ *  ya está — comparar con `.get()` usando `normalizeLinkedinKey`/`normalizeEmailKey` sobre cada
+ *  candidato del lado del caller. */
 export async function findExistingCandidateKeys(
   organizationId: string,
   args: { linkedinUrls: string[]; emails: string[] },
-): Promise<{ linkedinUrls: Set<string>; emails: Set<string> }> {
+): Promise<{ linkedinUrls: Map<string, string>; emails: Map<string, string> }> {
   const normalizedUrls = args.linkedinUrls
     .map((u) => normalizeLinkedinKey(u))
     .filter((u): u is string => u !== null);
@@ -446,7 +448,7 @@ export async function findExistingCandidateKeys(
     .map((e) => normalizeEmailKey(e))
     .filter((e): e is string => e !== null);
   if (normalizedUrls.length === 0 && normalizedEmails.length === 0) {
-    return { linkedinUrls: new Set(), emails: new Set() };
+    return { linkedinUrls: new Map(), emails: new Map() };
   }
 
   const conditions: ReturnType<typeof sql>[] = [];
@@ -466,20 +468,21 @@ export async function findExistingCandidateKeys(
   const rows = await db.rls(
     (tx) =>
       tx
-        .select({ linkedinUrl: candidates.linkedinUrl, email: candidates.email })
+        .select({ id: candidates.id, linkedinUrl: candidates.linkedinUrl, email: candidates.email })
         .from(candidates)
         .where(and(eq(candidates.organizationId, organizationId), or(...conditions))),
     "db.candidates.find-existing-candidate-keys",
   );
 
-  return {
-    linkedinUrls: new Set(
-      rows.map((r) => normalizeLinkedinKey(r.linkedinUrl)).filter((u): u is string => u !== null),
-    ),
-    emails: new Set(
-      rows.map((r) => normalizeEmailKey(r.email)).filter((e): e is string => e !== null),
-    ),
-  };
+  const linkedinUrls = new Map<string, string>();
+  const emails = new Map<string, string>();
+  for (const r of rows) {
+    const urlKey = normalizeLinkedinKey(r.linkedinUrl);
+    if (urlKey !== null) linkedinUrls.set(urlKey, r.id);
+    const emailKey = normalizeEmailKey(r.email);
+    if (emailKey !== null) emails.set(emailKey, r.id);
+  }
+  return { linkedinUrls, emails };
 }
 
 export type ResumeCounts = {

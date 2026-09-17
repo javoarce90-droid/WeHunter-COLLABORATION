@@ -1078,6 +1078,53 @@ export const sourcingSearchSessions = pgTable(
         }[]
       >()
       .notNull(),
+    // Candidatos que matchearon contra el Talent Pool en la ÚLTIMA búsqueda — spec "Detección
+    // de duplicado contra el Talent Pool": se cobran igual que un perfil nuevo pero NO se
+    // scorean, se muestran marcados con link al candidato existente
+    // (`existingCandidateId`). Shape espejado a `DuplicateLinkedInCandidate`
+    // (`sourcear-para-busqueda.ts`). Default `[]` — filas guardadas antes de este campo no lo
+    // tenían.
+    duplicates: jsonb("duplicates")
+      .$type<
+        {
+          id: string;
+          name: string;
+          headline: string;
+          location: string;
+          skills: string[];
+          linkedinUrl: string;
+          email: string | null;
+          snippet?: string | null;
+          experience: {
+            company: string;
+            position: string;
+            startDate: string | null;
+            endDate: string | null;
+            description: string | null;
+          }[];
+          education: {
+            institution: string;
+            degree: string;
+            fieldOfStudy: string | null;
+            startDate: string | null;
+            endDate: string | null;
+          }[];
+          certifications: { name: string; url: string | null }[];
+          languages: { language: string; level: string | null }[];
+          existingCandidateId: string;
+        }[]
+      >()
+      .notNull()
+      .default([]),
+    // Qué candidatos de la ÚLTIMA tanda ya se sumaron al pool (y cómo) — sin esto, restaurar la
+    // sesión (navegar afuera y volver, o recargar) mostraba de nuevo "Sumar al pool" sobre un
+    // candidato ya importado, en vez de la etiqueta "En el pool ✓"/"En el pool y postulado ✓"
+    // (decisión de UX 2026-09-17: esa etiqueta tiene que sobrevivir a la restauración). Se
+    // resetea a `[]` en cada búsqueda nueva, igual que `results`/`duplicates`/`pending`.
+    imported: jsonb("imported")
+      .$type<{ id: string; via: "pool" | "postulado" }[]>()
+      .notNull()
+      .default([]),
     // Métricas de la ÚLTIMA tanda (no acumuladas) — mismo criterio que la UI.
     metrics: jsonb("metrics")
       .$type<{ encontrados: number; enPool: number; nuevos: number }>()
