@@ -20,6 +20,7 @@ import { SetupChecklistWidgetLoader } from "@/features/recruiter/dashboard/ui/Se
 import { getWorkspaceAccess } from "@/features/recruiter/billing/data/workspace-access";
 import { TrialBanner } from "@/features/recruiter/billing/ui/TrialBanner";
 import { PaywallScreen } from "@/features/recruiter/billing/ui/PaywallScreen";
+import { CreditsChip } from "@/features/recruiter/sourcing-credits/ui/CreditsChip";
 
 /**
  * Shell de las pantallas del reclutador (rutas protegidas). Resuelve el contexto base:
@@ -74,6 +75,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           <header className="flex h-[var(--topbar-h)] shrink-0 items-center gap-3 border-b border-border bg-surface px-6 text-sm text-muted">
             <CommandTrigger />
             <div className="ml-auto flex items-center gap-3">
+              <CreditsChip />
               <Suspense fallback={<NotificationBellFallback />}>
                 <NotificationBellLoader
                   organizationId={membership.organizationId}

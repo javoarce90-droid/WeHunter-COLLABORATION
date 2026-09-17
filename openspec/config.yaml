@@ -1,0 +1,45 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Next.js (App Router) + TypeScript (strict), Supabase (Postgres + Auth +
+    Realtime + Storage), Drizzle ORM, dLocal Go billing.
+  Architecture: Feature slices under src/features/<feature>/ with layers
+    domain/ (pure use cases + primary authorization) -> data/ (Drizzle, RLS client only)
+    -> actions.ts (server actions, Zod-validated entry point) -> ui/. Business logic never
+    lives in components or actions.
+  Testing: vitest (`pnpm test` = `vitest run --passWithNoTests`). Use-case tests live next
+    to the use case (domain/*.test.ts). Strict TDD is enabled for this project.
+  Style: kebab-case files, PascalCase components, camelCase functions, Spanish verb names
+    for domain use cases, snake_case English DB columns. Prettier + ESLint. Comments only as
+    docstrings on exported symbols. Every domain table carries organization_id + RLS.
+
+rules:
+  proposal:
+    - Client-facing requirement doc: write in Spanish, neutral/professional register.
+    - Include an explicit rollback plan.
+    - State what is out of scope as clearly as what is in scope.
+  specs:
+    - Use Given/When/Then for scenarios.
+    - Use RFC 2119 keywords (MUST, SHOULD, MAY).
+    - Functional spec is client-facing: Spanish.
+  design:
+    - Internal technical artifact: English.
+    - Document each architecture decision with rationale and the alternatives rejected.
+    - Respect the layer architecture; authorization in domain/, RLS as backstop.
+  tasks:
+    - Internal artifact: English.
+    - Group by phase, hierarchical numbering, one-session-sized tasks.
+    - Every schema change ships with its migration in the same task.
+  apply:
+    guidelines:
+      - Follow existing feature-slice patterns; reuse src/components/ui and existing helpers.
+      - Any visual/JSX change goes through the `impeccable` skill.
+      - Never use the admin DB client for user operations; RLS client only.
+    tdd: true
+    test_command: "pnpm test"
+  verify:
+    test_command: "pnpm test"
+    build_command: "pnpm lint && pnpm typecheck"
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas.

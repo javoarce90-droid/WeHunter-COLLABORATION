@@ -11,9 +11,6 @@ type Props = {
   candidateName: string;
   scheduledAt: Date;
   status: string;
-  /** Evita que un click acá dispare el `onClick` de la fila que lo contiene (ver
-   *  `AgendaView.tsx`, mismo criterio que el link al candidato en esa fila). */
-  stopPropagation?: boolean;
   /** "button" (default): `AiButton` completo, para filas con espacio (Agenda). "link": texto
    *  chico que espeja el peso de "Editar"/"Eliminar" de esa fila (Pipeline) — un `AiButton`
    *  ahí competía en tamaño con vecinos de 11px y rompía la jerarquía de la fila. */
@@ -32,7 +29,6 @@ export function InterviewReportButton({
   candidateName,
   scheduledAt,
   status,
-  stopPropagation,
   variant = "button",
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -42,8 +38,7 @@ export function InterviewReportButton({
       ? "La entrevista fue cancelada."
       : "Vas a poder generar el informe cuando se realice la entrevista.";
 
-  function handleClick(e: React.MouseEvent) {
-    if (stopPropagation) e.stopPropagation();
+  function handleClick() {
     if (!enabled) return;
     setOpen(true);
   }
@@ -67,19 +62,16 @@ export function InterviewReportButton({
   return (
     <>
       {enabled ? trigger : <Tooltip label={disabledReason}>{trigger}</Tooltip>}
-      {/* El diálogo queda anidado en el DOM adentro de esta fila (no hay portal en `Dialog`) —
-       *  en Agenda esa fila entera es clickeable (abre "Detalle de la entrevista"). Sin cortar
-       *  la propagación acá, cualquier click DENTRO del diálogo ya abierto (tipear en el
-       *  textarea, tocar un input) burbujea hasta la fila y dispara ese otro modal encima —
-       *  bug real reportado por el usuario, no una precaución de más. */}
-      <div onClick={(e) => e.stopPropagation()}>
-        <InterviewReportDialog
-          interviewId={interviewId}
-          candidateName={candidateName}
-          open={open}
-          onClose={() => setOpen(false)}
-        />
-      </div>
+      {/* El diálogo queda anidado en el DOM adentro de esta fila (no hay portal en `Dialog`).
+       *  Filas clickeables que lo contienen (ver `AgendaView.tsx`) se protegen una sola vez con
+       *  `isFromInteractiveDescendant` en su propio handler — este componente no necesita
+       *  saber nada sobre eso. */}
+      <InterviewReportDialog
+        interviewId={interviewId}
+        candidateName={candidateName}
+        open={open}
+        onClose={() => setOpen(false)}
+      />
     </>
   );
 }

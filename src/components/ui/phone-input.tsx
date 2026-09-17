@@ -13,6 +13,8 @@ interface PhoneInputProps {
   /** Va en el contenedor: permite `scrollIntoView` + foco desde afuera (ej. un aviso de
    *  campo faltante que lleva al usuario acá). */
   id?: string;
+  /** Mismo contrato que `Input`: pinta el borde en rojo y muestra el mensaje debajo. */
+  error?: string;
 }
 
 // react-phone-number-input exige que `value` sea E.164 estricto (sin espacios/guiones) o
@@ -35,6 +37,7 @@ export function PhoneInput({
   onChange,
   placeholder,
   id,
+  error,
 }: PhoneInputProps) {
   const sanitizedValue = toStrictE164(value);
   return (
@@ -51,12 +54,15 @@ export function PhoneInput({
             "min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-text outline-none placeholder:text-muted",
         }}
         className={[
-          "flex items-center gap-2 rounded-[var(--radius)] border border-border bg-bg px-3 py-3 transition-colors",
-          "focus-within:border-primary focus-within:ring-2 focus-within:ring-[var(--focus-ring)]",
+          "flex items-center gap-2 rounded-[var(--radius)] border bg-bg px-3 py-3 transition-colors",
+          error
+            ? "border-danger focus-within:border-danger focus-within:ring-2 focus-within:ring-[var(--focus-ring-danger)]"
+            : "border-border focus-within:border-primary focus-within:ring-2 focus-within:ring-[var(--focus-ring)]",
           "[&_.PhoneInputCountry]:shrink-0 [&_.PhoneInputCountrySelect]:bg-transparent",
         ].join(" ")}
       />
       <input type="hidden" name={name} value={sanitizedValue ?? ""} />
+      {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   );
 }

@@ -1,7 +1,11 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { sourcingSearchSessions } from "@/db/schema";
-import type { ScoredLinkedInCandidate, SourcingMetrics } from "../domain/sourcear-para-busqueda";
+import type {
+  DuplicateLinkedInCandidate,
+  ScoredLinkedInCandidate,
+  SourcingMetrics,
+} from "../domain/sourcear-para-busqueda";
 
 /** Escrituras de la sesión de trabajo en curso de "Sourcing con IA". Cliente RLS. */
 
@@ -14,6 +18,8 @@ export async function saveSourcingSession(
   data: {
     attempt: number;
     results: ScoredLinkedInCandidate[];
+    duplicates: DuplicateLinkedInCandidate[];
+    imported: { id: string; via: "pool" | "postulado" }[];
     metrics: SourcingMetrics;
     isLiveApi: boolean;
   },
@@ -29,6 +35,8 @@ export async function saveSourcingSession(
           profileId,
           attempt: data.attempt,
           results: data.results,
+          duplicates: data.duplicates,
+          imported: data.imported,
           metrics: data.metrics,
           isLiveApi: data.isLiveApi,
         })
@@ -37,6 +45,8 @@ export async function saveSourcingSession(
           set: {
             attempt: sql`excluded.attempt`,
             results: sql`excluded.results`,
+            duplicates: sql`excluded.duplicates`,
+            imported: sql`excluded.imported`,
             metrics: sql`excluded.metrics`,
             isLiveApi: sql`excluded.is_live_api`,
             updatedAt: new Date(),

@@ -100,6 +100,9 @@ export function PostuladoDetailSheet({
   const [tab, setTab] = useState<Tab>("perfil");
   const [ficha, setFicha] = useState<FichaCandidatoData | null>(null);
   const [loadingFicha, startLoadFicha] = useTransition();
+  // Cerrar por ✕/Esc/backdrop pasa por `closing`: baja `open` (el Dialog anima la salida del
+  // sheet) y recién a los ~220ms avisa al padre, que lo desmonta ya desvanecido.
+  const [closing, setClosing] = useState(false);
   const candidateId = postulado?.candidate.id ?? null;
   const applicationId = postulado?.id ?? null;
 
@@ -137,10 +140,16 @@ export function PostuladoDetailSheet({
     : undefined;
   const stageTerminal = currentStage ? isClosingKind(currentStage.kind) : false;
 
+  const handleClose = () => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 220);
+  };
+
   return (
     <Dialog
-      open
-      onClose={onClose}
+      open={!closing}
+      onClose={handleClose}
       side="right"
       className="max-w-md"
       header={

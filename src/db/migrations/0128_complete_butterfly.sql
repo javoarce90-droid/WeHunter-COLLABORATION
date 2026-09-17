@@ -1,0 +1,1 @@
+ALTER TABLE "sourcing_search_sessions" DROP COLUMN "pending";

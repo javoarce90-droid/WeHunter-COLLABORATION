@@ -62,11 +62,26 @@ interface Props {
   duplicateIds: string[];
   page: number;
   totalPages: number;
+  /** Búsqueda a preseleccionar en `MatchearPoolDialog` — llega desde el link "Ver candidatos
+   *  del Talent Pool" de Sourcing (`?matchPool=<jobId>`, limitar-sourcing-ia/design.md §9). */
+  matchPoolJobId?: string;
 }
 
 function sourceLabel(source: string | null): string {
   if (!source) return "—";
   return CANDIDATE_SOURCE_LABELS[source as CandidateSource] ?? source;
+}
+
+/** Qué dato de contacto le falta a un candidato — la carga con IA en lote ya no rechaza un CV
+ *  por esto (ver `procesarCvParaPool`), así que puede pasar de verdad. Sin email/teléfono no
+ *  se le puede escribir ni mandar WhatsApp (ambos flujos ya avisan solos al intentarlo) — el
+ *  badge es para que el recruiter lo note ANTES de intentarlo, en la lista. */
+function missingContactLabel(candidate: Pick<Candidate, "email" | "phone">): string | null {
+  const missing = [!candidate.email && "email", !candidate.phone && "teléfono"].filter(
+    (v): v is string => !!v,
+  );
+  if (missing.length === 0) return null;
+  return `Falta ${missing.join(" y ")}`;
 }
 
 function buildCandidatesHref(
@@ -270,6 +285,7 @@ export function CandidatesList({
   duplicateIds,
   page,
   totalPages,
+  matchPoolJobId,
 }: Props) {
   const toast = useToast();
   const router = useRouter();
@@ -379,7 +395,11 @@ export function CandidatesList({
           })}
         </FilterChipGroup>
         <div className="flex items-center gap-2">
-          <MatchearPoolDialog jobs={jobs} />
+          <MatchearPoolDialog
+            jobs={jobs}
+            initialJobId={matchPoolJobId}
+            initialOpen={!!matchPoolJobId}
+          />
           <MoreFiltersPopover
             filter={filter}
             query={query}
@@ -453,6 +473,7 @@ export function CandidatesList({
               {visible.map((candidate) => {
                 const isSelected = selected.has(candidate.id);
                 const isDup = duplicateIdSet.has(candidate.id);
+                const missingContact = missingContactLabel(candidate);
                 return (
                   <tr
                     key={candidate.id}
@@ -485,6 +506,14 @@ export function CandidatesList({
                             title="Comparte email o LinkedIn con otro candidato"
                           >
                             Duplicado
+                          </Badge>
+                        )}
+                        {missingContact && (
+                          <Badge
+                            variant="warning"
+                            title={`${missingContact} — no se le puede escribir hasta completarlo`}
+                          >
+                            {missingContact}
                           </Badge>
                         )}
                       </div>

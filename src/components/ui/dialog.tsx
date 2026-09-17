@@ -1,6 +1,20 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { createPortal } from "react-dom";
+
+const subscribeNoop = () => () => {};
+
+/** Tiempo que se mantiene el `<dialog>` abierto tras `open=false` para que el panel y el
+ *  backdrop terminen su animación de salida antes de `close()`. Espeja `--motion-base`
+ *  (sheet) con un margen — y el keyframe `pop-out`/`sheet-out` de globals.css. */
+const DIALOG_EXIT_MS = 200;
 
 interface DialogProps {
   open: boolean;
@@ -48,27 +62,64 @@ export function Dialog({
   dismissable = true,
 }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
+  // `closing` = el panel está animando su salida: el <dialog> sigue abierto (con las clases
+  // `*-out`) hasta que el timeout final llama a `close()`. `programmaticClose` distingue ese
+  // `close()` nuestro del que dispararía un `<form method="dialog">`.
+  const [closing, setClosing] = useState(false);
+  const programmaticClose = useRef(false);
+  // Portal a `document.body`: si el `<dialog>` quedara anidado dentro de un `Menu` (popover
+  // nativo con "cualquier click adentro cierra el popover"), cerrar ese popover le mete
+  // `display:none` a un ancestro justo cuando `showModal()` lo promueve a top layer — la
+  // página queda inerte con un modal invisible. El portal saca al `<dialog>` de cualquier
+  // ancestro ajeno, sea un popover, un `overflow:hidden` o un stacking context propio.
+  const mounted = useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  );
 
-  // Sincroniza el estado React con la API imperativa de <dialog>.
+  // Sincroniza el estado React con la API imperativa de <dialog>. Abrir es inmediato; cerrar
+  // corre la animación de salida y recién después llama a `close()` (DIALOG_EXIT_MS). Los
+  // `setState` van en callbacks de `setTimeout`, no en el cuerpo del efecto (regla de hooks).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (open && !el.open) el.showModal();
-    else if (!open && el.open) el.close();
-  }, [open]);
+    if (open) {
+      if (!el.open) el.showModal();
+      const id = window.setTimeout(() => setClosing(false), 0);
+      return () => window.clearTimeout(id);
+    }
+    if (!el.open) return;
+    const enter = window.setTimeout(() => setClosing(true), 0);
+    const finish = window.setTimeout(() => {
+      setClosing(false);
+      programmaticClose.current = true;
+      if (ref.current?.open) ref.current.close();
+    }, DIALOG_EXIT_MS);
+    return () => {
+      window.clearTimeout(enter);
+      window.clearTimeout(finish);
+    };
+    // `mounted` entra en las deps: si `open` ya era `true` en el primer render (antes de que
+    // el portal montara el `<dialog>` real), este efecto tiene que re-correr apenas monta para
+    // no perderse el `showModal()`.
+  }, [open, mounted]);
 
-  // Esc/`cancel` y submit de form method=dialog disparan `close` → avisamos al padre (salvo
-  // que el modal no sea cerrable: ahí lo reabrimos para bloquear el Esc del navegador).
+  // Esc dispara `cancel`: lo interceptamos siempre para que el cierre pase por el flujo de
+  // `open` (con animación), no por el cierre instantáneo del navegador. `close` solo llega
+  // por `<form method="dialog">` o por nuestro propio `close()` (que ignoramos vía ref).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const handleCancel = (e: Event) => {
-      if (!dismissable) {
-        e.preventDefault();
-        return;
-      }
+      e.preventDefault();
+      if (dismissable) onClose();
     };
     const handleClose = () => {
+      if (programmaticClose.current) {
+        programmaticClose.current = false;
+        return;
+      }
       if (!dismissable && open) {
         el.showModal();
         return;
@@ -85,16 +136,19 @@ export function Dialog({
 
   const isSheet = side === "right";
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <dialog
       ref={ref}
       aria-label={ariaLabel ?? title}
-      // Click en el backdrop (fuera del panel) cierra, salvo modal no cerrable.
+      // Click en el backdrop (fuera del panel) cierra, salvo modal no cerrable o ya cerrándose.
       onClick={(e) => {
-        if (dismissable && e.target === ref.current) onClose();
+        if (dismissable && !closing && e.target === ref.current) onClose();
       }}
       className={[
-        "bg-transparent p-0 text-text backdrop:bg-[rgba(15,10,26,0.45)] backdrop:animate-fade-in",
+        "bg-transparent p-0 text-text backdrop:bg-[rgba(15,10,26,0.45)]",
+        closing ? "backdrop:animate-fade-out" : "backdrop:animate-fade-in",
         blurBackdrop ? "backdrop:backdrop-blur-sm" : "",
         isSheet
           ? "m-0 ml-auto h-dvh max-h-dvh w-full max-w-[440px]"
@@ -105,8 +159,8 @@ export function Dialog({
         className={[
           "flex flex-col bg-surface shadow-[var(--shadow-overlay)]",
           isSheet
-            ? "h-dvh animate-sheet-in border-l border-border"
-            : "max-h-[85dvh] animate-pop-in rounded-[var(--radius)] border border-border",
+            ? `h-dvh border-l border-border ${closing ? "animate-sheet-out" : "animate-sheet-in"}`
+            : `max-h-[85dvh] rounded-[var(--radius)] border border-border ${closing ? "animate-pop-out" : "animate-pop-in"}`,
           className,
         ].join(" ")}
       >
@@ -142,6 +196,7 @@ export function Dialog({
         )}
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
       </div>
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }

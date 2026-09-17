@@ -1,0 +1,1 @@
+ALTER TABLE "sourcing_search_sessions" ADD COLUMN "pending" jsonb DEFAULT '[]'::jsonb NOT NULL;

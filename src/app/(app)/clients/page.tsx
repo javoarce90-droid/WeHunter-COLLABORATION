@@ -72,7 +72,7 @@ async function ClientsSection({
 }) {
   const membership = await getActiveMembership();
   const { clients, total } = membership
-    ? await listClientsWithStats(membership.organizationId, page)
+    ? await listClientsWithStats(membership.organizationId, page, membership.workspaceType)
     : { clients: [], total: 0 };
 
   return (

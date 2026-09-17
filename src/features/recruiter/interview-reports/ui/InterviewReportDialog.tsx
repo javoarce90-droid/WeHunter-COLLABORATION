@@ -294,13 +294,13 @@ function ReportEditor({
       <section className="flex flex-col gap-4">
         <SectionTitle>Experiencia y stack</SectionTitle>
         <Textarea
-          label={`${REPORT_FIELD_LABELS.experienciaRelevante} (Markdown)`}
+          label={REPORT_FIELD_LABELS.experienciaRelevante}
           value={text.experienciaRelevante}
           onChange={set("experienciaRelevante")}
           rows={8}
         />
         <Textarea
-          label={`${REPORT_FIELD_LABELS.stackConocimientos} (Markdown)`}
+          label={REPORT_FIELD_LABELS.stackConocimientos}
           value={text.stackConocimientos}
           onChange={set("stackConocimientos")}
           rows={3}

@@ -65,11 +65,18 @@ describe("procesarCvParaPool", () => {
     });
   });
 
-  it("falla si el CV no trae email", async () => {
+  it("crea el candidato igual si el CV no trae email, marcando qué faltó", async () => {
     const d = deps({ draftProfile: vi.fn(async () => draft({ email: null })) });
     const res = await procesarCvParaPool(extracted, ctx, d);
-    expect(res).toEqual({ status: "failed", reason: "El CV no tiene un email de contacto." });
-    expect(d.cargarCandidato).not.toHaveBeenCalled();
+    expect(res).toEqual({
+      status: "created",
+      candidateId: "c-1",
+      candidateName: "Ada Lovelace",
+      missingContact: ["email", "phone"],
+    });
+    expect(d.cargarCandidato).toHaveBeenCalledWith(
+      expect.objectContaining({ email: null, allowMissingEmail: true }),
+    );
   });
 
   it("falla si el CV no trae nombre", async () => {
@@ -103,6 +110,7 @@ describe("procesarCvParaPool", () => {
       draftProfile: vi.fn(async () =>
         draft({
           fullName: "  Ada Lovelace  ",
+          phone: "+54 9 351 555-1234",
           workExperiences: [
             { company: "Acme", position: "Dev", startDate: null, endDate: null, description: null, employmentType: null, modality: null, skills: [] },
           ],

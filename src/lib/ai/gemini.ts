@@ -847,11 +847,12 @@ export class GeminiAiProvider implements AiProvider {
               situacionMotivacion: { type: Type.STRING },
               experienciaRelevante: {
                 type: Type.STRING,
-                description: "Markdown: un bloque por empleo relevante.",
+                description:
+                  "Texto plano con viñetas ('- '), SIN **negrita**: un bloque por empleo relevante.",
               },
               stackConocimientos: {
                 type: Type.STRING,
-                description: "Markdown: '**Domina:** …' y '**En formación:** …'.",
+                description: "Texto plano, SIN **negrita**: 'Domina: …' y 'En formación: …'.",
               },
               fortalezas: { type: Type.ARRAY, items: { type: Type.STRING } },
               oportunidadesMejora: {
@@ -1049,7 +1050,7 @@ function isQuotaError(err: unknown): boolean {
 }
 
 /** Cuántos candidatos por request de `scoreApplicationsBatch`. 10 = mismo tope que el resto de
- *  la app para tandas de IA (SOURCING_MAX_RESULTS, SOURCING_MANUAL_SCORE_CAP). Cuanto más chico,
+ *  la app para tandas de IA (SOURCING_MAX_RESULTS). Cuanto más chico,
  *  menos riesgo de que el modelo omita/mezcle candidatos; N > chunk se parte en varias requests
  *  (igual son muchísimas menos que una por candidato). */
 const BATCH_SCORE_CHUNK = 10;

@@ -12,16 +12,19 @@ import { formatPrice } from "@/features/recruiter/billing/plan";
 import { PlanStatusPanel } from "@/features/recruiter/billing/ui/PlanStatusPanel";
 import { PaymentHistoryPanel } from "@/features/recruiter/billing/ui/PaymentHistoryPanel";
 import { UpgradePlanPanel } from "@/features/recruiter/billing/ui/UpgradePlanPanel";
+import { getSourcingCreditsSnapshot } from "@/features/recruiter/sourcing-credits/data/sourcing-credit-balances.queries";
+import { SourcingCreditsSection } from "@/features/recruiter/sourcing-credits/ui/SourcingCreditsSection";
 
 export default async function SettingsPlanPage() {
   const membership = await getActiveMembership();
   if (!membership || !can(membership.role, "billing.view")) notFound();
 
-  const [access, subscription, payments, plans] = await Promise.all([
+  const [access, subscription, payments, plans, sourcingCredits] = await Promise.all([
     getWorkspaceAccess(),
     getSubscriptionByOrg(membership.organizationId),
     listSubscriptionPayments(membership.organizationId),
     getActivePlans(),
+    getSourcingCreditsSnapshot(membership.organizationId),
   ]);
 
   const currentPlan = access?.plan ?? null;
@@ -52,6 +55,8 @@ export default async function SettingsPlanPage() {
       {access && (
         <PlanStatusPanel access={access} subscription={subscription} plan={currentPlan} />
       )}
+
+      <SourcingCreditsSection snapshot={sourcingCredits} />
 
       {upgradeTarget && (
         <UpgradePlanPanel

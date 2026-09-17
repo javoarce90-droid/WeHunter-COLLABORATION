@@ -95,7 +95,7 @@ export async function invitarMiembroAction(
     getOwnProfile(),
     getOrganization(membership.organizationId),
   ]);
-  // Best-effort: si SendGrid falla, la invitación queda igual creada — se puede "Reenviar".
+  // Best-effort: si Resend falla, la invitación queda igual creada — se puede "Reenviar".
   await sendInvitationEmail({
     to: parsed.data.email,
     inviterName: inviter?.fullName || inviter?.email || "Un miembro del equipo",
