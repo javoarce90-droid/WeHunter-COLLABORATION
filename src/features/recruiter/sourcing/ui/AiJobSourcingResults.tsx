@@ -16,6 +16,7 @@ import {
   limpiarSourcingSessionAction,
 } from "../actions";
 import { getSourcingCreditsBalanceAction } from "../../sourcing-credits/actions";
+import { CreditsBlockedState } from "../../sourcing-credits/ui/CreditsBlockedState";
 import { importarSourcingResultadoAction } from "../../applications/actions";
 import { AiAnalysisDialog } from "../../applications/ui/AiAnalysisDialog";
 import { CompareCandidatesDialog } from "./CompareCandidatesDialog";
@@ -159,9 +160,9 @@ export function AiJobSourcingResults({
   // si el pedido falló (la UI no bloquea nada en ese caso, se apoya en el bloqueo real del
   // server ante cada búsqueda). `enabled: false` = interruptor de reversión apagado, sin
   // indicador ni límite.
-  const [credits, setCredits] = useState<{ available: number; lowBalance: boolean } | null>(
-    null,
-  );
+  const [credits, setCredits] = useState<
+    { available: number; lowBalance: boolean; daysUntilRenewal: number | null } | null
+  >(null);
 
   async function loadCredits() {
     const res = await getSourcingCreditsBalanceAction();
@@ -169,7 +170,11 @@ export function AiJobSourcingResults({
       setCredits(null);
       return;
     }
-    setCredits({ available: res.available, lowBalance: res.lowBalance ?? false });
+    setCredits({
+      available: res.available,
+      lowBalance: res.lowBalance ?? false,
+      daysUntilRenewal: res.daysUntilRenewal ?? null,
+    });
   }
 
   // Restaura la sesión de trabajo en curso al montar (ej. el recruiter navegó afuera mientras
@@ -510,6 +515,33 @@ export function AiJobSourcingResults({
 
   if (results === null) {
     const blocked = credits !== null && credits.available <= 0;
+    const talentPoolNotice = (
+      <div className="flex w-full max-w-sm flex-col gap-2 rounded-[var(--radius)] border border-primary/25 bg-primary-light px-4 py-3 text-left">
+        <p className="text-sm font-semibold text-primary-hover">
+          Revisá tu Talent Pool antes de buscar afuera
+        </p>
+        <p className="text-xs text-muted">
+          Puede que ya tengas candidatos que coincidan con esta búsqueda, sin gastar créditos
+          de Sourcing.
+        </p>
+        <Link
+          href={`/candidates?matchPool=${jobId}`}
+          className="self-start text-xs font-semibold text-primary hover:text-primary-hover"
+        >
+          Ver candidatos del Talent Pool
+        </Link>
+      </div>
+    );
+
+    if (blocked) {
+      return (
+        <div className="flex flex-col items-center gap-4">
+          {talentPoolNotice}
+          <CreditsBlockedState daysUntilRenewal={credits?.daysUntilRenewal ?? null} />
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col items-center gap-4 py-8 text-center">
         <p className="max-w-sm text-sm text-muted">
@@ -518,21 +550,7 @@ export function AiJobSourcingResults({
           cada uno, ordenados de mayor a menor.
         </p>
 
-        <div className="flex w-full max-w-sm flex-col gap-2 rounded-[var(--radius)] border border-primary/25 bg-primary-light px-4 py-3 text-left">
-          <p className="text-sm font-semibold text-primary-hover">
-            Revisá tu Talent Pool antes de buscar afuera
-          </p>
-          <p className="text-xs text-muted">
-            Puede que ya tengas candidatos que coincidan con esta búsqueda, sin gastar créditos
-            de Sourcing.
-          </p>
-          <Link
-            href={`/candidates?matchPool=${jobId}`}
-            className="self-start text-xs font-semibold text-primary hover:text-primary-hover"
-          >
-            Ver candidatos del Talent Pool
-          </Link>
-        </div>
+        {talentPoolNotice}
 
         {credits && (
           <p className="text-xs font-semibold text-muted">
@@ -540,37 +558,25 @@ export function AiJobSourcingResults({
             disponible{credits.available === 1 ? "" : "s"}
           </p>
         )}
-        {credits?.lowBalance && !blocked && (
+        {credits?.lowBalance && (
           <p className="max-w-sm text-xs font-semibold text-[#92400E]">
             Te quedan pocos créditos de Sourcing — esperá la renovación del ciclo o comprá más
             para no quedarte sin buscar.
           </p>
         )}
 
-        {blocked ? (
-          <div className="flex flex-col items-center gap-3">
-            <p className="max-w-sm text-sm text-muted">
-              No te quedan créditos de Sourcing. Podés esperar la renovación de tu ciclo o
-              comprar un pack de créditos.
-            </p>
-            <Button variant="secondary" size="sm" disabled title="Próximamente">
-              Comprar créditos
-            </Button>
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-semibold text-label">
+              Candidatos a buscar
+            </span>
+            <QuantityStepper value={quantity} onChange={setQuantity} disabled={searching} />
           </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold text-label">
-                Candidatos a buscar
-              </span>
-              <QuantityStepper value={quantity} onChange={setQuantity} disabled={searching} />
-            </div>
-            <AiButton onClick={buscar} loading={searching}>
-              {searching ? "Buscando…" : "Buscar candidatos"}
-            </AiButton>
-            {progressCaption}
-          </div>
-        )}
+          <AiButton onClick={buscar} loading={searching}>
+            {searching ? "Buscando…" : "Buscar candidatos"}
+          </AiButton>
+          {progressCaption}
+        </div>
       </div>
     );
   }

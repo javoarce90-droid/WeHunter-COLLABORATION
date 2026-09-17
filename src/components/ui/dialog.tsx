@@ -1,6 +1,15 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { createPortal } from "react-dom";
+
+const subscribeNoop = () => () => {};
 
 /** Tiempo que se mantiene el `<dialog>` abierto tras `open=false` para que el panel y el
  *  backdrop terminen su animación de salida antes de `close()`. Espeja `--motion-base`
@@ -58,6 +67,16 @@ export function Dialog({
   // `close()` nuestro del que dispararía un `<form method="dialog">`.
   const [closing, setClosing] = useState(false);
   const programmaticClose = useRef(false);
+  // Portal a `document.body`: si el `<dialog>` quedara anidado dentro de un `Menu` (popover
+  // nativo con "cualquier click adentro cierra el popover"), cerrar ese popover le mete
+  // `display:none` a un ancestro justo cuando `showModal()` lo promueve a top layer — la
+  // página queda inerte con un modal invisible. El portal saca al `<dialog>` de cualquier
+  // ancestro ajeno, sea un popover, un `overflow:hidden` o un stacking context propio.
+  const mounted = useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  );
 
   // Sincroniza el estado React con la API imperativa de <dialog>. Abrir es inmediato; cerrar
   // corre la animación de salida y recién después llama a `close()` (DIALOG_EXIT_MS). Los
@@ -81,7 +100,10 @@ export function Dialog({
       window.clearTimeout(enter);
       window.clearTimeout(finish);
     };
-  }, [open]);
+    // `mounted` entra en las deps: si `open` ya era `true` en el primer render (antes de que
+    // el portal montara el `<dialog>` real), este efecto tiene que re-correr apenas monta para
+    // no perderse el `showModal()`.
+  }, [open, mounted]);
 
   // Esc dispara `cancel`: lo interceptamos siempre para que el cierre pase por el flujo de
   // `open` (con animación), no por el cierre instantáneo del navegador. `close` solo llega
@@ -114,7 +136,9 @@ export function Dialog({
 
   const isSheet = side === "right";
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <dialog
       ref={ref}
       aria-label={ariaLabel ?? title}
@@ -172,6 +196,7 @@ export function Dialog({
         )}
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
       </div>
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }

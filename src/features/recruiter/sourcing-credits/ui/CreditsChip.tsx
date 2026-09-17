@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Zap, ChevronDown, PlusCircle } from "lucide-react";
+import { Zap, ChevronDown } from "lucide-react";
 import { Menu } from "@/components/ui/menu";
-import { Button } from "@/components/ui/button";
-import { Tooltip } from "@/components/ui/tooltip";
 import { getSourcingCreditsBalanceAction } from "../actions";
+import { BuyCreditsButton } from "./BuyCreditsButton";
 
 type Snapshot = {
   available: number;
@@ -18,8 +17,8 @@ type Snapshot = {
 /** Colores del chip según el saldo — mismo criterio que el prototipo aprobado (`credit-chip`,
  *  `.low`, `.zero`). */
 function chipClasses(snapshot: Snapshot): string {
-  if (snapshot.available <= 0) return "bg-danger-bg text-danger-fg";
-  if (snapshot.lowBalance) return "bg-warning-bg text-warning-fg";
+  if (snapshot.available <= 0) return "bg-[#FEE2E2] text-[#991B1B]";
+  if (snapshot.lowBalance) return "bg-[#FEF3C7] text-[#92400E]";
   return "bg-primary-light text-primary-hover hover:border-primary/25";
 }
 
@@ -113,12 +112,7 @@ export function CreditsChip() {
             {snapshot.available}
           </span>
         </div>
-        <Tooltip label="Próximamente — todavía no se pueden comprar packs de créditos." className="mt-3 block w-full">
-          <Button variant="primary" size="sm" className="w-full" disabled>
-            <PlusCircle className="h-3.5 w-3.5" />
-            Comprar créditos
-          </Button>
-        </Tooltip>
+        <BuyCreditsButton size="sm" className="mt-3 w-full" />
       </div>
     </Menu>
   );

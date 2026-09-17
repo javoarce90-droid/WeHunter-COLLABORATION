@@ -19,6 +19,9 @@ export async function getSourcingCreditsBalanceAction(): Promise<{
   purchased?: number;
   activeCreditBudget?: number;
   lowBalance?: boolean;
+  /** Días hasta el fin del ciclo actual, `null` si no hay fecha registrada — usado por el
+   *  estado bloqueado por saldo 0 ("Renueva en N días"). */
+  daysUntilRenewal?: number | null;
   enabled?: boolean;
   error?: string;
 }> {
@@ -35,6 +38,9 @@ export async function getSourcingCreditsBalanceAction(): Promise<{
   }
 
   const snapshot = await getSourcingCreditsSnapshot(membership.organizationId);
+  const daysUntilRenewal = snapshot.cycleEndsAt
+    ? Math.max(0, Math.ceil((snapshot.cycleEndsAt.getTime() - Date.now()) / 86_400_000))
+    : null;
   return {
     ok: true,
     available: snapshot.available,
@@ -42,6 +48,7 @@ export async function getSourcingCreditsBalanceAction(): Promise<{
     purchased: snapshot.purchased,
     activeCreditBudget: snapshot.activeCreditBudget,
     lowBalance: debeAvisarSaldoBajo(snapshot.available, snapshot.activeCreditBudget),
+    daysUntilRenewal,
     enabled: true,
   };
 }

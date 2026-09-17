@@ -1,8 +1,6 @@
-import { PlusCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Tooltip } from "@/components/ui/tooltip";
 import { SettingsSection } from "@/features/recruiter/settings/ui/SettingsSection";
 import type { SourcingCreditsSnapshot } from "../data/sourcing-credit-balances.queries";
+import { BuyCreditsButton } from "./BuyCreditsButton";
 
 /**
  * "Tu saldo de Sourcing" en Configuración → Plan — mismo desglose que el chip del topbar, acá
@@ -63,15 +61,7 @@ export function SourcingCreditsSection({
           </div>
         </div>
 
-        <Tooltip
-          label="Próximamente — todavía no se pueden comprar packs de créditos."
-          className="ml-auto"
-        >
-          <Button variant="primary" size="sm" disabled>
-            <PlusCircle className="h-3.5 w-3.5" />
-            Comprar créditos
-          </Button>
-        </Tooltip>
+        <BuyCreditsButton size="sm" className="ml-auto" />
       </div>
     </SettingsSection>
   );

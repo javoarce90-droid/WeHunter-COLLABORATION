@@ -37,6 +37,10 @@ export type SourcingCreditsSnapshot = {
   /** Créditos comprados en packs, acumulables, no vencen. */
   purchased: number;
   activeCreditBudget: number;
+  /** Fin del ciclo actual — espejo de `subscriptions.current_period_ends_at` al último reset
+   *  (solo informativo, ver comentario en el schema). Se usa para el "Renueva en N días" del
+   *  estado bloqueado por saldo 0. */
+  cycleEndsAt: Date | null;
 };
 
 /**
@@ -57,6 +61,7 @@ export async function getSourcingCreditsSnapshot(
           included: sourcingCreditBalances.includedBalance,
           purchased: sourcingCreditBalances.purchasedBalance,
           activeCreditBudget: sourcingCreditBalances.activeCreditBudget,
+          cycleEndsAt: sourcingCreditBalances.cycleEndsAt,
         })
         .from(sourcingCreditBalances)
         .where(eq(sourcingCreditBalances.organizationId, organizationId))
@@ -64,11 +69,14 @@ export async function getSourcingCreditsSnapshot(
     "db.sourcing-credit-balance.snapshot",
   );
   const row = rows[0];
-  if (!row) return { available: 0, included: 0, purchased: 0, activeCreditBudget: 0 };
+  if (!row) {
+    return { available: 0, included: 0, purchased: 0, activeCreditBudget: 0, cycleEndsAt: null };
+  }
   return {
     available: row.included + row.purchased,
     included: row.included,
     purchased: row.purchased,
     activeCreditBudget: row.activeCreditBudget,
+    cycleEndsAt: row.cycleEndsAt,
   };
 }
