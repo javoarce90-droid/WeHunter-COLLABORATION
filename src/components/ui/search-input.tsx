@@ -1,5 +1,7 @@
 "use client";
 
+import type { Ref } from "react";
+
 interface SearchInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -7,6 +9,8 @@ interface SearchInputProps {
   /** Texto accesible del campo. */
   "aria-label": string;
   className?: string;
+  /** Ref al `<input>` — para enfocarlo desde afuera (ej. atajo "/" en un listado). */
+  inputRef?: Ref<HTMLInputElement>;
 }
 
 /**
@@ -18,6 +22,7 @@ export function SearchInput({
   onChange,
   placeholder = "Buscar…",
   className = "",
+  inputRef,
   ...rest
 }: SearchInputProps) {
   return (
@@ -37,6 +42,7 @@ export function SearchInput({
         <path d="m21 21-4.3-4.3" />
       </svg>
       <input
+        ref={inputRef}
         type="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}

@@ -16,6 +16,7 @@ import { moverEtapa } from "./domain/mover-etapa";
 import { moverAEtapa } from "./domain/mover-a-etapa";
 import { pasarAlPipeline } from "./domain/pasar-al-pipeline";
 import { guardarEnTalentPool } from "./domain/guardar-en-talent-pool";
+import { quitarDeTalentPool } from "./domain/quitar-de-talent-pool";
 import { rechazarPostulacion } from "./domain/rechazar-postulacion";
 import { puntuarPostulaciones } from "./domain/puntuar-postulaciones";
 import { personalizarMensaje } from "./domain/personalizar-mensaje";
@@ -67,7 +68,7 @@ import { can } from "@/lib/auth/roles";
 import { candidateCreateInputSchema } from "../candidates/schema";
 import { cargarCandidato } from "../candidates/domain/cargar-candidato";
 import type { DuplicateCandidateMatch } from "../candidates/domain/duplicate-keys";
-import { insertCandidate } from "../candidates/data/candidates.mutations";
+import { insertCandidate, insertCandidateResume } from "../candidates/data/candidates.mutations";
 import { enviarMensaje } from "../messaging/domain/enviar-mensaje";
 import { sendViaChannel } from "../messaging/data/gmail-send";
 import { MESSAGE_CHANNELS } from "../messaging/schema";
@@ -266,6 +267,31 @@ export async function crearYPostularCandidatoAction(
   return {};
 }
 
+/** Currículum estructurado que puede venir de HarvestAPI (Serper no lo tiene — llegan arrays
+ *  vacíos, `insertCandidateResume` no hace nada con eso). */
+const sourcingExperienceSchema = z.object({
+  company: z.string(),
+  position: z.string(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  description: z.string().nullable(),
+});
+const sourcingEducationSchema = z.object({
+  institution: z.string(),
+  degree: z.string(),
+  fieldOfStudy: z.string().nullable(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+});
+const sourcingCertificationSchema = z.object({
+  name: z.string(),
+  url: z.string().nullable(),
+});
+const sourcingLanguageSchema = z.object({
+  language: z.string(),
+  level: z.string().nullable(),
+});
+
 const importarSourcingResultadoSchema = z.object({
   jobId: z.string().uuid("ID de búsqueda inválido."),
   name: z.string().trim().min(1),
@@ -273,15 +299,22 @@ const importarSourcingResultadoSchema = z.object({
   location: z.string().nullable(),
   skills: z.array(z.string()),
   linkedinUrl: z.string().trim().min(1),
+  email: z.string().trim().email().nullable().optional(),
   summary: z.string().nullable().optional(),
+  experience: z.array(sourcingExperienceSchema).optional(),
+  education: z.array(sourcingEducationSchema).optional(),
+  certifications: z.array(sourcingCertificationSchema).optional(),
+  languages: z.array(sourcingLanguageSchema).optional(),
 });
 
 /**
  * Suma al pool y postula en un paso a un candidato encontrado por "Sourcing con IA" desde
  * Postulados (ítem 9.4). A diferencia de `crearYPostularCandidatoAction`, el candidato viene
- * de LinkedIn (sin email) — no se puede reusar `cargarCandidato`, que exige email siempre. Se
- * dedupea por `linkedinUrl`: si el recruiter vuelve a correr sourcing y aparece el mismo
- * perfil, se postula al candidato ya existente en vez de duplicarlo en el pool.
+ * de LinkedIn — no se puede reusar `cargarCandidato`, que exige email siempre (con HarvestAPI
+ * el email suele venir, pero no siempre). Se dedupea por `linkedinUrl` **y** `email` (regla
+ * "Duplicados" — ver `openspec/changes/integrar-harvestapi-sourcing/`): si el recruiter vuelve
+ * a correr sourcing y aparece el mismo perfil, se postula al candidato ya existente en vez de
+ * duplicarlo en el pool.
  */
 export async function importarSourcingResultadoAction(input: {
   jobId: string;
@@ -290,7 +323,12 @@ export async function importarSourcingResultadoAction(input: {
   location: string | null;
   skills: string[];
   linkedinUrl: string;
+  email?: string | null;
   summary?: string | null;
+  experience?: { company: string; position: string; startDate: string | null; endDate: string | null; description: string | null }[];
+  education?: { institution: string; degree: string; fieldOfStudy: string | null; startDate: string | null; endDate: string | null }[];
+  certifications?: { name: string; url: string | null }[];
+  languages?: { language: string; level: string | null }[];
 }): Promise<{ ok: boolean; error?: string }> {
   const parsed = importarSourcingResultadoSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Datos inválidos." };
@@ -303,26 +341,59 @@ export async function importarSourcingResultadoAction(input: {
 
   const duplicate = await findDuplicateCandidate(membership.organizationId, {
     linkedinUrl: parsed.data.linkedinUrl,
+    email: parsed.data.email ?? null,
   });
 
-  const candidateId = duplicate
-    ? duplicate.id
-    : (
-        await insertCandidate({
-          organizationId: membership.organizationId,
-          fullName: parsed.data.name,
-          email: null,
-          cvUrl: null,
-          headline: parsed.data.headline,
-          location: parsed.data.location,
-          linkedinUrl: parsed.data.linkedinUrl,
-          summary: parsed.data.summary ?? null,
-          skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
-          seniority: null,
-          source: "linkedin",
-          phone: null,
-        })
-      ).candidateId;
+  let candidateId: string;
+  if (duplicate) {
+    candidateId = duplicate.id;
+  } else {
+    candidateId = (
+      await insertCandidate({
+        organizationId: membership.organizationId,
+        fullName: parsed.data.name,
+        email: parsed.data.email ?? null,
+        cvUrl: null,
+        headline: parsed.data.headline,
+        location: parsed.data.location,
+        linkedinUrl: parsed.data.linkedinUrl,
+        summary: parsed.data.summary ?? null,
+        skills: parsed.data.skills.length > 0 ? parsed.data.skills : null,
+        seniority: null,
+        source: "linkedin",
+        phone: null,
+      })
+    ).candidateId;
+
+    // Currículum estructurado solo se persiste al crear el candidato — un duplicado ya
+    // existente no se vuelve a poblar acá (evita filas repetidas si el recruiter re-importa el
+    // mismo perfil en otra búsqueda). Serper no trae estos datos: llegan arrays vacíos y
+    // `insertCandidateResume` no hace nada (ver su guard de "todo vacío").
+    await insertCandidateResume(candidateId, {
+      workExperiences: (parsed.data.experience ?? []).map((e) => ({
+        company: e.company,
+        position: e.position,
+        startDate: e.startDate,
+        endDate: e.endDate,
+        description: e.description,
+        employmentType: null,
+        modality: null,
+        skills: null,
+      })),
+      education: (parsed.data.education ?? []).map((e) => ({
+        institution: e.institution,
+        degree: e.degree,
+        fieldOfStudy: e.fieldOfStudy,
+        startDate: e.startDate,
+        endDate: e.endDate,
+        description: null,
+        grade: null,
+        activities: null,
+      })),
+      certifications: parsed.data.certifications ?? [],
+      languages: parsed.data.languages ?? [],
+    });
+  }
 
   const postulado = await postularCandidato(
     { jobId: parsed.data.jobId, candidateId },
@@ -843,6 +914,68 @@ export async function guardarEnTalentPoolAction(input: {
     } catch {
       // no-op: la acción ya se aplicó, un fallo al notificar no debe revertirla.
     }
+  }
+
+  revalidatePath(`/jobs/${jobId}/postulados`);
+  revalidatePath(`/jobs/${jobId}/pipeline`);
+  revalidatePath("/candidates");
+  return { ok: true, hechas, saltadas };
+}
+
+/**
+ * "Deshacer" de `guardarEnTalentPoolAction`: saca uno o varios candidatos del pool. Se llama
+ * desde el toast justo después de guardar (misclic). No notifica: es la corrección de una
+ * acción del propio recruiter, no un evento. Los que ya no están en el pool se saltan.
+ */
+export async function quitarDeTalentPoolAction(input: {
+  jobId: string;
+  applicationIds: string[];
+}): Promise<AccionMasivaResult> {
+  const parsed = accionMasivaSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Datos inválidos.",
+    };
+  }
+  const { jobId, applicationIds } = parsed.data;
+
+  const membership = await getActiveMembership();
+  if (!membership) return { ok: false, error: "No autorizado." };
+
+  const ctx = {
+    organizationId: membership.organizationId,
+    role: membership.role,
+  };
+  const deps = {
+    getApplicationById,
+    getCandidateSavedToPool: async (
+      candidateId: string,
+      organizationId: string,
+    ) => {
+      const candidate = await getCandidateById(candidateId, organizationId);
+      return candidate ? candidate.savedToPool : null;
+    },
+    setSavedToPool,
+  };
+
+  let hechas = 0;
+  let saltadas = 0;
+  let firstError: string | undefined;
+  for (const applicationId of applicationIds) {
+    const res = await quitarDeTalentPool({ applicationId }, ctx, deps);
+    if (res.ok) hechas += 1;
+    else {
+      saltadas += 1;
+      firstError ??= res.error;
+    }
+  }
+
+  if (hechas === 0) {
+    return {
+      ok: false,
+      error: firstError ?? "No se pudo sacar del Talent Pool.",
+    };
   }
 
   revalidatePath(`/jobs/${jobId}/postulados`);

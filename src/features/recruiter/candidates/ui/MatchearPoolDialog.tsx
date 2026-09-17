@@ -36,15 +36,28 @@ type MatchResult = {
   degraded: boolean;
 };
 
+type Props = {
+  jobs: JobOption[];
+  /** Búsqueda preseleccionada — llega desde "Ver candidatos del Talent Pool" en Sourcing
+   *  (`limitar-sourcing-ia/design.md` §9). Sin efecto si no matchea ninguna `jobs`. */
+  initialJobId?: string;
+  /** Abre el diálogo directo (y dispara el análisis si `initialJobId` es válido) en vez de
+   *  esperar el click en "Matchear con IA" — mismo default (`false`) que el comportamiento de
+   *  siempre para cualquier otro caller. */
+  initialOpen?: boolean;
+};
+
 /**
  * Sourcing interno: elige una búsqueda y matchea con IA hasta `POOL_MATCH_MAX_CANDIDATES`
  * candidatos del pool ya prefiltrados por skills/seniority del puesto. Mismo lenguaje visual
  * que Sourcing con IA (Postulados) — `MatchCell`/`AiAnalysisDialog` reusados tal cual.
  */
-export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
+export function MatchearPoolDialog({ jobs, initialJobId, initialOpen = false }: Props) {
   const toast = useToast();
-  const [open, setOpen] = useState(false);
-  const [jobId, setJobId] = useState("");
+  const validInitialJobId =
+    initialJobId && jobs.some((j) => j.id === initialJobId) ? initialJobId : "";
+  const [open, setOpen] = useState(initialOpen && validInitialJobId !== "");
+  const [jobId, setJobId] = useState(validInitialJobId);
   const [isPending, startTransition] = useTransition();
   const [results, setResults] = useState<MatchResult[] | null>(null);
   const [poolFiltrado, setPoolFiltrado] = useState(0);
@@ -89,6 +102,15 @@ export function MatchearPoolDialog({ jobs }: { jobs: JobOption[] }) {
       setPoolFiltrado(res.poolFiltrado ?? res.results.length);
     });
   }
+
+  // Búsqueda preseleccionada (Talent Pool antes de Sourcing externo, design.md §9): dispara el
+  // análisis directo al abrir, sin que el reclutador tenga que elegir la búsqueda de nuevo — "ya
+  // visible", no un punto de partida vacío (spec.md). Solo una vez al montar: `buscar()` ya
+  // resuelve `jobId` del estado.
+  useEffect(() => {
+    if (open && validInitialJobId) buscar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function postular(candidateId: string) {
     setApplyingId(candidateId);

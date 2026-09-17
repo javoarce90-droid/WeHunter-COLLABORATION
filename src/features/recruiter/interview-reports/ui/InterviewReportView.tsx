@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { JobMarkdown } from "@/features/recruiter/jobs/ui/markdown";
+import { JobMarkdown, renderFormattedText } from "@/features/recruiter/jobs/ui/markdown";
 import {
   RECOMMENDATION_LABELS,
   type InterviewReportContent,
@@ -49,7 +49,12 @@ function Prose({ title, text }: { title: string; text: string }) {
   if (!has(text)) return null;
   return (
     <Section title={title}>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed text-text/80">{text}</p>
+      {/* La IA a veces marca énfasis con **negrita** en campos pensados como texto plano (ver
+       *  prompt de interviewReport) — `renderFormattedText` lo tolera en vez de dejar los
+       *  asteriscos visibles. */}
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-text/80">
+        {renderFormattedText(text)}
+      </p>
     </Section>
   );
 }
@@ -69,7 +74,7 @@ function List({ title, items }: { title: string; items: string[] }) {
     <Section title={title}>
       <ul className="list-disc space-y-1 pl-5 text-sm text-text/80">
         {items.map((it) => (
-          <li key={it}>{it}</li>
+          <li key={it}>{renderFormattedText(it)}</li>
         ))}
       </ul>
     </Section>
@@ -134,7 +139,7 @@ export function InterviewReportView({ report }: { report: InterviewReportViewDat
         </span>
         {has(recommendationJustification) && (
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-text/80">
-            {recommendationJustification}
+            {renderFormattedText(recommendationJustification)}
           </p>
         )}
       </Section>

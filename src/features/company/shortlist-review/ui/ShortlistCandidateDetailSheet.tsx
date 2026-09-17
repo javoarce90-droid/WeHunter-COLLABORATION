@@ -79,7 +79,16 @@ export function ShortlistCandidateDetailSheet({
   scheduleSlot,
 }: Props) {
   const [tab, setTab] = useState<Tab>("perfil");
+  // Cerrar por ✕/Esc/backdrop pasa por `closing`: baja `open` (el Dialog anima la salida) y
+  // recién a los ~220ms avisa al padre, que lo desmonta ya desvanecido.
+  const [closing, setClosing] = useState(false);
   if (!data) return null;
+
+  const handleClose = () => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 220);
+  };
 
   const feedback = data.feedbackDecision ? FEEDBACK_META[data.feedbackDecision] : null;
 
@@ -91,8 +100,8 @@ export function ShortlistCandidateDetailSheet({
 
   return (
     <Dialog
-      open
-      onClose={onClose}
+      open={!closing}
+      onClose={handleClose}
       side="right"
       className="max-w-md"
       header={

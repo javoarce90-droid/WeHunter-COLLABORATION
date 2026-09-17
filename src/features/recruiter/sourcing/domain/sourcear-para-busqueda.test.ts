@@ -1,18 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildJobSourcingQuery,
-  buildJobSourcingQueryVariant,
-  scoreLinkedInCandidate,
+  jobToSourcingFilters,
   sourcearParaBusqueda,
-  mergeSourcingBatch,
   SOURCING_MAX_RESULTS,
-  SOURCING_MAX_QUERY_ATTEMPTS,
-  MAX_SEARCH_STEPS,
   type JobSourcingContext,
   type SourcearParaBusquedaDeps,
-  type ScoredLinkedInCandidate,
 } from "./sourcear-para-busqueda";
-import type { LinkedInCandidateResult } from "./linkedin-search";
+import type { SourcingProviderCandidate } from "./sourcing-provider";
 
 const job = (over: Partial<JobSourcingContext> = {}): JobSourcingContext => ({
   title: "Backend Engineer",
@@ -23,7 +17,7 @@ const job = (over: Partial<JobSourcingContext> = {}): JobSourcingContext => ({
   ...over,
 });
 
-function candidate(over: Partial<LinkedInCandidateResult> = {}): LinkedInCandidateResult {
+function candidate(over: Partial<SourcingProviderCandidate> = {}): SourcingProviderCandidate {
   return {
     id: "c1",
     name: "Ana Pérez",
@@ -31,17 +25,15 @@ function candidate(over: Partial<LinkedInCandidateResult> = {}): LinkedInCandida
     location: "Buenos Aires",
     skills: ["Python"],
     linkedinUrl: "https://www.linkedin.com/in/ana-perez",
+    email: null,
+    snippet: null,
+    experience: [],
+    education: [],
+    certifications: [],
+    languages: [],
     ...over,
   };
 }
-
-const scoreOk = async () => ({
-  score: 90,
-  summary: "",
-  redFlags: [],
-  breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-  strengths: [],
-});
 
 /** Batch scorer de test: score fijo (90) o por id si se pasa un mapa. */
 const batchScorer =
@@ -57,100 +49,77 @@ const batchScorer =
     }));
 
 /** Deps por default para `sourcearParaBusqueda`: nadie está en el pool todavía. Los tests que
- *  necesitan simular candidatos ya conocidos pasan su propio `findExistingLinkedinUrls`. */
+ *  necesitan simular candidatos ya conocidos pasan su propio `findExistingCandidateKeys`. */
 function deps(over: Partial<SourcearParaBusquedaDeps> = {}): SourcearParaBusquedaDeps {
   return {
-    search: async () => ({ candidates: [], isLiveApi: true }),
-    scoreApplication: scoreOk,
+    search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
     scoreApplicationsBatch: batchScorer(),
-    findExistingLinkedinUrls: async () => new Set(),
+    findExistingCandidateKeys: async () => ({ linkedinUrls: new Set(), emails: new Set() }),
+    recordConsumption: async () => {},
+    findCachedProfile: async () => null,
+    cacheProfile: async () => {},
     ...over,
   };
 }
 
-describe("buildJobSourcingQuery", () => {
-  it("prioriza position sobre title y suma skills, seniority y location", () => {
-    expect(buildJobSourcingQuery(job())).toBe(
-      "Senior Backend Engineer Python Supabase senior Buenos Aires",
-    );
-  });
-
-  it("usa title si no hay position", () => {
-    expect(buildJobSourcingQuery(job({ position: null }))).toBe(
-      "Backend Engineer Python Supabase senior Buenos Aires",
-    );
-  });
-
-  it("ignora campos vacíos/null", () => {
-    expect(
-      buildJobSourcingQuery(job({ skills: null, seniority: null, location: null })),
-    ).toBe("Senior Backend Engineer");
-  });
-});
-
-describe("scoreLinkedInCandidate", () => {
-  it("arma el input de scoring con snippet como summary y devuelve el candidato enriquecido", async () => {
-    const c = candidate({ snippet: "Backend con foco en Python y Supabase" });
-    let received: unknown;
-    const result = await scoreLinkedInCandidate(c, job(), async (input) => {
-      received = input;
-      return {
-        score: 82,
-        summary: "Buen match",
-        redFlags: ["sin certificaciones"],
-        breakdown: { experiencia: 80, skillsTecnicos: 90, seniority: 70, idiomas: 100, ubicacion: 100 },
-        strengths: ["Python sólido"],
-      };
-    });
-
-    expect(received).toEqual({
-      candidate: {
-        id: "c1",
-        skills: ["Python"],
-        summary: "Backend con foco en Python y Supabase",
-        source: "linkedin",
-        experience: [],
-        education: [],
-      },
-      job: {
-        title: "Backend Engineer",
-        position: "Senior Backend Engineer",
-        skills: ["Python", "Supabase"],
-        objectives: undefined,
-        requirements: undefined,
-        responsibilities: undefined,
-      },
-    });
-    expect(result).toEqual({
-      ...c,
-      score: 82,
-      summary: "Buen match",
-      redFlags: ["sin certificaciones"],
-      breakdown: { experiencia: 80, skillsTecnicos: 90, seniority: 70, idiomas: 100, ubicacion: 100 },
-      strengths: ["Python sólido"],
+describe("jobToSourcingFilters", () => {
+  it("usa title (no position) y arma role/skills/seniority/location", () => {
+    // `role` alimenta la query de los proveedores de búsqueda — `title` (nombre de la
+    // publicación) matchea mejor cómo la gente escribe su puesto en LinkedIn que `position`,
+    // que puede tener redacción libre (ej. "Backend Engineer Senior", orden invertido).
+    // Confirmado como causa real de 0 resultados en una búsqueda real (2026-09-15). `position`
+    // sigue siendo el rol canónico para el scoring de IA (`jobToScoreJob`), que no pasa por acá.
+    expect(jobToSourcingFilters(job())).toEqual({
+      role: "Backend Engineer",
+      skills: ["Python", "Supabase"],
+      seniority: "senior",
+      location: "Buenos Aires",
     });
   });
 
-  it("usa el headline como summary cuando no hay snippet", async () => {
-    const c = candidate({ snippet: null });
-    let received: unknown;
-    await scoreLinkedInCandidate(c, job(), async (input) => {
-      received = input;
-      return {
-        score: 50,
-        summary: "",
-        redFlags: [],
-        breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-        strengths: [],
-      };
-    });
-    expect((received as { candidate: { summary: string } }).candidate.summary).toBe(
+  it("ignora position aunque esté cargado — role siempre sale de title", () => {
+    expect(jobToSourcingFilters(job({ position: "Otro título distinto" })).role).toBe(
       "Backend Engineer",
     );
+  });
+
+  it("defaultea a Argentina cuando la búsqueda no tiene location cargada", () => {
+    expect(jobToSourcingFilters(job({ location: null })).location).toBe("Argentina");
+  });
+
+  it("skills null se normaliza a array vacío", () => {
+    expect(jobToSourcingFilters(job({ skills: null })).skills).toEqual([]);
   });
 });
 
 describe("sourcearParaBusqueda", () => {
+  it("llama a deps.search una sola vez, con los filtros armados desde el job y el maxResults pedido", async () => {
+    let calls = 0;
+    let received: unknown;
+    await sourcearParaBusqueda(
+      job(),
+      5,
+      deps({
+        search: async (filters, maxResults, exclude) => {
+          calls += 1;
+          received = { filters, maxResults, exclude };
+          return { candidates: [], isLiveApi: true, costUsd: 0, provider: "harvestapi" };
+        },
+      }),
+    );
+    expect(calls).toBe(1);
+    expect(received).toEqual({
+      filters: {
+        role: "Backend Engineer",
+        skills: ["Python", "Supabase"],
+        seniority: "senior",
+        location: "Buenos Aires",
+      },
+      maxResults: 5,
+      exclude: [],
+    });
+  });
+
   it("no filtra por score: trae todos los candidatos encontrados", async () => {
     const candidates = [
       candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
@@ -160,8 +129,9 @@ describe("sourcearParaBusqueda", () => {
     const scores: Record<string, number> = { a: 80, b: 40, c: 60 };
     const res = await sourcearParaBusqueda(
       job(),
+      SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true }),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
         scoreApplicationsBatch: batchScorer(scores),
       }),
     );
@@ -179,8 +149,9 @@ describe("sourcearParaBusqueda", () => {
     const scores: Record<string, number> = { a: 65, b: 95, c: 70 };
     const res = await sourcearParaBusqueda(
       job(),
+      SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: false }),
+        search: async () => ({ candidates, isLiveApi: false, costUsd: 0, provider: "harvestapi" }),
         scoreApplicationsBatch: batchScorer(scores),
       }),
     );
@@ -189,13 +160,28 @@ describe("sourcearParaBusqueda", () => {
     expect(res.results.map((r) => r.id)).toEqual(["b", "c", "a"]);
   });
 
-  it("corta en 10 resultados aunque vengan más", async () => {
+  it("respeta el maxResults pedido por el reclutador, no siempre el tope global", async () => {
     const candidates = Array.from({ length: 15 }, (_, i) =>
       candidate({ id: `c${i}`, linkedinUrl: `https://www.linkedin.com/in/c${i}` }),
     );
     const res = await sourcearParaBusqueda(
       job(),
-      deps({ search: async () => ({ candidates, isLiveApi: true }) }),
+      3,
+      deps({ search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }) }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.results).toHaveLength(3);
+  });
+
+  it("corta en SOURCING_MAX_RESULTS aunque vengan más y se pidan más", async () => {
+    const candidates = Array.from({ length: 15 }, (_, i) =>
+      candidate({ id: `c${i}`, linkedinUrl: `https://www.linkedin.com/in/c${i}` }),
+    );
+    const res = await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({ search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }) }),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
@@ -205,8 +191,15 @@ describe("sourcearParaBusqueda", () => {
   it("propaga el error de la búsqueda", async () => {
     const res = await sourcearParaBusqueda(
       job(),
+      SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates: [], isLiveApi: false, error: "Falló la búsqueda." }),
+        search: async () => ({
+          candidates: [],
+          isLiveApi: false,
+          costUsd: 0,
+          provider: "harvestapi",
+          error: "Falló la búsqueda.",
+        }),
         scoreApplicationsBatch: async () => {
           throw new Error("no debería scorear si search falló");
         },
@@ -222,9 +215,13 @@ describe("sourcearParaBusqueda", () => {
     ];
     const res = await sourcearParaBusqueda(
       job(),
+      SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true }),
-        findExistingLinkedinUrls: async () => new Set(["https://www.linkedin.com/in/a"]),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
+          emails: new Set(),
+        }),
         scoreApplicationsBatch: async ({ candidates: cs }) => {
           if (cs.some((c) => c.id === "a"))
             throw new Error("no debería scorear a un ya conocido");
@@ -238,22 +235,49 @@ describe("sourcearParaBusqueda", () => {
   });
 
   it("normaliza (trailing slash, mayúsculas) antes de comparar contra el pool", async () => {
-    // El candidato trae la url "sucia" (como puede venir de Serper); el pool ya la devuelve
-    // normalizada (contrato de `findExistingLinkedinUrls` real, ver candidates.queries.ts) —
+    // El candidato trae la url "sucia" (como puede venir del proveedor); el pool ya la devuelve
+    // normalizada (contrato de `findExistingCandidateKeys` real, ver candidates.queries.ts) —
     // igual tienen que matchear.
-    const candidates = [
-      candidate({ id: "a", linkedinUrl: "HTTPS://WWW.LINKEDIN.COM/IN/A/" }),
-    ];
+    const candidates = [candidate({ id: "a", linkedinUrl: "HTTPS://WWW.LINKEDIN.COM/IN/A/" })];
     const res = await sourcearParaBusqueda(
       job(),
+      SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates, isLiveApi: true }),
-        findExistingLinkedinUrls: async () => new Set(["https://www.linkedin.com/in/a"]),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
+          emails: new Set(),
+        }),
       }),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.results).toHaveLength(0);
+  });
+
+  it("filtra por email cuando el candidato no matchea por LinkedIn (regla 'Duplicados', HarvestAPI trae email real)", async () => {
+    const candidates = [
+      candidate({
+        id: "a",
+        linkedinUrl: "https://www.linkedin.com/in/otra-url",
+        email: "ana@ejemplo.com",
+      }),
+    ];
+    const res = await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set(),
+          emails: new Set(["ana@ejemplo.com"]),
+        }),
+      }),
+    );
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.results).toHaveLength(0);
+    expect(res.metrics).toEqual({ encontrados: 1, enPool: 1, nuevos: 0 });
   });
 
   it("devuelve métricas correctas de encontrados/enPool/nuevos", async () => {
@@ -264,19 +288,18 @@ describe("sourcearParaBusqueda", () => {
       candidate({ id: "d", linkedinUrl: "https://www.linkedin.com/in/d" }),
       candidate({ id: "e", linkedinUrl: "https://www.linkedin.com/in/e" }),
     ];
-    // Solo la primera llamada trae perfiles (búsqueda que se agota rápido); el loop recorre el
-    // resto de los pasos sin encontrar nada nuevo.
-    let firstCall = true;
     const res = await sourcearParaBusqueda(
       job(),
+      SOURCING_MAX_RESULTS,
       deps({
-        search: async () => {
-          const out = { candidates: firstCall ? candidates : [], isLiveApi: true };
-          firstCall = false;
-          return out;
-        },
-        findExistingLinkedinUrls: async () =>
-          new Set(["https://www.linkedin.com/in/a", "https://www.linkedin.com/in/b"]),
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set([
+            "https://www.linkedin.com/in/a",
+            "https://www.linkedin.com/in/b",
+          ]),
+          emails: new Set(),
+        }),
       }),
     );
     expect(res.ok).toBe(true);
@@ -285,15 +308,16 @@ describe("sourcearParaBusqueda", () => {
     expect(res.results).toHaveLength(3);
   });
 
-  it("no llama a findExistingLinkedinUrls si la búsqueda no trae candidatos", async () => {
+  it("no llama a findExistingCandidateKeys si la búsqueda no trae candidatos", async () => {
     let called = false;
     const res = await sourcearParaBusqueda(
       job(),
+      SOURCING_MAX_RESULTS,
       deps({
-        search: async () => ({ candidates: [], isLiveApi: true }),
-        findExistingLinkedinUrls: async () => {
+        search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0, provider: "harvestapi" }),
+        findExistingCandidateKeys: async () => {
           called = true;
-          return new Set();
+          return { linkedinUrls: new Set(), emails: new Set() };
         },
       }),
     );
@@ -302,168 +326,172 @@ describe("sourcearParaBusqueda", () => {
     expect(called).toBe(false);
     expect(res.metrics).toEqual({ encontrados: 0, enPool: 0, nuevos: 0 });
   });
+});
 
-  it("pagina: si una página no alcanza 10 nuevos, pide más páginas hasta juntarlos", async () => {
-    // Cada página trae 4 perfiles distintos; hacen falta 3 páginas para llegar a 10.
-    const pageOf = (page: number) =>
-      Array.from({ length: 4 }, (_, i) =>
-        candidate({
-          id: `p${page}-c${i}`,
-          linkedinUrl: `https://www.linkedin.com/in/p${page}c${i}`,
-        }),
-      );
-    const seen: number[] = [];
-    const res = await sourcearParaBusqueda(
-      job(),
-      deps({
-        search: async (_q, page) => {
-          seen.push(page);
-          return { candidates: pageOf(page), isLiveApi: true };
-        },
-      }),
-    );
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(seen).toEqual([1, 2, 3]); // pidió 3 páginas
-    expect(res.results).toHaveLength(SOURCING_MAX_RESULTS); // 12 nuevos → recorta a 10
-    expect(res.metrics.nuevos).toBe(12);
-    expect(res.nextStep).toBe(3);
-  });
-
-  it("no repite perfiles ya mostrados (seenKeys del cursor)", async () => {
+describe("sourcearParaBusqueda — eventos de consumo", () => {
+  it("emite NEW_PROFILE por cada candidato nuevo, con el costo prorrateado", async () => {
     const candidates = [
       candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
       candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
-      candidate({ id: "c", linkedinUrl: "https://www.linkedin.com/in/c" }),
     ];
-    let first = true;
+    const events: unknown[] = [];
     const res = await sourcearParaBusqueda(
       job(),
+      SOURCING_MAX_RESULTS,
       deps({
-        search: async () => {
-          const out = { candidates: first ? candidates : [], isLiveApi: true };
-          first = false;
-          return out;
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108, provider: "harvestapi" }),
+        recordConsumption: async (e) => {
+          events.push(e);
         },
       }),
-      // "a" y "b" ya se mostraron en un click anterior.
-      { step: 0, seenKeys: ["https://www.linkedin.com/in/a", "https://www.linkedin.com/in/b"] },
     );
     expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    expect(res.results.map((r) => r.id)).toEqual(["c"]);
-    expect(res.metrics.nuevos).toBe(1);
+    expect(events).toEqual([
+      { candidateKey: "https://www.linkedin.com/in/a", type: "NEW_PROFILE", costUsd: 0.054, provider: "harvestapi" },
+      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054, provider: "harvestapi" },
+    ]);
   });
 
-  it("exhausted=true cuando el cursor llega al último paso", async () => {
+  it("emite DUPLICATE para un candidato que ya está en el Talent Pool, con el mismo costo prorrateado que uno nuevo", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+    ];
+    const events: unknown[] = [];
     const res = await sourcearParaBusqueda(
       job(),
-      deps({ search: async () => ({ candidates: [], isLiveApi: true }) }),
-      { step: MAX_SEARCH_STEPS - 1, seenKeys: [] },
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108, provider: "harvestapi" }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
+          emails: new Set(),
+        }),
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
+    );
+    expect(res.ok).toBe(true);
+    expect(events).toEqual([
+      { candidateKey: "https://www.linkedin.com/in/a", type: "DUPLICATE", costUsd: 0.054, provider: "harvestapi" },
+      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054, provider: "harvestapi" },
+    ]);
+  });
+
+  it("emite un único FAILED (candidateKey '(search)') cuando la búsqueda entera falla, sin costo", async () => {
+    const events: unknown[] = [];
+    const res = await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({
+          candidates: [],
+          isLiveApi: false,
+          costUsd: 0,
+          provider: "harvestapi",
+          error: "Falló la búsqueda.",
+        }),
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
+    );
+    expect(res).toEqual({ ok: false, error: "Falló la búsqueda." });
+    expect(events).toEqual([{ candidateKey: "(search)", type: "FAILED", costUsd: 0, provider: "harvestapi" }]);
+  });
+
+  it("no emite ningún evento si la búsqueda no devuelve candidatos", async () => {
+    const events: unknown[] = [];
+    await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates: [], isLiveApi: true, costUsd: 0.1, provider: "harvestapi" }),
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
+    );
+    expect(events).toEqual([]);
+  });
+
+  it("emite REUSED_PROFILE (no NEW_PROFILE) cuando el perfil ya estaba cacheado y no es un duplicado del pool", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+    ];
+    const events: unknown[] = [];
+    const res = await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108, provider: "harvestapi" }),
+        findCachedProfile: async (linkedinUrl) =>
+          linkedinUrl === "https://www.linkedin.com/in/a" ? candidates[0]! : null,
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
     );
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(res.exhausted).toBe(true);
-    expect(res.nextStep).toBe(MAX_SEARCH_STEPS);
-  });
-});
-
-describe("buildJobSourcingQueryVariant", () => {
-  it("el intento 0 es idéntico a buildJobSourcingQuery (regresión)", () => {
-    expect(buildJobSourcingQueryVariant(job(), 0)).toBe(buildJobSourcingQuery(job()));
+    // sigue mostrándose como resultado — REUSED_PROFILE solo afecta el cobro, no la visibilidad.
+    expect(res.results.map((r) => r.id).sort()).toEqual(["a", "b"]);
+    expect(events).toEqual([
+      { candidateKey: "https://www.linkedin.com/in/a", type: "REUSED_PROFILE", costUsd: 0.054, provider: "harvestapi" },
+      { candidateKey: "https://www.linkedin.com/in/b", type: "NEW_PROFILE", costUsd: 0.054, provider: "harvestapi" },
+    ]);
   });
 
-  it("rota al siguiente bloque de skills en el intento 1 cuando hay más de 3", () => {
-    const j = job({ skills: ["Python", "Supabase", "AWS", "Docker", "Kubernetes", "Go"] });
-    expect(buildJobSourcingQueryVariant(j, 0)).toBe(
-      "Senior Backend Engineer Python Supabase AWS senior Buenos Aires",
+  it("un duplicado del Talent Pool nunca consulta la caché — el evento es DUPLICATE, no REUSED_PROFILE", async () => {
+    const candidates = [candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
+    const cacheChecks: string[] = [];
+    const events: unknown[] = [];
+    await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.104, provider: "harvestapi" }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
+          emails: new Set(),
+        }),
+        findCachedProfile: async (linkedinUrl) => {
+          cacheChecks.push(linkedinUrl);
+          return null;
+        },
+        recordConsumption: async (e) => {
+          events.push(e);
+        },
+      }),
     );
-    expect(buildJobSourcingQueryVariant(j, 1)).toBe(
-      "Senior Backend Engineer Docker Kubernetes Go senior Buenos Aires",
-    );
+    expect(cacheChecks).toEqual([]);
+    expect(events).toEqual([
+      { candidateKey: "https://www.linkedin.com/in/a", type: "DUPLICATE", costUsd: 0.104, provider: "harvestapi" },
+    ]);
   });
 
-  it("con 3 skills o menos, el intento 1 no repite el intento 0 — cae a dropear seniority", () => {
-    const j = job({ skills: ["Python", "Supabase"] });
-    const variant0 = buildJobSourcingQueryVariant(j, 0);
-    const variant1 = buildJobSourcingQueryVariant(j, 1);
-    expect(variant1).not.toBe(variant0);
-    expect(variant1).not.toContain("senior");
-    expect(variant1).toContain("Buenos Aires");
-    expect(variant1).not.toContain("undefined");
-  });
-
-  it("dropea seniority en el intento 2", () => {
-    const result = buildJobSourcingQueryVariant(job(), 2);
-    expect(result).not.toContain("senior");
-    expect(result).toContain("Buenos Aires");
-  });
-
-  it("dropea seniority y location en el intento 3", () => {
-    const result = buildJobSourcingQueryVariant(job(), 3);
-    expect(result).not.toContain("senior");
-    expect(result).not.toContain("Buenos Aires");
-  });
-
-  it("clampa intentos fuera de rango a la variante más amplia", () => {
-    expect(buildJobSourcingQueryVariant(job(), 99)).toBe(
-      buildJobSourcingQueryVariant(job(), SOURCING_MAX_QUERY_ATTEMPTS - 1),
-    );
-  });
-
-  it("el puesto nunca desaparece, para ningún intento", () => {
-    for (let attempt = 0; attempt < SOURCING_MAX_QUERY_ATTEMPTS; attempt++) {
-      expect(buildJobSourcingQueryVariant(job(), attempt)).toContain("Senior Backend Engineer");
-    }
-  });
-});
-
-function scored(over: Partial<ScoredLinkedInCandidate> = {}): ScoredLinkedInCandidate {
-  return {
-    ...candidate(),
-    score: 80,
-    summary: "resumen",
-    breakdown: { experiencia: 0, skillsTecnicos: 0, seniority: 0, idiomas: 0, ubicacion: 0 },
-    strengths: [],
-    redFlags: [],
-    ...over,
-  };
-}
-
-describe("mergeSourcingBatch", () => {
-  it("no duplica por linkedinUrl cuando la tanda nueva repite un candidato ya visto", () => {
-    const previous = [scored({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
-    const incoming = [
-      scored({ id: "a-otra-vez", linkedinUrl: "https://www.linkedin.com/in/a" }),
-      scored({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
+  it("cachea cada candidato nuevo procesado (sea NEW_PROFILE o REUSED_PROFILE), no los duplicados del pool", async () => {
+    const candidates = [
+      candidate({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" }),
+      candidate({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
     ];
-    const merged = mergeSourcingBatch(previous, incoming);
-    expect(merged.map((c) => c.id)).toEqual(["a", "b"]);
-  });
-
-  it("cae a comparar por id cuando no hay linkedinUrl en ninguno de los dos lados", () => {
-    const previous = [scored({ id: "a", linkedinUrl: "" })];
-    const incoming = [scored({ id: "a", linkedinUrl: "" }), scored({ id: "b", linkedinUrl: "" })];
-    const merged = mergeSourcingBatch(previous, incoming);
-    expect(merged.map((c) => c.id)).toEqual(["a", "b"]);
-  });
-
-  it("agrega los genuinamente nuevos preservando el orden: previous primero", () => {
-    const previous = [scored({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
-    const incoming = [
-      scored({ id: "b", linkedinUrl: "https://www.linkedin.com/in/b" }),
-      scored({ id: "c", linkedinUrl: "https://www.linkedin.com/in/c" }),
-    ];
-    expect(mergeSourcingBatch(previous, incoming).map((c) => c.id)).toEqual(["a", "b", "c"]);
-  });
-
-  it("previous vacío devuelve incoming tal cual", () => {
-    const incoming = [scored({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
-    expect(mergeSourcingBatch([], incoming)).toEqual(incoming);
-  });
-
-  it("incoming vacío devuelve previous sin cambios", () => {
-    const previous = [scored({ id: "a", linkedinUrl: "https://www.linkedin.com/in/a" })];
-    expect(mergeSourcingBatch(previous, [])).toEqual(previous);
+    const cached: string[] = [];
+    await sourcearParaBusqueda(
+      job(),
+      SOURCING_MAX_RESULTS,
+      deps({
+        search: async () => ({ candidates, isLiveApi: true, costUsd: 0.108, provider: "harvestapi" }),
+        findExistingCandidateKeys: async () => ({
+          linkedinUrls: new Set(["https://www.linkedin.com/in/a"]),
+          emails: new Set(),
+        }),
+        cacheProfile: async (c) => {
+          cached.push(c.linkedinUrl);
+        },
+      }),
+    );
+    expect(cached).toEqual(["https://www.linkedin.com/in/b"]);
   });
 });

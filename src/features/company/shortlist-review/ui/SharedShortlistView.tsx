@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { STAGE_LABELS } from "@/features/recruiter/applications/schema";
 import type { ApplicationStage } from "@/features/recruiter/applications/schema";
@@ -10,11 +10,14 @@ import { ShortlistCandidateDetailSheet } from "./ShortlistCandidateDetailSheet";
 import { FeedbackForm } from "./FeedbackForm";
 import { RequestInterviewForm } from "./RequestInterviewForm";
 import { FEEDBACK_META } from "./feedback-meta";
+import { getSharedShortlistAction } from "../actions";
 
 type Props = {
   token: string;
   shortlist: SharedShortlist;
 };
+
+const POLL_INTERVAL_MS = 15_000;
 
 function toDetailData(c: SharedCandidate, token: string): ShortlistCandidateDetailData {
   return {
@@ -42,9 +45,23 @@ function toDetailData(c: SharedCandidate, token: string): ShortlistCandidateDeta
   };
 }
 
-export function SharedShortlistView({ token, shortlist }: Props) {
+export function SharedShortlistView({ token, shortlist: initialShortlist }: Props) {
+  const [shortlist, setShortlist] = useState(initialShortlist);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = shortlist.candidates.find((c) => c.shortlistCandidateId === selectedId) ?? null;
+
+  // Polling: el Cliente no tiene sesión (no aplica Realtime con RLS), así que refrescamos en
+  // segundo plano para que comentarios/feedback nuevos del reclutador aparezcan sin que tenga
+  // que recargar la página. Se pausa si la pestaña no está visible.
+  useEffect(() => {
+    const tick = async () => {
+      if (document.hidden) return;
+      const fresh = await getSharedShortlistAction(token);
+      if (fresh) setShortlist(fresh);
+    };
+    const id = setInterval(tick, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [token]);
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">

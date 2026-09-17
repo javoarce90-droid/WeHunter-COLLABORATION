@@ -100,6 +100,9 @@ import {
 
 export interface CandidateFormState {
   error?: string;
+  /** Qué campo generó el error de validación (Zod) — el form hace foco ahí en vez de perder
+   *  de vista dónde corregir (mismo patrón que `AuthFormState` en el registro). */
+  field?: string;
   duplicate?: DuplicateCandidateMatch;
   profileMatch?: true;
 }
@@ -350,7 +353,11 @@ export async function cargarCandidatoAction(
 ): Promise<CandidateFormState> {
   const parsed = parseCreateCandidateForm(formData);
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    const issue = parsed.error.issues[0];
+    return {
+      error: issue?.message ?? "Datos inválidos",
+      field: issue?.path[0] ? String(issue.path[0]) : undefined,
+    };
   }
 
   const cv = readCvFile(formData);
@@ -643,7 +650,11 @@ export async function editarCandidatoAction(
   const parsed = parseCandidateForm(formData);
   if (!candidateId) return { error: "Falta el candidato a editar." };
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Datos inválidos" };
+    const issue = parsed.error.issues[0];
+    return {
+      error: issue?.message ?? "Datos inválidos",
+      field: issue?.path[0] ? String(issue.path[0]) : undefined,
+    };
   }
 
   const cv = readCvFile(formData);

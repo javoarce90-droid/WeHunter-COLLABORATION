@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { IconButton } from "@/components/ui/icon-button";
 import { AiButton } from "@/components/ui/ai";
+import { Minus, Plus } from "lucide-react";
 import { useToast } from "@/lib/toast";
 import {
   sourcearParaBusquedaAction,
@@ -11,11 +14,12 @@ import {
   getSourcingSessionAction,
   limpiarSourcingSessionAction,
 } from "../actions";
+import { getSourcingCreditsBalanceAction } from "../../sourcing-credits/actions";
 import { importarSourcingResultadoAction } from "../../applications/actions";
 import { AiAnalysisDialog } from "../../applications/ui/AiAnalysisDialog";
 import { CompareCandidatesDialog } from "./CompareCandidatesDialog";
 import { SourcingCandidateCard } from "./SourcingCandidateCard";
-import { MAX_SEARCH_STEPS } from "../domain/sourcear-para-busqueda";
+import { SOURCING_MAX_RESULTS } from "../domain/sourcear-para-busqueda";
 import type {
   ScoredLinkedInCandidate,
   SourcingMetrics,
@@ -31,6 +35,50 @@ const PROGRESS_MESSAGES = [
   "Comparando con tu pool de talentos — puede demorar un poco…",
   "Podés seguir navegando, te avisamos cuando estén los resultados.",
 ] as const;
+
+/** Selector de cantidad (1–`SOURCING_MAX_RESULTS`) previo a disparar la búsqueda — calcado del
+ *  prototipo validado (design.md §10, `AiJobSourcingResults` reemplaza "Buscar más candidatos"
+ *  por esto). Local a este archivo: un solo uso, no amerita promoverlo a `components/ui`. */
+function QuantityStepper({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (next: number) => void;
+  disabled?: boolean;
+}) {
+  const clamp = (n: number) => Math.min(SOURCING_MAX_RESULTS, Math.max(1, n));
+  return (
+    <div
+      role="group"
+      aria-label="Cantidad de candidatos a buscar"
+      className="inline-flex items-center gap-3 rounded-[var(--radius)] border border-border bg-surface px-3 py-2"
+    >
+      <IconButton
+        aria-label="Restar candidato"
+        variant="surface"
+        size="sm"
+        disabled={disabled || value <= 1}
+        onClick={() => onChange(clamp(value - 1))}
+      >
+        <Minus className="h-3.5 w-3.5" />
+      </IconButton>
+      <span className="w-6 text-center text-sm font-semibold tabular-nums text-text">
+        {value}
+      </span>
+      <IconButton
+        aria-label="Sumar candidato"
+        variant="surface"
+        size="sm"
+        disabled={disabled || value >= SOURCING_MAX_RESULTS}
+        onClick={() => onChange(clamp(value + 1))}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </IconButton>
+    </div>
+  );
+}
 
 type Decision = "pending" | "imported" | "omitido";
 
@@ -49,6 +97,11 @@ type Props = {
    *  cerrar en ese estado los pierde de verdad (no se persisten) — el contenedor lo usa para
    *  confirmar antes de dejar cerrar. */
   onUnreviewedResultsChange?: (hasUnreviewed: boolean) => void;
+  /** Avisa al contenedor si hay una búsqueda en curso — el contenedor lo usa para deshabilitar
+   *  el selector de búsqueda mientras tanto: cambiarlo desmonta este componente (por el `key`
+   *  que usa el caller) y solo queda el toast de "seguimos buscando" como aviso, sin ninguna
+   *  fricción previa. */
+  onSearchingChange?: (searching: boolean) => void;
 };
 
 /**
@@ -64,6 +117,7 @@ export function AiJobSourcingResults({
   jobTitle = "esta búsqueda",
   open = true,
   onUnreviewedResultsChange,
+  onSearchingChange,
 }: Props) {
   const toast = useToast();
   const [results, setResults] = useState<ScoredLinkedInCandidate[] | null>(
@@ -89,12 +143,26 @@ export function AiJobSourcingResults({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
   const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
-  // true cuando "Buscar más candidatos" ya recorrió todo el universo de perfiles de esta
-  // búsqueda (todas las variantes de query × páginas de Serper). Lo informa el server.
-  const [exhausted, setExhausted] = useState(false);
   const [metrics, setMetrics] = useState<SourcingMetrics | null>(null);
   const [progressStage, setProgressStage] = useState<0 | 1 | 2>(0);
+  const [quantity, setQuantity] = useState(SOURCING_MAX_RESULTS);
   const [hydrating, startHydrate] = useTransition();
+  // Saldo de créditos de Sourcing (limitar-sourcing-ia/design.md §11) — `null` mientras carga o
+  // si el pedido falló (la UI no bloquea nada en ese caso, se apoya en el bloqueo real del
+  // server ante cada búsqueda). `enabled: false` = interruptor de reversión apagado, sin
+  // indicador ni límite.
+  const [credits, setCredits] = useState<{ available: number; lowBalance: boolean } | null>(
+    null,
+  );
+
+  async function loadCredits() {
+    const res = await getSourcingCreditsBalanceAction();
+    if (!res.ok || res.enabled === false || res.available === undefined) {
+      setCredits(null);
+      return;
+    }
+    setCredits({ available: res.available, lowBalance: res.lowBalance ?? false });
+  }
 
   // Restaura la sesión de trabajo en curso al montar (ej. el recruiter navegó afuera mientras
   // buscaba, o volvió por el link de la notificación) — evita perder resultados que ya se
@@ -103,12 +171,11 @@ export function AiJobSourcingResults({
   useEffect(() => {
     let cancelled = false;
     startHydrate(async () => {
-      const res = await getSourcingSessionAction(jobId);
-      if (cancelled || !res.ok || !res.session) return;
-      setResults(res.session.results);
-      setMetrics(res.session.metrics);
-      setIsLiveApi(res.session.isLiveApi);
-      setExhausted(res.session.attempt >= MAX_SEARCH_STEPS);
+      const [sessionRes] = await Promise.all([getSourcingSessionAction(jobId), loadCredits()]);
+      if (cancelled || !sessionRes.ok || !sessionRes.session) return;
+      setResults(sessionRes.session.results);
+      setMetrics(sessionRes.session.metrics);
+      setIsLiveApi(sessionRes.session.isLiveApi);
     });
     return () => {
       cancelled = true;
@@ -135,6 +202,20 @@ export function AiJobSourcingResults({
     onUnreviewedResultsChange?.(hasUnreviewedResults);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasUnreviewedResults]);
+
+  useEffect(() => {
+    onSearchingChange?.(searching);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searching]);
+
+  // Si este componente se desmonta mientras `searching` seguía en `true` (ej. el select ya
+  // estaba deshabilitado pero el caller lo desmonta por otro motivo), avisa `false` al
+  // contenedor para no dejarlo trabado — la búsqueda en curso sigue del lado del servidor
+  // igual, esto es solo el flag de UI.
+  useEffect(() => {
+    return () => onSearchingChange?.(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // La búsqueda sigue en el servidor aunque el usuario se vaya (cierre el panel o navegue a
   // otra subtab): esto avisa de ese caso puntual, una sola vez por búsqueda en curso.
@@ -169,15 +250,23 @@ export function AiJobSourcingResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // `mode` 0 = búsqueda nueva (reemplaza todo y resetea las decisiones); 1 = "Buscar más
-  // candidatos" (el server avanza el cursor de páginas/variantes y devuelve el listado
-  // acumulado, ya deduplicado contra el pool y contra lo que este recruiter ya vio).
-  function ejecutarBusqueda(mode: 0 | 1) {
+  // Búsqueda única (design.md §1.1 — ya no existe "Buscar más candidatos"): reemplaza
+  // cualquier resultado anterior de esta búsqueda y resetea las decisiones. `quantity` es lo
+  // que el reclutador eligió en el stepper (1–SOURCING_MAX_RESULTS).
+  function buscar() {
     notifiedRef.current = false;
     setProgressStage(0);
     startSearch(async () => {
-      const res = await sourcearParaBusquedaAction(jobId, mode);
+      const res = await sourcearParaBusquedaAction(jobId, quantity);
       if (!res.ok || !res.results || !res.metrics) {
+        if (res.error === "insufficient_credits") {
+          void loadCredits(); // refresca el saldo real — la UI pasa a mostrar el bloqueo
+          toast({
+            message: "No te quedan créditos de Sourcing disponibles.",
+            variant: "danger",
+          });
+          return;
+        }
         toast({
           message: res.error ?? "No se pudo buscar en LinkedIn.",
           variant: "danger",
@@ -186,26 +275,14 @@ export function AiJobSourcingResults({
       }
       setMetrics(res.metrics);
       setIsLiveApi(res.isLiveApi ?? false);
-      setExhausted(res.exhausted ?? false);
       setResults(res.results);
-      if (mode === 0) {
-        setDecisions({});
-        setImportedVia({});
-        setPostularByCandidate({});
-        setSelected(new Set());
-        setCompareIds(null);
-      }
+      setDecisions({});
+      setImportedVia({});
+      setPostularByCandidate({});
+      setSelected(new Set());
+      setCompareIds(null);
+      void loadCredits(); // la búsqueda consumió crédito — refresca el indicador
     });
-  }
-
-  function buscar() {
-    if (results !== null) return; // primera búsqueda — para pedir otra tanda usar buscarMas()
-    ejecutarBusqueda(0);
-  }
-
-  function buscarMas() {
-    if (results === null) return;
-    ejecutarBusqueda(1);
   }
 
   function limpiar() {
@@ -216,7 +293,6 @@ export function AiJobSourcingResults({
     setIsLiveApi(true);
     setSelected(new Set());
     setCompareIds(null);
-    setExhausted(false);
     setMetrics(null);
     void limpiarSourcingSessionAction(jobId);
   }
@@ -227,6 +303,10 @@ export function AiJobSourcingResults({
 
   async function importarUno(c: ScoredLinkedInCandidate) {
     const postular = postularPara(c.id);
+    // `c.summary` es el texto de "por qué matchea con este puesto" del Copiloto de IA — NO un
+    // resumen del perfil. Lo que va al campo de resumen del candidato es `c.snippet` (el
+    // fragmento real del perfil que trae el proveedor; `null` en HarvestAPI, que no expone un
+    // campo de "about" en el shape confirmado — se deja vacío en vez de inventar contenido).
     const res = postular
       ? await importarSourcingResultadoAction({
           jobId,
@@ -235,7 +315,12 @@ export function AiJobSourcingResults({
           location: c.location,
           skills: c.skills,
           linkedinUrl: c.linkedinUrl,
-          summary: c.summary,
+          email: c.email,
+          summary: c.snippet,
+          experience: c.experience,
+          education: c.education,
+          certifications: c.certifications,
+          languages: c.languages,
         })
       : await importarSourcingAction({
           name: c.name,
@@ -243,6 +328,12 @@ export function AiJobSourcingResults({
           location: c.location,
           skills: c.skills,
           linkedinUrl: c.linkedinUrl,
+          email: c.email,
+          summary: c.snippet,
+          experience: c.experience,
+          education: c.education,
+          certifications: c.certifications,
+          languages: c.languages,
         });
     return {
       id: c.id,
@@ -392,26 +483,75 @@ export function AiJobSourcingResults({
   }
 
   if (results === null) {
+    const blocked = credits !== null && credits.available <= 0;
     return (
       <div className="flex flex-col items-center gap-4 py-8 text-center">
         <p className="max-w-sm text-sm text-muted">
-          Buscamos hasta 10 perfiles en LinkedIn a partir del contexto de
-          esta búsqueda (skills, seniority y ubicación) y te mostramos el %
-          de match de cada uno, ordenados de mayor a menor.
+          Buscamos en LinkedIn a partir del contexto de esta búsqueda
+          (skills, seniority y ubicación) y te mostramos el % de match de
+          cada uno, ordenados de mayor a menor.
         </p>
-        <div className="flex flex-col items-center gap-2">
-          <AiButton onClick={buscar} loading={searching}>
-            {searching ? "Buscando…" : "Buscar en LinkedIn"}
-          </AiButton>
-          {progressCaption}
+
+        <div className="flex w-full max-w-sm flex-col gap-2 rounded-[var(--radius)] border border-primary/25 bg-primary-light px-4 py-3 text-left">
+          <p className="text-sm font-semibold text-primary-hover">
+            Revisá tu Talent Pool antes de buscar afuera
+          </p>
+          <p className="text-xs text-muted">
+            Puede que ya tengas candidatos que coincidan con esta búsqueda, sin gastar créditos
+            de Sourcing.
+          </p>
+          <Link
+            href={`/candidates?matchPool=${jobId}`}
+            className="self-start text-xs font-semibold text-primary hover:text-primary-hover"
+          >
+            Ver candidatos del Talent Pool
+          </Link>
         </div>
+
+        {credits && (
+          <p className="text-xs font-semibold text-muted">
+            {credits.available} crédito{credits.available === 1 ? "" : "s"} de Sourcing
+            disponible{credits.available === 1 ? "" : "s"}
+          </p>
+        )}
+        {credits?.lowBalance && !blocked && (
+          <p className="max-w-sm text-xs font-semibold text-[#92400E]">
+            Te quedan pocos créditos de Sourcing — esperá la renovación del ciclo o comprá más
+            para no quedarte sin buscar.
+          </p>
+        )}
+
+        {blocked ? (
+          <div className="flex flex-col items-center gap-3">
+            <p className="max-w-sm text-sm text-muted">
+              No te quedan créditos de Sourcing. Podés esperar la renovación de tu ciclo o
+              comprar un pack de créditos.
+            </p>
+            <Button variant="secondary" size="sm" disabled title="Próximamente">
+              Comprar créditos
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-semibold text-label">
+                Candidatos a buscar
+              </span>
+              <QuantityStepper value={quantity} onChange={setQuantity} disabled={searching} />
+            </div>
+            <AiButton onClick={buscar} loading={searching}>
+              {searching ? "Buscando…" : "Buscar candidatos"}
+            </AiButton>
+            {progressCaption}
+          </div>
+        )}
       </div>
     );
   }
 
   if (results.length === 0) {
-    // Serper puede haber encontrado candidatos y que el dedup contra el pool los haya filtrado a
-    // todos — es un caso distinto de "la API no devolvió nada", con su propio copy y CTA.
+    // El proveedor puede haber encontrado candidatos y que el dedup contra el pool los haya
+    // filtrado a todos — es un caso distinto de "no devolvió nada", con su propio copy.
     const todosEnPool = (metrics?.encontrados ?? 0) > 0 && (metrics?.nuevos ?? 0) === 0;
     return (
       <div className="flex flex-col items-center gap-4">
@@ -419,25 +559,13 @@ export function AiJobSourcingResults({
           title={todosEnPool ? "Ya tenés a todos en tu pool" : "No encontramos perfiles en LinkedIn"}
           description={
             todosEnPool
-              ? exhausted
-                ? "Recorrimos todos los resultados de LinkedIn para esta búsqueda y cada perfil ya está en tu pool. Sumá candidatos con Agregar candidatos, o ajustá la búsqueda."
-                : "Todos los perfiles de esta tanda ya están en tu pool. Seguí con Buscar más candidatos para traer más resultados de LinkedIn."
+              ? "Todos los perfiles de esta búsqueda ya están en tu pool. Ajustá la búsqueda o probá de nuevo."
               : "Probá de nuevo más tarde o sumá candidatos con Agregar candidatos."
           }
         />
-        <div className="flex items-center gap-2">
-          {todosEnPool && !exhausted && (
-            <div className="flex flex-col items-center gap-2">
-              <AiButton variant="outline" onClick={buscarMas} loading={searching}>
-                Buscar más candidatos
-              </AiButton>
-              {progressCaption}
-            </div>
-          )}
-          <Button variant="secondary" size="sm" onClick={limpiar} disabled={searching}>
-            Limpiar
-          </Button>
-        </div>
+        <Button variant="secondary" size="sm" onClick={limpiar} disabled={searching}>
+          Limpiar
+        </Button>
       </div>
     );
   }
@@ -471,18 +599,6 @@ export function AiJobSourcingResults({
           por match — tocá el anillo de cada uno para ver el detalle
         </span>
         <div className="flex items-center gap-3">
-          {exhausted ? (
-            <span className="text-xs text-muted">
-              Ya revisamos todos los perfiles de LinkedIn para esta búsqueda
-            </span>
-          ) : (
-            <div className="flex flex-col items-start gap-1">
-              <AiButton variant="outline" onClick={buscarMas} loading={searching}>
-                Buscar más candidatos
-              </AiButton>
-              {progressCaption}
-            </div>
-          )}
           {pendingResults.length > 1 && (
             <button
               type="button"
@@ -574,6 +690,12 @@ export function AiJobSourcingResults({
                 ? null
                 : { checked: selected.has(c.id), onToggle: () => toggleSeleccionado(c.id) }
             }
+            resume={{
+              experience: c.experience,
+              education: c.education,
+              certifications: c.certifications,
+              languages: c.languages,
+            }}
             imported={imported}
             importedLabel={
               importedVia[c.id] === "postulado" ? "En el pool y postulado ✓" : "En el pool ✓"

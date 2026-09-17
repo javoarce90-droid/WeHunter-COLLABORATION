@@ -42,7 +42,7 @@ export default async function ClientDetailPage({
       getClientById(id, membership.organizationId),
       listJobsByClient(id, membership.organizationId),
       listSharesByClient(id, membership.organizationId),
-      listAssignableRecruiters(membership.organizationId, id),
+      listAssignableRecruiters(membership.organizationId, id, membership.workspaceType),
       listRequisitionsByClient(id, membership.organizationId),
       listClientEmailsByClient(id, membership.organizationId),
       listInsertableLinksForClient(id, membership.organizationId),

@@ -9,7 +9,7 @@ const emptyToUndef = (v: unknown) =>
 export const profileInputSchema = z.object({
   fullName: z.string().trim().min(1, "El nombre es obligatorio.").max(120),
   jobTitle: z.preprocess(emptyToUndef, z.string().trim().max(120).optional()),
-  phone: z.preprocess(emptyToUndef, z.string().trim().max(40).optional()),
+  phone: z.preprocess(emptyToUndef, z.string().trim().max(40, "El teléfono es demasiado largo.").optional()),
   location: z.preprocess(emptyToUndef, z.string().trim().max(160).optional()),
   linkedinUrl: z.preprocess(toOptionalUrl, z.string().trim().max(300).optional()),
   bio: z.preprocess(
@@ -22,7 +22,7 @@ export const profileInputSchema = z.object({
     if (typeof v !== "string") return undefined;
     const parts = v.split(",").map((s) => s.trim()).filter(Boolean);
     return parts.length ? parts : undefined;
-  }, z.array(z.string().max(40)).max(10).optional()),
+  }, z.array(z.string().max(40, "Cada especialidad puede tener hasta 40 caracteres.")).max(10, "Podés cargar hasta 10 especialidades.").optional()),
   yearsOfExperience: z.preprocess((v) => {
     if (typeof v !== "string" || v.trim() === "") return undefined;
     const n = Number(v);
