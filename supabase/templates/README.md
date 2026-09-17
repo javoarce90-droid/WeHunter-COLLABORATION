@@ -67,14 +67,15 @@ vaya a `/login`, agregar `emailRedirectTo` en `src/app/(auth)/actions.ts` y `src
 
 ## Otra config de dashboard
 
-- **SMTP**: Supabase Auth → SMTP Settings apunta a SendGrid (`smtp.sendgrid.net:587`, user
-  `apikey`). Remitente verificado: `dev@we-hunter.com` hasta que se verifique el dominio.
+- **SMTP**: Supabase Auth → SMTP Settings apunta a Resend (migrado de SendGrid en 2026-09).
+  Remitente verificado: `dev@we-hunter.com` (dominio verificado en Resend).
 - **Rate limit**: con SMTP propio, Authentication → Rate Limits deja subir el tope de emails/hora.
 
 ## Emails que NO son de Supabase Auth (los manda la app)
 
-Estos van por SendGrid API o por el Gmail conectado del recruiter, no por estos templates:
+Estos van por la API de Resend o por el Gmail conectado del recruiter, no por estos templates:
 invitación al equipo (por rol), carta de oferta, email a cliente, aviso de cambio de etapa,
 shortlist compartida, acceso a búsqueda para cliente/HM sin cuenta (tokens propios). Si se
-quiere unificar el look, ahí conviene un dynamic template de SendGrid (`template_id`) — es
+quiere unificar el look, Resend también tiene templates propios (se crean en el dashboard y
+se referencian por `id` en el POST, en vez del `dynamic_template_id` de SendGrid) — es
 trabajo de código aparte.
