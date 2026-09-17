@@ -350,7 +350,7 @@ export const memberships = pgTable("memberships", {
   orgIdx: index("memberships_org_idx").on(t.organizationId),
 }));
 
-// Invitación a sumarse al equipo de una org con un rol. Se manda por SendGrid con un link a
+// Invitación a sumarse al equipo de una org con un rol. Se manda por Resend con un link a
 // `/invite/aceptar?token=...`; la posesión del token es la autorización (mismo modelo que el
 // link de reset de contraseña), no un rol/capability.
 export const invitations = pgTable("invitations", {

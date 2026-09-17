@@ -31,38 +31,38 @@ function contactEmailHtml(args: { name: string; email: string; message: string }
 }
 
 /**
- * Envía el mensaje del formulario de contacto por SendGrid (API REST directa, mismo patrón
+ * Envía el mensaje del formulario de contacto por Resend (API REST directa, mismo patrón
  * que `sendInvitationEmail` en team/data/email-client.ts — un solo POST no justifica agregar
- * `@sendgrid/mail`). El remitente responde a la dirección que dejó la persona (`reply_to`).
+ * el SDK). El remitente responde a la dirección que dejó la persona (`reply_to`).
  */
 async function sendContactEmail(args: {
   name: string;
   email: string;
   message: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const apiKey = process.env.SENDGRID_API_KEY;
-  if (!apiKey) return { ok: false, error: "SendGrid no está configurado." };
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return { ok: false, error: "Resend no está configurado." };
 
-  const from = process.env.SENDGRID_FROM_EMAIL ?? "dev@we-hunter.com";
+  const from = process.env.RESEND_FROM_EMAIL ?? "dev@we-hunter.com";
 
-  const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
+  const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: CONTACT_TO_EMAIL }] }],
-      from: { email: from, name: "WeHunter — Landing" },
-      reply_to: { email: args.email, name: args.name },
+      from: `WeHunter — Landing <${from}>`,
+      to: [CONTACT_TO_EMAIL],
+      reply_to: `${args.name} <${args.email}>`,
       subject: `Nuevo mensaje de contacto de ${args.name}`,
-      content: [{ type: "text/html", value: contactEmailHtml(args) }],
+      html: contactEmailHtml(args),
     }),
   });
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    return { ok: false, error: `SendGrid respondió ${res.status}: ${detail.slice(0, 300)}` };
+    return { ok: false, error: `Resend respondió ${res.status}: ${detail.slice(0, 300)}` };
   }
   return { ok: true };
 }
