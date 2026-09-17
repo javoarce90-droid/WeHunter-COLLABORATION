@@ -11,6 +11,7 @@ import { useToast } from "@/lib/toast";
 import {
   sourcearParaBusquedaAction,
   importarSourcingAction,
+  marcarSourcingImportadoAction,
   getSourcingSessionAction,
   limpiarSourcingSessionAction,
 } from "../actions";
@@ -21,6 +22,7 @@ import { CompareCandidatesDialog } from "./CompareCandidatesDialog";
 import { SourcingCandidateCard } from "./SourcingCandidateCard";
 import { SOURCING_MAX_RESULTS } from "../domain/sourcear-para-busqueda";
 import type {
+  DuplicateLinkedInCandidate,
   ScoredLinkedInCandidate,
   SourcingMetrics,
 } from "../domain/sourcear-para-busqueda";
@@ -108,9 +110,11 @@ type Props = {
  * Sourcing con IA de un clic: busca en LinkedIn con el contexto de la búsqueda (sin que el
  * recruiter escriba nada) y muestra hasta 10 perfiles con su % de match, sin filtrar por score
  * (el recruiter decide mirando el número, y puede abrir el detalle completo del Copiloto IA
- * para ver el desglose). La búsqueda no se dispara al montar, solo al click en "Buscar en
- * LinkedIn". Soporta procesar varios candidatos a la vez (selección múltiple + acciones en
- * lote), no solo de a uno.
+ * para ver el desglose). Búsqueda y scoring van en un solo round-trip (decisión de producto
+ * 2026-09-17: se evaluó partir esto en 2 pasos con selección manual de a quién scorear, y se
+ * volvió atrás). La búsqueda no se dispara al montar, solo al click en "Buscar candidatos".
+ * Soporta procesar varios candidatos a la vez (selección múltiple + acciones en lote), no solo
+ * de a uno.
  */
 export function AiJobSourcingResults({
   jobId,
@@ -123,6 +127,10 @@ export function AiJobSourcingResults({
   const [results, setResults] = useState<ScoredLinkedInCandidate[] | null>(
     null,
   );
+  // Candidatos que matchearon contra el Talent Pool — se muestran marcados con link, nunca se
+  // descartan en silencio (spec "Detección de duplicado contra el Talent Pool"): cobraron
+  // crédito igual que uno nuevo, así que el reclutador tiene que poder verlos.
+  const [duplicates, setDuplicates] = useState<DuplicateLinkedInCandidate[]>([]);
   const [isLiveApi, setIsLiveApi] = useState(true);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [importedVia, setImportedVia] = useState<Record<string, ImportedVia>>({});
@@ -174,6 +182,17 @@ export function AiJobSourcingResults({
       const [sessionRes] = await Promise.all([getSourcingSessionAction(jobId), loadCredits()]);
       if (cancelled || !sessionRes.ok || !sessionRes.session) return;
       setResults(sessionRes.session.results);
+      setDuplicates(sessionRes.session.duplicates);
+      // Sin esto, restaurar la sesión mostraba "Sumar al pool" de nuevo sobre un candidato ya
+      // importado — la etiqueta "En el pool ✓"/"En el pool y postulado ✓" tiene que sobrevivir.
+      const decisionesRestauradas: Record<string, Decision> = {};
+      const importedViaRestaurado: Record<string, ImportedVia> = {};
+      for (const i of sessionRes.session.imported) {
+        decisionesRestauradas[i.id] = "imported";
+        importedViaRestaurado[i.id] = i.via;
+      }
+      setDecisions(decisionesRestauradas);
+      setImportedVia(importedViaRestaurado);
       setMetrics(sessionRes.session.metrics);
       setIsLiveApi(sessionRes.session.isLiveApi);
     });
@@ -276,6 +295,7 @@ export function AiJobSourcingResults({
       setMetrics(res.metrics);
       setIsLiveApi(res.isLiveApi ?? false);
       setResults(res.results);
+      setDuplicates(res.duplicates ?? []);
       setDecisions({});
       setImportedVia({});
       setPostularByCandidate({});
@@ -287,6 +307,7 @@ export function AiJobSourcingResults({
 
   function limpiar() {
     setResults(null);
+    setDuplicates([]);
     setDecisions({});
     setImportedVia({});
     setPostularByCandidate({});
@@ -362,6 +383,9 @@ export function AiJobSourcingResults({
       }
       setDecisions((d) => ({ ...d, [c.id]: "imported" }));
       setImportedVia((d) => ({ ...d, [c.id]: res.via }));
+      // Best-effort: si falla, la card sigue mostrando "En el pool ✓" en esta sesión igual —
+      // solo se pierde la etiqueta si el recruiter recarga antes de que esto llegue a guardar.
+      void marcarSourcingImportadoAction(jobId, c.id, res.via);
       toast({
         message:
           res.via === "postulado"
@@ -397,6 +421,8 @@ export function AiJobSourcingResults({
           succeeded.forEach((o) => (next[o.id] = o.via));
           return next;
         });
+        // Best-effort, uno por candidato — mismo criterio que el import individual.
+        succeeded.forEach((o) => void marcarSourcingImportadoAction(jobId, o.id, o.via));
       }
       setSelected((s) => {
         const next = new Set(s);
@@ -549,7 +575,7 @@ export function AiJobSourcingResults({
     );
   }
 
-  if (results.length === 0) {
+  if (results.length === 0 && duplicates.length === 0) {
     // El proveedor puede haber encontrado candidatos y que el dedup contra el pool los haya
     // filtrado a todos — es un caso distinto de "no devolvió nada", con su propio copy.
     const todosEnPool = (metrics?.encontrados ?? 0) > 0 && (metrics?.nuevos ?? 0) === 0;
@@ -582,13 +608,13 @@ export function AiJobSourcingResults({
           la búsqueda en vivo en LinkedIn.
         </p>
       )}
-      {metrics && metrics.enPool > 0 && (
+      {duplicates.length > 0 && (
         <p className="rounded-[var(--radius)] border border-border bg-bg px-3 py-2 text-xs text-muted">
-          En esta tanda saltamos {metrics.enPool} perfil
-          {metrics.enPool === 1 ? "" : "es"} que ya {metrics.enPool === 1 ? "estaba" : "estaban"} en
-          tu pool
-          {metrics.nuevos > 0
-            ? ` y te mostramos ${metrics.nuevos} nuevo${metrics.nuevos === 1 ? "" : "s"}.`
+          {duplicates.length} perfil{duplicates.length === 1 ? "" : "es"} de esta tanda ya{" "}
+          {duplicates.length === 1 ? "estaba" : "estaban"} en tu pool — los marcamos más abajo,
+          con link al candidato
+          {results.length > 0
+            ? ` y te mostramos ${results.length} nuevo${results.length === 1 ? "" : "s"}.`
             : "."}
         </p>
       )}
@@ -708,6 +734,37 @@ export function AiJobSourcingResults({
           />
         );
       })}
+
+      {duplicates.length > 0 && (
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <span className="text-xs font-semibold text-muted">
+            Ya estaban en tu Talent Pool ({duplicates.length})
+          </span>
+          {duplicates.map((d) => (
+            <SourcingCandidateCard
+              key={d.id}
+              name={d.name}
+              headline={d.headline}
+              location={d.location}
+              skills={d.skills}
+              linkedinUrl={d.linkedinUrl}
+              snippet={d.snippet}
+              resume={{
+                experience: d.experience,
+                education: d.education,
+                certifications: d.certifications,
+                languages: d.languages,
+              }}
+              imported={false}
+              importedLabel=""
+              alreadyInPool={{ candidateId: d.existingCandidateId }}
+              primaryActionLabel=""
+              onPrimaryAction={() => {}}
+              onOmit={() => {}}
+            />
+          ))}
+        </div>
+      )}
 
       <AiAnalysisDialog
         subject={

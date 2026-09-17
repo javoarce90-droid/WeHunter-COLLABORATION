@@ -36,6 +36,14 @@ export type ScoredLinkedInCandidate = SourcingProviderCandidate & {
   redFlags: string[];
 };
 
+/** Candidato que matcheó contra el Talent Pool (por linkedinUrl o email) — spec funcional
+ *  "Detección de duplicado contra el Talent Pool": consume crédito igual que uno nuevo, pero
+ *  NO se scorea con IA (el reclutador ya tiene una decisión tomada sobre este candidato). Se
+ *  muestra marcado, con un link al candidato existente (`existingCandidateId`). */
+export type DuplicateLinkedInCandidate = SourcingProviderCandidate & {
+  existingCandidateId: string;
+};
+
 export type SourcearParaBusquedaDeps = {
   search: (
     filters: SourcingFilters,
@@ -55,7 +63,7 @@ export type SourcearParaBusquedaDeps = {
   findExistingCandidateKeys: (args: {
     linkedinUrls: string[];
     emails: string[];
-  }) => Promise<{ linkedinUrls: Set<string>; emails: Set<string> }>;
+  }) => Promise<{ linkedinUrls: Map<string, string>; emails: Map<string, string> }>;
   /** Emite un evento de consumo por cada perfil obtenido — seam hacia el sistema de créditos de
    *  `limitar-sourcing-ia` (`sourcing-consumption-event.ts`). No decide si se cobra o no, solo
    *  registra; el costo de la llamada se prorratea en partes iguales entre los candidatos
@@ -77,9 +85,9 @@ export type SourcearParaBusquedaDeps = {
   cacheProfile: (candidate: SourcingProviderCandidate) => Promise<void>;
 };
 
-/** Mapea un candidato del proveedor (solo snippet/skills, sin experiencia/educación
- *  estructurada) al contrato de scoring. El candidato arma su perfil completo recién si se
- *  importa al pool. */
+/** Mapea un candidato del proveedor al contrato de scoring — incluye experience/education
+ *  reales (HarvestAPI los trae completos, `candidateBlock()` en `src/lib/ai/prompts.ts` ya sabe
+ *  formatearlos si vienen poblados). Se pierden `startDate`/`endDate`, el prompt no los usa. */
 export function linkedInToScoreCandidate(
   c: SourcingProviderCandidate,
 ): ScoreApplicationInput["candidate"] {
@@ -88,8 +96,16 @@ export function linkedInToScoreCandidate(
     skills: c.skills,
     summary: c.snippet ?? c.headline,
     source: "linkedin",
-    experience: [],
-    education: [],
+    experience: c.experience.map((e) => ({
+      position: e.position,
+      company: e.company,
+      description: e.description,
+    })),
+    education: c.education.map((e) => ({
+      degree: e.degree,
+      institution: e.institution,
+      fieldOfStudy: e.fieldOfStudy,
+    })),
   };
 }
 
@@ -139,30 +155,39 @@ const jobToScoreJob = (job: JobSourcingContext): ScoreApplicationInput["job"] =>
   responsibilities: job.responsibilities,
 });
 
-export type SourcearParaBusquedaResult = {
-  ok: true;
-  /** Candidatos nuevos (no en el pool), scoreados y ordenados por match — hasta `maxResults`. */
-  results: ScoredLinkedInCandidate[];
-  isLiveApi: boolean;
-  metrics: SourcingMetrics;
-};
+export type SourcearParaBusquedaResult =
+  | {
+      ok: true;
+      /** Candidatos nuevos (no en el pool), scoreados y ordenados por match — hasta
+       *  `maxResults`. */
+      results: ScoredLinkedInCandidate[];
+      /** Candidatos que matchearon contra el Talent Pool — se muestran marcados con link, no se
+       *  scorean (spec "Detección de duplicado contra el Talent Pool"). Ya consumieron crédito
+       *  (contados en `metrics.enPool`), esto es solo para que la UI los liste. */
+      duplicates: DuplicateLinkedInCandidate[];
+      isLiveApi: boolean;
+      metrics: SourcingMetrics;
+    }
+  | { ok: false; error: string };
 
 /**
- * Busca candidatos para una búsqueda en LinkedIn, en UNA sola llamada al proveedor — ya no
- * existe "Buscar más candidatos" (cambio de producto 2026-09-14, ver
- * `openspec/changes/integrar-harvestapi-sourcing/design.md` §1.1, basado en el prototipo
- * validado). El reclutador elige de antemano cuántos candidatos quiere (`maxResults`, 1 a
- * `SOURCING_MAX_RESULTS`) y el sistema los trae de una vez. Los candidatos ya en el Talent
- * Pool se filtran del listado que se muestra (no se scorean de nuevo) pero siguen contando
- * para el consumo de crédito — eso lo maneja quien llama, no esta función. Scorea a los
- * nuevos con IA en una sola llamada (lote). No filtra por score — el recruiter decide mirando
- * el %.
+ * Busca candidatos para una búsqueda en LinkedIn y los scorea con IA, en UNA sola llamada de
+ * punta a punta — un solo round-trip desde el navegador (decisión de producto 2026-09-17: se
+ * había evaluado partir "buscar" de "scorear" en 2 pasos con selección manual, pero se volvió
+ * atrás — el reclutador prefiere ver todo scoreado de una). Ya no existe "Buscar más
+ * candidatos" (cambio de producto 2026-09-14, ver
+ * `openspec/changes/integrar-harvestapi-sourcing/design.md` §1.1). El reclutador elige de
+ * antemano cuántos candidatos quiere (`maxResults`, 1 a `SOURCING_MAX_RESULTS`) y el sistema
+ * los trae de una vez. Los candidatos ya en el Talent Pool se filtran del listado que se
+ * muestra (no se scorean de nuevo) pero siguen contando para el consumo de crédito — eso lo
+ * maneja quien llama, no esta función. Scorea a los nuevos con IA en una sola llamada (lote).
+ * No filtra por score — el recruiter decide mirando el %.
  */
 export async function sourcearParaBusqueda(
   job: JobSourcingContext,
   maxResults: number,
   deps: SourcearParaBusquedaDeps,
-): Promise<SourcearParaBusquedaResult | { ok: false; error: string }> {
+): Promise<SourcearParaBusquedaResult> {
   const filters = jobToSourcingFilters(job);
   const res = await deps.search(filters, maxResults, []);
   if (res.error) {
@@ -179,6 +204,7 @@ export async function sourcearParaBusqueda(
     return {
       ok: true,
       results: [],
+      duplicates: [],
       isLiveApi: res.isLiveApi,
       metrics: { encontrados: 0, enPool: 0, nuevos: 0 },
     };
@@ -190,35 +216,50 @@ export async function sourcearParaBusqueda(
   });
   const perCandidateCost = res.costUsd / res.candidates.length;
   const nuevos: SourcingProviderCandidate[] = [];
+  const duplicates: DuplicateLinkedInCandidate[] = [];
   let enPool = 0;
   for (const c of res.candidates) {
     const urlKey = normalizeLinkedinKey(c.linkedinUrl);
     const emailKey = normalizeEmailKey(c.email);
-    const isKnown =
-      (urlKey !== null && existing.linkedinUrls.has(urlKey)) ||
-      (emailKey !== null && existing.emails.has(emailKey));
-    if (isKnown) {
-      await deps.recordConsumption({
-        candidateKey: urlKey ?? c.id,
-        type: "DUPLICATE",
-        costUsd: perCandidateCost,
-        provider: res.provider,
-      });
+    const existingCandidateId =
+      (urlKey !== null ? existing.linkedinUrls.get(urlKey) : undefined) ??
+      (emailKey !== null ? existing.emails.get(emailKey) : undefined);
+    if (existingCandidateId) {
+      // Un fallo puntual de Supabase al auditar/cobrar este candidato no debe perder un
+      // resultado real de búsqueda — se muestra igual, marcado como duplicado.
+      try {
+        await deps.recordConsumption({
+          candidateKey: urlKey ?? c.id,
+          type: "DUPLICATE",
+          costUsd: perCandidateCost,
+          provider: res.provider,
+        });
+      } catch {
+        // no-op, ver comentario arriba.
+      }
       enPool += 1;
+      // Spec "Detección de duplicado contra el Talent Pool": se cobra Y se muestra marcado con
+      // link al candidato existente — nunca se descarta en silencio.
+      duplicates.push({ ...c, existingCandidateId });
       continue;
     }
     // No es un duplicado del pool — puede igual ser un perfil que esta org ya obtuvo antes
     // (otra búsqueda, otro recruiter): si está cacheado y vigente, no se le cobra crédito al
     // cliente aunque HarvestAPI haya facturado igual el perfil dentro de esta búsqueda (el
-    // costo lo absorbe WeHunter — design.md §6.2).
-    const cached = await deps.findCachedProfile(c.linkedinUrl);
-    await deps.recordConsumption({
-      candidateKey: urlKey ?? c.id,
-      type: cached ? "REUSED_PROFILE" : "NEW_PROFILE",
-      costUsd: perCandidateCost,
-      provider: res.provider,
-    });
-    await deps.cacheProfile(c);
+    // costo lo absorbe WeHunter — design.md §6.2). Mismo criterio de resiliencia que arriba: un
+    // fallo puntual acá no debe perder el candidato de los resultados.
+    try {
+      const cached = await deps.findCachedProfile(c.linkedinUrl);
+      await deps.recordConsumption({
+        candidateKey: urlKey ?? c.id,
+        type: cached ? "REUSED_PROFILE" : "NEW_PROFILE",
+        costUsd: perCandidateCost,
+        provider: res.provider,
+      });
+      await deps.cacheProfile(c);
+    } catch {
+      // no-op, ver comentario arriba.
+    }
     nuevos.push(c);
   }
 
@@ -249,6 +290,7 @@ export async function sourcearParaBusqueda(
   return {
     ok: true,
     results,
+    duplicates,
     isLiveApi: res.isLiveApi,
     metrics: { encontrados: res.candidates.length, enPool, nuevos: nuevos.length },
   };

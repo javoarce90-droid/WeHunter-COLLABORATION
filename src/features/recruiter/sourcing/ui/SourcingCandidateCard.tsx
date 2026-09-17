@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -246,6 +247,11 @@ type Props = {
   resume?: Resume | null;
   imported: boolean;
   importedLabel: string;
+  /** Candidato que ya está en el Talent Pool (duplicado detectado post-perfil completo, spec
+   *  "Detección de duplicado contra el Talent Pool") — consumió crédito igual que uno nuevo
+   *  pero no se scorea ni es accionable acá: en vez de las acciones normales, muestra un link
+   *  directo al candidato ya existente. Mutuamente excluyente con `imported`. */
+  alreadyInPool?: { candidateId: string } | null;
   primaryActionLabel: string;
   onPrimaryAction: () => void;
   primaryActionLoading?: boolean;
@@ -268,6 +274,7 @@ export function SourcingCandidateCard({
   resume,
   imported,
   importedLabel,
+  alreadyInPool,
   primaryActionLabel,
   onPrimaryAction,
   primaryActionLoading,
@@ -334,6 +341,16 @@ export function SourcingCandidateCard({
 
         {imported ? (
           <Badge variant="success">{importedLabel}</Badge>
+        ) : alreadyInPool ? (
+          <div className="flex items-center gap-3">
+            <Badge variant="muted">Ya está en tu Talent Pool</Badge>
+            <Link
+              href={`/candidates/${alreadyInPool.candidateId}`}
+              className="text-xs font-semibold text-primary hover:text-primary-hover"
+            >
+              Ver candidato
+            </Link>
+          </div>
         ) : (
           <>
             <div className="flex items-center gap-2">

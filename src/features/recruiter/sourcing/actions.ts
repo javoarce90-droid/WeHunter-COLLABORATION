@@ -13,6 +13,7 @@ import { upsertCachedProfile } from "./data/sourcing-provider-profiles.mutations
 import {
   sourcearParaBusqueda,
   SOURCING_MAX_RESULTS,
+  type DuplicateLinkedInCandidate,
   type ScoredLinkedInCandidate,
   type SourcingMetrics,
 } from "./domain/sourcear-para-busqueda";
@@ -149,7 +150,9 @@ const sourcearParaBusquedaSchema = z.object({
 /**
  * Sourcing con IA de un clic desde Postulados (ítem 9.4): busca en LinkedIn usando el contexto
  * de la búsqueda (puesto, skills, seniority, ubicación), sin que el recruiter tipee nada, y
- * scorea con IA solo a los candidatos que todavía no están en el pool. Una sola búsqueda por
+ * scorea con IA solo a los candidatos que todavía no están en el pool — todo en un solo
+ * round-trip desde el navegador (decisión de producto 2026-09-17: se evaluó partir esto en 2
+ * pasos con selección manual de a quién scorear, y se volvió atrás). Una sola búsqueda por
  * `maxResults` candidatos — reemplaza los resultados anteriores de esta búsqueda, no los
  * acumula (design.md §1.1).
  */
@@ -159,6 +162,9 @@ export async function sourcearParaBusquedaAction(
 ): Promise<{
   ok: boolean;
   results?: ScoredLinkedInCandidate[];
+  /** Candidatos que matchearon contra el Talent Pool — cobraron crédito igual que uno nuevo,
+   *  se muestran marcados con link al candidato existente, no se scorean. */
+  duplicates?: DuplicateLinkedInCandidate[];
   isLiveApi?: boolean;
   metrics?: SourcingMetrics;
   error?: string;
@@ -229,12 +235,15 @@ export async function sourcearParaBusquedaAction(
   // IA tardan) — la sesión persistida le permite restaurar al volver, y la notificación le avisa.
   // La sesión persiste hasta que el recruiter la limpia explícitamente (design.md §1.1,
   // `limpiarSourcingSessionAction`) — no hasta un cursor que ya no existe. La columna `attempt`
-  // queda sin uso real (0 fijo) hasta que el grupo 10 de tasks.md la retire.
+  // queda sin uso real (0 fijo) hasta que el grupo 10 de tasks.md la retire. `imported` se
+  // resetea — es una búsqueda nueva, ningún candidato de esta tanda fue importado todavía.
   if (user) {
     try {
       await saveSourcingSession(membership.organizationId, jobId, user.id, {
         attempt: 0,
         results: result.results,
+        duplicates: result.duplicates,
+        imported: [],
         metrics: result.metrics,
         isLiveApi: result.isLiveApi,
       });
@@ -261,9 +270,53 @@ export async function sourcearParaBusquedaAction(
   return {
     ok: true,
     results: result.results,
+    duplicates: result.duplicates,
     isLiveApi: result.isLiveApi,
     metrics: result.metrics,
   };
+}
+
+const marcarSourcingImportadoSchema = z.object({
+  jobId: z.string().uuid("ID de búsqueda inválido."),
+  candidateId: z.string().min(1),
+  via: z.enum(["pool", "postulado"]),
+});
+
+/** Marca en la sesión persistida que este candidato ya se sumó al pool — sin esto, restaurar
+ *  la sesión (navegar afuera y volver, o recargar) mostraba de nuevo "Sumar al pool" sobre un
+ *  candidato ya importado, en vez de la etiqueta "En el pool ✓"/"En el pool y postulado ✓". Se
+ *  llama desde el cliente justo después de un import exitoso — best-effort, un fallo acá no
+ *  debe revertir la importación real (que ya sucedió). */
+export async function marcarSourcingImportadoAction(
+  jobId: string,
+  candidateId: string,
+  via: "pool" | "postulado",
+): Promise<{ ok: boolean; error?: string }> {
+  const parsed = marcarSourcingImportadoSchema.safeParse({ jobId, candidateId, via });
+  if (!parsed.success) return { ok: false, error: "Datos inválidos." };
+
+  const [user, membership] = await Promise.all([getCurrentUser(), getActiveMembership()]);
+  if (!user || !membership) return { ok: false, error: "No autorizado." };
+  if (!can(membership.role, "candidates.manage")) {
+    return { ok: false, error: "Tu rol no permite usar sourcing." };
+  }
+
+  try {
+    const session = await getSourcingSession(membership.organizationId, jobId, user.id);
+    if (session) {
+      await saveSourcingSession(membership.organizationId, jobId, user.id, {
+        ...session,
+        imported: [
+          ...session.imported.filter((i) => i.id !== parsed.data.candidateId),
+          { id: parsed.data.candidateId, via: parsed.data.via },
+        ],
+      });
+    }
+  } catch {
+    // no-op: el import ya sucedió, un fallo al persistir la etiqueta no debe fallar la acción.
+  }
+
+  return { ok: true };
 }
 
 const sourcingSessionSchema = z.object({ jobId: z.string().uuid("ID de búsqueda inválido.") });

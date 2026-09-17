@@ -1,7 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { sourcingSearchSessions } from "@/db/schema";
-import type { ScoredLinkedInCandidate, SourcingMetrics } from "../domain/sourcear-para-busqueda";
+import type {
+  DuplicateLinkedInCandidate,
+  ScoredLinkedInCandidate,
+  SourcingMetrics,
+} from "../domain/sourcear-para-busqueda";
 
 /** Lecturas de la sesión de trabajo en curso de "Sourcing con IA" (job + recruiter). Cliente
  *  RLS; el organizationId acota a la org activa (mismo criterio que candidates/data). */
@@ -9,6 +13,10 @@ import type { ScoredLinkedInCandidate, SourcingMetrics } from "../domain/sourcea
 export type SourcingSession = {
   attempt: number;
   results: ScoredLinkedInCandidate[];
+  duplicates: DuplicateLinkedInCandidate[];
+  /** Qué candidatos de la última tanda ya se sumaron al pool (y cómo) — sobrevive a restaurar
+   *  la sesión, así la etiqueta "En el pool ✓"/"En el pool y postulado ✓" no desaparece. */
+  imported: { id: string; via: "pool" | "postulado" }[];
   metrics: SourcingMetrics;
   isLiveApi: boolean;
 };
@@ -34,6 +42,16 @@ function normalizeLegacyResults(
   }));
 }
 
+/** Filas guardadas antes de este campo no tienen `duplicates` — default `[]`, mismo criterio
+ *  que `normalizeLegacyResults`. */
+function normalizeLegacyDuplicates(duplicates: unknown): DuplicateLinkedInCandidate[] {
+  if (!Array.isArray(duplicates)) return [];
+  return (duplicates as DuplicateLinkedInCandidate[]).map((c) => ({
+    ...c,
+    skills: normalizeLegacySkills(c.skills),
+  }));
+}
+
 /** Sesión en curso de ESTE recruiter para este job, si existe — para restaurarla si navegó
  *  afuera mientras la búsqueda corría (ver AiJobSourcingResults.tsx). */
 export async function getSourcingSession(
@@ -48,6 +66,8 @@ export async function getSourcingSession(
         .select({
           attempt: sourcingSearchSessions.attempt,
           results: sourcingSearchSessions.results,
+          duplicates: sourcingSearchSessions.duplicates,
+          imported: sourcingSearchSessions.imported,
           metrics: sourcingSearchSessions.metrics,
           isLiveApi: sourcingSearchSessions.isLiveApi,
         })
@@ -67,6 +87,8 @@ export async function getSourcingSession(
   return {
     attempt: row.attempt,
     results: normalizeLegacyResults(row.results),
+    duplicates: normalizeLegacyDuplicates(row.duplicates),
+    imported: row.imported,
     metrics: row.metrics as SourcingMetrics,
     isLiveApi: row.isLiveApi,
   };
